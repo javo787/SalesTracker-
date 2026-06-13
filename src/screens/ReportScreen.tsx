@@ -1,8 +1,11 @@
 import { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
-  TouchableOpacity, RefreshControl, Alert
+  TouchableOpacity, RefreshControl, Alert, TextInput
 } from 'react-native';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import { BarChart } from 'react-native-gifted-charts';
 import { useFocusEffect } from '@react-navigation/native';
 import { getStats, getSalesByPeriod, deleteSale } from '../db/database';
 
@@ -17,6 +20,7 @@ export default function ReportScreen() {
   const [stats, setStats] = useState({ revenue: 0, profit: 0, count: 0 });
   const [sales, setSales] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [filterText, setFilterText] = useState('');
 
   const loadData = (days: number) => {
     setStats(getStats(days));
@@ -65,25 +69,101 @@ export default function ReportScreen() {
     .sort((a: any, b: any) => b.profit - a.profit)
     .slice(0, 5);
 
+  const filteredSales = sales.filter(s =>
+    s.product_name.toLowerCase().includes(filterText.toLowerCase())
+  );
+
+  // Подготовка данных для графика
+  const chartData = sales.reduce((acc: any, sale: any) => {
+    const date = new Date(sale.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+    const existing = acc.find((d: any) => d.label === date);
+    if (existing) {
+      existing.value += sale.sell_price * sale.quantity;
+    } else {
+      acc.push({ label: date, value: sale.sell_price * sale.quantity });
+    }
+    return acc;
+  }, []).reverse();
+
+  const exportToCSV = async () => {
+    if (sales.length === 0) {
+      Alert.alert('Экспорт', 'Нет данных для экспорта');
+      return;
+    }
+
+    try {
+      const header = 'ID,Товар,Кол-во,Цена продажи,Цена закупки,Прибыль,Заметка,Дата\n';
+      const rows = sales.map(s => {
+        const name = (s.product_name || '').replace(/"/g, '""');
+        const note = (s.note || '').replace(/"/g, '""');
+        return `${s.id},"${name}",${s.quantity},${s.sell_price},${s.buy_price},${s.profit},"${note}",${s.created_at}`;
+      }).join('\n');
+
+      const csvContent = header + rows;
+      const fileName = `sales_report_${new Date().getTime()}.csv`;
+      const filePath = `${FileSystem.cacheDirectory}${fileName}`;
+
+      await FileSystem.writeAsStringAsync(filePath, csvContent, { encoding: FileSystem.EncodingType.UTF8 });
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(filePath, {
+          mimeType: 'text/csv',
+          dialogTitle: 'Экспорт отчёта',
+          UTI: 'public.comma-separated-values-text'
+        });
+      } else {
+        Alert.alert('Ошибка', 'Общий доступ недоступен на этом устройстве');
+      }
+    } catch (e) {
+      console.error('Export error', e);
+      Alert.alert('Ошибка', 'Не удалось экспортировать файл');
+    }
+  };
+
   return (
     <ScrollView
       style={styles.container}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
-      {/* Переключатель периода */}
-      <View style={styles.periodRow}>
-        {PERIODS.map(p => (
-          <TouchableOpacity
-            key={p.days}
-            style={[styles.periodBtn, period === p.days && styles.periodBtnActive]}
-            onPress={() => setPeriod(p.days)}
-          >
-            <Text style={[styles.periodText, period === p.days && styles.periodTextActive]}>
-              {p.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+      {/* Переключатель периода и экспорт */}
+      <View style={styles.topRow}>
+        <View style={styles.periodRow}>
+          {PERIODS.map(p => (
+            <TouchableOpacity
+              key={p.days}
+              style={[styles.periodBtn, period === p.days && styles.periodBtnActive]}
+              onPress={() => setPeriod(p.days)}
+            >
+              <Text style={[styles.periodText, period === p.days && styles.periodTextActive]}>
+                {p.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <TouchableOpacity style={styles.exportBtn} onPress={exportToCSV}>
+          <Text style={styles.exportBtnText}>📄 CSV</Text>
+        </TouchableOpacity>
       </View>
+
+      {/* График тренда */}
+      {chartData.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Тренд выручки</Text>
+          <BarChart
+            data={chartData}
+            barWidth={period === 30 ? 8 : 22}
+            noOfSections={3}
+            barBorderRadius={4}
+            frontColor="#1D9E75"
+            yAxisThickness={0}
+            xAxisThickness={0}
+            hideRules
+            yAxisTextStyle={{ color: '#999', fontSize: 10 }}
+            xAxisLabelTextStyle={{ color: '#999', fontSize: 10 }}
+            isAnimated
+          />
+        </View>
+      )}
 
       {/* Главные цифры */}
       <View style={styles.statsGrid}>
@@ -130,15 +210,26 @@ export default function ReportScreen() {
 
       {/* Список продаж */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          Все продажи ({sales.length})
-        </Text>
-        {sales.length === 0 ? (
+        <View style={styles.listHeader}>
+          <Text style={styles.sectionTitle}>
+            Все продажи ({filteredSales.length})
+          </Text>
+          <TextInput
+            style={styles.filterInput}
+            placeholder="Поиск товара..."
+            value={filterText}
+            onChangeText={setFilterText}
+          />
+        </View>
+
+        {filteredSales.length === 0 ? (
           <View style={styles.empty}>
-            <Text style={styles.emptyText}>Продаж нет за этот период</Text>
+            <Text style={styles.emptyText}>
+              {sales.length === 0 ? 'Продаж нет за этот период' : 'Ничего не найдено'}
+            </Text>
           </View>
         ) : (
-          sales.map((sale: any) => (
+          filteredSales.map((sale: any) => (
             <TouchableOpacity
               key={sale.id}
               style={styles.saleItem}
@@ -177,9 +268,18 @@ export default function ReportScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F5F5' },
-  periodRow: {
-    flexDirection: 'row', gap: 8, padding: 16, paddingBottom: 8,
+  topRow: {
+    flexDirection: 'row', alignItems: 'center', paddingRight: 16,
   },
+  periodRow: {
+    flex: 1, flexDirection: 'row', gap: 8, padding: 16, paddingBottom: 8,
+  },
+  exportBtn: {
+    backgroundColor: '#fff', paddingVertical: 8, paddingHorizontal: 12,
+    borderRadius: 8, borderWidth: 1, borderColor: '#E0E0E0',
+    marginTop: 8,
+  },
+  exportBtnText: { fontSize: 13, fontWeight: '600', color: '#1D9E75' },
   periodBtn: {
     flex: 1, paddingVertical: 8, borderRadius: 8,
     backgroundColor: '#fff', alignItems: 'center',
@@ -207,6 +307,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05, shadowRadius: 2, elevation: 2,
   },
   sectionTitle: { fontSize: 15, fontWeight: '600', color: '#333', marginBottom: 12 },
+  listHeader: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', marginBottom: 12,
+  },
+  filterInput: {
+    backgroundColor: '#F5F5F5', borderRadius: 8, paddingHorizontal: 10,
+    paddingVertical: 4, fontSize: 13, width: '50%',
+    borderWidth: 1, borderColor: '#E0E0E0',
+  },
   topItem: {
     flexDirection: 'row', alignItems: 'center',
     paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: '#F0F0F0',
