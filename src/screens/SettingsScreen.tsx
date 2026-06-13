@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
   TouchableOpacity, Alert, Linking
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTranslation } from 'react-i18next';
+import { useAppContext } from '../context/AppContext';
 
 const LANGUAGES = [
   { code: 'ru', label: 'Русский', flag: '🇷🇺' },
@@ -24,48 +25,28 @@ const THEMES = [
 ];
 
 export default function SettingsScreen() {
-  const [language, setLanguage] = useState('ru');
-  const [currency, setCurrency] = useState('TJS');
-  const [theme, setTheme] = useState('light');
+  const { t, i18n } = useTranslation();
+  const { theme, currency, language, setTheme, setCurrency, setLanguage } = useAppContext();
   const [saved, setSaved] = useState(false);
 
-  useEffect(() => {
-    loadSettings();
-  }, []);
-
-  const loadSettings = async () => {
+  const handleSaveSettings = async () => {
     try {
-      const lang = await AsyncStorage.getItem('app_language');
-      const curr = await AsyncStorage.getItem('app_currency');
-      const th = await AsyncStorage.getItem('app_theme');
-      if (lang) setLanguage(lang);
-      if (curr) setCurrency(curr);
-      if (th) setTheme(th);
-    } catch (e) {
-      console.error('Ошибка загрузки настроек:', e);
-    }
-  };
-
-  const saveSettings = async () => {
-    try {
-      await AsyncStorage.setItem('app_language', language);
-      await AsyncStorage.setItem('app_currency', currency);
-      await AsyncStorage.setItem('app_theme', theme);
+      await i18n.changeLanguage(language);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (e) {
-      Alert.alert('Ошибка', 'Не удалось сохранить настройки');
+      Alert.alert(t('common.error'), 'Не удалось сохранить настройки');
     }
   };
 
   const handleClearData = () => {
     Alert.alert(
-      'Удалить все данные?',
-      'Это действие удалит все продажи и товары. Восстановить будет невозможно.',
+      t('settings.clearDataTitle'),
+      t('settings.clearDataMsg'),
       [
-        { text: 'Отмена', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Удалить',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: () => Alert.alert('Данные удалены', 'Перезапустите приложение'),
         },
@@ -73,22 +54,30 @@ export default function SettingsScreen() {
     );
   };
 
+  const isDark = theme === 'dark';
+  const themeStyles = isDark ? darkStyles : lightStyles;
+
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={[styles.container, themeStyles.container]}>
 
       {/* Язык */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>🌐 Язык интерфейса</Text>
+      <View style={[styles.section, themeStyles.section]}>
+        <Text style={[styles.sectionTitle, themeStyles.text]}>🌐 {t('settings.language')}</Text>
         <View style={styles.optionGrid}>
           {LANGUAGES.map(lang => (
             <TouchableOpacity
               key={lang.code}
-              style={[styles.optionCard, language === lang.code && styles.optionCardActive]}
+              style={[
+                styles.optionCard,
+                themeStyles.optionCard,
+                language === lang.code && styles.optionCardActive
+              ]}
               onPress={() => setLanguage(lang.code)}
             >
               <Text style={styles.optionFlag}>{lang.flag}</Text>
               <Text style={[
                 styles.optionLabel,
+                themeStyles.optionLabel,
                 language === lang.code && styles.optionLabelActive
               ]}>
                 {lang.label}
@@ -102,44 +91,53 @@ export default function SettingsScreen() {
       </View>
 
       {/* Валюта */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>💰 Валюта</Text>
+      <View style={[styles.section, themeStyles.section]}>
+        <Text style={[styles.sectionTitle, themeStyles.text]}>💰 {t('settings.currency')}</Text>
         {CURRENCIES.map(curr => (
           <TouchableOpacity
             key={curr.code}
-            style={[styles.currencyRow, currency === curr.code && styles.currencyRowActive]}
+            style={[
+              styles.currencyRow,
+              themeStyles.currencyRow,
+              currency.code === curr.code && styles.currencyRowActive
+            ]}
             onPress={() => setCurrency(curr.code)}
           >
             <View style={styles.currencyLeft}>
-              <Text style={styles.currencyCountry}>{curr.country}</Text>
+              <Text style={[styles.currencyCountry, themeStyles.text]}>{curr.country}</Text>
               <Text style={styles.currencyName}>{curr.label} ({curr.symbol})</Text>
             </View>
             <View style={[
               styles.radio,
-              currency === curr.code && styles.radioActive
+              currency.code === curr.code && styles.radioActive
             ]}>
-              {currency === curr.code && <View style={styles.radioDot} />}
+              {currency.code === curr.code && <View style={styles.radioDot} />}
             </View>
           </TouchableOpacity>
         ))}
       </View>
 
       {/* Тема */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>🎨 Тема</Text>
+      <View style={[styles.section, themeStyles.section]}>
+        <Text style={[styles.sectionTitle, themeStyles.text]}>🎨 {t('settings.theme')}</Text>
         <View style={styles.themeRow}>
-          {THEMES.map(t => (
+          {THEMES.map(tOption => (
             <TouchableOpacity
-              key={t.code}
-              style={[styles.themeBtn, theme === t.code && styles.themeBtnActive]}
-              onPress={() => setTheme(t.code)}
+              key={tOption.code}
+              style={[
+                styles.themeBtn,
+                themeStyles.themeBtn,
+                theme === tOption.code && styles.themeBtnActive
+              ]}
+              onPress={() => setTheme(tOption.code as 'light' | 'dark')}
             >
-              <Text style={styles.themeIcon}>{t.icon}</Text>
+              <Text style={styles.themeIcon}>{tOption.icon}</Text>
               <Text style={[
                 styles.themeLabel,
-                theme === t.code && styles.themeLabelActive
+                themeStyles.themeLabel,
+                theme === tOption.code && styles.themeLabelActive
               ]}>
-                {t.label}
+                {tOption.code === 'light' ? t('settings.light') : t('settings.dark')}
               </Text>
             </TouchableOpacity>
           ))}
@@ -149,41 +147,41 @@ export default function SettingsScreen() {
       {/* Кнопка сохранения */}
       <TouchableOpacity
         style={[styles.saveBtn, saved && styles.saveBtnSuccess]}
-        onPress={saveSettings}
+        onPress={handleSaveSettings}
       >
         <Text style={styles.saveBtnText}>
-          {saved ? '✅ Сохранено!' : 'Сохранить настройки'}
+          {saved ? `✅ ${t('common.saved')}` : t('settings.saveBtn')}
         </Text>
       </TouchableOpacity>
 
       {/* О приложении */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>ℹ️ О приложении</Text>
+      <View style={[styles.section, themeStyles.section]}>
+        <Text style={[styles.sectionTitle, themeStyles.text]}>ℹ️ {t('settings.about')}</Text>
         <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Версия</Text>
-          <Text style={styles.infoValue}>1.0.0</Text>
+          <Text style={styles.infoLabel}>{t('settings.version')}</Text>
+          <Text style={[styles.infoValue, themeStyles.text]}>1.0.0</Text>
         </View>
         <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Разработчик</Text>
-          <Text style={styles.infoValue}>SavdoApp Team</Text>
+          <Text style={styles.infoLabel}>{t('settings.developer')}</Text>
+          <Text style={[styles.infoValue, themeStyles.text]}>SavdoApp Team</Text>
         </View>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>AI модель</Text>
-          <Text style={styles.infoValue}>Gemini 2.5 Flash</Text>
+          <Text style={[styles.infoValue, themeStyles.text]}>Gemini 1.5 Flash</Text>
         </View>
         <TouchableOpacity
           style={styles.linkRow}
           onPress={() => Linking.openURL('https://t.me/savdoapp')}
         >
-          <Text style={styles.linkText}>📱 Telegram поддержка</Text>
+          <Text style={styles.linkText}>📱 {t('settings.support')}</Text>
         </TouchableOpacity>
       </View>
 
       {/* Опасная зона */}
-      <View style={[styles.section, styles.dangerSection]}>
-        <Text style={[styles.sectionTitle, { color: '#E53935' }]}>⚠️ Опасная зона</Text>
+      <View style={[styles.section, themeStyles.section, styles.dangerSection]}>
+        <Text style={[styles.sectionTitle, { color: '#E53935' }]}>⚠️ {t('settings.dangerZone')}</Text>
         <TouchableOpacity style={styles.dangerBtn} onPress={handleClearData}>
-          <Text style={styles.dangerBtnText}>Удалить все данные</Text>
+          <Text style={styles.dangerBtnText}>{t('settings.clearData')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -192,41 +190,61 @@ export default function SettingsScreen() {
   );
 }
 
+const lightStyles = StyleSheet.create({
+  container: { backgroundColor: '#F5F5F5' },
+  section: { backgroundColor: '#fff' },
+  text: { color: '#333' },
+  optionCard: { backgroundColor: '#F9F9F9' },
+  optionLabel: { color: '#666' },
+  currencyRow: { backgroundColor: '#F9F9F9' },
+  themeBtn: { backgroundColor: '#F9F9F9' },
+  themeLabel: { color: '#666' },
+});
+
+const darkStyles = StyleSheet.create({
+  container: { backgroundColor: '#000' },
+  section: { backgroundColor: '#1E1E1E' },
+  text: { color: '#EEE' },
+  optionCard: { backgroundColor: '#2C2C2C', borderColor: '#444' },
+  optionLabel: { color: '#AAA' },
+  currencyRow: { backgroundColor: '#2C2C2C', borderColor: '#444' },
+  themeBtn: { backgroundColor: '#2C2C2C', borderColor: '#444' },
+  themeLabel: { color: '#AAA' },
+});
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F5F5' },
+  container: { flex: 1 },
   section: {
-    margin: 16, marginBottom: 0, backgroundColor: '#fff',
+    margin: 16, marginBottom: 0,
     borderRadius: 12, padding: 16,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05, shadowRadius: 2, elevation: 2,
   },
   sectionTitle: {
-    fontSize: 15, fontWeight: '600', color: '#333', marginBottom: 14,
+    fontSize: 15, fontWeight: '600', marginBottom: 14,
   },
   optionGrid: { flexDirection: 'row', gap: 10 },
   optionCard: {
     flex: 1, alignItems: 'center', padding: 12,
     borderRadius: 10, borderWidth: 1.5, borderColor: '#E0E0E0',
-    backgroundColor: '#F9F9F9',
   },
   optionCardActive: {
     borderColor: '#1D9E75', backgroundColor: '#F0FBF7',
   },
   optionFlag: { fontSize: 24, marginBottom: 6 },
-  optionLabel: { fontSize: 12, color: '#666', fontWeight: '500', textAlign: 'center' },
+  optionLabel: { fontSize: 12, fontWeight: '500', textAlign: 'center' },
   optionLabelActive: { color: '#1D9E75' },
   checkmark: { fontSize: 12, color: '#1D9E75', marginTop: 4, fontWeight: 'bold' },
   currencyRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingVertical: 12, paddingHorizontal: 12, borderRadius: 10,
     borderWidth: 1, borderColor: '#E0E0E0', marginBottom: 8,
-    backgroundColor: '#F9F9F9',
   },
   currencyRowActive: {
     borderColor: '#1D9E75', backgroundColor: '#F0FBF7',
   },
   currencyLeft: {},
-  currencyCountry: { fontSize: 13, color: '#333', fontWeight: '500' },
+  currencyCountry: { fontSize: 13, fontWeight: '500' },
   currencyName: { fontSize: 12, color: '#999', marginTop: 2 },
   radio: {
     width: 20, height: 20, borderRadius: 10,
@@ -242,11 +260,10 @@ const styles = StyleSheet.create({
     flex: 1, flexDirection: 'row', alignItems: 'center',
     justifyContent: 'center', gap: 8, padding: 12,
     borderRadius: 10, borderWidth: 1.5, borderColor: '#E0E0E0',
-    backgroundColor: '#F9F9F9',
   },
   themeBtnActive: { borderColor: '#1D9E75', backgroundColor: '#F0FBF7' },
   themeIcon: { fontSize: 18 },
-  themeLabel: { fontSize: 14, color: '#666', fontWeight: '500' },
+  themeLabel: { fontSize: 14, fontWeight: '500' },
   themeLabelActive: { color: '#1D9E75' },
   saveBtn: {
     margin: 16, backgroundColor: '#1D9E75',
@@ -259,7 +276,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: '#F0F0F0',
   },
   infoLabel: { fontSize: 14, color: '#666' },
-  infoValue: { fontSize: 14, color: '#333', fontWeight: '500' },
+  infoValue: { fontSize: 14, fontWeight: '500' },
   linkRow: { paddingVertical: 12 },
   linkText: { fontSize: 14, color: '#1D9E75', fontWeight: '500' },
   dangerSection: { borderWidth: 1, borderColor: '#FFCDD2' },

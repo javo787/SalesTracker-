@@ -4,9 +4,13 @@ import {
   TouchableOpacity, TextInput, Alert, RefreshControl
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { addProduct, updateProduct, deleteProduct, getProducts } from '../db/database';
+import { useAppContext } from '../context/AppContext';
 
 export default function ProductsScreen() {
+  const { t } = useTranslation();
+  const { theme, currency } = useAppContext();
   const [products, setProducts] = useState<any[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -30,7 +34,7 @@ export default function ProductsScreen() {
 
   const handleSave = () => {
     if (!name.trim() || !buyPrice || !sellPrice) {
-      Alert.alert('Ошибка', 'Заполните название, цену закупки и продажи');
+      Alert.alert(t('common.error'), 'Заполните название, цену закупки и продажи');
       return;
     }
 
@@ -56,7 +60,7 @@ export default function ProductsScreen() {
       p.name,
       'Выберите действие',
       [
-        { text: 'Отмена', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
           text: 'Редактировать',
           onPress: () => {
@@ -71,16 +75,16 @@ export default function ProductsScreen() {
           }
         },
         {
-          text: 'Удалить',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: () => {
             Alert.alert(
               'Удалить товар?',
               `Вы уверены, что хотите удалить "${p.name}"?`,
               [
-                { text: 'Отмена', style: 'cancel' },
+                { text: t('common.cancel'), style: 'cancel' },
                 {
-                  text: 'Удалить',
+                  text: t('common.delete'),
                   style: 'destructive',
                   onPress: () => {
                     deleteProduct(p.id);
@@ -95,10 +99,13 @@ export default function ProductsScreen() {
     );
   };
 
+  const isDark = theme === 'dark';
+  const themeStyles = isDark ? darkStyles : lightStyles;
+
   return (
     <ScrollView
       ref={scrollViewRef}
-      style={styles.container}
+      style={[styles.container, themeStyles.container]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       <TouchableOpacity
@@ -114,38 +121,41 @@ export default function ProductsScreen() {
         }}
       >
         <Text style={styles.addBtnText}>
-          {showForm ? '✕ Отмена' : (editingId ? '✎ Редактировать' : '+ Добавить товар')}
+          {showForm ? '✕ ' + t('common.cancel') : (editingId ? '✎ Редактировать' : '+ ' + t('products.addProduct'))}
         </Text>
       </TouchableOpacity>
 
       {showForm && (
-        <View style={styles.form}>
-          <Text style={styles.formTitle}>{editingId ? 'Редактировать товар' : 'Новый товар'}</Text>
+        <View style={[styles.form, themeStyles.card]}>
+          <Text style={[styles.formTitle, themeStyles.text]}>{editingId ? 'Редактировать товар' : 'Новый товар'}</Text>
 
-          <Text style={styles.label}>Название *</Text>
+          <Text style={[styles.label, themeStyles.text]}>{t('addSale.productName')} *</Text>
           <TextInput
-            style={styles.input}
-            placeholder="Например: помидоры, мука 1кг"
+            style={[styles.input, themeStyles.input]}
+            placeholder={t('addSale.productPlaceholder')}
+            placeholderTextColor={isDark ? '#888' : '#aaa'}
             value={name}
             onChangeText={setName}
           />
 
           <View style={styles.row}>
             <View style={styles.half}>
-              <Text style={styles.label}>Закупка *</Text>
+              <Text style={[styles.label, themeStyles.text]}>{t('addSale.buyPrice')} *</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, themeStyles.input]}
                 placeholder="0"
+                placeholderTextColor={isDark ? '#888' : '#aaa'}
                 keyboardType="numeric"
                 value={buyPrice}
                 onChangeText={setBuyPrice}
               />
             </View>
             <View style={styles.half}>
-              <Text style={styles.label}>Продажа *</Text>
+              <Text style={[styles.label, themeStyles.text]}>{t('addSale.sellPrice')} *</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, themeStyles.input]}
                 placeholder="0"
+                placeholderTextColor={isDark ? '#888' : '#aaa'}
                 keyboardType="numeric"
                 value={sellPrice}
                 onChangeText={setSellPrice}
@@ -155,20 +165,22 @@ export default function ProductsScreen() {
 
           <View style={styles.row}>
             <View style={styles.half}>
-              <Text style={styles.label}>Остаток (шт)</Text>
+              <Text style={[styles.label, themeStyles.text]}>{t('products.stock')} ({t('reports.pcs')})</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, themeStyles.input]}
                 placeholder="0"
+                placeholderTextColor={isDark ? '#888' : '#aaa'}
                 keyboardType="numeric"
                 value={stock}
                 onChangeText={setStock}
               />
             </View>
             <View style={styles.half}>
-              <Text style={styles.label}>Мин. остаток</Text>
+              <Text style={[styles.label, themeStyles.text]}>{t('products.minStock')}</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, themeStyles.input]}
                 placeholder="0"
+                placeholderTextColor={isDark ? '#888' : '#aaa'}
                 keyboardType="numeric"
                 value={minStockAlert}
                 onChangeText={setMinStockAlert}
@@ -179,7 +191,7 @@ export default function ProductsScreen() {
           {buyPrice && sellPrice && (
             <View style={styles.marginPreview}>
               <Text style={styles.marginText}>
-                Маржа: {(parseFloat(sellPrice) - parseFloat(buyPrice)).toFixed(1)} сом
+                {t('products.margin')}: {(parseFloat(sellPrice) - parseFloat(buyPrice)).toFixed(1)} {currency.symbol}
                 ({((( parseFloat(sellPrice) - parseFloat(buyPrice)) / parseFloat(sellPrice)) * 100).toFixed(0)}%)
               </Text>
             </View>
@@ -187,13 +199,13 @@ export default function ProductsScreen() {
 
           <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
             <Text style={styles.saveBtnText}>
-              {editingId ? 'Сохранить изменения' : 'Сохранить товар'}
+              {editingId ? 'Сохранить изменения' : t('common.save')}
             </Text>
           </TouchableOpacity>
         </View>
       )}
 
-      <Text style={styles.sectionTitle}>
+      <Text style={[styles.sectionTitle, themeStyles.text]}>
         Все товары ({products.length})
       </Text>
 
@@ -206,25 +218,26 @@ export default function ProductsScreen() {
         products.map((p: any) => (
           <TouchableOpacity
             key={p.id}
-            style={styles.productItem}
+            style={[styles.productItem, themeStyles.card]}
             onLongPress={() => handleLongPress(p)}
             delayLongPress={500}
           >
             <View style={styles.productLeft}>
-              <Text style={styles.productName}>{p.name}</Text>
+              <Text style={[styles.productName, themeStyles.text]}>{p.name}</Text>
               <Text style={styles.productPrices}>
-                Закупка: {p.buy_price} сом · Продажа: {p.sell_price} сом
+                {t('addSale.buyPrice')}: {p.buy_price} {currency.symbol} · {t('addSale.sellPrice')}: {p.sell_price} {currency.symbol}
               </Text>
             </View>
             <View style={styles.productRight}>
               <Text style={[
                 styles.productStock,
+                themeStyles.text,
                 p.stock <= (p.min_stock_alert || 0) && { color: '#E53935' }
               ]}>
-                {p.stock} шт
+                {p.stock} {t('reports.pcs')}
               </Text>
               <Text style={styles.productProfit}>
-                +{(p.sell_price - p.buy_price).toFixed(0)} сом
+                +{(p.sell_price - p.buy_price).toFixed(0)} {currency.symbol}
               </Text>
             </View>
           </TouchableOpacity>
@@ -234,24 +247,38 @@ export default function ProductsScreen() {
   );
 }
 
+const lightStyles = StyleSheet.create({
+  container: { backgroundColor: '#F5F5F5' },
+  card: { backgroundColor: '#fff' },
+  text: { color: '#333' },
+  input: { backgroundColor: '#F5F5F5', borderColor: '#E0E0E0' },
+});
+
+const darkStyles = StyleSheet.create({
+  container: { backgroundColor: '#000' },
+  card: { backgroundColor: '#1E1E1E' },
+  text: { color: '#EEE' },
+  input: { backgroundColor: '#2C2C2C', borderColor: '#444', color: '#EEE' },
+});
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F5F5' },
+  container: { flex: 1 },
   addBtn: {
     margin: 16, backgroundColor: '#1D9E75',
     borderRadius: 12, padding: 14, alignItems: 'center',
   },
   addBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
   form: {
-    marginHorizontal: 16, marginBottom: 8, backgroundColor: '#fff',
+    marginHorizontal: 16, marginBottom: 8,
     borderRadius: 12, padding: 16,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05, shadowRadius: 2, elevation: 2,
   },
-  formTitle: { fontSize: 16, fontWeight: '600', color: '#333', marginBottom: 4 },
-  label: { fontSize: 13, color: '#555', marginBottom: 6, marginTop: 10 },
+  formTitle: { fontSize: 16, fontWeight: '600', marginBottom: 4 },
+  label: { fontSize: 13, marginBottom: 6, marginTop: 10 },
   input: {
-    backgroundColor: '#F5F5F5', borderRadius: 8, padding: 12,
-    fontSize: 15, color: '#222', borderWidth: 1, borderColor: '#E0E0E0',
+    borderRadius: 8, padding: 12,
+    fontSize: 15, borderWidth: 1,
   },
   row: { flexDirection: 'row', gap: 10 },
   half: { flex: 1 },
@@ -266,7 +293,7 @@ const styles = StyleSheet.create({
   },
   saveBtnText: { color: '#fff', fontSize: 15, fontWeight: 'bold' },
   sectionTitle: {
-    fontSize: 15, fontWeight: '600', color: '#333',
+    fontSize: 15, fontWeight: '600',
     paddingHorizontal: 16, marginBottom: 8,
   },
   empty: { alignItems: 'center', padding: 40 },
@@ -274,15 +301,15 @@ const styles = StyleSheet.create({
   emptyHint: { fontSize: 13, color: '#bbb' },
   productItem: {
     flexDirection: 'row', justifyContent: 'space-between',
-    backgroundColor: '#fff', marginHorizontal: 16, marginBottom: 8,
+    marginHorizontal: 16, marginBottom: 8,
     borderRadius: 12, padding: 14,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05, shadowRadius: 2, elevation: 2,
   },
   productLeft: { flex: 1 },
-  productName: { fontSize: 15, fontWeight: '500', color: '#222' },
+  productName: { fontSize: 15, fontWeight: '500' },
   productPrices: { fontSize: 12, color: '#999', marginTop: 3 },
   productRight: { alignItems: 'flex-end' },
-  productStock: { fontSize: 15, fontWeight: '600', color: '#222' },
+  productStock: { fontSize: 15, fontWeight: '600' },
   productProfit: { fontSize: 13, color: '#1D9E75', marginTop: 3 },
 });

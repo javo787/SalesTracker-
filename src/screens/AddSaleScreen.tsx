@@ -4,12 +4,16 @@ import {
   StyleSheet, ScrollView, Alert, ActivityIndicator
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTranslation } from 'react-i18next';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import { addSale, getProducts } from '../db/database';
+import { useAppContext } from '../context/AppContext';
 
 const CACHE_TTL = 60 * 60 * 1000; // 1 час в мс
 
 export default function AddSaleScreen() {
+  const { t } = useTranslation();
+  const { theme, currency, language } = useAppContext();
   const [products, setProducts] = useState<any[]>([]);
   const [productName, setProductName] = useState('');
   const [sellPrice, setSellPrice] = useState('');
@@ -38,18 +42,13 @@ export default function AddSaleScreen() {
   const startListening = async () => {
     const { granted } = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
     if (!granted) {
-      Alert.alert('Нет доступа', 'Разрешите доступ к микрофону');
+      Alert.alert(t('common.error'), 'Разрешите доступ к микрофону');
       return;
     }
 
     let langCode = 'ru-RU';
-    try {
-      const savedLang = await AsyncStorage.getItem('app_language');
-      if (savedLang === 'tg') langCode = 'tg-TJ';
-      else if (savedLang === 'uz') langCode = 'uz-UZ';
-    } catch (e) {
-      console.error('Ошибка загрузки языка:', e);
-    }
+    if (language === 'tg') langCode = 'tg-TJ';
+    else if (language === 'uz') langCode = 'uz-UZ';
 
     setVoiceText('');
     setListening(true);
@@ -65,6 +64,11 @@ export default function AddSaleScreen() {
   };
 
   const analyzeWithAI = async (text: string) => {
+    if (!process.env.EXPO_PUBLIC_GEMINI_KEY) {
+      Alert.alert(t('common.error'), 'Ключ Gemini API не настроен. Пожалуйста, проверьте файл .env');
+      return;
+    }
+
     const cacheKey = `ai_cache_${text.trim().toLowerCase()}`;
 
     try {
@@ -129,7 +133,7 @@ export default function AddSaleScreen() {
 
       applyAIResult(parsed);
     } catch (e) {
-      Alert.alert('Ошибка AI', 'Не удалось обработать. Введите вручную.');
+      Alert.alert(t('common.error'), 'Не удалось обработать. Введите вручную.');
     } finally {
       setProcessing(false);
     }
@@ -144,8 +148,8 @@ export default function AddSaleScreen() {
 
     // Если сказал общую выручку и прибыль — рассчитываем закупочную
     if (parsed.revenue > 0 && parsed.profit > 0 && parsed.sell_price === 0) {
-      const calcBuy = parsed.revenue - parsed.profit;
-      setSellPrice(String(parsed.revenue));
+      const calcBuy = (parsed.revenue - parsed.profit) / parsed.quantity;
+      setSellPrice(String(parsed.revenue / parsed.quantity));
       setBuyPrice(String(calcBuy));
       setProductName(parsed.product_name || 'Продажа дня');
     }
@@ -153,11 +157,11 @@ export default function AddSaleScreen() {
 
   const handleSave = () => {
     if (!productName.trim()) {
-      Alert.alert('Ошибка', 'Введите название товара');
+      Alert.alert(t('common.error'), t('addSale.productPlaceholder'));
       return;
     }
     if (!sellPrice || !buyPrice) {
-      Alert.alert('Ошибка', 'Введите цену продажи и закупки');
+      Alert.alert(t('common.error'), 'Введите цену продажи и закупки');
       return;
     }
 
@@ -185,12 +189,15 @@ export default function AddSaleScreen() {
     setVoiceText('');
   };
 
+  const isDark = theme === 'dark';
+  const themeStyles = isDark ? darkStyles : lightStyles;
+
   return (
-    <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
+    <ScrollView style={[styles.container, themeStyles.container]} keyboardShouldPersistTaps="handled">
 
       {/* Голосовой ввод */}
-      <View style={styles.voiceSection}>
-        <Text style={styles.sectionTitle}>Голосовой ввод</Text>
+      <View style={[styles.voiceSection, themeStyles.card]}>
+        <Text style={[styles.sectionTitle, themeStyles.text]}>{t('addSale.voiceTitle')}</Text>
         <TouchableOpacity
           style={[styles.voiceBtn, listening && styles.voiceBtnActive]}
           onPress={listening ? stopListening : startListening}
@@ -198,53 +205,56 @@ export default function AddSaleScreen() {
         >
           <Text style={styles.voiceBtnIcon}>{listening ? '⏹' : '🎤'}</Text>
           <Text style={styles.voiceBtnText}>
-            {listening ? 'Слушаю... (нажми чтобы остановить)' : 'Нажми и говори'}
+            {listening ? t('addSale.voiceBtnStop') : t('addSale.voiceBtnStart')}
           </Text>
         </TouchableOpacity>
 
         {voiceText ? (
-          <View style={styles.voiceResult}>
-            <Text style={styles.voiceResultLabel}>Распознано:</Text>
-            <Text style={styles.voiceResultText}>"{voiceText}"</Text>
+          <View style={[styles.voiceResult, themeStyles.voiceResult]}>
+            <Text style={styles.voiceResultLabel}>{t('addSale.recognized')}:</Text>
+            <Text style={[styles.voiceResultText, themeStyles.text]}>"{voiceText}"</Text>
           </View>
         ) : null}
 
         {processing && (
           <View style={styles.processingRow}>
             <ActivityIndicator size="small" color="#1D9E75" />
-            <Text style={styles.processingText}>AI анализирует...</Text>
+            <Text style={styles.processingText}>{t('addSale.aiProcessing')}</Text>
           </View>
         )}
       </View>
 
       {/* Форма */}
-      <View style={styles.form}>
-        <Text style={styles.sectionTitle}>Данные продажи</Text>
+      <View style={[styles.form, themeStyles.card]}>
+        <Text style={[styles.sectionTitle, themeStyles.text]}>{t('addSale.formTitle')}</Text>
 
-        <Text style={styles.label}>Товар *</Text>
+        <Text style={[styles.label, themeStyles.text]}>{t('addSale.productName')} *</Text>
         <TextInput
-          style={styles.input}
-          placeholder="Например: помидоры, мука, носки"
+          style={[styles.input, themeStyles.input]}
+          placeholder={t('addSale.productPlaceholder')}
+          placeholderTextColor={isDark ? '#888' : '#aaa'}
           value={productName}
           onChangeText={setProductName}
         />
 
         <View style={styles.row}>
           <View style={styles.halfField}>
-            <Text style={styles.label}>Цена продажи *</Text>
+            <Text style={[styles.label, themeStyles.text]}>{t('addSale.sellPrice')} *</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, themeStyles.input]}
               placeholder="0"
+              placeholderTextColor={isDark ? '#888' : '#aaa'}
               keyboardType="numeric"
               value={sellPrice}
               onChangeText={setSellPrice}
             />
           </View>
           <View style={styles.halfField}>
-            <Text style={styles.label}>Цена закупки *</Text>
+            <Text style={[styles.label, themeStyles.text]}>{t('addSale.buyPrice')} *</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, themeStyles.input]}
               placeholder="0"
+              placeholderTextColor={isDark ? '#888' : '#aaa'}
               keyboardType="numeric"
               value={buyPrice}
               onChangeText={setBuyPrice}
@@ -252,19 +262,21 @@ export default function AddSaleScreen() {
           </View>
         </View>
 
-        <Text style={styles.label}>Количество</Text>
+        <Text style={[styles.label, themeStyles.text]}>{t('addSale.quantity')}</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, themeStyles.input]}
           placeholder="1"
+          placeholderTextColor={isDark ? '#888' : '#aaa'}
           keyboardType="numeric"
           value={quantity}
           onChangeText={setQuantity}
         />
 
-        <Text style={styles.label}>Заметка (необязательно)</Text>
+        <Text style={[styles.label, themeStyles.text]}>{t('addSale.note')}</Text>
         <TextInput
-          style={[styles.input, styles.inputMultiline]}
-          placeholder="Любая заметка..."
+          style={[styles.input, styles.inputMultiline, themeStyles.input]}
+          placeholder={t('addSale.notePlaceholder')}
+          placeholderTextColor={isDark ? '#888' : '#aaa'}
           value={note}
           onChangeText={setNote}
           multiline
@@ -273,34 +285,34 @@ export default function AddSaleScreen() {
         {/* Предварительный расчёт */}
         {sellPrice && buyPrice ? (
           <View style={styles.preview}>
-            <Text style={styles.previewTitle}>Предварительный расчёт</Text>
+            <Text style={styles.previewTitle}>{t('addSale.previewTitle')}</Text>
             <View style={styles.previewRow}>
-              <Text style={styles.previewLabel}>Выручка:</Text>
-              <Text style={styles.previewValue}>
-                {(parseFloat(sellPrice) * (parseInt(quantity) || 1)).toLocaleString()} сом
+              <Text style={[styles.previewLabel, themeStyles.text]}>{t('common.revenue')}:</Text>
+              <Text style={[styles.previewValue, themeStyles.text]}>
+                {(parseFloat(sellPrice) * (parseInt(quantity) || 1)).toLocaleString()} {currency.symbol}
               </Text>
             </View>
             <View style={styles.previewRow}>
-              <Text style={styles.previewLabel}>Прибыль:</Text>
+              <Text style={[styles.previewLabel, themeStyles.text]}>{t('common.profit')}:</Text>
               <Text style={[styles.previewValue, { color: '#1D9E75' }]}>
-                {((parseFloat(sellPrice) - parseFloat(buyPrice)) * (parseInt(quantity) || 1)).toLocaleString()} сом
+                {((parseFloat(sellPrice) - parseFloat(buyPrice)) * (parseInt(quantity) || 1)).toLocaleString()} {currency.symbol}
               </Text>
             </View>
           </View>
         ) : null}
 
         <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-          <Text style={styles.saveBtnText}>Сохранить продажу</Text>
+          <Text style={styles.saveBtnText}>{t('addSale.saveBtn')}</Text>
         </TouchableOpacity>
       </View>
 
       {/* Успешно сохранено */}
       {lastSaved && (
         <View style={styles.successCard}>
-          <Text style={styles.successTitle}>✅ Сохранено!</Text>
-          <Text style={styles.successText}>{lastSaved.name}</Text>
-          <Text style={styles.successText}>Выручка: {lastSaved.revenue} сом</Text>
-          <Text style={styles.successProfit}>Прибыль: +{lastSaved.profit} сом</Text>
+          <Text style={styles.successTitle}>✅ {t('common.saved')}</Text>
+          <Text style={[styles.successText, themeStyles.text]}>{lastSaved.name}</Text>
+          <Text style={[styles.successText, themeStyles.text]}>{t('common.revenue')}: {lastSaved.revenue} {currency.symbol}</Text>
+          <Text style={styles.successProfit}>{t('common.profit')}: +{lastSaved.profit} {currency.symbol}</Text>
         </View>
       )}
 
@@ -308,15 +320,31 @@ export default function AddSaleScreen() {
   );
 }
 
+const lightStyles = StyleSheet.create({
+  container: { backgroundColor: '#F5F5F5' },
+  card: { backgroundColor: '#fff' },
+  text: { color: '#333' },
+  voiceResult: { backgroundColor: '#F8F8F8' },
+  input: { backgroundColor: '#F5F5F5', borderColor: '#E0E0E0' },
+});
+
+const darkStyles = StyleSheet.create({
+  container: { backgroundColor: '#000' },
+  card: { backgroundColor: '#1E1E1E' },
+  text: { color: '#EEE' },
+  voiceResult: { backgroundColor: '#2C2C2C' },
+  input: { backgroundColor: '#2C2C2C', borderColor: '#444', color: '#EEE' },
+});
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F5F5' },
+  container: { flex: 1 },
   voiceSection: {
-    margin: 16, backgroundColor: '#fff',
+    margin: 16,
     borderRadius: 12, padding: 16,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05, shadowRadius: 2, elevation: 2,
   },
-  sectionTitle: { fontSize: 16, fontWeight: '600', color: '#333', marginBottom: 12 },
+  sectionTitle: { fontSize: 16, fontWeight: '600', marginBottom: 12 },
   voiceBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     backgroundColor: '#F0FBF7', borderRadius: 12, padding: 16,
@@ -325,21 +353,21 @@ const styles = StyleSheet.create({
   voiceBtnActive: { backgroundColor: '#FFE8E8', borderColor: '#E53935' },
   voiceBtnIcon: { fontSize: 24 },
   voiceBtnText: { fontSize: 15, color: '#1D9E75', fontWeight: '500', flex: 1 },
-  voiceResult: { marginTop: 12, padding: 12, backgroundColor: '#F8F8F8', borderRadius: 8 },
+  voiceResult: { marginTop: 12, padding: 12, borderRadius: 8 },
   voiceResultLabel: { fontSize: 12, color: '#999', marginBottom: 4 },
-  voiceResultText: { fontSize: 14, color: '#333', fontStyle: 'italic' },
+  voiceResultText: { fontSize: 14, fontStyle: 'italic' },
   processingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
   processingText: { fontSize: 14, color: '#1D9E75' },
   form: {
-    margin: 16, marginTop: 0, backgroundColor: '#fff',
+    margin: 16, marginTop: 0,
     borderRadius: 12, padding: 16,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05, shadowRadius: 2, elevation: 2,
   },
-  label: { fontSize: 13, color: '#555', marginBottom: 6, marginTop: 12 },
+  label: { fontSize: 13, marginBottom: 6, marginTop: 12 },
   input: {
-    backgroundColor: '#F5F5F5', borderRadius: 8, padding: 12,
-    fontSize: 15, color: '#222', borderWidth: 1, borderColor: '#E0E0E0',
+    borderRadius: 8, padding: 12,
+    fontSize: 15, borderWidth: 1,
   },
   inputMultiline: { height: 80, textAlignVertical: 'top' },
   row: { flexDirection: 'row', gap: 10 },
@@ -350,8 +378,8 @@ const styles = StyleSheet.create({
   },
   previewTitle: { fontSize: 13, fontWeight: '600', color: '#1D9E75', marginBottom: 8 },
   previewRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
-  previewLabel: { fontSize: 14, color: '#555' },
-  previewValue: { fontSize: 14, fontWeight: '600', color: '#222' },
+  previewLabel: { fontSize: 14 },
+  previewValue: { fontSize: 14, fontWeight: '600' },
   saveBtn: {
     backgroundColor: '#1D9E75', borderRadius: 12,
     padding: 16, alignItems: 'center', marginTop: 20,
@@ -362,6 +390,6 @@ const styles = StyleSheet.create({
     borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#1D9E75',
   },
   successTitle: { fontSize: 16, fontWeight: 'bold', color: '#1D9E75', marginBottom: 8 },
-  successText: { fontSize: 14, color: '#333', marginBottom: 4 },
+  successText: { fontSize: 14, marginBottom: 4 },
   successProfit: { fontSize: 16, fontWeight: 'bold', color: '#1D9E75', marginTop: 4 },
 });
