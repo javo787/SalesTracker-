@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
   TouchableOpacity, RefreshControl, Alert, ActivityIndicator
@@ -10,13 +10,18 @@ import { getStats, getSalesToday, deleteSale } from '../db/database';
 import { useAppContext } from '../context/AppContext';
 import GeminiApi from '../utils/geminiApi';
 
-const gemini = new GeminiApi({
-  geminiKeys: [process.env.EXPO_PUBLIC_GEMINI_KEY || ''],
-});
-
 export default function HomeScreen() {
   const { t, i18n } = useTranslation();
   const { theme, currency } = useAppContext();
+
+  const gemini = useMemo(() => {
+    const keys = [
+      process.env.EXPO_PUBLIC_GEMINI_KEY,
+      process.env.EXPO_PUBLIC_GEMINI_KEY_2,
+      process.env.EXPO_PUBLIC_GEMINI_KEY_3,
+    ].filter(Boolean) as string[];
+    return new GeminiApi({ geminiKeys: keys.length ? keys : [''] });
+  }, []);
   const [stats, setStats] = useState({ revenue: 0, profit: 0, count: 0 });
   const [todaySales, setTodaySales] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -56,6 +61,26 @@ export default function HomeScreen() {
   const generateAiTip = async (cacheKey: string) => {
     if (!process.env.EXPO_PUBLIC_GEMINI_KEY) return;
 
+    // Check failure counter
+    const today = new Date().toISOString().split('T')[0];
+    const failKey = `ai_fail_count_${today}`;
+    const failCount = parseInt(await AsyncStorage.getItem(failKey) || '0');
+
+    if (failCount >= 3) {
+      const staticTips = [
+        "Следите за остатками популярных товаров, чтобы не упустить прибыль.",
+        "Всегда улыбайтесь покупателю — вежливость увеличивает продажи.",
+        "Предлагайте сопутствующие товары: к помидорам — огурцы, к муке — масло.",
+        "Записывайте даже мелкие продажи, чтобы видеть реальную картину прибыли.",
+        "Регулярно делайте ревизию склада для выявления залежалого товара.",
+        "Чистота на прилавке привлекает больше покупателей.",
+        "Постоянным клиентам можно делать небольшие скидки для лояльности."
+      ];
+      const dayOfWeek = new Date().getDay();
+      setAiTip(staticTips[dayOfWeek]);
+      return;
+    }
+
     setLoadingTip(true);
     try {
       const weekStats = getStats(7);
@@ -78,9 +103,11 @@ export default function HomeScreen() {
       if (tip) {
         setAiTip(tip);
         await AsyncStorage.setItem(cacheKey, tip);
+        await AsyncStorage.setItem(failKey, '0'); // Reset on success
       }
     } catch (e) {
       console.warn('AI Tip generation error', e);
+      await AsyncStorage.setItem(failKey, String(failCount + 1));
     } finally {
       setLoadingTip(false);
     }
@@ -180,7 +207,7 @@ export default function HomeScreen() {
       ) : (
         todaySales.map((sale: any) => (
           <TouchableOpacity
-            key={sale.id}
+            key={String(sale.id)}
             style={[styles.saleItem, themeStyles.card]}
             onLongPress={() => handleDeleteSale(sale)}
             delayLongPress={500}

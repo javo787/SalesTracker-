@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
-import { useRoute } from '@react-navigation/native';
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useRoute, useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, Alert, ActivityIndicator
+  StyleSheet, ScrollView, Alert, ActivityIndicator, FlatList
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
@@ -13,13 +13,19 @@ import GeminiApi from '../utils/geminiApi';
 
 const CACHE_TTL = 60 * 60 * 1000; // 1 час в мс
 
-const gemini = new GeminiApi({
-  geminiKeys: [process.env.EXPO_PUBLIC_GEMINI_KEY || ''],
-});
-
 export default function AddSaleScreen(/* props */) {
   const { t } = useTranslation();
   const { theme, currency, language } = useAppContext();
+
+  const gemini = useMemo(() => {
+    const keys = [
+      process.env.EXPO_PUBLIC_GEMINI_KEY,
+      process.env.EXPO_PUBLIC_GEMINI_KEY_2,
+      process.env.EXPO_PUBLIC_GEMINI_KEY_3,
+    ].filter(Boolean) as string[];
+    return new GeminiApi({ geminiKeys: keys.length ? keys : [''] });
+  }, []);
+
   const [products, setProducts] = useState<any[]>([]);
   const [productName, setProductName] = useState('');
   const [sellPrice, setSellPrice] = useState('');
@@ -44,6 +50,13 @@ export default function AddSaleScreen(/* props */) {
   useEffect(() => {
     setProducts(getProducts());
   }, []);
+
+  useFocusEffect(useCallback(() => {
+    return () => {
+      ExpoSpeechRecognitionModule.stop();
+      setListening(false);
+    };
+  }, []));
 
   // Слушаем результат распознавания
   useSpeechRecognitionEvent('result', (event) => {
@@ -204,6 +217,11 @@ export default function AddSaleScreen(/* props */) {
   const isDark = theme === 'dark';
   const themeStyles = isDark ? darkStyles : lightStyles;
 
+  const filteredProducts = useMemo(() => {
+    if (!productName.trim()) return [];
+    return products.filter(p => p.name.toLowerCase().includes(productName.toLowerCase()));
+  }, [productName, products]);
+
   return (
     <ScrollView style={[styles.container, themeStyles.container]} keyboardShouldPersistTaps="handled">
 
@@ -248,6 +266,24 @@ export default function AddSaleScreen(/* props */) {
           value={productName}
           onChangeText={setProductName}
         />
+
+        {filteredProducts.length > 0 && productName.length > 0 && (
+          <View style={[styles.autocomplete, themeStyles.card]}>
+            {filteredProducts.slice(0, 5).map(p => (
+              <TouchableOpacity
+                key={String(p.id)}
+                style={styles.autocompleteItem}
+                onPress={() => {
+                  setProductName(p.name);
+                  setSellPrice(String(p.sell_price));
+                  setBuyPrice(String(p.buy_price));
+                }}
+              >
+                <Text style={themeStyles.text}>{p.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
         <View style={styles.row}>
           <View style={styles.halfField}>
@@ -397,6 +433,13 @@ const styles = StyleSheet.create({
     padding: 16, alignItems: 'center', marginTop: 20,
   },
   saveBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  autocomplete: {
+    borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 8,
+    marginTop: 4, overflow: 'hidden'
+  },
+  autocompleteItem: {
+    padding: 12, borderBottomWidth: 0.5, borderBottomColor: '#EEE'
+  },
   successCard: {
     margin: 16, marginTop: 0, backgroundColor: '#F0FBF7',
     borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#1D9E75',
