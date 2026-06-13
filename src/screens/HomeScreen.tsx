@@ -8,6 +8,11 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { getStats, getSalesToday, deleteSale } from '../db/database';
 import { useAppContext } from '../context/AppContext';
+import GeminiApi from '../utils/geminiApi';
+
+const gemini = new GeminiApi({
+  geminiKeys: [process.env.EXPO_PUBLIC_GEMINI_KEY || ''],
+});
 
 export default function HomeScreen() {
   const { t, i18n } = useTranslation();
@@ -57,25 +62,17 @@ export default function HomeScreen() {
       const lang = await AsyncStorage.getItem('app_language') || 'ru';
       const langName = lang === 'tg' ? 'таджикский' : lang === 'uz' ? 'узбекский' : 'русский';
 
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.EXPO_PUBLIC_GEMINI_KEY}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{
-              parts: [{
-                text: `Ты опытный бизнес-консультант для малых торговцев в Центральной Азии.
+      const data = await gemini.generateContent({
+        contents: [{
+          parts: [{
+            text: `Ты опытный бизнес-консультант для малых торговцев в Центральной Азии.
 Дай один короткий (2-3 предложения), практичный и вдохновляющий совет на основе статистики за неделю:
 Выручка: ${weekStats.revenue} ${currency.symbol}, Прибыль: ${weekStats.profit} ${currency.symbol}, Продаж: ${weekStats.count}.
 Если данных мало, дай общий совет по торговле на базаре.
 Отвечай на языке: ${langName}.`
-              }]
-            }]
-          })
-        }
-      );
-      const data = await response.json();
+          }]
+        }]
+      });
       const tip = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
 
       if (tip) {

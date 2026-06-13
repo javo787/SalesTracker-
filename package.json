@@ -1,9 +1,11 @@
 {
   "dependencies": {
+    "@expo/vector-icons": "^15.1.1",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-voice/voice": "^3.2.4",
     "@react-navigation/bottom-tabs": "^7.18.0",
     "@react-navigation/native": "^7.3.1",
+    "@react-navigation/native-stack": "^7.17.3",
     "expo": "^56.0.11",
     "expo-av": "^16.0.8",
     "expo-file-system": "~56.0.8",
