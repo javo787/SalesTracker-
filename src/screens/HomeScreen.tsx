@@ -1,8 +1,9 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
-  TouchableOpacity, RefreshControl, Alert
+  TouchableOpacity, RefreshControl, Alert, ActivityIndicator
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { getStats, getSalesToday, deleteSale } from '../db/database';
 
@@ -10,6 +11,8 @@ export default function HomeScreen() {
   const [stats, setStats] = useState({ revenue: 0, profit: 0, count: 0 });
   const [todaySales, setTodaySales] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [aiTip, setAiTip] = useState<string | null>(null);
+  const [loadingTip, setLoadingTip] = useState(false);
 
   const loadData = () => {
     const s = getStats(1);
@@ -18,7 +21,67 @@ export default function HomeScreen() {
     setTodaySales(sales);
   };
 
-  useFocusEffect(useCallback(() => { loadData(); }, []));
+  useFocusEffect(useCallback(() => {
+    loadData();
+    loadAiTip();
+  }, []));
+
+  const loadAiTip = async () => {
+    const today = new Date().toISOString().split('T')[0];
+    const cacheKey = `ai_tip_${today}`;
+
+    try {
+      const cached = await AsyncStorage.getItem(cacheKey);
+      if (cached) {
+        setAiTip(cached);
+        return;
+      }
+
+      // Если нет в кеше, генерируем новый
+      generateAiTip(cacheKey);
+    } catch (e) {
+      console.warn('AI Tip load error', e);
+    }
+  };
+
+  const generateAiTip = async (cacheKey: string) => {
+    setLoadingTip(true);
+    try {
+      const weekStats = getStats(7);
+      const lang = await AsyncStorage.getItem('app_language') || 'ru';
+      const langName = lang === 'tg' ? 'таджикский' : lang === 'uz' ? 'узбекский' : 'русский';
+
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.EXPO_PUBLIC_GEMINI_KEY}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [{
+                text: `Ты опытный бизнес-консультант для малых торговцев в Центральной Азии.
+Дай один короткий (2-3 предложения), практичный и вдохновляющий совет на основе статистики за неделю:
+Выручка: ${weekStats.revenue} сом, Прибыль: ${weekStats.profit} сом, Продаж: ${weekStats.count}.
+Если данных мало, дай общий совет по торговле на базаре.
+Отвечай на языке: ${langName}.`
+              }]
+            }]
+          })
+        }
+      );
+      const data = await response.json();
+      const tip = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+
+      if (tip) {
+        setAiTip(tip);
+        await AsyncStorage.setItem(cacheKey, tip);
+      }
+    } catch (e) {
+      console.warn('AI Tip generation error', e);
+    } finally {
+      setLoadingTip(false);
+    }
+  };
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -60,6 +123,20 @@ export default function HomeScreen() {
       </View>
 
       {/* Карточки статистики */}
+      {aiTip || loadingTip ? (
+        <View style={styles.aiCard}>
+          <View style={styles.aiHeader}>
+            <Text style={styles.aiEmoji}>💡</Text>
+            <Text style={styles.aiTitle}>Совет дня от AI</Text>
+          </View>
+          {loadingTip ? (
+            <ActivityIndicator size="small" color="#1D9E75" style={{ marginVertical: 10 }} />
+          ) : (
+            <Text style={styles.aiText}>{aiTip}</Text>
+          )}
+        </View>
+      ) : null}
+
       <View style={styles.statsRow}>
         <View style={[styles.statCard, { backgroundColor: '#1D9E75' }]}>
           <Text style={styles.statLabel}>Выручка</Text>
@@ -131,6 +208,17 @@ const styles = StyleSheet.create({
   header: { padding: 20, backgroundColor: '#1D9E75' },
   headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#fff' },
   headerDate: { fontSize: 13, color: '#rgba(255,255,255,0.8)', marginTop: 2 },
+  aiCard: {
+    margin: 16, marginBottom: 4, padding: 16,
+    backgroundColor: '#fff', borderRadius: 12,
+    borderLeftWidth: 4, borderLeftColor: '#1D9E75',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1, shadowRadius: 2, elevation: 2,
+  },
+  aiHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  aiEmoji: { fontSize: 18, marginRight: 8 },
+  aiTitle: { fontSize: 14, fontWeight: 'bold', color: '#1D9E75' },
+  aiText: { fontSize: 14, color: '#444', lineHeight: 20, fontStyle: 'italic' },
   statsRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, marginTop: 12 },
   statCard: {
     flex: 1, borderRadius: 12, padding: 16,

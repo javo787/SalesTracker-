@@ -4,10 +4,17 @@
     "slug": "savdo-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "platforms": ["android"],
+    "platforms": [
+      "android"
+    ],
     "android": {
       "package": "com.savdo.app",
-      "permissions": ["RECORD_AUDIO"]
-    }
+      "permissions": [
+        "RECORD_AUDIO"
+      ]
+    },
+    "plugins": [
+      "expo-sharing"
+    ]
   }
 }

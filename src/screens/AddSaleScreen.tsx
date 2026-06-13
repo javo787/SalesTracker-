@@ -3,8 +3,11 @@ import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, ScrollView, Alert, ActivityIndicator
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import { addSale, getProducts } from '../db/database';
+
+const CACHE_TTL = 60 * 60 * 1000; // 1 час в мс
 
 export default function AddSaleScreen() {
   const [products, setProducts] = useState<any[]>([]);
@@ -38,10 +41,20 @@ export default function AddSaleScreen() {
       Alert.alert('Нет доступа', 'Разрешите доступ к микрофону');
       return;
     }
+
+    let langCode = 'ru-RU';
+    try {
+      const savedLang = await AsyncStorage.getItem('app_language');
+      if (savedLang === 'tg') langCode = 'tg-TJ';
+      else if (savedLang === 'uz') langCode = 'uz-UZ';
+    } catch (e) {
+      console.error('Ошибка загрузки языка:', e);
+    }
+
     setVoiceText('');
     setListening(true);
     ExpoSpeechRecognitionModule.start({
-      lang: 'ru-RU',
+      lang: langCode,
       interimResults: false,
     });
   };
@@ -52,10 +65,26 @@ export default function AddSaleScreen() {
   };
 
   const analyzeWithAI = async (text: string) => {
+    const cacheKey = `ai_cache_${text.trim().toLowerCase()}`;
+
+    try {
+      const cached = await AsyncStorage.getItem(cacheKey);
+      if (cached) {
+        const { data, timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp < CACHE_TTL) {
+          console.log('Using cached Gemini response');
+          applyAIResult(data);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Cache read error', e);
+    }
+
     setProcessing(true);
     try {
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.EXPO_PUBLIC_GEMINI_KEY}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.EXPO_PUBLIC_GEMINI_KEY}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -88,24 +117,37 @@ export default function AddSaleScreen() {
       const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
       const parsed = JSON.parse(rawText.replace(/```json|```/g, '').trim());
 
-      // Заполняем поля
-      if (parsed.product_name) setProductName(parsed.product_name);
-      if (parsed.sell_price > 0) setSellPrice(String(parsed.sell_price));
-      if (parsed.buy_price > 0) setBuyPrice(String(parsed.buy_price));
-      if (parsed.quantity > 1) setQuantity(String(parsed.quantity));
-
-      // Если сказал общую выручку и прибыль — рассчитываем закупочную
-      if (parsed.revenue > 0 && parsed.profit > 0 && parsed.sell_price === 0) {
-        const calcBuy = parsed.revenue - parsed.profit;
-        setSellPrice(String(parsed.revenue));
-        setBuyPrice(String(calcBuy));
-        setProductName(parsed.product_name || 'Продажа дня');
+      // Сохраняем в кеш
+      try {
+        await AsyncStorage.setItem(cacheKey, JSON.stringify({
+          data: parsed,
+          timestamp: Date.now()
+        }));
+      } catch (e) {
+        console.warn('Cache write error', e);
       }
 
+      applyAIResult(parsed);
     } catch (e) {
       Alert.alert('Ошибка AI', 'Не удалось обработать. Введите вручную.');
     } finally {
       setProcessing(false);
+    }
+  };
+
+  const applyAIResult = (parsed: any) => {
+    // Заполняем поля
+    if (parsed.product_name) setProductName(parsed.product_name);
+    if (parsed.sell_price > 0) setSellPrice(String(parsed.sell_price));
+    if (parsed.buy_price > 0) setBuyPrice(String(parsed.buy_price));
+    if (parsed.quantity > 1) setQuantity(String(parsed.quantity));
+
+    // Если сказал общую выручку и прибыль — рассчитываем закупочную
+    if (parsed.revenue > 0 && parsed.profit > 0 && parsed.sell_price === 0) {
+      const calcBuy = parsed.revenue - parsed.profit;
+      setSellPrice(String(parsed.revenue));
+      setBuyPrice(String(calcBuy));
+      setProductName(parsed.product_name || 'Продажа дня');
     }
   };
 
