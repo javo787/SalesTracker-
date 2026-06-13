@@ -1,19 +1,22 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
   TouchableOpacity, TextInput, Alert, RefreshControl
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { addProduct, getProducts } from '../db/database';
+import { addProduct, updateProduct, deleteProduct, getProducts } from '../db/database';
 
 export default function ProductsScreen() {
   const [products, setProducts] = useState<any[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [name, setName] = useState('');
   const [buyPrice, setBuyPrice] = useState('');
   const [sellPrice, setSellPrice] = useState('');
   const [stock, setStock] = useState('');
+  const [minStockAlert, setMinStockAlert] = useState('0');
   const [refreshing, setRefreshing] = useState(false);
+  const scrollViewRef = useRef<ScrollView>(null);
 
   const loadProducts = () => setProducts(getProducts());
 
@@ -25,32 +28,99 @@ export default function ProductsScreen() {
     setRefreshing(false);
   };
 
-  const handleAdd = () => {
+  const handleSave = () => {
     if (!name.trim() || !buyPrice || !sellPrice) {
       Alert.alert('Ошибка', 'Заполните название, цену закупки и продажи');
       return;
     }
-    addProduct(name.trim(), parseFloat(buyPrice), parseFloat(sellPrice), parseInt(stock) || 0);
-    setName(''); setBuyPrice(''); setSellPrice(''); setStock('');
+
+    const bPrice = parseFloat(buyPrice);
+    const sPrice = parseFloat(sellPrice);
+    const st = parseInt(stock) || 0;
+    const alert = parseInt(minStockAlert) || 0;
+
+    if (editingId) {
+      updateProduct(editingId, name.trim(), bPrice, sPrice, st, alert);
+    } else {
+      addProduct(name.trim(), bPrice, sPrice, st, alert);
+    }
+
+    setName(''); setBuyPrice(''); setSellPrice(''); setStock(''); setMinStockAlert('0');
     setShowForm(false);
+    setEditingId(null);
     loadProducts();
+  };
+
+  const handleLongPress = (p: any) => {
+    Alert.alert(
+      p.name,
+      'Выберите действие',
+      [
+        { text: 'Отмена', style: 'cancel' },
+        {
+          text: 'Редактировать',
+          onPress: () => {
+            setEditingId(p.id);
+            setName(p.name);
+            setBuyPrice(String(p.buy_price));
+            setSellPrice(String(p.sell_price));
+            setStock(String(p.stock));
+            setMinStockAlert(String(p.min_stock_alert || 0));
+            setShowForm(true);
+            scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+          }
+        },
+        {
+          text: 'Удалить',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Удалить товар?',
+              `Вы уверены, что хотите удалить "${p.name}"?`,
+              [
+                { text: 'Отмена', style: 'cancel' },
+                {
+                  text: 'Удалить',
+                  style: 'destructive',
+                  onPress: () => {
+                    deleteProduct(p.id);
+                    loadProducts();
+                  }
+                }
+              ]
+            );
+          }
+        }
+      ]
+    );
   };
 
   return (
     <ScrollView
+      ref={scrollViewRef}
       style={styles.container}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       <TouchableOpacity
-        style={styles.addBtn}
-        onPress={() => setShowForm(!showForm)}
+        style={[styles.addBtn, editingId ? { backgroundColor: '#FF9800' } : null]}
+        onPress={() => {
+          if (showForm) {
+            setShowForm(false);
+            setEditingId(null);
+            setName(''); setBuyPrice(''); setSellPrice(''); setStock(''); setMinStockAlert('0');
+          } else {
+            setShowForm(true);
+          }
+        }}
       >
-        <Text style={styles.addBtnText}>{showForm ? '✕ Отмена' : '+ Добавить товар'}</Text>
+        <Text style={styles.addBtnText}>
+          {showForm ? '✕ Отмена' : (editingId ? '✎ Редактировать' : '+ Добавить товар')}
+        </Text>
       </TouchableOpacity>
 
       {showForm && (
         <View style={styles.form}>
-          <Text style={styles.formTitle}>Новый товар</Text>
+          <Text style={styles.formTitle}>{editingId ? 'Редактировать товар' : 'Новый товар'}</Text>
 
           <Text style={styles.label}>Название *</Text>
           <TextInput
@@ -83,14 +153,28 @@ export default function ProductsScreen() {
             </View>
           </View>
 
-          <Text style={styles.label}>Остаток (шт)</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="0"
-            keyboardType="numeric"
-            value={stock}
-            onChangeText={setStock}
-          />
+          <View style={styles.row}>
+            <View style={styles.half}>
+              <Text style={styles.label}>Остаток (шт)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="0"
+                keyboardType="numeric"
+                value={stock}
+                onChangeText={setStock}
+              />
+            </View>
+            <View style={styles.half}>
+              <Text style={styles.label}>Мин. остаток</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="0"
+                keyboardType="numeric"
+                value={minStockAlert}
+                onChangeText={setMinStockAlert}
+              />
+            </View>
+          </View>
 
           {buyPrice && sellPrice && (
             <View style={styles.marginPreview}>
@@ -101,8 +185,10 @@ export default function ProductsScreen() {
             </View>
           )}
 
-          <TouchableOpacity style={styles.saveBtn} onPress={handleAdd}>
-            <Text style={styles.saveBtnText}>Сохранить товар</Text>
+          <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
+            <Text style={styles.saveBtnText}>
+              {editingId ? 'Сохранить изменения' : 'Сохранить товар'}
+            </Text>
           </TouchableOpacity>
         </View>
       )}
@@ -118,7 +204,12 @@ export default function ProductsScreen() {
         </View>
       ) : (
         products.map((p: any) => (
-          <View key={p.id} style={styles.productItem}>
+          <TouchableOpacity
+            key={p.id}
+            style={styles.productItem}
+            onLongPress={() => handleLongPress(p)}
+            delayLongPress={500}
+          >
             <View style={styles.productLeft}>
               <Text style={styles.productName}>{p.name}</Text>
               <Text style={styles.productPrices}>
@@ -128,7 +219,7 @@ export default function ProductsScreen() {
             <View style={styles.productRight}>
               <Text style={[
                 styles.productStock,
-                p.stock < 5 && { color: '#E53935' }
+                p.stock <= (p.min_stock_alert || 0) && { color: '#E53935' }
               ]}>
                 {p.stock} шт
               </Text>
@@ -136,7 +227,7 @@ export default function ProductsScreen() {
                 +{(p.sell_price - p.buy_price).toFixed(0)} сом
               </Text>
             </View>
-          </View>
+          </TouchableOpacity>
         ))
       )}
     </ScrollView>

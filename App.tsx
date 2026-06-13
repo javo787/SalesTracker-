@@ -1,32 +1,21 @@
 import { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Text } from 'react-native';
 import { initDatabase } from './src/db/database';
+import { requestPermissions } from './src/utils/notifications';
 
-/* Local fallback ReportScreen component because the original module is missing */
-const ReportScreen = () => {
-  return <Text>Отчёты</Text>;
-};
-
+import HomeScreen from './src/screens/HomeScreen';
+import AddSaleScreen from './src/screens/AddSaleScreen';
 import ProductsScreen from './src/screens/ProductsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
-
-/* Fallback HomeScreen component because the original module is missing */
-const HomeScreen = () => {
-  return <Text>Главная</Text>;
-};
-
-/* AddSaleScreen module not found; provide a local fallback component */
-const AddSaleScreen = () => {
-  return <Text>Добавить продажу</Text>;
-};
+import ReportScreen from './src/screens/ReportScreen';
 
 const Tab = createBottomTabNavigator();
 
 export default function App() {
   useEffect(() => {
     initDatabase();
+    requestPermissions();
   }, []);
 
   return (
