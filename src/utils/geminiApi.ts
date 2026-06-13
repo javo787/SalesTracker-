@@ -8,15 +8,48 @@
  *   const result = await gemini.generateContent(prompt);
  */
 
+interface GeminiConfig {
+  geminiKeys: string[];
+  groqKey?: string;
+  modelName?: string;
+  maxRetries?: number;
+}
+
+interface GeminiPart {
+  text: string;
+}
+
+interface GeminiContent {
+  parts: GeminiPart[];
+}
+
+interface GeminiPayload {
+  contents: GeminiContent[];
+}
+
+interface GroqMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+}
+
+interface GroqPayload {
+  model: string;
+  messages: GroqMessage[];
+  temperature?: number;
+  max_tokens?: number;
+}
+
 class GeminiApi {
+  private geminiKeys: string[];
+  private groqKey?: string;
+  private modelName: string;
+  private maxRetries: number;
+  private _keyIndex: number;
+
   /**
-   * @param {Object} config
-   * @param {string[]} config.geminiKeys   – массив ключей Gemini (минимум 2)
-   * @param {string}   config.groqKey      – ключ Groq (fallback)
-   * @param {string}   [config.modelName]  – имя модели Gemini (по умолчанию 'gemini-1.5-flash')
-   * @param {number}   [config.maxRetries] – сколько раз пробовать следующий ключ при ошибке quota
+   * @param config
    */
-  constructor({ geminiKeys, groqKey, modelName = 'gemini-1.5-flash', maxRetries = 3 }) {
+  constructor({ geminiKeys, groqKey, modelName = 'gemini-1.5-flash', maxRetries = 3 }: GeminiConfig) {
     if (!Array.isArray(geminiKeys) || geminiKeys.length === 0) {
       throw new Error('GeminiApi requires at least one Gemini API key');
     }
@@ -28,14 +61,14 @@ class GeminiApi {
   }
 
   /** Возвращает следующий ключ по round‑robin алгоритму */
-  _nextGeminiKey() {
+  private _nextGeminiKey(): string {
     const key = this.geminiKeys[this._keyIndex];
     this._keyIndex = (this._keyIndex + 1) % this.geminiKeys.length;
     return key;
   }
 
   /** Пытается выполнить запрос к Gemini с текущим ключом, при quota‑ошибке переходит к следующему */
-  async _callGemini(payload) {
+  private async _callGemini(payload: GeminiPayload): Promise<any> {
     let attempts = 0;
     while (attempts < this.maxRetries) {
       const key = this._nextGeminiKey();
@@ -72,20 +105,16 @@ class GeminiApi {
   }
 
   /** Fallback к Groq (если настроен) */
-  async _callGroq(payload) {
+  private async _callGroq(payload: GroqPayload): Promise<any> {
     if (!this.groqKey) throw new Error('Groq key not configured');
     // Groq API имеет схожий формат: POST https://api.groq.com/openai/v1/chat/completions
-    // Предполагаем, что payload уже содержит messages в OpenAI формате.
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${this.groqKey}`,
       },
-      body: JSON.stringify({
-        model: 'mixtral-8x7b-32768', // можно выбрать любую доступную модель
-        ...payload,
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
@@ -99,21 +128,22 @@ class GeminiApi {
    * Основной метод – генерирует контент через Gemini, при полном исчерпании
    * переключается на Groq.
    *
-   * @param {Object} geminiPayload – то, что обычно отправляем в Gemini:
+   * @param geminiPayload – то, что обычно отправляем в Gemini:
    *                               { contents:[{parts:[{text: "..."}]}] }
-   * @returns {Promise<Object>}    – ответ API (распарсенный JSON)
+   * @returns – ответ API (распарсенный JSON)
    */
-  async generateContent(geminiPayload) {
+  public async generateContent(geminiPayload: GeminiPayload): Promise<any> {
     try {
       return await this._callGemini(geminiPayload);
-    } catch (geminiErr) {
+    } catch (geminiErr: any) {
       console.warn('Gemini failed, falling back to Groq:', geminiErr.message);
       // Преобразуем geminiPayload в формат OpenAI/chat для Groq
-      const groqPayload = {
+      const groqPayload: GroqPayload = {
         messages: geminiPayload.contents.map(c => ({
           role: 'user',
           content: c.parts.map(p => p.text).join('\n'),
         })),
+        model: 'mixtral-8x7b-32768', // можно выбрать любую доступную модель
         temperature: 0.2,
         max_tokens: 512,
       };

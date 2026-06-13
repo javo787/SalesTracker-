@@ -72,6 +72,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const setLanguage = async (lang: string) => {
     setLanguageState(lang);
     await AsyncStorage.setItem('app_language', lang);
+    const i18n = (await import('../i18n/i18n')).default;
+    i18n.changeLanguage(lang);
   };
 
   return (

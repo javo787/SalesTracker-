@@ -39,25 +39,35 @@ export function initDatabase() {
 
 // Товары
 export function addProduct(name: string, buyPrice: number, sellPrice: number, stock: number, minStockAlert: number = 0) {
-  const result = db.runSync(
-    'INSERT INTO products (name, buy_price, sell_price, stock, min_stock_alert) VALUES (?, ?, ?, ?, ?)',
-    [name, buyPrice, sellPrice, stock, minStockAlert]
-  );
-  if (stock <= minStockAlert && minStockAlert > 0) {
-    notifyLowStock(name, stock);
+  try {
+    const result = db.runSync(
+      'INSERT INTO products (name, buy_price, sell_price, stock, min_stock_alert) VALUES (?, ?, ?, ?, ?)',
+      [name, buyPrice, sellPrice, stock, minStockAlert]
+    );
+    if (stock <= minStockAlert && minStockAlert > 0) {
+      notifyLowStock(name, stock);
+    }
+    return result;
+  } catch (error) {
+    console.error('Error adding product:', error);
+    throw error;
   }
-  return result;
 }
 
 export function updateProduct(id: number, name: string, buyPrice: number, sellPrice: number, stock: number, minStockAlert: number) {
-  const result = db.runSync(
-    'UPDATE products SET name = ?, buy_price = ?, sell_price = ?, stock = ?, min_stock_alert = ? WHERE id = ?',
-    [name, buyPrice, sellPrice, stock, minStockAlert, id]
-  );
-  if (stock <= minStockAlert && minStockAlert > 0) {
-    notifyLowStock(name, stock);
+  try {
+    const result = db.runSync(
+      'UPDATE products SET name = ?, buy_price = ?, sell_price = ?, stock = ?, min_stock_alert = ? WHERE id = ?',
+      [name, buyPrice, sellPrice, stock, minStockAlert, id]
+    );
+    if (stock <= minStockAlert && minStockAlert > 0) {
+      notifyLowStock(name, stock);
+    }
+    return result;
+  } catch (error) {
+    console.error('Error updating product:', error);
+    throw error;
   }
-  return result;
 }
 
 export function deleteProduct(id: number) {
@@ -94,12 +104,17 @@ export function addSale(
   note: string = ''
 ) {
   const profit = (sellPrice - buyPrice) * quantity;
-  db.runSync(
-    'INSERT INTO sales (product_id, product_name, quantity, sell_price, buy_price, profit, note) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [productId, productName, quantity, sellPrice, buyPrice, profit, note]
-  );
-  if (productId) updateStock(productId, quantity);
-  return profit;
+  try {
+    db.runSync(
+      'INSERT INTO sales (product_id, product_name, quantity, sell_price, buy_price, profit, note) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [productId, productName, quantity, sellPrice, buyPrice, profit, note]
+    );
+    if (productId) updateStock(productId, quantity);
+    return profit;
+  } catch (error) {
+    console.error('Error adding sale:', error);
+    throw error;
+  }
 }
 
 export function getSalesToday() {
@@ -115,11 +130,16 @@ export function getSalesByPeriod(days: number) {
 }
 
 export function deleteSale(saleId: number) {
-  const sale = db.getFirstSync('SELECT * FROM sales WHERE id = ?', [saleId]) as any;
-  if (sale && sale.product_id) {
-    db.runSync('UPDATE products SET stock = stock + ? WHERE id = ?', [sale.quantity, sale.product_id]);
+  try {
+    const sale = db.getFirstSync('SELECT * FROM sales WHERE id = ?', [saleId]) as any;
+    if (sale && sale.product_id) {
+      db.runSync('UPDATE products SET stock = stock + ? WHERE id = ?', [sale.quantity, sale.product_id]);
+    }
+    return db.runSync('DELETE FROM sales WHERE id = ?', [saleId]);
+  } catch (error) {
+    console.error('Error deleting sale:', error);
+    throw error;
   }
-  return db.runSync('DELETE FROM sales WHERE id = ?', [saleId]);
 }
 
 // Статистика

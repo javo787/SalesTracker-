@@ -9,17 +9,22 @@ import { useTranslation } from 'react-i18next';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import { addSale, getProducts } from '../db/database';
 import { useAppContext } from '../context/AppContext';
+import GeminiApi from '../utils/geminiApi';
 
 const CACHE_TTL = 60 * 60 * 1000; // 1 час в мс
+
+const gemini = new GeminiApi({
+  geminiKeys: [process.env.EXPO_PUBLIC_GEMINI_KEY || ''],
+});
 
 export default function AddSaleScreen(/* props */) {
   const { t } = useTranslation();
   const { theme, currency, language } = useAppContext();
   const [products, setProducts] = useState<any[]>([]);
   const [productName, setProductName] = useState('');
-  const [sellPrice, setSellPrice] = useState<number | null>(null);
-  const [buyPrice, setBuyPrice] = useState<number | null>(null);
-  const [quantity, setQuantity] = useState<number | null>(null);
+  const [sellPrice, setSellPrice] = useState('');
+  const [buyPrice, setBuyPrice] = useState('');
+  const [quantity, setQuantity] = useState('');
   const [note, setNote] = useState('');
   const [listening, setListening] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -30,10 +35,10 @@ export default function AddSaleScreen(/* props */) {
   const route = useRoute<any>();
 
   useEffect(() => {
-    if (route.params?.prefillSell) setSellPrice(route.params.prefillSell);
-    if (route.params?.prefillBuy) setBuyPrice(route.params.prefillBuy);
-    if (route.params?.prefillQty) setQuantity(route.params.prefillQty);
-    if (route.params?.prefillPrice) setSellPrice(route.params.prefillPrice);
+    if (route.params?.prefillSell) setSellPrice(String(route.params.prefillSell));
+    if (route.params?.prefillBuy) setBuyPrice(String(route.params.prefillBuy));
+    if (route.params?.prefillQty) setQuantity(String(route.params.prefillQty));
+    if (route.params?.prefillPrice) setSellPrice(String(route.params.prefillPrice));
   }, [route.params]);
 
   useEffect(() => {
@@ -98,15 +103,10 @@ export default function AddSaleScreen(/* props */) {
 
     setProcessing(true);
     try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.EXPO_PUBLIC_GEMINI_KEY}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{
-              parts: [{
-                text: `Ты помощник торговца в Таджикистане. Из фразы извлеки данные о продаже.
+      const data = await gemini.generateContent({
+        contents: [{
+          parts: [{
+            text: `Ты помощник торговца в Таджикистане. Из фразы извлеки данные о продаже.
 Фраза: "${text}"
 
 Верни ТОЛЬКО JSON без markdown:
@@ -123,12 +123,9 @@ export default function AddSaleScreen(/* props */) {
 "сегодня сработал 2000 доход 400" → {"product_name":"","sell_price":0,"buy_price":0,"quantity":1,"revenue":2000,"profit":400}
 "продал 5 кг помидор по 8 сомони" → {"product_name":"помидоры","sell_price":8,"buy_price":0,"quantity":5,"revenue":40,"profit":0}
 "мука 2 мешка продал по 120 купил по 90" → {"product_name":"мука","sell_price":120,"buy_price":90,"quantity":2,"revenue":240,"profit":60}`
-              }]
-            }]
-          })
-        }
-      );
-      const data = await response.json();
+          }]
+        }]
+      });
       const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
       const parsed = JSON.parse(rawText.replace(/```json|```/g, '').trim());
 
@@ -155,12 +152,12 @@ export default function AddSaleScreen(/* props */) {
     if (parsed.product_name) setProductName(parsed.product_name);
     if (parsed.sell_price > 0) setSellPrice(String(parsed.sell_price));
     if (parsed.buy_price > 0) setBuyPrice(String(parsed.buy_price));
-    if (parsed.quantity > 1) setQuantity(String(parsed.quantity));
+    if (parsed.quantity > 0) setQuantity(String(parsed.quantity));
 
     // Если сказал общую выручку и прибыль — рассчитываем закупочную
     if (parsed.revenue > 0 && parsed.profit > 0 && parsed.sell_price === 0) {
-      const calcBuy = (parsed.revenue - parsed.profit) / parsed.quantity;
-      setSellPrice(String(parsed.revenue / parsed.quantity));
+      const calcBuy = (parsed.revenue - parsed.profit) / (parsed.quantity || 1);
+      setSellPrice(String(parsed.revenue / (parsed.quantity || 1)));
       setBuyPrice(String(calcBuy));
       setProductName(parsed.product_name || 'Продажа дня');
     }
@@ -176,26 +173,30 @@ export default function AddSaleScreen(/* props */) {
       return;
     }
 
+    const sPrice = parseFloat(sellPrice);
+    const bPrice = parseFloat(buyPrice);
+    const qty = parseInt(quantity) || 1;
+
     const profit = addSale(
       null,
       productName.trim(),
-      parseInt(quantity) || 1,
-      parseFloat(sellPrice),
-      parseFloat(buyPrice),
+      qty,
+      sPrice,
+      bPrice,
       note
     );
 
     setLastSaved({
       name: productName,
       profit: profit.toFixed(0),
-      revenue: (parseFloat(sellPrice) * (parseInt(quantity) || 1)).toFixed(0)
+      revenue: (sPrice * qty).toFixed(0)
     });
 
     // Сброс формы
     setProductName('');
-    setSellPrice(null);
-    setBuyPrice(null);
-    setQuantity(null);
+    setSellPrice('');
+    setBuyPrice('');
+    setQuantity('');
     setNote('');
     setVoiceText('');
   };
@@ -256,8 +257,8 @@ export default function AddSaleScreen(/* props */) {
               placeholder="0"
               placeholderTextColor={isDark ? '#888' : '#aaa'}
               keyboardType="numeric"
-              value={sellPrice !== null ? sellPrice.toString() : ''}
-              onChangeText={(value) => setSellPrice(value ? parseFloat(value) : null)}
+              value={sellPrice}
+              onChangeText={setSellPrice}
             />
           </View>
           <View style={styles.halfField}>
@@ -267,8 +268,8 @@ export default function AddSaleScreen(/* props */) {
               placeholder="0"
               placeholderTextColor={isDark ? '#888' : '#aaa'}
               keyboardType="numeric"
-              value={buyPrice !== null ? buyPrice.toString() : ''}
-              onChangeText={(value) => setBuyPrice(value ? parseFloat(value) : null)}
+              value={buyPrice}
+              onChangeText={setBuyPrice}
             />
           </View>
         </View>
@@ -279,8 +280,8 @@ export default function AddSaleScreen(/* props */) {
           placeholder="1"
           placeholderTextColor={isDark ? '#888' : '#aaa'}
           keyboardType="numeric"
-          value={quantity !== null ? quantity.toString() : ''}
-          onChangeText={(value) => setQuantity(value ? parseInt(value) : null)}
+          value={quantity}
+          onChangeText={setQuantity}
         />
 
         <Text style={[styles.label, themeStyles.text]}>{t('addSale.note')}</Text>
@@ -294,19 +295,19 @@ export default function AddSaleScreen(/* props */) {
         />
 
         {/* Предварительный расчёт */}
-        {sellPrice !== null && buyPrice !== null ? (
+        {sellPrice && buyPrice ? (
           <View style={styles.preview}>
             <Text style={styles.previewTitle}>{t('addSale.previewTitle')}</Text>
             <View style={styles.previewRow}>
               <Text style={[styles.previewLabel, themeStyles.text]}>{t('common.revenue')}:</Text>
               <Text style={[styles.previewValue, themeStyles.text]}>
-                {(sellPrice * (quantity || 1)).toLocaleString()} {currency.symbol}
+                {(parseFloat(sellPrice) * (parseInt(quantity) || 1)).toLocaleString()} {currency.symbol}
               </Text>
             </View>
             <View style={styles.previewRow}>
               <Text style={[styles.previewLabel, themeStyles.text]}>{t('common.profit')}:</Text>
               <Text style={[styles.previewValue, { color: '#1D9E75' }]}>
-                {((sellPrice - buyPrice) * (quantity || 1)).toLocaleString()} {currency.symbol}
+                {((parseFloat(sellPrice) - parseFloat(buyPrice)) * (parseInt(quantity) || 1)).toLocaleString()} {currency.symbol}
               </Text>
             </View>
           </View>
