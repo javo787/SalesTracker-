@@ -9,9 +9,12 @@ import { initDatabase } from './src/db/database';
 import { requestPermissions } from './src/utils/notifications';
 import i18n from './src/i18n/i18n';
 import { AppContextProvider, useAppContext } from './src/context/AppContext';
+import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 
 import HomeScreen from './src/screens/HomeScreen';
+import AuthScreen from './src/screens/AuthScreen';
+import ProfileScreen from './src/screens/ProfileScreen';
 import AddSaleScreen from './src/screens/AddSaleScreen';
 import ProductsScreen from './src/screens/ProductsScreen';
 import ReportScreen from './src/screens/ReportScreen';
@@ -99,6 +102,16 @@ function MainTabs() {
       />
 
       <Tab.Screen
+        name="Профиль"
+        component={ProfileScreen}
+        options={{
+          tabBarLabel: t('tabs.profile'),
+          title: t('profile.title'),
+          tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} />,
+        }}
+      />
+
+      <Tab.Screen
         name="Отчёт"
         component={ReportScreen}
         options={{
@@ -113,6 +126,7 @@ function MainTabs() {
 
 function AppContent() {
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
+  const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
 
   useEffect(() => {
     checkOnboarding();
@@ -127,12 +141,16 @@ function AppContent() {
     }
   };
 
-  if (showOnboarding === null) {
+  if (showOnboarding === null || isAuthLoading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color="#1D9E75" />
       </View>
     );
+  }
+
+  if (!isAuthenticated) {
+    return <AuthScreen />;
   }
 
   if (showOnboarding) {
@@ -161,9 +179,11 @@ export default function App() {
 
   return (
     <AppContextProvider>
-      <I18nextProvider i18n={i18n}>
-        <AppContent />
-      </I18nextProvider>
+      <AuthProvider>
+        <I18nextProvider i18n={i18n}>
+          <AppContent />
+        </I18nextProvider>
+      </AuthProvider>
     </AppContextProvider>
   );
 }

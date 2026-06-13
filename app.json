@@ -13,6 +13,7 @@
     "platforms": [
       "android"
     ],
+    "scheme": "savdo",
     "android": {
       "package": "com.savdo.app",
       "permissions": [
@@ -20,7 +21,13 @@
       ]
     },
     "plugins": [
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The app accesses your photos to let you set a profile picture."
+        }
+      ]
     ]
   }
 }
