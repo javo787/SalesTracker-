@@ -239,7 +239,7 @@ export default function ReportScreen() {
         ) : (
           filteredSales.map((sale: any) => (
             <TouchableOpacity
-              key={sale.id}
+              key={String(sale.id)}
               style={styles.saleItem}
               onLongPress={() => handleDeleteSale(sale)}
               delayLongPress={500}
@@ -328,14 +328,14 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05, shadowRadius: 2, elevation: 2,
   },
-  sectionTitle: { fontSize: 15, fontWeight: '600', marginBottom: 12 },
+  sectionTitle: { fontSize: 15, fontWeight: '600', marginBottom: 10 },
   listHeader: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginBottom: 12,
+    flexDirection: 'column',
+    alignItems: 'stretch', marginBottom: 12,
   },
   filterInput: {
     borderRadius: 8, paddingHorizontal: 10,
-    paddingVertical: 4, fontSize: 13, width: '50%',
+    paddingVertical: 8, fontSize: 13,
     borderWidth: 1,
   },
   topItem: {

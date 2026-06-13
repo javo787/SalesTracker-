@@ -45,6 +45,18 @@ export default function CalculatorScreen({ navigation }: any) {
   // --- Обычный калькулятор ---
   const OPS: Record<string, string> = { '+': '+', '-': '−', '*': '×', '/': '÷' };
 
+  const evaluate = (p: number, o: string, c: number): number => {
+    let res = 0;
+    switch (o) {
+      case '+': res = p + c; break;
+      case '-': res = p - c; break;
+      case '*': res = p * c; break;
+      case '/': res = c === 0 ? 0 : p / c; break;
+      default: res = c;
+    }
+    return Math.round(res * 1e10) / 1e10;
+  };
+
   const pressKey = (k: string) => {
     if (k === 'AC') {
       setCur('0'); setPrev(''); setOp(null); setFresh(false); setExpr('');
@@ -54,9 +66,9 @@ export default function CalculatorScreen({ navigation }: any) {
       setCur(String(parseFloat(cur) / 100));
     } else if (['+', '-', '*', '/'].includes(k)) {
       if (op && !fresh) {
-        const res = eval(`${prev}${op}${cur}`);
-        setCur(String(Math.round(res * 1e10) / 1e10));
-        setPrev(String(Math.round(res * 1e10) / 1e10));
+        const res = evaluate(parseFloat(prev), op, parseFloat(cur));
+        setCur(String(res));
+        setPrev(String(res));
       } else {
         setPrev(cur);
       }
@@ -65,10 +77,9 @@ export default function CalculatorScreen({ navigation }: any) {
       setExpr(`${cur} ${OPS[k]}`);
     } else if (k === '=') {
       if (op) {
-        const res = eval(`${prev}${op}${cur}`);
-        const rounded = Math.round(res * 1e10) / 1e10;
+        const res = evaluate(parseFloat(prev), op, parseFloat(cur));
         setExpr(`${prev} ${OPS[op]} ${cur} =`);
-        setCur(String(rounded));
+        setCur(String(res));
         setOp(null);
         setFresh(false);
       }

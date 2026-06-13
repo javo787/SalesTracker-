@@ -24,6 +24,7 @@ export function initDatabase() {
       buy_price REAL NOT NULL,
       profit REAL NOT NULL,
       note TEXT,
+      stock_updated INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (product_id) REFERENCES products(id)
     );
@@ -34,6 +35,13 @@ export function initDatabase() {
   const hasMinStockAlert = tableInfo.some(col => col.name === 'min_stock_alert');
   if (!hasMinStockAlert) {
     db.execSync('ALTER TABLE products ADD COLUMN min_stock_alert INTEGER DEFAULT 0');
+  }
+
+  // Migration: add stock_updated to sales if it doesn't exist
+  const salesTableInfo = db.getAllSync("PRAGMA table_info(sales)") as any[];
+  const hasStockUpdated = salesTableInfo.some(col => col.name === 'stock_updated');
+  if (!hasStockUpdated) {
+    db.execSync('ALTER TABLE sales ADD COLUMN stock_updated INTEGER DEFAULT 0');
   }
 }
 
@@ -104,10 +112,11 @@ export function addSale(
   note: string = ''
 ) {
   const profit = (sellPrice - buyPrice) * quantity;
+  const stockUpdated = productId ? 1 : 0;
   try {
     db.runSync(
-      'INSERT INTO sales (product_id, product_name, quantity, sell_price, buy_price, profit, note) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [productId, productName, quantity, sellPrice, buyPrice, profit, note]
+      'INSERT INTO sales (product_id, product_name, quantity, sell_price, buy_price, profit, note, stock_updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [productId, productName, quantity, sellPrice, buyPrice, profit, note, stockUpdated]
     );
     if (productId) updateStock(productId, quantity);
     return profit;
@@ -132,7 +141,7 @@ export function getSalesByPeriod(days: number) {
 export function deleteSale(saleId: number) {
   try {
     const sale = db.getFirstSync('SELECT * FROM sales WHERE id = ?', [saleId]) as any;
-    if (sale && sale.product_id) {
+    if (sale && sale.product_id && sale.stock_updated === 1) {
       db.runSync('UPDATE products SET stock = stock + ? WHERE id = ?', [sale.quantity, sale.product_id]);
     }
     return db.runSync('DELETE FROM sales WHERE id = ?', [saleId]);

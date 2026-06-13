@@ -1,4 +1,6 @@
 /**
+ * Compatible with React Native Hermes engine. Does not use browser Blob API.
+ *
  * Утилиты для подготовки аудио перед отправкой в сервис распознавания речи.
  * Оптимизированы для низкой пропускной способности (Таджикистан):
  *   - понижение частоты дискретизации до 8 kHz (моно)
@@ -92,14 +94,15 @@ function detectSpeech(int16Array: Int16Array, sampleRate: number): Int16Array {
 /**
  * Кодирование в WAV 16‑bit little‑endian (заголовок + данные).
  */
-function encodeWav(int16Array: Int16Array, sampleRate: number): ArrayBuffer {
-  const buffer = new ArrayBuffer(44 + int16Array.length * 2);
-  const view = new DataView(buffer);
+function encodeWav(int16Array: Int16Array, sampleRate: number): Uint8Array {
+  const dataSize = int16Array.length * 2;
+  const buffer = new Uint8Array(44 + dataSize);
+  const view = new DataView(buffer.buffer);
   /* RIFF header */
-  writeString(view, 0, 'RIFF');
-  view.setUint32(4, 36 + int16Array.length * 2, true); // размер файла-8
-  writeString(view, 8, 'WAVE');
-  writeString(view, 12, 'fmt ');
+  writeString(buffer, 0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true); // размер файла-8
+  writeString(buffer, 8, 'WAVE');
+  writeString(buffer, 12, 'fmt ');
   view.setUint32(16, 16, true); // подChunk размер для PCM
   view.setUint16(20, 1, true); // audio format = 1 (PCM)
   view.setUint16(22, 1, true); // число каналов (моно)
@@ -107,8 +110,8 @@ function encodeWav(int16Array: Int16Array, sampleRate: number): ArrayBuffer {
   view.setUint32(28, sampleRate * 2, true); // byte rate
   view.setUint16(32, 2, true); // block align
   view.setUint16(34, 16, true); // bits per sample
-  writeString(view, 36, 'data');
-  view.setUint32(40, int16Array.length * 2, true);// данные размер
+  writeString(buffer, 36, 'data');
+  view.setUint32(40, dataSize, true);// данные размер
   // PCM данные
   for (let i = 0; i < int16Array.length; i++) {
     view.setInt16(44 + i * 2, int16Array[i], true);
@@ -132,7 +135,7 @@ async function getOpusEncoder() {
     return null; // fallback
   }
 }
-async function encodeOpus(int16Array: Int16Array, sampleRate: number): Promise<ArrayBuffer> {
+async function encodeOpus(int16Array: Int16Array, sampleRate: number): Promise<Uint8Array> {
   const enc = await getOpusEncoder();
   if (!enc) return encodeWav(int16Array, sampleRate); // fallback
   // opusscript ожидает float32 в диапазоне [-1,1]
@@ -141,7 +144,7 @@ async function encodeOpus(int16Array: Int16Array, sampleRate: number): Promise<A
     float32[i] = int16Array[i] / 32768;
   }
   const opusBytes = enc.encode(float32, FRAME_SIZE); // возвращает Uint8Array
-  return opusBytes.buffer;
+  return opusBytes;
 }
 
 /**
@@ -149,34 +152,33 @@ async function encodeOpus(int16Array: Int16Array, sampleRate: number): Promise<A
  */
 export async function prepareAudioForSTT(
   rawPCM: Int16Array,
-  { useOpus = true, returnAsBlob = false }: { useOpus?: boolean; returnAsBlob?: boolean } = {}
-): Promise<Blob | ArrayBuffer> {
+  options?: { useOpus?: boolean }
+): Promise<{ data: Uint8Array; mimeType: string }> {
+  const useOpus = options?.useOpus ?? true;
   // 1. Ресэмплинг до низкой частоты
   const resampled = resample(rawPCM, SAMPLE_RATE_IN, SAMPLE_RATE_OUT);
   // 2. VAD – оставляем только речь
   const speech = detectSpeech(resampled, SAMPLE_RATE_OUT);
   if (speech.length === 0) {
-    return returnAsBlob ? new Blob([], { type: 'audio/wav' }) : new ArrayBuffer(0);
+    return { data: new Uint8Array(0), mimeType: 'audio/wav' };
   }
   // 3. Кодирование
-  let audioBuffer: ArrayBuffer;
+  let audioData: Uint8Array;
   if (useOpus) {
-    audioBuffer = await encodeOpus(speech, SAMPLE_RATE_OUT);
+    audioData = await encodeOpus(speech, SAMPLE_RATE_OUT);
   } else {
-    audioBuffer = encodeWav(speech, SAMPLE_RATE_OUT);
+    audioData = encodeWav(speech, SAMPLE_RATE_OUT);
   }
-  if (returnAsBlob) {
-    const mime = useOpus ? 'audio/opus' : 'audio/wav';
-    return new Blob([audioBuffer], { type: mime });
-  }
-  return audioBuffer;
+
+  const mimeType = useOpus ? 'audio/opus' : 'audio/wav';
+  return { data: audioData, mimeType };
 }
 
 /**
- * Вспомогательная функция для записи строки в DataView.
+ * Вспомогательная функция для записи строки в Uint8Array.
  */
-function writeString(view: DataView, offset: number, string: string) {
+function writeString(view: Uint8Array, offset: number, string: string) {
   for (let i = 0; i < string.length; i++) {
-    view.setUint8(offset + i, string.charCodeAt(i));
+    view[offset + i] = string.charCodeAt(i);
   }
 }

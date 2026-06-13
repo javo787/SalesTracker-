@@ -217,7 +217,7 @@ export default function ProductsScreen() {
       ) : (
         products.map((p: any) => (
           <TouchableOpacity
-            key={p.id}
+            key={String(p.id)}
             style={[styles.productItem, themeStyles.card]}
             onLongPress={() => handleLongPress(p)}
             delayLongPress={500}
