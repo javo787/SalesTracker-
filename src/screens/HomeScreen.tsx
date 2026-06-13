@@ -1,10 +1,10 @@
 import { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
-  TouchableOpacity, RefreshControl
+  TouchableOpacity, RefreshControl, Alert
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { getStats, getSalesToday } from '../db/database';
+import { getStats, getSalesToday, deleteSale } from '../db/database';
 
 export default function HomeScreen() {
   const [stats, setStats] = useState({ revenue: 0, profit: 0, count: 0 });
@@ -24,6 +24,24 @@ export default function HomeScreen() {
     setRefreshing(true);
     loadData();
     setRefreshing(false);
+  };
+
+  const handleDeleteSale = (sale: any) => {
+    Alert.alert(
+      'Удалить продажу?',
+      `Вы уверены, что хотите удалить продажу "${sale.product_name}"? Остаток товара будет возвращен.`,
+      [
+        { text: 'Отмена', style: 'cancel' },
+        {
+          text: 'Удалить',
+          style: 'destructive',
+          onPress: () => {
+            deleteSale(sale.id);
+            loadData();
+          }
+        }
+      ]
+    );
   };
 
   return (
@@ -78,7 +96,12 @@ export default function HomeScreen() {
         </View>
       ) : (
         todaySales.map((sale: any) => (
-          <View key={sale.id} style={styles.saleItem}>
+          <TouchableOpacity
+            key={sale.id}
+            style={styles.saleItem}
+            onLongPress={() => handleDeleteSale(sale)}
+            delayLongPress={500}
+          >
             <View style={styles.saleLeft}>
               <Text style={styles.saleName}>{sale.product_name}</Text>
               <Text style={styles.saleTime}>
@@ -96,7 +119,7 @@ export default function HomeScreen() {
                 +{sale.profit.toLocaleString()} сом
               </Text>
             </View>
-          </View>
+          </TouchableOpacity>
         ))
       )}
     </ScrollView>

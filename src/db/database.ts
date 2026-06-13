@@ -1,4 +1,5 @@
 import * as SQLite from 'expo-sqlite';
+import { notifyLowStock } from '../utils/notifications';
 
 const db = SQLite.openDatabaseSync('savdo.db');
 
@@ -10,6 +11,7 @@ export function initDatabase() {
       buy_price REAL NOT NULL,
       sell_price REAL NOT NULL,
       stock INTEGER DEFAULT 0,
+      min_stock_alert INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now'))
     );
 
@@ -26,14 +28,40 @@ export function initDatabase() {
       FOREIGN KEY (product_id) REFERENCES products(id)
     );
   `);
+
+  // Migration: add min_stock_alert to products if it doesn't exist
+  const tableInfo = db.getAllSync("PRAGMA table_info(products)") as any[];
+  const hasMinStockAlert = tableInfo.some(col => col.name === 'min_stock_alert');
+  if (!hasMinStockAlert) {
+    db.execSync('ALTER TABLE products ADD COLUMN min_stock_alert INTEGER DEFAULT 0');
+  }
 }
 
 // Товары
-export function addProduct(name: string, buyPrice: number, sellPrice: number, stock: number) {
-  return db.runSync(
-    'INSERT INTO products (name, buy_price, sell_price, stock) VALUES (?, ?, ?, ?)',
-    [name, buyPrice, sellPrice, stock]
+export function addProduct(name: string, buyPrice: number, sellPrice: number, stock: number, minStockAlert: number = 0) {
+  const result = db.runSync(
+    'INSERT INTO products (name, buy_price, sell_price, stock, min_stock_alert) VALUES (?, ?, ?, ?, ?)',
+    [name, buyPrice, sellPrice, stock, minStockAlert]
   );
+  if (stock <= minStockAlert && minStockAlert > 0) {
+    notifyLowStock(name, stock);
+  }
+  return result;
+}
+
+export function updateProduct(id: number, name: string, buyPrice: number, sellPrice: number, stock: number, minStockAlert: number) {
+  const result = db.runSync(
+    'UPDATE products SET name = ?, buy_price = ?, sell_price = ?, stock = ?, min_stock_alert = ? WHERE id = ?',
+    [name, buyPrice, sellPrice, stock, minStockAlert, id]
+  );
+  if (stock <= minStockAlert && minStockAlert > 0) {
+    notifyLowStock(name, stock);
+  }
+  return result;
+}
+
+export function deleteProduct(id: number) {
+  return db.runSync('DELETE FROM products WHERE id = ?', [id]);
 }
 
 export function getProducts() {
@@ -42,6 +70,18 @@ export function getProducts() {
 
 export function updateStock(productId: number, quantity: number) {
   db.runSync('UPDATE products SET stock = stock - ? WHERE id = ?', [quantity, productId]);
+  const p = db.getFirstSync('SELECT name, stock, min_stock_alert FROM products WHERE id = ?', [productId]) as any;
+  if (p && p.stock <= p.min_stock_alert && p.min_stock_alert > 0) {
+    notifyLowStock(p.name, p.stock);
+  }
+}
+
+export function updateStockManual(productId: number, newStock: number) {
+  db.runSync('UPDATE products SET stock = ? WHERE id = ?', [newStock, productId]);
+  const p = db.getFirstSync('SELECT name, stock, min_stock_alert FROM products WHERE id = ?', [productId]) as any;
+  if (p && p.stock <= p.min_stock_alert && p.min_stock_alert > 0) {
+    notifyLowStock(p.name, p.stock);
+  }
 }
 
 // Продажи
@@ -72,6 +112,14 @@ export function getSalesByPeriod(days: number) {
   return db.getAllSync(
     `SELECT * FROM sales WHERE created_at >= datetime('now', '-${days} days') ORDER BY created_at DESC`
   );
+}
+
+export function deleteSale(saleId: number) {
+  const sale = db.getFirstSync('SELECT * FROM sales WHERE id = ?', [saleId]) as any;
+  if (sale && sale.product_id) {
+    db.runSync('UPDATE products SET stock = stock + ? WHERE id = ?', [sale.quantity, sale.product_id]);
+  }
+  return db.runSync('DELETE FROM sales WHERE id = ?', [saleId]);
 }
 
 // Статистика
