@@ -1,13 +1,17 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
   TouchableOpacity, RefreshControl, Alert, ActivityIndicator
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { getStats, getSalesToday, deleteSale } from '../db/database';
+import { useAppContext } from '../context/AppContext';
 
 export default function HomeScreen() {
+  const { t, i18n } = useTranslation();
+  const { theme, currency } = useAppContext();
   const [stats, setStats] = useState({ revenue: 0, profit: 0, count: 0 });
   const [todaySales, setTodaySales] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -45,6 +49,8 @@ export default function HomeScreen() {
   };
 
   const generateAiTip = async (cacheKey: string) => {
+    if (!process.env.EXPO_PUBLIC_GEMINI_KEY) return;
+
     setLoadingTip(true);
     try {
       const weekStats = getStats(7);
@@ -61,7 +67,7 @@ export default function HomeScreen() {
               parts: [{
                 text: `Ты опытный бизнес-консультант для малых торговцев в Центральной Азии.
 Дай один короткий (2-3 предложения), практичный и вдохновляющий совет на основе статистики за неделю:
-Выручка: ${weekStats.revenue} сом, Прибыль: ${weekStats.profit} сом, Продаж: ${weekStats.count}.
+Выручка: ${weekStats.revenue} ${currency.symbol}, Прибыль: ${weekStats.profit} ${currency.symbol}, Продаж: ${weekStats.count}.
 Если данных мало, дай общий совет по торговле на базаре.
 Отвечай на языке: ${langName}.`
               }]
@@ -91,12 +97,12 @@ export default function HomeScreen() {
 
   const handleDeleteSale = (sale: any) => {
     Alert.alert(
-      'Удалить продажу?',
-      `Вы уверены, что хотите удалить продажу "${sale.product_name}"? Остаток товара будет возвращен.`,
+      t('reports.deleteSaleTitle'),
+      t('reports.deleteSaleMsg', { name: sale.product_name }),
       [
-        { text: 'Отмена', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Удалить',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: () => {
             deleteSale(sale.id);
@@ -107,16 +113,19 @@ export default function HomeScreen() {
     );
   };
 
+  const isDark = theme === 'dark';
+  const themeStyles = isDark ? darkStyles : lightStyles;
+
   return (
     <ScrollView
-      style={styles.container}
+      style={[styles.container, themeStyles.container]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       {/* Заголовок */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Сегодня</Text>
+        <Text style={styles.headerTitle}>{t('reports.today')}</Text>
         <Text style={styles.headerDate}>
-          {new Date().toLocaleDateString('ru-RU', {
+          {new Date().toLocaleDateString(i18n.language === 'tg' ? 'tg-TJ' : i18n.language === 'uz' ? 'uz-UZ' : 'ru-RU', {
             day: 'numeric', month: 'long', year: 'numeric'
           })}
         </Text>
@@ -124,76 +133,76 @@ export default function HomeScreen() {
 
       {/* Карточки статистики */}
       {aiTip || loadingTip ? (
-        <View style={styles.aiCard}>
+        <View style={[styles.aiCard, themeStyles.card]}>
           <View style={styles.aiHeader}>
             <Text style={styles.aiEmoji}>💡</Text>
-            <Text style={styles.aiTitle}>Совет дня от AI</Text>
+            <Text style={styles.aiTitle}>{t('home.aiTipTitle')}</Text>
           </View>
           {loadingTip ? (
             <ActivityIndicator size="small" color="#1D9E75" style={{ marginVertical: 10 }} />
           ) : (
-            <Text style={styles.aiText}>{aiTip}</Text>
+            <Text style={[styles.aiText, themeStyles.text]}>{aiTip}</Text>
           )}
         </View>
       ) : null}
 
       <View style={styles.statsRow}>
         <View style={[styles.statCard, { backgroundColor: '#1D9E75' }]}>
-          <Text style={styles.statLabel}>Выручка</Text>
-          <Text style={styles.statValue}>{stats.revenue.toLocaleString()} сом</Text>
+          <Text style={styles.statLabel}>{t('common.revenue')}</Text>
+          <Text style={styles.statValue}>{stats.revenue.toLocaleString()} {currency.symbol}</Text>
         </View>
         <View style={[styles.statCard, { backgroundColor: '#0C447C' }]}>
-          <Text style={styles.statLabel}>Прибыль</Text>
-          <Text style={styles.statValue}>{stats.profit.toLocaleString()} сом</Text>
+          <Text style={styles.statLabel}>{t('common.profit')}</Text>
+          <Text style={styles.statValue}>{stats.profit.toLocaleString()} {currency.symbol}</Text>
         </View>
       </View>
 
       <View style={styles.statsRow}>
         <View style={[styles.statCard, { backgroundColor: '#854F0B', flex: 1 }]}>
-          <Text style={styles.statLabel}>Продаж сегодня</Text>
-          <Text style={styles.statValue}>{stats.count} шт</Text>
+          <Text style={styles.statLabel}>{t('home.salesCount')}</Text>
+          <Text style={styles.statValue}>{stats.count} {t('reports.pcs')}</Text>
         </View>
         <View style={[styles.statCard, { backgroundColor: '#3B6D11', flex: 1 }]}>
-          <Text style={styles.statLabel}>Средний чек</Text>
+          <Text style={styles.statLabel}>{t('home.avgCheck')}</Text>
           <Text style={styles.statValue}>
             {stats.count > 0
               ? Math.round(stats.revenue / stats.count).toLocaleString()
-              : 0} сом
+              : 0} {currency.symbol}
           </Text>
         </View>
       </View>
 
       {/* Последние продажи */}
-      <Text style={styles.sectionTitle}>Последние продажи</Text>
+      <Text style={[styles.sectionTitle, themeStyles.text]}>{t('home.recentSales')}</Text>
 
       {todaySales.length === 0 ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyText}>Продаж пока нет</Text>
-          <Text style={styles.emptyHint}>Нажми «+ Продажа» чтобы добавить</Text>
+          <Text style={styles.emptyText}>{t('home.noSales')}</Text>
+          <Text style={styles.emptyHint}>{t('home.noSalesHint')}</Text>
         </View>
       ) : (
         todaySales.map((sale: any) => (
           <TouchableOpacity
             key={sale.id}
-            style={styles.saleItem}
+            style={[styles.saleItem, themeStyles.card]}
             onLongPress={() => handleDeleteSale(sale)}
             delayLongPress={500}
           >
             <View style={styles.saleLeft}>
-              <Text style={styles.saleName}>{sale.product_name}</Text>
+              <Text style={[styles.saleName, themeStyles.text]}>{sale.product_name}</Text>
               <Text style={styles.saleTime}>
-                {new Date(sale.created_at).toLocaleTimeString('ru-RU', {
+                {new Date(sale.created_at).toLocaleTimeString(i18n.language === 'tg' ? 'tg-TJ' : i18n.language === 'uz' ? 'uz-UZ' : 'ru-RU', {
                   hour: '2-digit', minute: '2-digit'
                 })}
                 {sale.quantity > 1 ? `  ×${sale.quantity}` : ''}
               </Text>
             </View>
             <View style={styles.saleRight}>
-              <Text style={styles.saleRevenue}>
-                {(sale.sell_price * sale.quantity).toLocaleString()} сом
+              <Text style={[styles.saleRevenue, themeStyles.text]}>
+                {(sale.sell_price * sale.quantity).toLocaleString()} {currency.symbol}
               </Text>
               <Text style={styles.saleProfit}>
-                +{sale.profit.toLocaleString()} сом
+                +{sale.profit.toLocaleString()} {currency.symbol}
               </Text>
             </View>
           </TouchableOpacity>
@@ -203,14 +212,26 @@ export default function HomeScreen() {
   );
 }
 
+const lightStyles = StyleSheet.create({
+  container: { backgroundColor: '#F5F5F5' },
+  card: { backgroundColor: '#fff' },
+  text: { color: '#333' },
+});
+
+const darkStyles = StyleSheet.create({
+  container: { backgroundColor: '#000' },
+  card: { backgroundColor: '#1E1E1E' },
+  text: { color: '#EEE' },
+});
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F5F5' },
+  container: { flex: 1 },
   header: { padding: 20, backgroundColor: '#1D9E75' },
   headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#fff' },
-  headerDate: { fontSize: 13, color: '#rgba(255,255,255,0.8)', marginTop: 2 },
+  headerDate: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
   aiCard: {
     margin: 16, marginBottom: 4, padding: 16,
-    backgroundColor: '#fff', borderRadius: 12,
+    borderRadius: 12,
     borderLeftWidth: 4, borderLeftColor: '#1D9E75',
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1, shadowRadius: 2, elevation: 2,
@@ -218,7 +239,7 @@ const styles = StyleSheet.create({
   aiHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   aiEmoji: { fontSize: 18, marginRight: 8 },
   aiTitle: { fontSize: 14, fontWeight: 'bold', color: '#1D9E75' },
-  aiText: { fontSize: 14, color: '#444', lineHeight: 20, fontStyle: 'italic' },
+  aiText: { fontSize: 14, lineHeight: 20, fontStyle: 'italic' },
   statsRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, marginTop: 12 },
   statCard: {
     flex: 1, borderRadius: 12, padding: 16,
@@ -228,7 +249,7 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 12, color: 'rgba(255,255,255,0.8)', marginBottom: 4 },
   statValue: { fontSize: 20, fontWeight: 'bold', color: '#fff' },
   sectionTitle: {
-    fontSize: 16, fontWeight: '600', color: '#333',
+    fontSize: 16, fontWeight: '600',
     paddingHorizontal: 16, marginTop: 24, marginBottom: 8
   },
   empty: { alignItems: 'center', padding: 40 },
@@ -236,15 +257,15 @@ const styles = StyleSheet.create({
   emptyHint: { fontSize: 13, color: '#bbb' },
   saleItem: {
     flexDirection: 'row', justifyContent: 'space-between',
-    backgroundColor: '#fff', marginHorizontal: 16, marginBottom: 8,
+    marginHorizontal: 16, marginBottom: 8,
     borderRadius: 12, padding: 14,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05, shadowRadius: 2, elevation: 2,
   },
   saleLeft: { flex: 1 },
-  saleName: { fontSize: 15, fontWeight: '500', color: '#222' },
+  saleName: { fontSize: 15, fontWeight: '500' },
   saleTime: { fontSize: 12, color: '#999', marginTop: 3 },
   saleRight: { alignItems: 'flex-end' },
-  saleRevenue: { fontSize: 15, fontWeight: '600', color: '#222' },
+  saleRevenue: { fontSize: 15, fontWeight: '600' },
   saleProfit: { fontSize: 13, color: '#1D9E75', marginTop: 3 },
 });

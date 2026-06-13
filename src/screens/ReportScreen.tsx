@@ -7,15 +7,13 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { BarChart } from 'react-native-gifted-charts';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { getStats, getSalesByPeriod, deleteSale } from '../db/database';
-
-const PERIODS = [
-  { label: 'Сегодня', days: 1 },
-  { label: '7 дней', days: 7 },
-  { label: '30 дней', days: 30 },
-];
+import { useAppContext } from '../context/AppContext';
 
 export default function ReportScreen() {
+  const { t, i18n } = useTranslation();
+  const { theme, currency } = useAppContext();
   const [period, setPeriod] = useState(1);
   const [stats, setStats] = useState({ revenue: 0, profit: 0, count: 0 });
   const [sales, setSales] = useState<any[]>([]);
@@ -37,12 +35,12 @@ export default function ReportScreen() {
 
   const handleDeleteSale = (sale: any) => {
     Alert.alert(
-      'Удалить продажу?',
-      `Вы уверены, что хотите удалить продажу "${sale.product_name}"? Остаток товара будет возвращен.`,
+      t('reports.deleteSaleTitle'),
+      t('reports.deleteSaleMsg', { name: sale.product_name }),
       [
-        { text: 'Отмена', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Удалить',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: () => {
             deleteSale(sale.id);
@@ -75,7 +73,7 @@ export default function ReportScreen() {
 
   // Подготовка данных для графика
   const chartData = sales.reduce((acc: any, sale: any) => {
-    const date = new Date(sale.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+    const date = new Date(sale.created_at).toLocaleDateString(i18n.language === 'tg' ? 'tg-TJ' : i18n.language === 'uz' ? 'uz-UZ' : 'ru-RU', { day: 'numeric', month: 'short' });
     const existing = acc.find((d: any) => d.label === date);
     if (existing) {
       existing.value += sale.sell_price * sale.quantity;
@@ -112,17 +110,26 @@ export default function ReportScreen() {
           UTI: 'public.comma-separated-values-text'
         });
       } else {
-        Alert.alert('Ошибка', 'Общий доступ недоступен на этом устройстве');
+        Alert.alert(t('common.error'), 'Общий доступ недоступен на этом устройстве');
       }
     } catch (e) {
       console.error('Export error', e);
-      Alert.alert('Ошибка', 'Не удалось экспортировать файл');
+      Alert.alert(t('common.error'), 'Не удалось экспортировать файл');
     }
   };
 
+  const PERIODS = [
+    { label: t('reports.today'), days: 1 },
+    { label: t('reports.days7'), days: 7 },
+    { label: t('reports.days30'), days: 30 },
+  ];
+
+  const isDark = theme === 'dark';
+  const themeStyles = isDark ? darkStyles : lightStyles;
+
   return (
     <ScrollView
-      style={styles.container}
+      style={[styles.container, themeStyles.container]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       {/* Переключатель периода и экспорт */}
@@ -131,7 +138,7 @@ export default function ReportScreen() {
           {PERIODS.map(p => (
             <TouchableOpacity
               key={p.days}
-              style={[styles.periodBtn, period === p.days && styles.periodBtnActive]}
+              style={[styles.periodBtn, themeStyles.card, period === p.days && styles.periodBtnActive]}
               onPress={() => setPeriod(p.days)}
             >
               <Text style={[styles.periodText, period === p.days && styles.periodTextActive]}>
@@ -140,15 +147,15 @@ export default function ReportScreen() {
             </TouchableOpacity>
           ))}
         </View>
-        <TouchableOpacity style={styles.exportBtn} onPress={exportToCSV}>
+        <TouchableOpacity style={[styles.exportBtn, themeStyles.card]} onPress={exportToCSV}>
           <Text style={styles.exportBtnText}>📄 CSV</Text>
         </TouchableOpacity>
       </View>
 
       {/* График тренда */}
       {chartData.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Тренд выручки</Text>
+        <View style={[styles.section, themeStyles.card]}>
+          <Text style={[styles.sectionTitle, themeStyles.text]}>{t('reports.trend')}</Text>
           <BarChart
             data={chartData}
             barWidth={period === 30 ? 8 : 22}
@@ -168,22 +175,22 @@ export default function ReportScreen() {
       {/* Главные цифры */}
       <View style={styles.statsGrid}>
         <View style={[styles.statCard, { backgroundColor: '#1D9E75' }]}>
-          <Text style={styles.statLabel}>Выручка</Text>
+          <Text style={styles.statLabel}>{t('common.revenue')}</Text>
           <Text style={styles.statValue}>{stats.revenue.toLocaleString()}</Text>
-          <Text style={styles.statCurrency}>сомони</Text>
+          <Text style={styles.statCurrency}>{currency.symbol}</Text>
         </View>
         <View style={[styles.statCard, { backgroundColor: '#0C447C' }]}>
-          <Text style={styles.statLabel}>Прибыль</Text>
+          <Text style={styles.statLabel}>{t('common.profit')}</Text>
           <Text style={styles.statValue}>{stats.profit.toLocaleString()}</Text>
-          <Text style={styles.statCurrency}>сомони</Text>
+          <Text style={styles.statCurrency}>{currency.symbol}</Text>
         </View>
         <View style={[styles.statCard, { backgroundColor: '#854F0B' }]}>
-          <Text style={styles.statLabel}>Продаж</Text>
+          <Text style={styles.statLabel}>{t('home.salesCount')}</Text>
           <Text style={styles.statValue}>{stats.count}</Text>
-          <Text style={styles.statCurrency}>штук</Text>
+          <Text style={styles.statCurrency}>{t('reports.pcs')}</Text>
         </View>
         <View style={[styles.statCard, { backgroundColor: '#3B6D11' }]}>
-          <Text style={styles.statLabel}>Маржа</Text>
+          <Text style={styles.statLabel}>{t('products.margin')}</Text>
           <Text style={styles.statValue}>{margin}%</Text>
           <Text style={styles.statCurrency}>рентабельность</Text>
         </View>
@@ -191,32 +198,33 @@ export default function ReportScreen() {
 
       {/* Топ товары */}
       {topList.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Топ товары по прибыли</Text>
+        <View style={[styles.section, themeStyles.card]}>
+          <Text style={[styles.sectionTitle, themeStyles.text]}>{t('reports.topProducts')}</Text>
           {topList.map((item: any, index) => (
             <View key={item.name} style={styles.topItem}>
               <View style={styles.topRank}>
                 <Text style={styles.topRankText}>{index + 1}</Text>
               </View>
               <View style={styles.topInfo}>
-                <Text style={styles.topName}>{item.name}</Text>
-                <Text style={styles.topCount}>Продано: {item.count} шт</Text>
+                <Text style={[styles.topName, themeStyles.text]}>{item.name}</Text>
+                <Text style={styles.topCount}>Продано: {item.count} {t('reports.pcs')}</Text>
               </View>
-              <Text style={styles.topProfit}>+{item.profit.toLocaleString()} сом</Text>
+              <Text style={styles.topProfit}>+{item.profit.toLocaleString()} {currency.symbol}</Text>
             </View>
           ))}
         </View>
       )}
 
       {/* Список продаж */}
-      <View style={styles.section}>
+      <View style={[styles.section, themeStyles.card]}>
         <View style={styles.listHeader}>
-          <Text style={styles.sectionTitle}>
-            Все продажи ({filteredSales.length})
+          <Text style={[styles.sectionTitle, themeStyles.text]}>
+            {t('reports.allSales')} ({filteredSales.length})
           </Text>
           <TextInput
-            style={styles.filterInput}
-            placeholder="Поиск товара..."
+            style={[styles.filterInput, themeStyles.input]}
+            placeholder={t('reports.searchPlaceholder')}
+            placeholderTextColor={isDark ? '#888' : '#aaa'}
             value={filterText}
             onChangeText={setFilterText}
           />
@@ -225,7 +233,7 @@ export default function ReportScreen() {
         {filteredSales.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyText}>
-              {sales.length === 0 ? 'Продаж нет за этот период' : 'Ничего не найдено'}
+              {sales.length === 0 ? t('reports.noSalesPeriod') : t('reports.nothingFound')}
             </Text>
           </View>
         ) : (
@@ -237,9 +245,9 @@ export default function ReportScreen() {
               delayLongPress={500}
             >
               <View style={styles.saleLeft}>
-                <Text style={styles.saleName}>{sale.product_name}</Text>
+                <Text style={[styles.saleName, themeStyles.text]}>{sale.product_name}</Text>
                 <Text style={styles.saleDate}>
-                  {new Date(sale.created_at).toLocaleString('ru-RU', {
+                  {new Date(sale.created_at).toLocaleString(i18n.language === 'tg' ? 'tg-TJ' : i18n.language === 'uz' ? 'uz-UZ' : 'ru-RU', {
                     day: 'numeric', month: 'short',
                     hour: '2-digit', minute: '2-digit'
                   })}
@@ -250,11 +258,11 @@ export default function ReportScreen() {
                 ) : null}
               </View>
               <View style={styles.saleRight}>
-                <Text style={styles.saleRevenue}>
-                  {(sale.sell_price * sale.quantity).toLocaleString()} сом
+                <Text style={[styles.saleRevenue, themeStyles.text]}>
+                  {(sale.sell_price * sale.quantity).toLocaleString()} {currency.symbol}
                 </Text>
                 <Text style={styles.saleProfit}>
-                  +{sale.profit.toLocaleString()} сом
+                  +{sale.profit.toLocaleString()} {currency.symbol}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -266,8 +274,22 @@ export default function ReportScreen() {
   );
 }
 
+const lightStyles = StyleSheet.create({
+  container: { backgroundColor: '#F5F5F5' },
+  card: { backgroundColor: '#fff' },
+  text: { color: '#333' },
+  input: { backgroundColor: '#F5F5F5', borderColor: '#E0E0E0' },
+});
+
+const darkStyles = StyleSheet.create({
+  container: { backgroundColor: '#000' },
+  card: { backgroundColor: '#1E1E1E' },
+  text: { color: '#EEE' },
+  input: { backgroundColor: '#2C2C2C', borderColor: '#444', color: '#EEE' },
+});
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F5F5' },
+  container: { flex: 1 },
   topRow: {
     flexDirection: 'row', alignItems: 'center', paddingRight: 16,
   },
@@ -275,14 +297,14 @@ const styles = StyleSheet.create({
     flex: 1, flexDirection: 'row', gap: 8, padding: 16, paddingBottom: 8,
   },
   exportBtn: {
-    backgroundColor: '#fff', paddingVertical: 8, paddingHorizontal: 12,
+    paddingVertical: 8, paddingHorizontal: 12,
     borderRadius: 8, borderWidth: 1, borderColor: '#E0E0E0',
     marginTop: 8,
   },
   exportBtnText: { fontSize: 13, fontWeight: '600', color: '#1D9E75' },
   periodBtn: {
     flex: 1, paddingVertical: 8, borderRadius: 8,
-    backgroundColor: '#fff', alignItems: 'center',
+    alignItems: 'center',
     borderWidth: 1, borderColor: '#E0E0E0',
   },
   periodBtnActive: { backgroundColor: '#1D9E75', borderColor: '#1D9E75' },
@@ -301,20 +323,20 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 22, fontWeight: 'bold', color: '#fff' },
   statCurrency: { fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
   section: {
-    margin: 16, marginTop: 8, backgroundColor: '#fff',
+    margin: 16, marginTop: 8,
     borderRadius: 12, padding: 16,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05, shadowRadius: 2, elevation: 2,
   },
-  sectionTitle: { fontSize: 15, fontWeight: '600', color: '#333', marginBottom: 12 },
+  sectionTitle: { fontSize: 15, fontWeight: '600', marginBottom: 12 },
   listHeader: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', marginBottom: 12,
   },
   filterInput: {
-    backgroundColor: '#F5F5F5', borderRadius: 8, paddingHorizontal: 10,
+    borderRadius: 8, paddingHorizontal: 10,
     paddingVertical: 4, fontSize: 13, width: '50%',
-    borderWidth: 1, borderColor: '#E0E0E0',
+    borderWidth: 1,
   },
   topItem: {
     flexDirection: 'row', alignItems: 'center',
@@ -327,7 +349,7 @@ const styles = StyleSheet.create({
   },
   topRankText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
   topInfo: { flex: 1 },
-  topName: { fontSize: 14, fontWeight: '500', color: '#222' },
+  topName: { fontSize: 14, fontWeight: '500' },
   topCount: { fontSize: 12, color: '#999', marginTop: 2 },
   topProfit: { fontSize: 14, fontWeight: '600', color: '#1D9E75' },
   empty: { alignItems: 'center', padding: 30 },
@@ -337,10 +359,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: '#F0F0F0',
   },
   saleLeft: { flex: 1, marginRight: 10 },
-  saleName: { fontSize: 14, fontWeight: '500', color: '#222' },
+  saleName: { fontSize: 14, fontWeight: '500' },
   saleDate: { fontSize: 12, color: '#999', marginTop: 2 },
   saleNote: { fontSize: 12, color: '#aaa', marginTop: 2, fontStyle: 'italic' },
   saleRight: { alignItems: 'flex-end' },
-  saleRevenue: { fontSize: 14, fontWeight: '600', color: '#222' },
+  saleRevenue: { fontSize: 14, fontWeight: '600' },
   saleProfit: { fontSize: 13, color: '#1D9E75', marginTop: 2 },
 });
