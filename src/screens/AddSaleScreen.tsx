@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { useRoute } from '@react-navigation/native';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, ScrollView, Alert, ActivityIndicator
@@ -11,19 +12,29 @@ import { useAppContext } from '../context/AppContext';
 
 const CACHE_TTL = 60 * 60 * 1000; // 1 час в мс
 
-export default function AddSaleScreen() {
+export default function AddSaleScreen(/* props */) {
   const { t } = useTranslation();
   const { theme, currency, language } = useAppContext();
   const [products, setProducts] = useState<any[]>([]);
   const [productName, setProductName] = useState('');
-  const [sellPrice, setSellPrice] = useState('');
-  const [buyPrice, setBuyPrice] = useState('');
-  const [quantity, setQuantity] = useState('1');
+  const [sellPrice, setSellPrice] = useState<number | null>(null);
+  const [buyPrice, setBuyPrice] = useState<number | null>(null);
+  const [quantity, setQuantity] = useState<number | null>(null);
   const [note, setNote] = useState('');
   const [listening, setListening] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [voiceText, setVoiceText] = useState('');
   const [lastSaved, setLastSaved] = useState<any>(null);
+
+  // добавлено: получение параметров из маршрута (от калькулятора)
+  const route = useRoute<any>();
+
+  useEffect(() => {
+    if (route.params?.prefillSell) setSellPrice(route.params.prefillSell);
+    if (route.params?.prefillBuy) setBuyPrice(route.params.prefillBuy);
+    if (route.params?.prefillQty) setQuantity(route.params.prefillQty);
+    if (route.params?.prefillPrice) setSellPrice(route.params.prefillPrice);
+  }, [route.params]);
 
   useEffect(() => {
     setProducts(getProducts());
@@ -182,9 +193,9 @@ export default function AddSaleScreen() {
 
     // Сброс формы
     setProductName('');
-    setSellPrice('');
-    setBuyPrice('');
-    setQuantity('1');
+    setSellPrice(null);
+    setBuyPrice(null);
+    setQuantity(null);
     setNote('');
     setVoiceText('');
   };
@@ -245,8 +256,8 @@ export default function AddSaleScreen() {
               placeholder="0"
               placeholderTextColor={isDark ? '#888' : '#aaa'}
               keyboardType="numeric"
-              value={sellPrice}
-              onChangeText={setSellPrice}
+              value={sellPrice !== null ? sellPrice.toString() : ''}
+              onChangeText={(value) => setSellPrice(value ? parseFloat(value) : null)}
             />
           </View>
           <View style={styles.halfField}>
@@ -256,8 +267,8 @@ export default function AddSaleScreen() {
               placeholder="0"
               placeholderTextColor={isDark ? '#888' : '#aaa'}
               keyboardType="numeric"
-              value={buyPrice}
-              onChangeText={setBuyPrice}
+              value={buyPrice !== null ? buyPrice.toString() : ''}
+              onChangeText={(value) => setBuyPrice(value ? parseFloat(value) : null)}
             />
           </View>
         </View>
@@ -268,8 +279,8 @@ export default function AddSaleScreen() {
           placeholder="1"
           placeholderTextColor={isDark ? '#888' : '#aaa'}
           keyboardType="numeric"
-          value={quantity}
-          onChangeText={setQuantity}
+          value={quantity !== null ? quantity.toString() : ''}
+          onChangeText={(value) => setQuantity(value ? parseInt(value) : null)}
         />
 
         <Text style={[styles.label, themeStyles.text]}>{t('addSale.note')}</Text>
@@ -283,19 +294,19 @@ export default function AddSaleScreen() {
         />
 
         {/* Предварительный расчёт */}
-        {sellPrice && buyPrice ? (
+        {sellPrice !== null && buyPrice !== null ? (
           <View style={styles.preview}>
             <Text style={styles.previewTitle}>{t('addSale.previewTitle')}</Text>
             <View style={styles.previewRow}>
               <Text style={[styles.previewLabel, themeStyles.text]}>{t('common.revenue')}:</Text>
               <Text style={[styles.previewValue, themeStyles.text]}>
-                {(parseFloat(sellPrice) * (parseInt(quantity) || 1)).toLocaleString()} {currency.symbol}
+                {(sellPrice * (quantity || 1)).toLocaleString()} {currency.symbol}
               </Text>
             </View>
             <View style={styles.previewRow}>
               <Text style={[styles.previewLabel, themeStyles.text]}>{t('common.profit')}:</Text>
               <Text style={[styles.previewValue, { color: '#1D9E75' }]}>
-                {((parseFloat(sellPrice) - parseFloat(buyPrice)) * (parseInt(quantity) || 1)).toLocaleString()} {currency.symbol}
+                {((sellPrice - buyPrice) * (quantity || 1)).toLocaleString()} {currency.symbol}
               </Text>
             </View>
           </View>
