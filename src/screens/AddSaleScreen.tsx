@@ -1,13 +1,13 @@
-import { useEffect, useState, useMemo, useCallback } from 'react';
-import { useRoute, useFocusEffect } from '@react-navigation/native';
+import { useEffect, useState, useMemo } from 'react';
+import { useRoute } from '@react-navigation/native';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, Alert, ActivityIndicator, FlatList
+  StyleSheet, ScrollView, Alert, ActivityIndicator
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
-import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import { addSale, getProducts } from '../db/database';
+import VoiceRecorder from '../components/VoiceRecorder';
 import { useAppContext } from '../context/AppContext';
 import GeminiApi from '../utils/geminiApi';
 
@@ -26,19 +26,18 @@ export default function AddSaleScreen(/* props */) {
     return new GeminiApi({ geminiKeys: keys.length ? keys : [''] });
   }, []);
 
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<{ id: number; name: string; sell_price: number; buy_price: number }[]>([]);
   const [productName, setProductName] = useState('');
   const [sellPrice, setSellPrice] = useState('');
   const [buyPrice, setBuyPrice] = useState('');
   const [quantity, setQuantity] = useState('');
   const [note, setNote] = useState('');
-  const [listening, setListening] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [voiceText, setVoiceText] = useState('');
-  const [lastSaved, setLastSaved] = useState<any>(null);
+  const [lastSaved, setLastSaved] = useState<{ name: string; profit: string; revenue: string } | null>(null);
 
   // добавлено: получение параметров из маршрута (от калькулятора)
-  const route = useRoute<any>();
+  const route = useRoute<any>(); // useRoute in @react-navigation/native is notoriously hard to type without complex generic
 
   useEffect(() => {
     if (route.params?.prefillSell) setSellPrice(String(route.params.prefillSell));
@@ -48,48 +47,12 @@ export default function AddSaleScreen(/* props */) {
   }, [route.params]);
 
   useEffect(() => {
-    setProducts(getProducts());
+    setProducts(getProducts() as { id: number; name: string; sell_price: number; buy_price: number }[]);
   }, []);
 
-  useFocusEffect(useCallback(() => {
-    return () => {
-      ExpoSpeechRecognitionModule.stop();
-      setListening(false);
-    };
-  }, []));
-
-  // Слушаем результат распознавания
-  useSpeechRecognitionEvent('result', (event) => {
-    const text = event.results[0]?.transcript ?? '';
+  const handleTranscript = (text: string) => {
     setVoiceText(text);
     if (text) analyzeWithAI(text);
-  });
-
-  useSpeechRecognitionEvent('end', () => setListening(false));
-  useSpeechRecognitionEvent('error', () => setListening(false));
-
-  const startListening = async () => {
-    const { granted } = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-    if (!granted) {
-      Alert.alert(t('common.error'), 'Разрешите доступ к микрофону');
-      return;
-    }
-
-    let langCode = 'ru-RU';
-    if (language === 'tg') langCode = 'tg-TJ';
-    else if (language === 'uz') langCode = 'uz-UZ';
-
-    setVoiceText('');
-    setListening(true);
-    ExpoSpeechRecognitionModule.start({
-      lang: langCode,
-      interimResults: false,
-    });
-  };
-
-  const stopListening = () => {
-    ExpoSpeechRecognitionModule.stop();
-    setListening(false);
   };
 
   const analyzeWithAI = async (text: string) => {
@@ -160,7 +123,7 @@ export default function AddSaleScreen(/* props */) {
     }
   };
 
-  const applyAIResult = (parsed: any) => {
+  const applyAIResult = (parsed: { product_name: string; sell_price: number; buy_price: number; quantity: number; revenue: number; profit: number }) => {
     // Заполняем поля
     if (parsed.product_name) setProductName(parsed.product_name);
     if (parsed.sell_price > 0) setSellPrice(String(parsed.sell_price));
@@ -228,16 +191,8 @@ export default function AddSaleScreen(/* props */) {
       {/* Голосовой ввод */}
       <View style={[styles.voiceSection, themeStyles.card]}>
         <Text style={[styles.sectionTitle, themeStyles.text]}>{t('addSale.voiceTitle')}</Text>
-        <TouchableOpacity
-          style={[styles.voiceBtn, listening && styles.voiceBtnActive]}
-          onPress={listening ? stopListening : startListening}
-          disabled={processing}
-        >
-          <Text style={styles.voiceBtnIcon}>{listening ? '⏹' : '🎤'}</Text>
-          <Text style={styles.voiceBtnText}>
-            {listening ? t('addSale.voiceBtnStop') : t('addSale.voiceBtnStart')}
-          </Text>
-        </TouchableOpacity>
+
+        <VoiceRecorder onTranscript={handleTranscript} />
 
         {voiceText ? (
           <View style={[styles.voiceResult, themeStyles.voiceResult]}>
@@ -269,7 +224,7 @@ export default function AddSaleScreen(/* props */) {
 
         {filteredProducts.length > 0 && productName.length > 0 && (
           <View style={[styles.autocomplete, themeStyles.card]}>
-            {filteredProducts.slice(0, 5).map(p => (
+            {filteredProducts.slice(0, 5).map((p: { id: number; name: string; sell_price: number; buy_price: number }) => (
               <TouchableOpacity
                 key={String(p.id)}
                 style={styles.autocompleteItem}
@@ -393,14 +348,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05, shadowRadius: 2, elevation: 2,
   },
   sectionTitle: { fontSize: 16, fontWeight: '600', marginBottom: 12 },
-  voiceBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: '#F0FBF7', borderRadius: 12, padding: 16,
-    borderWidth: 1.5, borderColor: '#1D9E75',
-  },
-  voiceBtnActive: { backgroundColor: '#FFE8E8', borderColor: '#E53935' },
-  voiceBtnIcon: { fontSize: 24 },
-  voiceBtnText: { fontSize: 15, color: '#1D9E75', fontWeight: '500', flex: 1 },
   voiceResult: { marginTop: 12, padding: 12, borderRadius: 8 },
   voiceResultLabel: { fontSize: 12, color: '#999', marginBottom: 4 },
   voiceResultText: { fontSize: 14, fontStyle: 'italic' },
