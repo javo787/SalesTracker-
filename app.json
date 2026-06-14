@@ -17,17 +17,24 @@
     "android": {
       "package": "com.savdo.app",
       "permissions": [
-        "RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "plugins": [
+      "expo-speech-recognition",
       "expo-sharing",
       [
         "expo-image-picker",
         {
-          "photosPermission": "The app accesses your photos to let you set a profile picture."
+          "photosPermission": "The app accesses your photos."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "617f1baa-d4b4-4221-b3f6-f9b321325ec0"
+      }
+    },
+    "owner": "javocha"
   }
 }

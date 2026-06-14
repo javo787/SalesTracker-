@@ -27,7 +27,7 @@ export default function AuthScreen() {
   const [referralCode, setReferralCode] = useState('');
 
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    clientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
+    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
   });
 
   useEffect(() => {

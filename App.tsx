@@ -174,7 +174,7 @@ function AppContent() {
 export default function App() {
   useEffect(() => {
     initDatabase();
-   // requestPermissions(); //
+    requestPermissions();
   }, []);
 
   return (
