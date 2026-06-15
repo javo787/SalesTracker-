@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useRoute } from '@react-navigation/native';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, Alert, ActivityIndicator
+  StyleSheet, ScrollView, Alert, ActivityIndicator, Animated
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
@@ -10,6 +10,7 @@ import { addSale, getProducts } from '../db/database';
 import VoiceRecorder from '../components/VoiceRecorder';
 import { useAppContext } from '../context/AppContext';
 import GeminiApi from '../utils/geminiApi';
+import ExpensesView from '../components/expenses/ExpensesView';
 
 const CACHE_TTL = 60 * 60 * 1000; // 1 час в мс
 
@@ -35,6 +36,8 @@ export default function AddSaleScreen(/* props */) {
   const [processing, setProcessing] = useState(false);
   const [voiceText, setVoiceText] = useState('');
   const [lastSaved, setLastSaved] = useState<{ name: string; profit: string; revenue: string } | null>(null);
+  const [activeTab, setActiveTab] = useState<'sales' | 'expenses'>('sales');
+  const fadeAnim = useMemo(() => new Animated.Value(1), []);
 
   // добавлено: получение параметров из маршрута (от калькулятора)
   const route = useRoute<any>(); // useRoute in @react-navigation/native is notoriously hard to type without complex generic
@@ -185,10 +188,51 @@ export default function AddSaleScreen(/* props */) {
     return products.filter(p => p.name.toLowerCase().includes(productName.toLowerCase()));
   }, [productName, products]);
 
-  return (
-    <ScrollView style={[styles.container, themeStyles.container]} keyboardShouldPersistTaps="handled">
+  const switchTab = (tab: 'sales' | 'expenses') => {
+    if (tab === activeTab) return;
 
-      {/* Голосовой ввод */}
+    Animated.timing(fadeAnim, {
+      toValue: 0,
+      duration: 150,
+      useNativeDriver: true,
+    }).start(() => {
+      setActiveTab(tab);
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: true,
+      }).start();
+    });
+  };
+
+  return (
+    <View style={[styles.container, themeStyles.container]}>
+      {/* Tab Switcher */}
+      <View style={styles.tabContainer}>
+        <View style={[styles.segmentedControl, isDark ? styles.segmentedControlDark : styles.segmentedControlLight]}>
+          <TouchableOpacity
+            style={[styles.tabBtn, activeTab === 'sales' && styles.tabBtnActive]}
+            onPress={() => switchTab('sales')}
+          >
+            <Text style={[styles.tabText, activeTab === 'sales' && styles.tabTextActive]}>
+              {t('home.salesCount')}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tabBtn, activeTab === 'expenses' && styles.tabBtnActive]}
+            onPress={() => switchTab('expenses')}
+          >
+            <Text style={[styles.tabText, activeTab === 'expenses' && styles.tabTextActive]}>
+              {t('tabs.expenses')}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+        {activeTab === 'sales' ? (
+          <ScrollView keyboardShouldPersistTaps="handled">
+            {/* Голосовой ввод */}
       <View style={[styles.voiceSection, themeStyles.card]}>
         <Text style={[styles.sectionTitle, themeStyles.text]}>{t('addSale.voiceTitle')}</Text>
 
@@ -309,17 +353,21 @@ export default function AddSaleScreen(/* props */) {
         </TouchableOpacity>
       </View>
 
-      {/* Успешно сохранено */}
-      {lastSaved && (
-        <View style={styles.successCard}>
-          <Text style={styles.successTitle}>✅ {t('common.saved')}</Text>
-          <Text style={[styles.successText, themeStyles.text]}>{lastSaved.name}</Text>
-          <Text style={[styles.successText, themeStyles.text]}>{t('common.revenue')}: {lastSaved.revenue} {currency.symbol}</Text>
-          <Text style={styles.successProfit}>{t('common.profit')}: +{lastSaved.profit} {currency.symbol}</Text>
-        </View>
-      )}
-
-    </ScrollView>
+            {/* Успешно сохранено */}
+            {lastSaved && (
+              <View style={styles.successCard}>
+                <Text style={styles.successTitle}>✅ {t('common.saved')}</Text>
+                <Text style={[styles.successText, themeStyles.text]}>{lastSaved.name}</Text>
+                <Text style={[styles.successText, themeStyles.text]}>{t('common.revenue')}: {lastSaved.revenue} {currency.symbol}</Text>
+                <Text style={styles.successProfit}>{t('common.profit')}: +{lastSaved.profit} {currency.symbol}</Text>
+              </View>
+            )}
+          </ScrollView>
+        ) : (
+          <ExpensesView />
+        )}
+      </Animated.View>
+    </View>
   );
 }
 
@@ -341,6 +389,48 @@ const darkStyles = StyleSheet.create({
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  tabContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  segmentedControl: {
+    flexDirection: 'row',
+    borderRadius: 25,
+    padding: 4,
+    height: 46,
+  },
+  segmentedControlLight: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#eee',
+  },
+  segmentedControlDark: {
+    backgroundColor: '#000',
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  tabBtn: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 21,
+  },
+  tabBtnActive: {
+    backgroundColor: '#1D9E75',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+  },
+  tabTextActive: {
+    color: '#fff',
+  },
   voiceSection: {
     margin: 16,
     borderRadius: 12, padding: 16,
