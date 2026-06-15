@@ -210,6 +210,39 @@ const resources = {
         guestWarning: 'Создайте аккаунт для синхронизации данных',
         bestProduct: 'Лучший товар',
         memberSince: 'В приложении с',
+      },
+      calculator: {
+        title: 'Калькулятор',
+        modeNormal: 'Обычный',
+        modeTrade: 'Торговый',
+        backspace: 'Удалить символ',
+        transfer: 'Перенести в продажу',
+        saveAsSale: 'Сохранить как продажу',
+        tabs: {
+          markup: 'Наценка',
+          margin: 'Маржа',
+          batch: 'Партия',
+          reverse: 'Обратный'
+        },
+        labels: {
+          buyPrice: 'Цена закупки',
+          desiredMarkup: 'Желаемая наценка (%)',
+          desiredProfit: 'Желаемая прибыль',
+          sellPrice: 'Цена продажи',
+          quantity: 'Количество',
+          profitPerItem: 'Прибыль / шт',
+          margin: 'Маржа',
+          revenue: 'Выручка',
+          profit: 'Прибыль'
+        },
+        tutorial: {
+          welcome: 'Добро пожаловать!',
+          modes: 'Переключайтесь между обычным калькулятором и торговыми расчетами.',
+          trade: 'Считайте наценку, маржу и прибыль для ваших товаров.',
+          transfer: 'Одним нажатием переносите результаты расчетов сразу в раздел продаж.',
+          next: 'Далее',
+          finish: 'Понятно'
+        }
       }
     }
   },
@@ -420,6 +453,39 @@ const resources = {
         guestWarning: 'Барои ҳамоҳангсозии маълумот аккаунт эҷод кунед',
         bestProduct: 'Моли беҳтарин',
         memberSince: 'Дар барнома аз',
+      },
+      calculator: {
+        title: 'Калкулятор',
+        modeNormal: 'Оддӣ',
+        modeTrade: 'Тиҷоратӣ',
+        backspace: 'Нест кардани аломат',
+        transfer: 'Гузаронидан ба фурӯш',
+        saveAsSale: 'Захира ҳамчун фурӯш',
+        tabs: {
+          markup: 'Иловапулӣ',
+          margin: 'Маржа',
+          batch: 'Партия',
+          reverse: 'Баракси'
+        },
+        labels: {
+          buyPrice: 'Нархи харид',
+          desiredMarkup: 'Иловапулии дилхоҳ (%)',
+          desiredProfit: 'Фоидаи дилхоҳ',
+          sellPrice: 'Нархи фурӯш',
+          quantity: 'Миқдор',
+          profitPerItem: 'Фоида / дона',
+          margin: 'Маржа',
+          revenue: 'Даромад',
+          profit: 'Фоида'
+        },
+        tutorial: {
+          welcome: 'Хуш омадед!',
+          modes: 'Байни калкулятори оддӣ ва ҳисобҳои тиҷоратӣ гузаред.',
+          trade: 'Иловапулӣ, маржа ва фоидаро барои молҳои худ ҳисоб кунед.',
+          transfer: 'Бо як пахш натиҷаҳои ҳисобро мустақиман ба қисми фурӯш гузаронед.',
+          next: 'Баъдӣ',
+          finish: 'Фаҳмо'
+        }
       }
     }
   },
@@ -630,6 +696,39 @@ const resources = {
         guestWarning: 'Ma’lumotlarni sinxronlash uchun akkaunt yarating',
         bestProduct: 'Eng yaxshi mahsulot',
         memberSince: 'Ilovada foydanuvchi',
+      },
+      calculator: {
+        title: 'Kalkulyator',
+        modeNormal: 'Oddiy',
+        modeTrade: 'Savdo',
+        backspace: 'Belgini o‘chirish',
+        transfer: 'Sotuvga o‘tkazish',
+        saveAsSale: 'Sotuv sifatida saqlash',
+        tabs: {
+          markup: 'Ustama',
+          margin: 'Marja',
+          batch: 'Partiya',
+          reverse: 'Teskari'
+        },
+        labels: {
+          buyPrice: 'Sotib olish narxi',
+          desiredMarkup: 'Istalgan ustama (%)',
+          desiredProfit: 'Istalgan foyda',
+          sellPrice: 'Sotish narxi',
+          quantity: 'Miqdori',
+          profitPerItem: 'Foyda / dona',
+          margin: 'Marja',
+          revenue: 'Tushum',
+          profit: 'Foyda'
+        },
+        tutorial: {
+          welcome: 'Xush kelibsiz!',
+          modes: 'Oddiy kalkulyator va savdo hisob-kitoblari o‘rtasida almashing.',
+          trade: 'Mahsulotlaringiz uchun ustama, marja va foydani hisoblang.',
+          transfer: 'Bir marta bosish bilan hisob-kitob natijalarini to‘g‘ridan-to‘g‘ri sotuvlar bo‘limiga o‘tkazing.',
+          next: 'Keyingi',
+          finish: 'Tushunarli'
+        }
       }
     }
   }
