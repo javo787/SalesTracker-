@@ -28,6 +28,18 @@ export function initDatabase() {
       created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (product_id) REFERENCES products(id)
     );
+
+    CREATE TABLE IF NOT EXISTS expenses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL, -- 'operational' | 'inventory'
+      category TEXT NOT NULL,
+      amount REAL NOT NULL,
+      description TEXT,
+      linked_product_id INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      user_id TEXT,
+      FOREIGN KEY (linked_product_id) REFERENCES products(id)
+    );
   `);
 
   // Migration: add min_stock_alert to products if it doesn't exist
@@ -134,7 +146,8 @@ export function getSalesToday() {
 
 export function getSalesByPeriod(days: number) {
   return db.getAllSync(
-    `SELECT * FROM sales WHERE created_at >= datetime('now', '-${days} days') ORDER BY created_at DESC`
+    "SELECT * FROM sales WHERE created_at >= datetime('now', '-' || ? || ' days') ORDER BY created_at DESC",
+    [days]
   );
 }
 
@@ -159,8 +172,51 @@ export function getStats(days: number = 1) {
       COALESCE(SUM(profit), 0) as profit,
       COALESCE(COUNT(*), 0) as count
     FROM sales 
-    WHERE created_at >= datetime('now', '-${days} days')
-  `) as any;
+    WHERE created_at >= datetime('now', '-' || ? || ' days')
+  `, [days]) as any;
+  return result;
+}
+
+// Расходы
+export function addExpense(
+  type: string,
+  category: string,
+  amount: number,
+  description: string,
+  userId: string,
+  linkedProductId: number | null = null
+) {
+  try {
+    return db.runSync(
+      'INSERT INTO expenses (type, category, amount, description, user_id, linked_product_id) VALUES (?, ?, ?, ?, ?, ?)',
+      [type, category, amount, description, userId, linkedProductId]
+    );
+  } catch (error) {
+    console.error('Error adding expense:', error);
+    throw error;
+  }
+}
+
+export function getExpenses(days: number = 1) {
+  return db.getAllSync(
+    "SELECT * FROM expenses WHERE created_at >= datetime('now', '-' || ? || ' days') ORDER BY created_at DESC",
+    [days]
+  );
+}
+
+export function deleteExpense(id: number) {
+  return db.runSync('DELETE FROM expenses WHERE id = ?', [id]);
+}
+
+export function getExpenseStats(days: number = 1) {
+  const result = db.getFirstSync(`
+    SELECT
+      COALESCE(SUM(CASE WHEN type = 'operational' THEN amount ELSE 0 END), 0) as operational,
+      COALESCE(SUM(CASE WHEN type = 'inventory' THEN amount ELSE 0 END), 0) as inventory,
+      COALESCE(SUM(amount), 0) as total
+    FROM expenses
+    WHERE created_at >= datetime('now', '-' || ? || ' days')
+  `, [days]) as any;
   return result;
 }
 
