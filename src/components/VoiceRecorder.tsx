@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { AudioModule, useAudioRecorder, RecordingPresets } from 'expo-audio';
 import * as FileSystem from 'expo-file-system/legacy';
+import { AppState } from 'react-native';
 import { useAppContext } from '../context/AppContext';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -34,13 +35,20 @@ export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
   const isDark = theme === 'dark';
 
   useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (nextAppState !== 'active' && recorder.isRecording) {
+        stopRecording();
+      }
+    });
+
     return () => {
+      subscription.remove();
       if (recorder.isRecording) {
         recorder.stop().catch(() => {});
       }
       clearTimers();
     };
-  }, [recorder]);
+  }, [recorder, isRecording]);
 
   const clearTimers = () => {
     if (durationTimer.current) clearTimeout(durationTimer.current);
@@ -134,42 +142,36 @@ export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
         throw new Error('GROQ API Key is missing');
       }
 
-      const formData = new FormData();
-      // @ts-ignore
-      formData.append('file', {
-        uri,
-        type: 'audio/m4a',
-        name: 'voice.m4a',
-      });
-      formData.append('model', 'whisper-large-v3');
-      formData.append('prompt', WHISPER_PROMPT);
-      formData.append('response_format', 'json');
-
       // Language detection based on app language
       let groqLang = 'ru';
       if (language === 'tg') groqLang = 'tg';
       else if (language === 'uz') groqLang = 'uz';
-      formData.append('language', groqLang);
 
-      const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
-        method: 'POST',
+      const response = await FileSystem.uploadAsync('https://api.groq.com/openai/v1/audio/transcriptions', uri, {
+        fieldName: 'file',
+        httpMethod: 'POST',
+        uploadType: FileSystem.UploadType.MULTIPART,
         headers: {
           'Authorization': `Bearer ${apiKey}`,
         },
-        body: formData,
+        parameters: {
+          'model': 'whisper-large-v3',
+          'prompt': WHISPER_PROMPT,
+          'response_format': 'json',
+          'language': groqLang,
+        }
       });
 
       if (response.status === 429) {
         throw new Error('Превышен лимит запросов Groq API. Попробуйте позже.');
       }
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Groq API error:', errorData);
+      if (response.status !== 200 && response.status !== 201) {
+        console.error('Groq API error status:', response.status, response.body);
         throw new Error('Ошибка при распознавании речи');
       }
 
-      const result = await response.json();
+      const result = JSON.parse(response.body);
       if (result.text) {
         onTranscript(result.text);
       }
