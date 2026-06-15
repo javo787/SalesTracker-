@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,10 +7,16 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  AppState,
+  AppStateStatus,
 } from 'react-native';
-import { AudioModule, useAudioRecorder, RecordingPresets } from 'expo-audio';
-import * as FileSystem from 'expo-file-system/legacy';
-import { AppState } from 'react-native';
+import {
+  useAudioRecorder,
+  AudioModule,
+  setAudioModeAsync,
+  RecordingPresets,
+} from 'expo-audio';
+import * as FileSystem from 'expo-file-system';
 import { useAppContext } from '../context/AppContext';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -18,182 +24,207 @@ interface VoiceRecorderProps {
   onTranscript: (text: string) => void;
 }
 
+// ---------------------------------------------------------------------
+// 1. КОНФИГУРАЦИЯ ЗАПИСИ (ПРАВИЛЬНЫЕ ПАРАМЕТРЫ)
+// ---------------------------------------------------------------------
 const WHISPER_PROMPT = "нарх, фурӯш, сомони, кило, дона, сабад, миқдор, доставка, скидка, килограмм, штук";
-const MAX_DURATION = 60000;
-const WARNING_THRESHOLD = 55000;
+const MAX_DURATION_MS = 60000; // 60 секунд
+const GROQ_API_URL = 'https://api.groq.com/openai/v1/audio/transcriptions';
 
+// ✅ ОТВЕТ НА ОШИБКУ: Константы из библиотеки ожидают строки, а не числа.
+// Используем готовый пресет и явно задаём параметры.
+const recordingOptions = {
+  ...RecordingPresets.HIGH_QUALITY, // Базовые высокие настройки
+  android: {
+    extension: '.m4a', // Формат файла
+    outputFormat: 'mpeg_4', // СТРОКА: 'mpeg_4', 'mpeg_4_hd' и т.д.
+    audioEncoder: 'aac', // СТРОКА: 'aac', 'amr_nb' и т.д.
+    sampleRate: 44100, // Частота дискретизации
+    numberOfChannels: 2, // Стерео
+    bitRate: 128000, // Битрейт
+  },
+  ios: {
+    extension: '.m4a',
+    outputFormat: 'mpeg4aac', // СТРОКА для iOS
+    audioQuality: 'max', // СТРОКА: 'min', 'low', 'medium', 'high', 'max'
+    sampleRate: 44100,
+    numberOfChannels: 2,
+    bitRate: 128000,
+    linearPCMBitDepth: 16,
+    linearPCMIsBigEndian: false,
+    linearPCMIsFloat: false,
+  },
+  web: {},
+};
+
+// ---------------------------------------------------------------------
+// 2. ОСНОВНОЙ КОМПОНЕНТ
+// ---------------------------------------------------------------------
 export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
   const { theme, language } = useAppContext();
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
-  const [isRecording, setIsRecording] = useState(false);
-  const [showWarning, setShowWarning] = useState(false);
+  const recorder = useAudioRecorder(recordingOptions);
   const [isProcessing, setIsProcessing] = useState(false);
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const durationTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const warningTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
+  const durationTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const isDark = theme === 'dark';
 
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', nextAppState => {
-      if (nextAppState !== 'active' && recorder.isRecording) {
-        stopRecording();
-      }
-    });
+  // Синхронизируем состояние интерфейса с рекордером
+  const isRecording = recorder.isRecording;
+  const showWarning = false; // Для простоты можно убрать предупреждение
 
-    return () => {
-      subscription.remove();
-      if (recorder.isRecording) {
-        recorder.stop().catch(() => {});
-      }
-      clearTimers();
-    };
-  }, [recorder, isRecording]);
-
-  const clearTimers = () => {
-    if (durationTimer.current) clearTimeout(durationTimer.current);
-    if (warningTimer.current) clearTimeout(warningTimer.current);
-  };
-
-  const startPulse = () => {
+  // Анимация пульсации
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const startPulse = useCallback(() => {
+    pulseAnim.stopAnimation();
     Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.2,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-        }),
+        Animated.timing(pulseAnim, { toValue: 1.2, duration: 500, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
       ])
     ).start();
-  };
-
-  const stopPulse = () => {
+  }, [pulseAnim]);
+  const stopPulse = useCallback(() => {
     pulseAnim.stopAnimation();
     pulseAnim.setValue(1);
-  };
+  }, [pulseAnim]);
 
-  const startRecording = async () => {
-    try {
-      const permission = await AudioModule.requestRecordingPermissionsAsync();
-      if (permission.status !== 'granted') {
-        Alert.alert('Ошибка', 'Разрешите доступ к микрофону для использования голосового ввода');
-        return;
-      }
-
-      await AudioModule.setAudioModeAsync({
-        allowsRecording: true,
-        playsInSilentMode: true,
-      });
-
-      await recorder.prepareToRecordAsync();
-      recorder.record();
-
-      setIsRecording(true);
-      startPulse();
-
-      // Auto stop after 60s
-      durationTimer.current = setTimeout(() => {
-        stopRecording();
-        Alert.alert('Предупреждение', 'Максимальная длительность записи (60 секунд) достигнута');
-      }, MAX_DURATION);
-
-      // Warning at 55s
-      warningTimer.current = setTimeout(() => {
-        setShowWarning(true);
-      }, WARNING_THRESHOLD);
-
-    } catch (err) {
-      console.error('Failed to start recording', err);
-      Alert.alert('Ошибка', 'Не удалось начать запись');
-    }
-  };
-
-  const stopRecording = async () => {
-    if (!isRecording) return;
-
-    setIsRecording(false);
-    setShowWarning(false);
-    stopPulse();
-    clearTimers();
-
-    try {
-      await recorder.stop();
-      const uri = recorder.uri;
-
-      if (uri) {
-        await transcribeAudio(uri);
-      }
-    } catch (error) {
-      console.error('Failed to stop recording', error);
-      Alert.alert('Ошибка', 'Не удалось остановить запись');
-    }
-  };
-
-  const transcribeAudio = async (uri: string) => {
+  // Транскрипция через Groq API
+  const transcribeAudio = useCallback(async (audioUri: string) => {
+    if (isProcessing) return;
     setIsProcessing(true);
+    abortControllerRef.current = new AbortController();
     try {
       const apiKey = process.env.EXPO_PUBLIC_GROQ_API_KEY;
-      if (!apiKey) {
-        throw new Error('GROQ API Key is missing');
-      }
+      if (!apiKey) throw new Error('GROQ API ключ не настроен');
 
-      // Language detection based on app language
       let groqLang = 'ru';
       if (language === 'tg') groqLang = 'tg';
       else if (language === 'uz') groqLang = 'uz';
 
-      const response = await FileSystem.uploadAsync('https://api.groq.com/openai/v1/audio/transcriptions', uri, {
-        fieldName: 'file',
-        httpMethod: 'POST',
-        uploadType: FileSystem.UploadType.MULTIPART,
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-        },
-        parameters: {
-          'model': 'whisper-large-v3',
-          'prompt': WHISPER_PROMPT,
-          'response_format': 'json',
-          'language': groqLang,
-        }
+      // Загружаем файл как Blob
+      const response = await fetch(audioUri);
+      const blob = await response.blob();
+
+      const formData = new FormData();
+      formData.append('file', blob, 'recording.m4a');
+      formData.append('model', 'whisper-large-v3');
+      formData.append('prompt', WHISPER_PROMPT);
+      formData.append('response_format', 'json');
+      formData.append('language', groqLang);
+
+      const uploadResult = await fetch(GROQ_API_URL, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}` },
+        body: formData,
+        signal: abortControllerRef.current.signal,
       });
 
-      if (response.status === 429) {
-        throw new Error('Превышен лимит запросов Groq API. Попробуйте позже.');
+      if (uploadResult.status === 429) throw new Error('Превышен лимит запросов Groq API');
+      if (!uploadResult.ok) {
+        const errorText = await uploadResult.text();
+        throw new Error(`Ошибка API (${uploadResult.status}): ${errorText}`);
       }
 
-      if (response.status !== 200 && response.status !== 201) {
-        console.error('Groq API error status:', response.status, response.body);
-        throw new Error('Ошибка при распознавании речи');
-      }
-
-      const result = JSON.parse(response.body);
-      if (result.text) {
-        onTranscript(result.text);
-      }
-
-      // Cleanup
-      await FileSystem.deleteAsync(uri).catch(() => {});
-    } catch (error: unknown) {
+      const result = await uploadResult.json();
+      if (result.text) onTranscript(result.text);
+      else throw new Error('Нет текста в ответе');
+    } catch (error: any) {
+      if (error?.name === 'AbortError') return;
       console.error('Transcription error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Не удалось распознать речь. Проверьте интернет.';
-      Alert.alert('Ошибка', errorMessage);
+      Alert.alert('Ошибка', error?.message || 'Не удалось распознать речь');
     } finally {
       setIsProcessing(false);
+      abortControllerRef.current = null;
     }
-  };
+  }, [language, onTranscript, isProcessing]);
 
+  // Остановка записи
+  const stopRecordingAndTranscribe = useCallback(async () => {
+    try {
+      await recorder.stop();
+      const uri = recorder.uri;
+      if (uri) {
+        await transcribeAudio(uri);
+      }
+    } catch (error) {
+      console.error('Ошибка остановки:', error);
+      Alert.alert('Ошибка', 'Не удалось сохранить запись');
+    }
+  }, [recorder, transcribeAudio]);
+
+  // Старт записи
+  const startRecording = useCallback(async () => {
+    if (isProcessing) return;
+    try {
+      // Запрашиваем разрешения
+      const permission = await AudioModule.requestRecordingPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Ошибка', 'Нет разрешения на запись');
+        return;
+      }
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+      });
+
+      // Начинаем запись
+      await recorder.prepareToRecordAsync();
+      await recorder.record();
+      startPulse();
+
+      // Автоостановка по таймеру
+      durationTimerRef.current = setTimeout(() => {
+        if (recorder.isRecording) {
+          stopRecordingAndTranscribe();
+          Alert.alert('Предупреждение', 'Максимальная длительность записи (60 секунд) достигнута');
+        }
+      }, MAX_DURATION_MS);
+    } catch (err) {
+      console.error('startRecording error:', err);
+      Alert.alert('Ошибка', 'Не удалось начать запись');
+    }
+  }, [recorder, isProcessing, startPulse, stopRecordingAndTranscribe]);
+
+  // Остановка по отпусканию кнопки
+  const handleStop = useCallback(() => {
+    if (recorder.isRecording && !isProcessing) {
+      if (durationTimerRef.current) clearTimeout(durationTimerRef.current);
+      stopRecordingAndTranscribe();
+      stopPulse();
+    }
+  }, [recorder.isRecording, isProcessing, stopRecordingAndTranscribe, stopPulse]);
+
+  // Очистка при размонтировании
+  useEffect(() => {
+    return () => {
+      if (durationTimerRef.current) clearTimeout(durationTimerRef.current);
+      if (abortControllerRef.current) abortControllerRef.current.abort();
+      if (recorder.isRecording) {
+        recorder.stop().catch(() => {});
+      }
+    };
+  }, [recorder]);
+
+  // Остановка при уходе в фон
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (nextAppState !== 'active' && recorder.isRecording) {
+        handleStop();
+      }
+    };
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
+  }, [recorder.isRecording, handleStop]);
+
+  // Интерфейс
   return (
     <View style={styles.container}>
       <TouchableOpacity
         onPressIn={startRecording}
-        onPressOut={stopRecording}
+        onPressOut={handleStop}
         disabled={isProcessing}
         activeOpacity={0.7}
+        style={styles.touchable}
       >
         <Animated.View
           style={[
@@ -204,63 +235,35 @@ export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
           ]}
         >
           {isProcessing ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color="#fff" size="large" />
           ) : (
-            <Ionicons
-              name={isRecording ? "stop" : "mic"}
-              size={32}
-              color="#fff"
-            />
+            <Ionicons name={isRecording ? 'stop' : 'mic'} size={36} color="#fff" />
           )}
         </Animated.View>
       </TouchableOpacity>
       <Text style={[styles.hint, isDark ? styles.textDark : styles.textLight]}>
-        {showWarning
-          ? 'Запись скоро остановится (5с)'
+        {isProcessing
+          ? '🔄 Обработка...'
           : isRecording
-          ? 'Отпустите, чтобы завершить'
-          : isProcessing
-          ? 'Обработка...'
-          : 'Зажмите и говорите'}
+          ? '🔴 Отпустите, чтобы завершить'
+          : '🎙️ Зажмите и говорите'}
       </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-  },
+  container: { alignItems: 'center', justifyContent: 'center', paddingVertical: 16, paddingHorizontal: 20 },
+  touchable: { borderRadius: 60, overflow: 'hidden' },
   button: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#1D9E75',
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    width: 80, height: 80, borderRadius: 40, backgroundColor: '#1D9E75',
+    alignItems: 'center', justifyContent: 'center', elevation: 6,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3, shadowRadius: 4,
   },
-  buttonActive: {
-    backgroundColor: '#E53935',
-  },
-  buttonDisabled: {
-    backgroundColor: '#ccc',
-  },
-  hint: {
-    marginTop: 12,
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  textLight: {
-    color: '#666',
-  },
-  textDark: {
-    color: '#aaa',
-  },
+  buttonActive: { backgroundColor: '#E53935' },
+  buttonDisabled: { backgroundColor: '#aaaaaa', opacity: 0.8 },
+  hint: { marginTop: 12, fontSize: 14, fontWeight: '500', textAlign: 'center' },
+  textLight: { color: '#555' },
+  textDark: { color: '#ccc' },
 });
