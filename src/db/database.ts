@@ -381,9 +381,11 @@ export function searchProductsForAutocomplete(query: string) {
         AND s.product_name NOT IN (SELECT name FROM products)
       GROUP BY s.product_name
     )
-    SELECT * FROM CatalogMatches
-    UNION ALL
-    SELECT * FROM HistoryMatches
+    SELECT * FROM (
+      SELECT * FROM CatalogMatches
+      UNION ALL
+      SELECT * FROM HistoryMatches
+    ) AS CombinedResults
     ORDER BY
       CASE WHEN source = 'catalog' THEN 0 ELSE 1 END,
       salesCount DESC,
