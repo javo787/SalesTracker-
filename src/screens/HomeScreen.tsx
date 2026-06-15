@@ -10,6 +10,7 @@ import { getStats, getSalesToday, deleteSale } from '../db/database';
 import { useAppContext } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { getSmartTip } from '../utils/smartTips';
+import CurrencyConversionBanner from '../components/CurrencyConversionBanner';
 
 function SaleListItem({ sale, onDelete, isDark, currency, t, i18n, themeStyles }: any) {
   const translateX = useRef(new RNAnimated.Value(0)).current;
@@ -194,6 +195,8 @@ export default function HomeScreen() {
           })}
         </Text>
       </View>
+
+      <CurrencyConversionBanner />
 
       {/* Карточки статистики */}
       {dailyTip ? (

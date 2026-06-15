@@ -1,12 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
   TouchableOpacity, TextInput, ActivityIndicator, RefreshControl
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const CACHE_KEY = 'currency_rates_cache';
-const CACHE_TTL = 6 * 60 * 60 * 1000; // 6 часов
+import { getBaseRates, FALLBACK_RATES } from '../utils/currencyRates';
 
 const CURRENCIES = [
   { code: 'USD', name: 'Доллар США',       flag: '🇺🇸' },
@@ -15,6 +12,7 @@ const CURRENCIES = [
   { code: 'UZS', name: 'Узбекский сум',    flag: '🇺🇿' },
   { code: 'EUR', name: 'Евро',             flag: '🇪🇺' },
   { code: 'KZT', name: 'Казахский тенге',  flag: '🇰🇿' },
+  { code: 'KGS', name: 'Киргизский сом',   flag: '🇰🇬' },
 ];
 
 const QUICK_CARDS = [
@@ -24,14 +22,8 @@ const QUICK_CARDS = [
   { label: '1 000 сум', code: 'UZS', amount: 1000 },
 ];
 
-const FROM_OPTIONS = ['USD', 'RUB', 'CNY', 'UZS', 'KZT', 'EUR', 'TJS'];
-const TO_OPTIONS   = ['TJS', 'USD', 'RUB', 'CNY', 'UZS', 'KZT', 'EUR'];
-
-// Офлайн-запасные курсы (примерные, обновляй раз в месяц)
-const FALLBACK_RATES: Record<string, number> = {
-  TJS: 1, USD: 0.0917, RUB: 8.42, CNY: 0.666,
-  UZS: 1175, EUR: 0.0845, KZT: 43.2,
-};
+const FROM_OPTIONS = ['USD', 'RUB', 'CNY', 'UZS', 'KZT', 'EUR', 'KGS', 'TJS'];
+const TO_OPTIONS   = ['TJS', 'USD', 'RUB', 'CNY', 'UZS', 'KZT', 'EUR', 'KGS'];
 
 export default function CurrencyScreen() {
   const [rates, setRates]           = useState<Record<string, number>>(FALLBACK_RATES);
@@ -49,41 +41,19 @@ export default function CurrencyScreen() {
 
   const fetchRates = async (force: boolean) => {
     try {
-      // Проверяем кеш
-      if (!force) {
-        const cached = await AsyncStorage.getItem(CACHE_KEY);
-        if (cached) {
-          const { rates: r, ts, updAt } = JSON.parse(cached);
-          if (Date.now() - ts < CACHE_TTL) {
-            setRates(r);
-            setUpdatedAt(updAt);
-            setLoading(false);
-            setOffline(false);
-            return;
-          }
-        }
+      const result = await getBaseRates(force);
+      setRates(result.rates);
+      setOffline(result.source === 'fallback');
+
+      if (result.source === 'fallback') {
+        setUpdatedAt('офлайн — примерные курсы');
+      } else {
+        const dt = new Date(result.fetchedAt);
+        setUpdatedAt(dt.toLocaleString('ru-RU', {
+          day: 'numeric', month: 'short',
+          hour: '2-digit', minute: '2-digit'
+        }));
       }
-
-      // Запрашиваем актуальные курсы
-      const res = await fetch('https://open.er-api.com/v6/latest/TJS');
-      const data = await res.json();
-      if (data.result !== 'success') throw new Error('bad response');
-
-      const r: Record<string, number> = data.rates;
-      r['TJS'] = 1;
-
-      const dt = new Date(data.time_last_update_utc);
-      const updAt = dt.toLocaleString('ru-RU', {
-        day: 'numeric', month: 'short',
-        hour: '2-digit', minute: '2-digit'
-      });
-
-      setRates(r);
-      setUpdatedAt(updAt);
-      setOffline(false);
-
-      // Кешируем
-      await AsyncStorage.setItem(CACHE_KEY, JSON.stringify({ rates: r, ts: Date.now(), updAt }));
     } catch (e) {
       setOffline(true);
       setRates(FALLBACK_RATES);

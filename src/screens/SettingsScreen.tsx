@@ -1,10 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
-  TouchableOpacity, Alert, Linking
+  TouchableOpacity, Alert, Linking, Switch, TextInput, ActivityIndicator
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import Constants from 'expo-constants';
 import { useAppContext } from '../context/AppContext';
+import { getConversionRate } from '../utils/currencyRates';
+import { convertAllAmounts, clearAllData, getProducts, getSalesByPeriod, getExpenses } from '../db/database';
 
 const LANGUAGES = [
   { code: 'ru', label: 'Русский', flag: '🇷🇺' },
@@ -24,22 +31,93 @@ const THEMES = [
   { code: 'dark', label: 'Тёмная', icon: '🌙' },
 ];
 
+const PRIVACY_POLICY_URL = 'https://duxtur.org/privacy'; // TODO: replace with the actual hosted privacy policy URL before publishing to Google Play
+const SUPPORT_TELEGRAM_URL = 'https://t.me/savdoapp'; // TODO: verify this is the correct/active support channel
+
 export default function SettingsScreen() {
   const { t, i18n } = useTranslation();
-  const { theme, currency, language, setTheme, setCurrency, setLanguage } = useAppContext();
-  const [saved, setSaved] = useState(false);
+  const {
+    theme, currency, language, setTheme, setCurrency, setLanguage,
+    notificationsEnabled, setNotificationsEnabled,
+    defaultMinStockAlert, setDefaultMinStockAlert
+  } = useAppContext();
 
-  const handleSaveSettings = async () => {
-    try {
-      await i18n.changeLanguage(language);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    } catch (e) {
-      Alert.alert(t('common.error'), 'Не удалось сохранить настройки');
+  const [conversionHistory, setConversionHistory] = useState<any[]>([]);
+  const [loadingRate, setLoadingRate] = useState(false);
+
+  useEffect(() => {
+    loadConversionHistory();
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadConversionHistory();
+    }, [])
+  );
+
+  const loadConversionHistory = async () => {
+    const log = await AsyncStorage.getItem('currency_conversion_log');
+    if (log) {
+      setConversionHistory(JSON.parse(log));
     }
   };
 
-  const handleClearData = () => {
+  const handleCurrencyChange = async (newCurr: any) => {
+    if (newCurr.code === currency.code) return;
+
+    setLoadingRate(true);
+    try {
+      const { rate } = await getConversionRate(currency.code, newCurr.code);
+      setLoadingRate(false);
+
+      if (!rate) {
+        Alert.alert(t('common.error'), t('settings.currencyConvertError'));
+        return;
+      }
+
+      Alert.alert(
+        t('settings.currencyConvertTitle'),
+        t('settings.currencyConvertMsg', { from: currency.code, to: newCurr.code, rate: rate.toFixed(4) }),
+        [
+          { text: t('common.cancel'), style: 'cancel' },
+          {
+            text: t('common.continue'),
+            onPress: async () => {
+              convertAllAmounts(rate);
+
+              // Log history
+              const newEntry = {
+                date: new Date().toISOString(),
+                from: currency.code,
+                to: newCurr.code,
+                rate: parseFloat(rate.toFixed(4))
+              };
+              const updatedHistory = [newEntry, ...conversionHistory].slice(0, 20);
+              setConversionHistory(updatedHistory);
+              await AsyncStorage.setItem('currency_conversion_log', JSON.stringify(updatedHistory));
+              await AsyncStorage.setItem('currency_conversion_banner_seen', 'false');
+
+              setCurrency(newCurr.code);
+
+              Alert.alert(
+                t('settings.currencyConvertSuccess', {
+                  from: currency.code,
+                  to: newCurr.code,
+                  rate: rate.toFixed(4),
+                  date: new Date().toLocaleDateString(i18n.language === 'tg' ? 'tg-TJ' : i18n.language === 'uz' ? 'uz-UZ' : 'ru-RU')
+                })
+              );
+            }
+          }
+        ]
+      );
+    } catch (e) {
+      setLoadingRate(false);
+      Alert.alert(t('common.error'), t('settings.currencyConvertError'));
+    }
+  };
+
+  const handleClearDataAlert = () => {
     Alert.alert(
       t('settings.clearDataTitle'),
       t('settings.clearDataMsg'),
@@ -48,10 +126,49 @@ export default function SettingsScreen() {
         {
           text: t('common.delete'),
           style: 'destructive',
-          onPress: () => Alert.alert('Данные удалены', 'Перезапустите приложение'),
+          onPress: async () => {
+            try {
+              clearAllData();
+              const keys = await AsyncStorage.getAllKeys();
+              const prefixesToClear = ['ai_cache_', 'ai_tip_', 'smart_tip_', 'ai_fail_count_', 'currency_rates_cache', 'currency_conversion_log', 'currency_conversion_banner_seen', 'last_sync_at', 'calc_mode'];
+              const keysToRemove = keys.filter(k => prefixesToClear.some(p => k.startsWith(p)));
+              if (keysToRemove.length > 0) await AsyncStorage.multiRemove(keysToRemove);
+              Alert.alert(t('settings.clearDataSuccess'), '');
+            } catch (e) {
+              Alert.alert(t('common.error'), 'Failed to clear data');
+            }
+          },
         },
       ]
     );
+  };
+
+  const handleExportBackup = async () => {
+    try {
+      const data = {
+        exportedAt: new Date().toISOString(),
+        appVersion: Constants.expoConfig?.version,
+        currency: currency.code,
+        products: getProducts(),
+        sales: getSalesByPeriod(3650),
+        expenses: getExpenses(3650),
+      };
+      const json = JSON.stringify(data, null, 2);
+      const fileName = `savdo_backup_${Date.now()}.json`;
+      const filePath = `${FileSystem.cacheDirectory}${fileName}`;
+      await FileSystem.writeAsStringAsync(filePath, json, { encoding: FileSystem.EncodingType.UTF8 });
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(filePath, {
+          mimeType: 'application/json',
+          dialogTitle: t('settings.backupExport'),
+        });
+      } else {
+        Alert.alert(t('common.error'), 'Sharing not available on this device');
+      }
+    } catch (e) {
+      console.error('Backup export failed', e);
+      Alert.alert(t('common.error'), 'Failed to export backup');
+    }
   };
 
   const isDark = theme === 'dark';
@@ -92,7 +209,10 @@ export default function SettingsScreen() {
 
       {/* Валюта */}
       <View style={[styles.section, themeStyles.section]}>
-        <Text style={[styles.sectionTitle, themeStyles.text]}>💰 {t('settings.currency')}</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <Text style={[styles.sectionTitle, themeStyles.text, { marginBottom: 0 }]}>💰 {t('settings.currency')}</Text>
+          {loadingRate && <ActivityIndicator size="small" color="#1D9E75" />}
+        </View>
         {CURRENCIES.map(curr => (
           <TouchableOpacity
             key={curr.code}
@@ -101,7 +221,8 @@ export default function SettingsScreen() {
               themeStyles.currencyRow,
               currency.code === curr.code && styles.currencyRowActive
             ]}
-            onPress={() => setCurrency(curr.code)}
+            onPress={() => handleCurrencyChange(curr)}
+            disabled={loadingRate}
           >
             <View style={styles.currencyLeft}>
               <Text style={[styles.currencyCountry, themeStyles.text]}>{curr.country}</Text>
@@ -115,6 +236,51 @@ export default function SettingsScreen() {
             </View>
           </TouchableOpacity>
         ))}
+
+        {/* История конвертаций */}
+        <Text style={[styles.historyTitle, themeStyles.text]}>{t('settings.currencyHistory')}</Text>
+        {conversionHistory.length === 0 ? (
+          <Text style={styles.historyEmpty}>{t('settings.currencyHistoryEmpty')}</Text>
+        ) : (
+          conversionHistory.map((item, index) => (
+            <View key={index} style={styles.historyRow}>
+              <Text style={styles.historyText}>
+                {t('settings.currencyHistoryItem', {
+                  from: item.from,
+                  to: item.to,
+                  rate: item.rate,
+                  date: new Date(item.date).toLocaleDateString(i18n.language === 'tg' ? 'tg-TJ' : i18n.language === 'uz' ? 'uz-UZ' : 'ru-RU')
+                })}
+              </Text>
+            </View>
+          ))
+        )}
+      </View>
+
+      {/* Уведомления и настройки по умолчанию */}
+      <View style={[styles.section, themeStyles.section]}>
+        <Text style={[styles.sectionTitle, themeStyles.text]}>🔔 {t('settings.notifications')}</Text>
+
+        <View style={styles.switchRow}>
+          <Text style={[styles.switchLabel, themeStyles.text]}>{t('settings.lowStockNotif')}</Text>
+          <Switch
+            value={notificationsEnabled}
+            onValueChange={setNotificationsEnabled}
+            trackColor={{ false: '#767577', true: '#1D9E75' }}
+            thumbColor={notificationsEnabled ? '#fff' : '#f4f3f4'}
+          />
+        </View>
+
+        <View style={styles.inputRow}>
+          <Text style={[styles.inputLabel, themeStyles.text]}>{t('settings.defaultMinStock')}</Text>
+          <TextInput
+            style={[styles.numericInput, themeStyles.input]}
+            value={String(defaultMinStockAlert)}
+            onChangeText={(text) => setDefaultMinStockAlert(parseInt(text) || 0)}
+            keyboardType="numeric"
+            placeholder="0"
+          />
+        </View>
       </View>
 
       {/* Тема */}
@@ -144,22 +310,16 @@ export default function SettingsScreen() {
         </View>
       </View>
 
-      {/* Кнопка сохранения */}
-      <TouchableOpacity
-        style={[styles.saveBtn, saved && styles.saveBtnSuccess]}
-        onPress={handleSaveSettings}
-      >
-        <Text style={styles.saveBtnText}>
-          {saved ? `✅ ${t('common.saved')}` : t('settings.saveBtn')}
-        </Text>
-      </TouchableOpacity>
-
       {/* О приложении */}
       <View style={[styles.section, themeStyles.section]}>
         <Text style={[styles.sectionTitle, themeStyles.text]}>ℹ️ {t('settings.about')}</Text>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>{t('settings.version')}</Text>
-          <Text style={[styles.infoValue, themeStyles.text]}>1.0.0</Text>
+          <Text style={[styles.infoValue, themeStyles.text]}>{Constants.expoConfig?.version ?? '—'}</Text>
+        </View>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>{t('settings.build')}</Text>
+          <Text style={[styles.infoValue, themeStyles.text]}>{String(Constants.expoConfig?.android?.versionCode ?? '—')}</Text>
         </View>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>{t('settings.developer')}</Text>
@@ -167,16 +327,28 @@ export default function SettingsScreen() {
         </View>
         <TouchableOpacity
           style={styles.linkRow}
-          onPress={() => Linking.openURL('https://t.me/savdoapp')}
+          onPress={() => Linking.openURL(SUPPORT_TELEGRAM_URL)}
         >
           <Text style={styles.linkText}>📱 {t('settings.support')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.linkRow} onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}>
+          <Text style={styles.linkText}>📄 {t('settings.privacyPolicy')}</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Резервное копирование */}
+      <View style={[styles.section, themeStyles.section]}>
+        <Text style={[styles.sectionTitle, themeStyles.text]}>💾 {t('settings.backup')}</Text>
+        <Text style={[styles.backupDesc, { color: isDark ? '#AAA' : '#666' }]}>{t('settings.backupDesc')}</Text>
+        <TouchableOpacity style={styles.backupBtn} onPress={handleExportBackup}>
+          <Text style={styles.backupBtnText}>{t('settings.backupExport')}</Text>
         </TouchableOpacity>
       </View>
 
       {/* Опасная зона */}
       <View style={[styles.section, themeStyles.section, styles.dangerSection]}>
         <Text style={[styles.sectionTitle, { color: '#E53935' }]}>⚠️ {t('settings.dangerZone')}</Text>
-        <TouchableOpacity style={styles.dangerBtn} onPress={handleClearData}>
+        <TouchableOpacity style={styles.dangerBtn} onPress={handleClearDataAlert}>
           <Text style={styles.dangerBtnText}>{t('settings.clearData')}</Text>
         </TouchableOpacity>
       </View>
@@ -190,6 +362,7 @@ const lightStyles = StyleSheet.create({
   container: { backgroundColor: '#F5F5F5' },
   section: { backgroundColor: '#fff' },
   text: { color: '#333' },
+  input: { backgroundColor: '#F5F5F5', borderColor: '#E0E0E0' },
   optionCard: { backgroundColor: '#F9F9F9' },
   optionLabel: { color: '#666' },
   currencyRow: { backgroundColor: '#F9F9F9' },
@@ -201,6 +374,7 @@ const darkStyles = StyleSheet.create({
   container: { backgroundColor: '#000' },
   section: { backgroundColor: '#1E1E1E' },
   text: { color: '#EEE' },
+  input: { backgroundColor: '#2C2C2C', borderColor: '#444', color: '#EEE' },
   optionCard: { backgroundColor: '#2C2C2C', borderColor: '#444' },
   optionLabel: { color: '#AAA' },
   currencyRow: { backgroundColor: '#2C2C2C', borderColor: '#444' },
@@ -251,6 +425,10 @@ const styles = StyleSheet.create({
   radioDot: {
     width: 10, height: 10, borderRadius: 5, backgroundColor: '#1D9E75',
   },
+  historyTitle: { fontSize: 13, fontWeight: '600', marginTop: 16, marginBottom: 8 },
+  historyEmpty: { fontSize: 12, color: '#999', fontStyle: 'italic' },
+  historyRow: { paddingVertical: 6, borderBottomWidth: 0.5, borderBottomColor: '#F0F0F0' },
+  historyText: { fontSize: 12, color: '#666' },
   themeRow: { flexDirection: 'row', gap: 10 },
   themeBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center',
@@ -261,12 +439,27 @@ const styles = StyleSheet.create({
   themeIcon: { fontSize: 18 },
   themeLabel: { fontSize: 14, fontWeight: '500' },
   themeLabelActive: { color: '#1D9E75' },
-  saveBtn: {
-    margin: 16, backgroundColor: '#1D9E75',
-    borderRadius: 12, padding: 16, alignItems: 'center',
+  switchRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingVertical: 10,
   },
-  saveBtnSuccess: { backgroundColor: '#3B6D11' },
-  saveBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  switchLabel: { fontSize: 14, flex: 1 },
+  inputRow: {
+    marginTop: 12, borderTopWidth: 0.5, borderTopColor: '#F0F0F0',
+    paddingTop: 12,
+  },
+  inputLabel: { fontSize: 13, color: '#666', marginBottom: 8 },
+  numericInput: {
+    borderRadius: 8, padding: 10,
+    fontSize: 15, borderWidth: 1,
+  },
+  backupDesc: { fontSize: 13, marginBottom: 16, lineHeight: 18 },
+  backupBtn: {
+    backgroundColor: '#F0FBF7', borderRadius: 10,
+    padding: 12, alignItems: 'center',
+    borderWidth: 1, borderColor: '#1D9E75',
+  },
+  backupBtnText: { color: '#1D9E75', fontSize: 14, fontWeight: '600' },
   infoRow: {
     flexDirection: 'row', justifyContent: 'space-between',
     paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: '#F0F0F0',
