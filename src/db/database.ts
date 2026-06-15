@@ -220,4 +220,78 @@ export function getExpenseStats(days: number = 1) {
   return result;
 }
 
+export function searchProductsForAutocomplete(query: string) {
+  if (!query.trim()) {
+    // Top 5 most frequent items
+    return db.getAllSync(`
+      WITH AllItems AS (
+        SELECT
+          CAST(p.id AS TEXT) as id,
+          p.name,
+          'catalog' as source,
+          p.buy_price as purchasePrice,
+          (SELECT s.sell_price FROM sales s WHERE s.product_id = p.id ORDER BY s.created_at DESC LIMIT 1) as lastSalePrice,
+          (SELECT COUNT(*) FROM sales s WHERE s.product_id = p.id) as salesCount,
+          (SELECT MAX(s.created_at) FROM sales s WHERE s.product_id = p.id) as lastSoldAt
+        FROM products p
+        UNION ALL
+        SELECT
+          NULL as id,
+          s.product_name as name,
+          'history' as source,
+          (SELECT s2.buy_price FROM sales s2 WHERE s2.product_name = s.product_name AND s2.product_id IS NULL ORDER BY s2.created_at DESC LIMIT 1) as purchasePrice,
+          (SELECT s2.sell_price FROM sales s2 WHERE s2.product_name = s.product_name AND s2.product_id IS NULL ORDER BY s2.created_at DESC LIMIT 1) as lastSalePrice,
+          COUNT(*) as salesCount,
+          MAX(s.created_at) as lastSoldAt
+        FROM sales s
+        WHERE s.product_id IS NULL
+          AND s.product_name NOT IN (SELECT name FROM products)
+        GROUP BY s.product_name
+      )
+      SELECT * FROM AllItems
+      ORDER BY salesCount DESC, lastSoldAt DESC
+      LIMIT 5
+    `);
+  }
+
+  // Search by query
+  return db.getAllSync(`
+    WITH CatalogMatches AS (
+      SELECT
+        CAST(p.id AS TEXT) as id,
+        p.name,
+        'catalog' as source,
+        p.buy_price as purchasePrice,
+        (SELECT s.sell_price FROM sales s WHERE s.product_id = p.id ORDER BY s.created_at DESC LIMIT 1) as lastSalePrice,
+        (SELECT COUNT(*) FROM sales s WHERE s.product_id = p.id) as salesCount,
+        (SELECT MAX(s.created_at) FROM sales s WHERE s.product_id = p.id) as lastSoldAt
+      FROM products p
+      WHERE p.name LIKE ? || '%'
+    ),
+    HistoryMatches AS (
+      SELECT
+        NULL as id,
+        s.product_name as name,
+        'history' as source,
+        (SELECT s2.buy_price FROM sales s2 WHERE s2.product_name = s.product_name AND s2.product_id IS NULL ORDER BY s2.created_at DESC LIMIT 1) as purchasePrice,
+        (SELECT s2.sell_price FROM sales s2 WHERE s2.product_name = s.product_name AND s2.product_id IS NULL ORDER BY s2.created_at DESC LIMIT 1) as lastSalePrice,
+        COUNT(*) as salesCount,
+        MAX(s.created_at) as lastSoldAt
+      FROM sales s
+      WHERE s.product_id IS NULL
+        AND s.product_name LIKE ? || '%'
+        AND s.product_name NOT IN (SELECT name FROM products)
+      GROUP BY s.product_name
+    )
+    SELECT * FROM CatalogMatches
+    UNION ALL
+    SELECT * FROM HistoryMatches
+    ORDER BY
+      CASE WHEN source = 'catalog' THEN 0 ELSE 1 END,
+      salesCount DESC,
+      lastSoldAt DESC
+    LIMIT 8
+  `, [query, query]);
+}
+
 export default db;

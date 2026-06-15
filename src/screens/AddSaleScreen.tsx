@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRoute } from '@react-navigation/native';
 import {
   View, Text, TextInput, TouchableOpacity,
@@ -11,6 +11,8 @@ import VoiceRecorder from '../components/VoiceRecorder';
 import { useAppContext } from '../context/AppContext';
 import GeminiApi from '../utils/geminiApi';
 import ExpensesView from '../components/expenses/ExpensesView';
+import { ProductAutocomplete } from '../components/sales/ProductAutocomplete';
+import { AutocompleteResult } from '../types/product';
 
 const CACHE_TTL = 60 * 60 * 1000; // 1 час в мс
 
@@ -27,12 +29,15 @@ export default function AddSaleScreen(/* props */) {
     return new GeminiApi({ geminiKeys: keys.length ? keys : [''] });
   }, []);
 
-  const [products, setProducts] = useState<{ id: number; name: string; sell_price: number; buy_price: number }[]>([]);
+  const [selectedProduct, setSelectedProduct] = useState<AutocompleteResult | null>(null);
   const [productName, setProductName] = useState('');
   const [sellPrice, setSellPrice] = useState('');
   const [buyPrice, setBuyPrice] = useState('');
   const [quantity, setQuantity] = useState('');
   const [note, setNote] = useState('');
+  const [salePricePlaceholder, setSalePricePlaceholder] = useState<number | null>(null);
+
+  const quantityInputRef = useRef<TextInput>(null);
   const [processing, setProcessing] = useState(false);
   const [voiceText, setVoiceText] = useState('');
   const [lastSaved, setLastSaved] = useState<{ name: string; profit: string; revenue: string } | null>(null);
@@ -49,9 +54,6 @@ export default function AddSaleScreen(/* props */) {
     if (route.params?.prefillPrice) setSellPrice(String(route.params.prefillPrice));
   }, [route.params]);
 
-  useEffect(() => {
-    setProducts(getProducts() as { id: number; name: string; sell_price: number; buy_price: number }[]);
-  }, []);
 
   const handleTranscript = (text: string) => {
     setVoiceText(text);
@@ -147,17 +149,20 @@ export default function AddSaleScreen(/* props */) {
       Alert.alert(t('common.error'), t('addSale.productPlaceholder'));
       return;
     }
-    if (!sellPrice || !buyPrice) {
+
+    const finalSellPrice = sellPrice || (salePricePlaceholder ? String(salePricePlaceholder) : '');
+
+    if (!finalSellPrice || !buyPrice) {
       Alert.alert(t('common.error'), 'Введите цену продажи и закупки');
       return;
     }
 
-    const sPrice = parseFloat(sellPrice);
+    const sPrice = parseFloat(finalSellPrice);
     const bPrice = parseFloat(buyPrice);
     const qty = parseInt(quantity) || 1;
 
     const profit = addSale(
-      null,
+      selectedProduct?.id ? parseInt(selectedProduct.id) : null,
       productName.trim(),
       qty,
       sPrice,
@@ -178,15 +183,13 @@ export default function AddSaleScreen(/* props */) {
     setQuantity('');
     setNote('');
     setVoiceText('');
+    setSelectedProduct(null);
+    setSalePricePlaceholder(null);
   };
 
   const isDark = theme === 'dark';
   const themeStyles = isDark ? darkStyles : lightStyles;
 
-  const filteredProducts = useMemo(() => {
-    if (!productName.trim()) return [];
-    return products.filter(p => p.name.toLowerCase().includes(productName.toLowerCase()));
-  }, [productName, products]);
 
   const switchTab = (tab: 'sales' | 'expenses') => {
     if (tab === activeTab) return;
@@ -258,38 +261,32 @@ export default function AddSaleScreen(/* props */) {
         <Text style={[styles.sectionTitle, themeStyles.text]}>{t('addSale.formTitle')}</Text>
 
         <Text style={[styles.label, themeStyles.text]}>{t('addSale.productName')} *</Text>
-        <TextInput
-          style={[styles.input, themeStyles.input]}
+        <ProductAutocomplete
+          inputStyle={[styles.input, themeStyles.input]}
           placeholder={t('addSale.productPlaceholder')}
           placeholderTextColor={isDark ? '#888' : '#aaa'}
           value={productName}
-          onChangeText={setProductName}
+          onChange={(text) => {
+            setProductName(text);
+            setSelectedProduct(null);
+            setSalePricePlaceholder(null);
+          }}
+          onSelect={(product) => {
+            setProductName(product.name);
+            setBuyPrice(String(product.purchasePrice));
+            setSellPrice(''); // Reset entered price
+            setSalePricePlaceholder(product.lastSalePrice);
+            setSelectedProduct(product);
+            setTimeout(() => quantityInputRef.current?.focus(), 100);
+          }}
         />
-
-        {filteredProducts.length > 0 && productName.length > 0 && (
-          <View style={[styles.autocomplete, themeStyles.card]}>
-            {filteredProducts.slice(0, 5).map((p: { id: number; name: string; sell_price: number; buy_price: number }) => (
-              <TouchableOpacity
-                key={String(p.id)}
-                style={styles.autocompleteItem}
-                onPress={() => {
-                  setProductName(p.name);
-                  setSellPrice(String(p.sell_price));
-                  setBuyPrice(String(p.buy_price));
-                }}
-              >
-                <Text style={themeStyles.text}>{p.name}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
 
         <View style={styles.row}>
           <View style={styles.halfField}>
             <Text style={[styles.label, themeStyles.text]}>{t('addSale.sellPrice')} *</Text>
             <TextInput
               style={[styles.input, themeStyles.input]}
-              placeholder="0"
+              placeholder={salePricePlaceholder ? `${salePricePlaceholder.toLocaleString()} ${currency.symbol}` : '0'}
               placeholderTextColor={isDark ? '#888' : '#aaa'}
               keyboardType="numeric"
               value={sellPrice}
@@ -311,6 +308,7 @@ export default function AddSaleScreen(/* props */) {
 
         <Text style={[styles.label, themeStyles.text]}>{t('addSale.quantity')}</Text>
         <TextInput
+          ref={quantityInputRef}
           style={[styles.input, themeStyles.input]}
           placeholder="1"
           placeholderTextColor={isDark ? '#888' : '#aaa'}
@@ -330,19 +328,19 @@ export default function AddSaleScreen(/* props */) {
         />
 
         {/* Предварительный расчёт */}
-        {sellPrice && buyPrice ? (
+        {(sellPrice || salePricePlaceholder) && buyPrice ? (
           <View style={styles.preview}>
             <Text style={styles.previewTitle}>{t('addSale.previewTitle')}</Text>
             <View style={styles.previewRow}>
               <Text style={[styles.previewLabel, themeStyles.text]}>{t('common.revenue')}:</Text>
               <Text style={[styles.previewValue, themeStyles.text]}>
-                {(parseFloat(sellPrice) * (parseInt(quantity) || 1)).toLocaleString()} {currency.symbol}
+                {(parseFloat(sellPrice || String(salePricePlaceholder)) * (parseInt(quantity) || 1)).toLocaleString()} {currency.symbol}
               </Text>
             </View>
             <View style={styles.previewRow}>
               <Text style={[styles.previewLabel, themeStyles.text]}>{t('common.profit')}:</Text>
               <Text style={[styles.previewValue, { color: '#1D9E75' }]}>
-                {((parseFloat(sellPrice) - parseFloat(buyPrice)) * (parseInt(quantity) || 1)).toLocaleString()} {currency.symbol}
+                {((parseFloat(sellPrice || String(salePricePlaceholder)) - parseFloat(buyPrice)) * (parseInt(quantity) || 1)).toLocaleString()} {currency.symbol}
               </Text>
             </View>
           </View>
