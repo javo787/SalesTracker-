@@ -220,6 +220,87 @@ export function getExpenseStats(days: number = 1) {
   return result;
 }
 
+export function getAnnualStats() {
+  // Monthly breakdown for the current year
+  const year = new Date().getFullYear();
+  const months = [];
+
+  for (let m = 1; m <= 12; m++) {
+    const monthStr = String(m).padStart(2, '0');
+    const from = `${year}-${monthStr}-01`;
+    // Last day of month
+    const lastDay = new Date(year, m, 0).getDate();
+    const to = `${year}-${monthStr}-${lastDay}`;
+
+    const sales = db.getFirstSync(`
+      SELECT
+        COALESCE(SUM(sell_price * quantity), 0) as revenue,
+        COALESCE(SUM(profit), 0) as profit,
+        COALESCE(COUNT(*), 0) as salesCount
+      FROM sales
+      WHERE date(created_at) >= ? AND date(created_at) <= ?
+    `, [from, to]) as any;
+
+    const expenses = db.getFirstSync(`
+      SELECT COALESCE(SUM(amount), 0) as total
+      FROM expenses
+      WHERE date(created_at) >= ? AND date(created_at) <= ?
+    `, [from, to]) as any;
+
+    months.push({
+      month: m,
+      revenue: sales?.revenue || 0,
+      profit: sales?.profit || 0,
+      salesCount: sales?.salesCount || 0,
+      expenses: expenses?.total || 0,
+      netProfit: (sales?.profit || 0) - (expenses?.total || 0),
+    });
+  }
+
+  // Top products for the year
+  const topProducts = db.getAllSync(`
+    SELECT
+      product_name,
+      SUM(profit) as totalProfit,
+      SUM(quantity) as totalQty,
+      COUNT(*) as salesCount
+    FROM sales
+    WHERE created_at >= date('${year}-01-01')
+    GROUP BY product_name
+    ORDER BY totalProfit DESC
+    LIMIT 10
+  `) as any[];
+
+  // Year totals
+  const totals = db.getFirstSync(`
+    SELECT
+      COALESCE(SUM(sell_price * quantity), 0) as revenue,
+      COALESCE(SUM(profit), 0) as profit,
+      COALESCE(COUNT(*), 0) as salesCount
+    FROM sales
+    WHERE strftime('%Y', created_at) = '${year}'
+  `) as any;
+
+  const totalExpenses = db.getFirstSync(`
+    SELECT COALESCE(SUM(amount), 0) as total
+    FROM expenses
+    WHERE strftime('%Y', created_at) = '${year}'
+  `) as any;
+
+  return {
+    year,
+    months,
+    topProducts,
+    totals: {
+      revenue: totals?.revenue || 0,
+      profit: totals?.profit || 0,
+      salesCount: totals?.salesCount || 0,
+      expenses: totalExpenses?.total || 0,
+      netProfit: (totals?.profit || 0) - (totalExpenses?.total || 0),
+    }
+  };
+}
+
 export function searchProductsForAutocomplete(query: string) {
   if (!query.trim()) {
     // Top 5 most frequent items
