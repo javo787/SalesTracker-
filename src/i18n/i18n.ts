@@ -15,6 +15,9 @@ const resources = {
         profit: 'Прибыль',
         quantity: 'Кол-во',
         loading: 'Загрузка...',
+        fromCatalog: 'Из каталога',
+        fromHistory: 'Из истории',
+        addNew: 'Добавить',
       },
       tabs: {
         home: 'Главная',
@@ -169,6 +172,9 @@ const resources = {
         profit: 'Фоида',
         quantity: 'Миқдор',
         loading: 'Боргирӣ...',
+        fromCatalog: 'Аз каталог',
+        fromHistory: 'Аз таърих',
+        addNew: 'Илова кардан',
       },
       tabs: {
         home: 'Асосӣ',
@@ -323,6 +329,9 @@ const resources = {
         profit: 'Foyda',
         quantity: 'Miqdor',
         loading: 'Yuklanmoqda...',
+        fromCatalog: 'Katalogdan',
+        fromHistory: 'Tarixdan',
+        addNew: 'Qo‘shish',
       },
       tabs: {
         home: 'Asosiy',
