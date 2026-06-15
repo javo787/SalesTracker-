@@ -21,7 +21,13 @@
       ]
     },
     "plugins": [
-      "expo-av",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Разрешите доступ к микрофону для использования голосового ввода",
+          "recordAudioAndroid": true
+        }
+      ],
       "expo-speech-recognition",
       "expo-sharing",
       [

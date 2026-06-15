@@ -8,7 +8,7 @@ import {
   Alert,
   Animated,
 } from 'react-native';
-import { Audio } from 'expo-av';
+import { AudioModule, useAudioRecorder, RecordingPresets } from 'expo-audio';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useAppContext } from '../context/AppContext';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,7 +23,7 @@ const WARNING_THRESHOLD = 55000;
 
 export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
   const { theme, language } = useAppContext();
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const [isRecording, setIsRecording] = useState(false);
   const [showWarning, setShowWarning] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -35,12 +35,12 @@ export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
 
   useEffect(() => {
     return () => {
-      if (recording) {
-        recording.stopAndUnloadAsync().catch(() => {});
+      if (recorder.isRecording) {
+        recorder.stop().catch(() => {});
       }
       clearTimers();
     };
-  }, [recording]);
+  }, [recorder]);
 
   const clearTimers = () => {
     if (durationTimer.current) clearTimeout(durationTimer.current);
@@ -71,22 +71,20 @@ export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
 
   const startRecording = async () => {
     try {
-      const permission = await Audio.requestPermissionsAsync();
+      const permission = await AudioModule.requestRecordingPermissionsAsync();
       if (permission.status !== 'granted') {
         Alert.alert('Ошибка', 'Разрешите доступ к микрофону для использования голосового ввода');
         return;
       }
 
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
+      await AudioModule.setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
       });
 
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
+      await recorder.prepareToRecordAsync();
+      recorder.record();
 
-      setRecording(recording);
       setIsRecording(true);
       startPulse();
 
@@ -108,7 +106,7 @@ export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
   };
 
   const stopRecording = async () => {
-    if (!recording) return;
+    if (!isRecording) return;
 
     setIsRecording(false);
     setShowWarning(false);
@@ -116,9 +114,8 @@ export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
     clearTimers();
 
     try {
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
-      setRecording(null);
+      await recorder.stop();
+      const uri = recorder.uri;
 
       if (uri) {
         await transcribeAudio(uri);
