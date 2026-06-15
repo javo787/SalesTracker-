@@ -94,6 +94,23 @@ export function deleteProduct(id: number) {
   return db.runSync('DELETE FROM products WHERE id = ?', [id]);
 }
 
+export function convertAllAmounts(rate: number) {
+  db.runSync('UPDATE products SET buy_price = ROUND(buy_price * ?, 2), sell_price = ROUND(sell_price * ?, 2)', [rate, rate]);
+  db.runSync('UPDATE sales SET sell_price = ROUND(sell_price * ?, 2), buy_price = ROUND(buy_price * ?, 2), profit = ROUND(profit * ?, 2)', [rate, rate, rate]);
+  db.runSync('UPDATE expenses SET amount = ROUND(amount * ?, 2)', [rate]);
+}
+
+export function clearAllData() {
+  db.runSync('DELETE FROM sales');
+  db.runSync('DELETE FROM products');
+  db.runSync('DELETE FROM expenses');
+  try {
+    db.runSync("DELETE FROM sqlite_sequence WHERE name IN ('products','sales','expenses')");
+  } catch (e) {
+    // sqlite_sequence may not exist yet; ignore
+  }
+}
+
 export function getProducts() {
   return db.getAllSync('SELECT * FROM products ORDER BY name ASC');
 }
