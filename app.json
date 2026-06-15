@@ -21,6 +21,7 @@
       ]
     },
     "plugins": [
+      "expo-av",
       "expo-speech-recognition",
       "expo-sharing",
       [
