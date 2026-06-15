@@ -165,10 +165,6 @@ export default function SettingsScreen() {
           <Text style={styles.infoLabel}>{t('settings.developer')}</Text>
           <Text style={[styles.infoValue, themeStyles.text]}>SavdoApp Team</Text>
         </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>AI модель</Text>
-          <Text style={[styles.infoValue, themeStyles.text]}>Gemini 1.5 Flash</Text>
-        </View>
         <TouchableOpacity
           style={styles.linkRow}
           onPress={() => Linking.openURL('https://t.me/savdoapp')}
