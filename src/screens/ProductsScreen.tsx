@@ -10,7 +10,7 @@ import { useAppContext } from '../context/AppContext';
 
 export default function ProductsScreen() {
   const { t } = useTranslation();
-  const { theme, currency } = useAppContext();
+  const { theme, currency, defaultMinStockAlert } = useAppContext();
   const [products, setProducts] = useState<any[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -18,7 +18,7 @@ export default function ProductsScreen() {
   const [buyPrice, setBuyPrice] = useState('');
   const [sellPrice, setSellPrice] = useState('');
   const [stock, setStock] = useState('');
-  const [minStockAlert, setMinStockAlert] = useState('0');
+  const [minStockAlert, setMinStockAlert] = useState(String(defaultMinStockAlert));
   const [refreshing, setRefreshing] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -49,7 +49,7 @@ export default function ProductsScreen() {
       addProduct(name.trim(), bPrice, sPrice, st, alert);
     }
 
-    setName(''); setBuyPrice(''); setSellPrice(''); setStock(''); setMinStockAlert('0');
+    setName(''); setBuyPrice(''); setSellPrice(''); setStock(''); setMinStockAlert(String(defaultMinStockAlert));
     setShowForm(false);
     setEditingId(null);
     loadProducts();
@@ -114,7 +114,7 @@ export default function ProductsScreen() {
           if (showForm) {
             setShowForm(false);
             setEditingId(null);
-            setName(''); setBuyPrice(''); setSellPrice(''); setStock(''); setMinStockAlert('0');
+            setName(''); setBuyPrice(''); setSellPrice(''); setStock(''); setMinStockAlert(String(defaultMinStockAlert));
           } else {
             setShowForm(true);
           }

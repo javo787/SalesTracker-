@@ -10,6 +10,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { getStats, getSalesByPeriod, deleteSale } from '../db/database';
 import { useAppContext } from '../context/AppContext';
+import AnnualReport from '../components/reports/AnnualReport';
 
 export default function ReportScreen() {
   const { t, i18n } = useTranslation();
@@ -122,6 +123,7 @@ export default function ReportScreen() {
     { label: t('reports.today'), days: 1 },
     { label: t('reports.days7'), days: 7 },
     { label: t('reports.days30'), days: 30 },
+    { label: t('reports.year'), days: 365 },
   ];
 
   const isDark = theme === 'dark';
@@ -152,123 +154,129 @@ export default function ReportScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* График тренда */}
-      {chartData.length > 0 && (
-        <View style={[styles.section, themeStyles.card]}>
-          <Text style={[styles.sectionTitle, themeStyles.text]}>{t('reports.trend')}</Text>
-          <BarChart
-            data={chartData}
-            barWidth={period === 30 ? 8 : 22}
-            noOfSections={3}
-            barBorderRadius={4}
-            frontColor="#1D9E75"
-            yAxisThickness={0}
-            xAxisThickness={0}
-            hideRules
-            yAxisTextStyle={{ color: '#999', fontSize: 10 }}
-            xAxisLabelTextStyle={{ color: '#999', fontSize: 10 }}
-            isAnimated
-          />
-        </View>
-      )}
-
-      {/* Главные цифры */}
-      <View style={styles.statsGrid}>
-        <View style={[styles.statCard, { backgroundColor: '#1D9E75' }]}>
-          <Text style={styles.statLabel}>{t('common.revenue')}</Text>
-          <Text style={styles.statValue}>{stats.revenue.toLocaleString()}</Text>
-          <Text style={styles.statCurrency}>{currency.symbol}</Text>
-        </View>
-        <View style={[styles.statCard, { backgroundColor: '#0C447C' }]}>
-          <Text style={styles.statLabel}>{t('common.profit')}</Text>
-          <Text style={styles.statValue}>{stats.profit.toLocaleString()}</Text>
-          <Text style={styles.statCurrency}>{currency.symbol}</Text>
-        </View>
-        <View style={[styles.statCard, { backgroundColor: '#854F0B' }]}>
-          <Text style={styles.statLabel}>{t('home.salesCount')}</Text>
-          <Text style={styles.statValue}>{stats.count}</Text>
-          <Text style={styles.statCurrency}>{t('reports.pcs')}</Text>
-        </View>
-        <View style={[styles.statCard, { backgroundColor: '#3B6D11' }]}>
-          <Text style={styles.statLabel}>{t('products.margin')}</Text>
-          <Text style={styles.statValue}>{margin}%</Text>
-          <Text style={styles.statCurrency}>рентабельность</Text>
-        </View>
-      </View>
-
-      {/* Топ товары */}
-      {topList.length > 0 && (
-        <View style={[styles.section, themeStyles.card]}>
-          <Text style={[styles.sectionTitle, themeStyles.text]}>{t('reports.topProducts')}</Text>
-          {topList.map((item: any, index) => (
-            <View key={item.name} style={styles.topItem}>
-              <View style={styles.topRank}>
-                <Text style={styles.topRankText}>{index + 1}</Text>
-              </View>
-              <View style={styles.topInfo}>
-                <Text style={[styles.topName, themeStyles.text]}>{item.name}</Text>
-                <Text style={styles.topCount}>Продано: {item.count} {t('reports.pcs')}</Text>
-              </View>
-              <Text style={styles.topProfit}>+{item.profit.toLocaleString()} {currency.symbol}</Text>
+      {period === 365 ? (
+        <AnnualReport />
+      ) : (
+        <>
+          {/* График тренда */}
+          {chartData.length > 0 && (
+            <View style={[styles.section, themeStyles.card]}>
+              <Text style={[styles.sectionTitle, themeStyles.text]}>{t('reports.trend')}</Text>
+              <BarChart
+                data={chartData}
+                barWidth={period === 30 ? 8 : 22}
+                noOfSections={3}
+                barBorderRadius={4}
+                frontColor="#1D9E75"
+                yAxisThickness={0}
+                xAxisThickness={0}
+                hideRules
+                yAxisTextStyle={{ color: '#999', fontSize: 10 }}
+                xAxisLabelTextStyle={{ color: '#999', fontSize: 10 }}
+                isAnimated
+              />
             </View>
-          ))}
-        </View>
-      )}
+          )}
 
-      {/* Список продаж */}
-      <View style={[styles.section, themeStyles.card]}>
-        <View style={styles.listHeader}>
-          <Text style={[styles.sectionTitle, themeStyles.text]}>
-            {t('reports.allSales')} ({filteredSales.length})
-          </Text>
-          <TextInput
-            style={[styles.filterInput, themeStyles.input]}
-            placeholder={t('reports.searchPlaceholder')}
-            placeholderTextColor={isDark ? '#888' : '#aaa'}
-            value={filterText}
-            onChangeText={setFilterText}
-          />
-        </View>
-
-        {filteredSales.length === 0 ? (
-          <View style={styles.empty}>
-            <Text style={styles.emptyText}>
-              {sales.length === 0 ? t('reports.noSalesPeriod') : t('reports.nothingFound')}
-            </Text>
+          {/* Главные цифры */}
+          <View style={styles.statsGrid}>
+            <View style={[styles.statCard, { backgroundColor: '#1D9E75' }]}>
+              <Text style={styles.statLabel}>{t('common.revenue')}</Text>
+              <Text style={styles.statValue}>{stats.revenue.toLocaleString()}</Text>
+              <Text style={styles.statCurrency}>{currency.symbol}</Text>
+            </View>
+            <View style={[styles.statCard, { backgroundColor: '#0C447C' }]}>
+              <Text style={styles.statLabel}>{t('common.profit')}</Text>
+              <Text style={styles.statValue}>{stats.profit.toLocaleString()}</Text>
+              <Text style={styles.statCurrency}>{currency.symbol}</Text>
+            </View>
+            <View style={[styles.statCard, { backgroundColor: '#854F0B' }]}>
+              <Text style={styles.statLabel}>{t('home.salesCount')}</Text>
+              <Text style={styles.statValue}>{stats.count}</Text>
+              <Text style={styles.statCurrency}>{t('reports.pcs')}</Text>
+            </View>
+            <View style={[styles.statCard, { backgroundColor: '#3B6D11' }]}>
+              <Text style={styles.statLabel}>{t('products.margin')}</Text>
+              <Text style={styles.statValue}>{margin}%</Text>
+              <Text style={styles.statCurrency}>рентабельность</Text>
+            </View>
           </View>
-        ) : (
-          filteredSales.map((sale: any) => (
-            <TouchableOpacity
-              key={String(sale.id)}
-              style={styles.saleItem}
-              onLongPress={() => handleDeleteSale(sale)}
-              delayLongPress={500}
-            >
-              <View style={styles.saleLeft}>
-                <Text style={[styles.saleName, themeStyles.text]}>{sale.product_name}</Text>
-                <Text style={styles.saleDate}>
-                  {new Date(sale.created_at).toLocaleString(i18n.language === 'tg' ? 'tg-TJ' : i18n.language === 'uz' ? 'uz-UZ' : 'ru-RU', {
-                    day: 'numeric', month: 'short',
-                    hour: '2-digit', minute: '2-digit'
-                  })}
-                  {sale.quantity > 1 ? `  ×${sale.quantity}` : ''}
+
+          {/* Топ товары */}
+          {topList.length > 0 && (
+            <View style={[styles.section, themeStyles.card]}>
+              <Text style={[styles.sectionTitle, themeStyles.text]}>{t('reports.topProducts')}</Text>
+              {topList.map((item: any, index) => (
+                <View key={item.name} style={styles.topItem}>
+                  <View style={styles.topRank}>
+                    <Text style={styles.topRankText}>{index + 1}</Text>
+                  </View>
+                  <View style={styles.topInfo}>
+                    <Text style={[styles.topName, themeStyles.text]}>{item.name}</Text>
+                    <Text style={styles.topCount}>Продано: {item.count} {t('reports.pcs')}</Text>
+                  </View>
+                  <Text style={styles.topProfit}>+{item.profit.toLocaleString()} {currency.symbol}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Список продаж */}
+          <View style={[styles.section, themeStyles.card]}>
+            <View style={styles.listHeader}>
+              <Text style={[styles.sectionTitle, themeStyles.text]}>
+                {t('reports.allSales')} ({filteredSales.length})
+              </Text>
+              <TextInput
+                style={[styles.filterInput, themeStyles.input]}
+                placeholder={t('reports.searchPlaceholder')}
+                placeholderTextColor={isDark ? '#888' : '#aaa'}
+                value={filterText}
+                onChangeText={setFilterText}
+              />
+            </View>
+
+            {filteredSales.length === 0 ? (
+              <View style={styles.empty}>
+                <Text style={styles.emptyText}>
+                  {sales.length === 0 ? t('reports.noSalesPeriod') : t('reports.nothingFound')}
                 </Text>
-                {sale.note ? (
-                  <Text style={styles.saleNote}>{sale.note}</Text>
-                ) : null}
               </View>
-              <View style={styles.saleRight}>
-                <Text style={[styles.saleRevenue, themeStyles.text]}>
-                  {(sale.sell_price * sale.quantity).toLocaleString()} {currency.symbol}
-                </Text>
-                <Text style={styles.saleProfit}>
-                  +{sale.profit.toLocaleString()} {currency.symbol}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          ))
-        )}
-      </View>
+            ) : (
+              filteredSales.map((sale: any) => (
+                <TouchableOpacity
+                  key={String(sale.id)}
+                  style={styles.saleItem}
+                  onLongPress={() => handleDeleteSale(sale)}
+                  delayLongPress={500}
+                >
+                  <View style={styles.saleLeft}>
+                    <Text style={[styles.saleName, themeStyles.text]}>{sale.product_name}</Text>
+                    <Text style={styles.saleDate}>
+                      {new Date(sale.created_at).toLocaleString(i18n.language === 'tg' ? 'tg-TJ' : i18n.language === 'uz' ? 'uz-UZ' : 'ru-RU', {
+                        day: 'numeric', month: 'short',
+                        hour: '2-digit', minute: '2-digit'
+                      })}
+                      {sale.quantity > 1 ? `  ×${sale.quantity}` : ''}
+                    </Text>
+                    {sale.note ? (
+                      <Text style={styles.saleNote}>{sale.note}</Text>
+                    ) : null}
+                  </View>
+                  <View style={styles.saleRight}>
+                    <Text style={[styles.saleRevenue, themeStyles.text]}>
+                      {(sale.sell_price * sale.quantity).toLocaleString()} {currency.symbol}
+                    </Text>
+                    <Text style={styles.saleProfit}>
+                      +{sale.profit.toLocaleString()} {currency.symbol}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))
+            )}
+          </View>
+        </>
+      )}
 
     </ScrollView>
   );

@@ -28,6 +28,18 @@ export function initDatabase() {
       created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (product_id) REFERENCES products(id)
     );
+
+    CREATE TABLE IF NOT EXISTS expenses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL, -- 'operational' | 'inventory'
+      category TEXT NOT NULL,
+      amount REAL NOT NULL,
+      description TEXT,
+      linked_product_id INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      user_id TEXT,
+      FOREIGN KEY (linked_product_id) REFERENCES products(id)
+    );
   `);
 
   // Migration: add min_stock_alert to products if it doesn't exist
@@ -82,6 +94,23 @@ export function deleteProduct(id: number) {
   return db.runSync('DELETE FROM products WHERE id = ?', [id]);
 }
 
+export function convertAllAmounts(rate: number) {
+  db.runSync('UPDATE products SET buy_price = ROUND(buy_price * ?, 2), sell_price = ROUND(sell_price * ?, 2)', [rate, rate]);
+  db.runSync('UPDATE sales SET sell_price = ROUND(sell_price * ?, 2), buy_price = ROUND(buy_price * ?, 2), profit = ROUND(profit * ?, 2)', [rate, rate, rate]);
+  db.runSync('UPDATE expenses SET amount = ROUND(amount * ?, 2)', [rate]);
+}
+
+export function clearAllData() {
+  db.runSync('DELETE FROM sales');
+  db.runSync('DELETE FROM products');
+  db.runSync('DELETE FROM expenses');
+  try {
+    db.runSync("DELETE FROM sqlite_sequence WHERE name IN ('products','sales','expenses')");
+  } catch (e) {
+    // sqlite_sequence may not exist yet; ignore
+  }
+}
+
 export function getProducts() {
   return db.getAllSync('SELECT * FROM products ORDER BY name ASC');
 }
@@ -134,7 +163,8 @@ export function getSalesToday() {
 
 export function getSalesByPeriod(days: number) {
   return db.getAllSync(
-    `SELECT * FROM sales WHERE created_at >= datetime('now', '-${days} days') ORDER BY created_at DESC`
+    "SELECT * FROM sales WHERE created_at >= datetime('now', '-' || ? || ' days') ORDER BY created_at DESC",
+    [days]
   );
 }
 
@@ -159,9 +189,207 @@ export function getStats(days: number = 1) {
       COALESCE(SUM(profit), 0) as profit,
       COALESCE(COUNT(*), 0) as count
     FROM sales 
-    WHERE created_at >= datetime('now', '-${days} days')
-  `) as any;
+    WHERE created_at >= datetime('now', '-' || ? || ' days')
+  `, [days]) as any;
   return result;
+}
+
+// Расходы
+export function addExpense(
+  type: string,
+  category: string,
+  amount: number,
+  description: string,
+  userId: string,
+  linkedProductId: number | null = null
+) {
+  try {
+    return db.runSync(
+      'INSERT INTO expenses (type, category, amount, description, user_id, linked_product_id) VALUES (?, ?, ?, ?, ?, ?)',
+      [type, category, amount, description, userId, linkedProductId]
+    );
+  } catch (error) {
+    console.error('Error adding expense:', error);
+    throw error;
+  }
+}
+
+export function getExpenses(days: number = 1) {
+  return db.getAllSync(
+    "SELECT * FROM expenses WHERE created_at >= datetime('now', '-' || ? || ' days') ORDER BY created_at DESC",
+    [days]
+  );
+}
+
+export function deleteExpense(id: number) {
+  return db.runSync('DELETE FROM expenses WHERE id = ?', [id]);
+}
+
+export function getExpenseStats(days: number = 1) {
+  const result = db.getFirstSync(`
+    SELECT
+      COALESCE(SUM(CASE WHEN type = 'operational' THEN amount ELSE 0 END), 0) as operational,
+      COALESCE(SUM(CASE WHEN type = 'inventory' THEN amount ELSE 0 END), 0) as inventory,
+      COALESCE(SUM(amount), 0) as total
+    FROM expenses
+    WHERE created_at >= datetime('now', '-' || ? || ' days')
+  `, [days]) as any;
+  return result;
+}
+
+export function getAnnualStats() {
+  // Monthly breakdown for the current year
+  const year = new Date().getFullYear();
+  const months = [];
+
+  for (let m = 1; m <= 12; m++) {
+    const monthStr = String(m).padStart(2, '0');
+    const from = `${year}-${monthStr}-01`;
+    // Last day of month
+    const lastDay = new Date(year, m, 0).getDate();
+    const to = `${year}-${monthStr}-${lastDay}`;
+
+    const sales = db.getFirstSync(`
+      SELECT
+        COALESCE(SUM(sell_price * quantity), 0) as revenue,
+        COALESCE(SUM(profit), 0) as profit,
+        COALESCE(COUNT(*), 0) as salesCount
+      FROM sales
+      WHERE date(created_at) >= ? AND date(created_at) <= ?
+    `, [from, to]) as any;
+
+    const expenses = db.getFirstSync(`
+      SELECT COALESCE(SUM(amount), 0) as total
+      FROM expenses
+      WHERE date(created_at) >= ? AND date(created_at) <= ?
+    `, [from, to]) as any;
+
+    months.push({
+      month: m,
+      revenue: sales?.revenue || 0,
+      profit: sales?.profit || 0,
+      salesCount: sales?.salesCount || 0,
+      expenses: expenses?.total || 0,
+      netProfit: (sales?.profit || 0) - (expenses?.total || 0),
+    });
+  }
+
+  // Top products for the year
+  const topProducts = db.getAllSync(`
+    SELECT
+      product_name,
+      SUM(profit) as totalProfit,
+      SUM(quantity) as totalQty,
+      COUNT(*) as salesCount
+    FROM sales
+    WHERE created_at >= date('${year}-01-01')
+    GROUP BY product_name
+    ORDER BY totalProfit DESC
+    LIMIT 10
+  `) as any[];
+
+  // Year totals
+  const totals = db.getFirstSync(`
+    SELECT
+      COALESCE(SUM(sell_price * quantity), 0) as revenue,
+      COALESCE(SUM(profit), 0) as profit,
+      COALESCE(COUNT(*), 0) as salesCount
+    FROM sales
+    WHERE strftime('%Y', created_at) = '${year}'
+  `) as any;
+
+  const totalExpenses = db.getFirstSync(`
+    SELECT COALESCE(SUM(amount), 0) as total
+    FROM expenses
+    WHERE strftime('%Y', created_at) = '${year}'
+  `) as any;
+
+  return {
+    year,
+    months,
+    topProducts,
+    totals: {
+      revenue: totals?.revenue || 0,
+      profit: totals?.profit || 0,
+      salesCount: totals?.salesCount || 0,
+      expenses: totalExpenses?.total || 0,
+      netProfit: (totals?.profit || 0) - (totalExpenses?.total || 0),
+    }
+  };
+}
+
+export function searchProductsForAutocomplete(query: string) {
+  if (!query.trim()) {
+    // Top 5 most frequent items
+    return db.getAllSync(`
+      WITH AllItems AS (
+        SELECT
+          CAST(p.id AS TEXT) as id,
+          p.name,
+          'catalog' as source,
+          p.buy_price as purchasePrice,
+          (SELECT s.sell_price FROM sales s WHERE s.product_id = p.id ORDER BY s.created_at DESC LIMIT 1) as lastSalePrice,
+          (SELECT COUNT(*) FROM sales s WHERE s.product_id = p.id) as salesCount,
+          (SELECT MAX(s.created_at) FROM sales s WHERE s.product_id = p.id) as lastSoldAt
+        FROM products p
+        UNION ALL
+        SELECT
+          NULL as id,
+          s.product_name as name,
+          'history' as source,
+          (SELECT s2.buy_price FROM sales s2 WHERE s2.product_name = s.product_name AND s2.product_id IS NULL ORDER BY s2.created_at DESC LIMIT 1) as purchasePrice,
+          (SELECT s2.sell_price FROM sales s2 WHERE s2.product_name = s.product_name AND s2.product_id IS NULL ORDER BY s2.created_at DESC LIMIT 1) as lastSalePrice,
+          COUNT(*) as salesCount,
+          MAX(s.created_at) as lastSoldAt
+        FROM sales s
+        WHERE s.product_id IS NULL
+          AND s.product_name NOT IN (SELECT name FROM products)
+        GROUP BY s.product_name
+      )
+      SELECT * FROM AllItems
+      ORDER BY salesCount DESC, lastSoldAt DESC
+      LIMIT 5
+    `);
+  }
+
+  // Search by query
+  return db.getAllSync(`
+    WITH CatalogMatches AS (
+      SELECT
+        CAST(p.id AS TEXT) as id,
+        p.name,
+        'catalog' as source,
+        p.buy_price as purchasePrice,
+        (SELECT s.sell_price FROM sales s WHERE s.product_id = p.id ORDER BY s.created_at DESC LIMIT 1) as lastSalePrice,
+        (SELECT COUNT(*) FROM sales s WHERE s.product_id = p.id) as salesCount,
+        (SELECT MAX(s.created_at) FROM sales s WHERE s.product_id = p.id) as lastSoldAt
+      FROM products p
+      WHERE p.name LIKE ? || '%'
+    ),
+    HistoryMatches AS (
+      SELECT
+        NULL as id,
+        s.product_name as name,
+        'history' as source,
+        (SELECT s2.buy_price FROM sales s2 WHERE s2.product_name = s.product_name AND s2.product_id IS NULL ORDER BY s2.created_at DESC LIMIT 1) as purchasePrice,
+        (SELECT s2.sell_price FROM sales s2 WHERE s2.product_name = s.product_name AND s2.product_id IS NULL ORDER BY s2.created_at DESC LIMIT 1) as lastSalePrice,
+        COUNT(*) as salesCount,
+        MAX(s.created_at) as lastSoldAt
+      FROM sales s
+      WHERE s.product_id IS NULL
+        AND s.product_name LIKE ? || '%'
+        AND s.product_name NOT IN (SELECT name FROM products)
+      GROUP BY s.product_name
+    )
+    SELECT * FROM CatalogMatches
+    UNION ALL
+    SELECT * FROM HistoryMatches
+    ORDER BY
+      CASE WHEN source = 'catalog' THEN 0 ELSE 1 END,
+      salesCount DESC,
+      lastSoldAt DESC
+    LIMIT 8
+  `, [query, query]);
 }
 
 export default db;

@@ -24,6 +24,10 @@ interface AppContextType {
   setTheme: (theme: Theme) => void;
   setCurrency: (code: string) => void;
   setLanguage: (lang: string) => void;
+  notificationsEnabled: boolean;
+  setNotificationsEnabled: (enabled: boolean) => Promise<void>;
+  defaultMinStockAlert: number;
+  setDefaultMinStockAlert: (value: number) => Promise<void>;
   loading: boolean;
 }
 
@@ -33,6 +37,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [theme, setThemeState] = useState<Theme>('light');
   const [currency, setCurrencyState] = useState<Currency>(CURRENCIES.TJS);
   const [language, setLanguageState] = useState('ru');
+  const [notificationsEnabled, setNotificationsEnabledState] = useState(true);
+  const [defaultMinStockAlert, setDefaultMinStockAlertState] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -41,15 +47,19 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const loadSettings = async () => {
     try {
-      const [savedTheme, savedCurrency, savedLang] = await Promise.all([
+      const [savedTheme, savedCurrency, savedLang, savedNotifs, savedMinStock] = await Promise.all([
         AsyncStorage.getItem('app_theme'),
         AsyncStorage.getItem('app_currency'),
         AsyncStorage.getItem('app_language'),
+        AsyncStorage.getItem('app_notifications_enabled'),
+        AsyncStorage.getItem('app_default_min_stock'),
       ]);
 
       if (savedTheme) setThemeState(savedTheme as Theme);
       if (savedCurrency && CURRENCIES[savedCurrency]) setCurrencyState(CURRENCIES[savedCurrency]);
       if (savedLang) setLanguageState(savedLang);
+      if (savedNotifs !== null) setNotificationsEnabledState(savedNotifs === 'true');
+      if (savedMinStock !== null) setDefaultMinStockAlertState(parseInt(savedMinStock) || 0);
     } catch (e) {
       console.error('Failed to load settings', e);
     } finally {
@@ -76,11 +86,25 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     i18n.changeLanguage(lang);
   };
 
+  const setNotificationsEnabled = async (enabled: boolean) => {
+    setNotificationsEnabledState(enabled);
+    await AsyncStorage.setItem('app_notifications_enabled', String(enabled));
+  };
+
+  const setDefaultMinStockAlert = async (value: number) => {
+    setDefaultMinStockAlertState(value);
+    await AsyncStorage.setItem('app_default_min_stock', String(value));
+  };
+
   return (
     <AppContext.Provider value={{
       theme,
       currency,
       language,
+      notificationsEnabled,
+      setNotificationsEnabled,
+      defaultMinStockAlert,
+      setDefaultMinStockAlert,
       setTheme,
       setCurrency,
       setLanguage,

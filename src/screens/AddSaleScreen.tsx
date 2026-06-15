@@ -1,15 +1,18 @@
-import { useEffect, useState, useMemo, useCallback } from 'react';
-import { useRoute, useFocusEffect } from '@react-navigation/native';
+import { useEffect, useState, useMemo, useRef } from 'react';
+import { useRoute } from '@react-navigation/native';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, Alert, ActivityIndicator, FlatList
+  StyleSheet, ScrollView, Alert, ActivityIndicator, Animated
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
-import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import { addSale, getProducts } from '../db/database';
+import VoiceRecorder from '../components/VoiceRecorder';
 import { useAppContext } from '../context/AppContext';
 import GeminiApi from '../utils/geminiApi';
+import ExpensesView from '../components/expenses/ExpensesView';
+import { ProductAutocomplete } from '../components/sales/ProductAutocomplete';
+import { AutocompleteResult } from '../types/product';
 
 const CACHE_TTL = 60 * 60 * 1000; // 1 час в мс
 
@@ -26,19 +29,23 @@ export default function AddSaleScreen(/* props */) {
     return new GeminiApi({ geminiKeys: keys.length ? keys : [''] });
   }, []);
 
-  const [products, setProducts] = useState<any[]>([]);
+  const [selectedProduct, setSelectedProduct] = useState<AutocompleteResult | null>(null);
   const [productName, setProductName] = useState('');
   const [sellPrice, setSellPrice] = useState('');
   const [buyPrice, setBuyPrice] = useState('');
   const [quantity, setQuantity] = useState('');
   const [note, setNote] = useState('');
-  const [listening, setListening] = useState(false);
+  const [salePricePlaceholder, setSalePricePlaceholder] = useState<number | null>(null);
+
+  const quantityInputRef = useRef<TextInput>(null);
   const [processing, setProcessing] = useState(false);
   const [voiceText, setVoiceText] = useState('');
-  const [lastSaved, setLastSaved] = useState<any>(null);
+  const [lastSaved, setLastSaved] = useState<{ name: string; profit: string; revenue: string } | null>(null);
+  const [activeTab, setActiveTab] = useState<'sales' | 'expenses'>('sales');
+  const fadeAnim = useMemo(() => new Animated.Value(1), []);
 
   // добавлено: получение параметров из маршрута (от калькулятора)
-  const route = useRoute<any>();
+  const route = useRoute<any>(); // useRoute in @react-navigation/native is notoriously hard to type without complex generic
 
   useEffect(() => {
     if (route.params?.prefillSell) setSellPrice(String(route.params.prefillSell));
@@ -47,49 +54,10 @@ export default function AddSaleScreen(/* props */) {
     if (route.params?.prefillPrice) setSellPrice(String(route.params.prefillPrice));
   }, [route.params]);
 
-  useEffect(() => {
-    setProducts(getProducts());
-  }, []);
 
-  useFocusEffect(useCallback(() => {
-    return () => {
-      ExpoSpeechRecognitionModule.stop();
-      setListening(false);
-    };
-  }, []));
-
-  // Слушаем результат распознавания
-  useSpeechRecognitionEvent('result', (event) => {
-    const text = event.results[0]?.transcript ?? '';
+  const handleTranscript = (text: string) => {
     setVoiceText(text);
     if (text) analyzeWithAI(text);
-  });
-
-  useSpeechRecognitionEvent('end', () => setListening(false));
-  useSpeechRecognitionEvent('error', () => setListening(false));
-
-  const startListening = async () => {
-    const { granted } = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-    if (!granted) {
-      Alert.alert(t('common.error'), 'Разрешите доступ к микрофону');
-      return;
-    }
-
-    let langCode = 'ru-RU';
-    if (language === 'tg') langCode = 'tg-TJ';
-    else if (language === 'uz') langCode = 'uz-UZ';
-
-    setVoiceText('');
-    setListening(true);
-    ExpoSpeechRecognitionModule.start({
-      lang: langCode,
-      interimResults: false,
-    });
-  };
-
-  const stopListening = () => {
-    ExpoSpeechRecognitionModule.stop();
-    setListening(false);
   };
 
   const analyzeWithAI = async (text: string) => {
@@ -160,7 +128,7 @@ export default function AddSaleScreen(/* props */) {
     }
   };
 
-  const applyAIResult = (parsed: any) => {
+  const applyAIResult = (parsed: { product_name: string; sell_price: number; buy_price: number; quantity: number; revenue: number; profit: number }) => {
     // Заполняем поля
     if (parsed.product_name) setProductName(parsed.product_name);
     if (parsed.sell_price > 0) setSellPrice(String(parsed.sell_price));
@@ -181,17 +149,20 @@ export default function AddSaleScreen(/* props */) {
       Alert.alert(t('common.error'), t('addSale.productPlaceholder'));
       return;
     }
-    if (!sellPrice || !buyPrice) {
+
+    const finalSellPrice = sellPrice || (salePricePlaceholder ? String(salePricePlaceholder) : '');
+
+    if (!finalSellPrice || !buyPrice) {
       Alert.alert(t('common.error'), 'Введите цену продажи и закупки');
       return;
     }
 
-    const sPrice = parseFloat(sellPrice);
+    const sPrice = parseFloat(finalSellPrice);
     const bPrice = parseFloat(buyPrice);
     const qty = parseInt(quantity) || 1;
 
     const profit = addSale(
-      null,
+      selectedProduct?.id ? parseInt(selectedProduct.id) : null,
       productName.trim(),
       qty,
       sPrice,
@@ -212,32 +183,63 @@ export default function AddSaleScreen(/* props */) {
     setQuantity('');
     setNote('');
     setVoiceText('');
+    setSelectedProduct(null);
+    setSalePricePlaceholder(null);
   };
 
   const isDark = theme === 'dark';
   const themeStyles = isDark ? darkStyles : lightStyles;
 
-  const filteredProducts = useMemo(() => {
-    if (!productName.trim()) return [];
-    return products.filter(p => p.name.toLowerCase().includes(productName.toLowerCase()));
-  }, [productName, products]);
+
+  const switchTab = (tab: 'sales' | 'expenses') => {
+    if (tab === activeTab) return;
+
+    Animated.timing(fadeAnim, {
+      toValue: 0,
+      duration: 150,
+      useNativeDriver: true,
+    }).start(() => {
+      setActiveTab(tab);
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: true,
+      }).start();
+    });
+  };
 
   return (
-    <ScrollView style={[styles.container, themeStyles.container]} keyboardShouldPersistTaps="handled">
+    <View style={[styles.container, themeStyles.container]}>
+      {/* Tab Switcher */}
+      <View style={styles.tabContainer}>
+        <View style={[styles.segmentedControl, isDark ? styles.segmentedControlDark : styles.segmentedControlLight]}>
+          <TouchableOpacity
+            style={[styles.tabBtn, activeTab === 'sales' && styles.tabBtnActive]}
+            onPress={() => switchTab('sales')}
+          >
+            <Text style={[styles.tabText, activeTab === 'sales' && styles.tabTextActive]}>
+              {t('home.salesCount')}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tabBtn, activeTab === 'expenses' && styles.tabBtnActive]}
+            onPress={() => switchTab('expenses')}
+          >
+            <Text style={[styles.tabText, activeTab === 'expenses' && styles.tabTextActive]}>
+              {t('tabs.expenses')}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
 
-      {/* Голосовой ввод */}
+      <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+        {activeTab === 'sales' ? (
+          <ScrollView keyboardShouldPersistTaps="handled">
+            {/* Голосовой ввод */}
       <View style={[styles.voiceSection, themeStyles.card]}>
         <Text style={[styles.sectionTitle, themeStyles.text]}>{t('addSale.voiceTitle')}</Text>
-        <TouchableOpacity
-          style={[styles.voiceBtn, listening && styles.voiceBtnActive]}
-          onPress={listening ? stopListening : startListening}
-          disabled={processing}
-        >
-          <Text style={styles.voiceBtnIcon}>{listening ? '⏹' : '🎤'}</Text>
-          <Text style={styles.voiceBtnText}>
-            {listening ? t('addSale.voiceBtnStop') : t('addSale.voiceBtnStart')}
-          </Text>
-        </TouchableOpacity>
+
+        <VoiceRecorder onTranscript={handleTranscript} />
 
         {voiceText ? (
           <View style={[styles.voiceResult, themeStyles.voiceResult]}>
@@ -259,38 +261,32 @@ export default function AddSaleScreen(/* props */) {
         <Text style={[styles.sectionTitle, themeStyles.text]}>{t('addSale.formTitle')}</Text>
 
         <Text style={[styles.label, themeStyles.text]}>{t('addSale.productName')} *</Text>
-        <TextInput
-          style={[styles.input, themeStyles.input]}
+        <ProductAutocomplete
+          inputStyle={[styles.input, themeStyles.input]}
           placeholder={t('addSale.productPlaceholder')}
           placeholderTextColor={isDark ? '#888' : '#aaa'}
           value={productName}
-          onChangeText={setProductName}
+          onChange={(text) => {
+            setProductName(text);
+            setSelectedProduct(null);
+            setSalePricePlaceholder(null);
+          }}
+          onSelect={(product) => {
+            setProductName(product.name);
+            setBuyPrice(String(product.purchasePrice));
+            setSellPrice(''); // Reset entered price
+            setSalePricePlaceholder(product.lastSalePrice);
+            setSelectedProduct(product);
+            setTimeout(() => quantityInputRef.current?.focus(), 100);
+          }}
         />
-
-        {filteredProducts.length > 0 && productName.length > 0 && (
-          <View style={[styles.autocomplete, themeStyles.card]}>
-            {filteredProducts.slice(0, 5).map(p => (
-              <TouchableOpacity
-                key={String(p.id)}
-                style={styles.autocompleteItem}
-                onPress={() => {
-                  setProductName(p.name);
-                  setSellPrice(String(p.sell_price));
-                  setBuyPrice(String(p.buy_price));
-                }}
-              >
-                <Text style={themeStyles.text}>{p.name}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
 
         <View style={styles.row}>
           <View style={styles.halfField}>
             <Text style={[styles.label, themeStyles.text]}>{t('addSale.sellPrice')} *</Text>
             <TextInput
               style={[styles.input, themeStyles.input]}
-              placeholder="0"
+              placeholder={salePricePlaceholder ? `${salePricePlaceholder.toLocaleString()} ${currency.symbol}` : '0'}
               placeholderTextColor={isDark ? '#888' : '#aaa'}
               keyboardType="numeric"
               value={sellPrice}
@@ -312,6 +308,7 @@ export default function AddSaleScreen(/* props */) {
 
         <Text style={[styles.label, themeStyles.text]}>{t('addSale.quantity')}</Text>
         <TextInput
+          ref={quantityInputRef}
           style={[styles.input, themeStyles.input]}
           placeholder="1"
           placeholderTextColor={isDark ? '#888' : '#aaa'}
@@ -331,19 +328,19 @@ export default function AddSaleScreen(/* props */) {
         />
 
         {/* Предварительный расчёт */}
-        {sellPrice && buyPrice ? (
+        {(sellPrice || salePricePlaceholder) && buyPrice ? (
           <View style={styles.preview}>
             <Text style={styles.previewTitle}>{t('addSale.previewTitle')}</Text>
             <View style={styles.previewRow}>
               <Text style={[styles.previewLabel, themeStyles.text]}>{t('common.revenue')}:</Text>
               <Text style={[styles.previewValue, themeStyles.text]}>
-                {(parseFloat(sellPrice) * (parseInt(quantity) || 1)).toLocaleString()} {currency.symbol}
+                {(parseFloat(sellPrice || String(salePricePlaceholder)) * (parseInt(quantity) || 1)).toLocaleString()} {currency.symbol}
               </Text>
             </View>
             <View style={styles.previewRow}>
               <Text style={[styles.previewLabel, themeStyles.text]}>{t('common.profit')}:</Text>
               <Text style={[styles.previewValue, { color: '#1D9E75' }]}>
-                {((parseFloat(sellPrice) - parseFloat(buyPrice)) * (parseInt(quantity) || 1)).toLocaleString()} {currency.symbol}
+                {((parseFloat(sellPrice || String(salePricePlaceholder)) - parseFloat(buyPrice)) * (parseInt(quantity) || 1)).toLocaleString()} {currency.symbol}
               </Text>
             </View>
           </View>
@@ -354,17 +351,21 @@ export default function AddSaleScreen(/* props */) {
         </TouchableOpacity>
       </View>
 
-      {/* Успешно сохранено */}
-      {lastSaved && (
-        <View style={styles.successCard}>
-          <Text style={styles.successTitle}>✅ {t('common.saved')}</Text>
-          <Text style={[styles.successText, themeStyles.text]}>{lastSaved.name}</Text>
-          <Text style={[styles.successText, themeStyles.text]}>{t('common.revenue')}: {lastSaved.revenue} {currency.symbol}</Text>
-          <Text style={styles.successProfit}>{t('common.profit')}: +{lastSaved.profit} {currency.symbol}</Text>
-        </View>
-      )}
-
-    </ScrollView>
+            {/* Успешно сохранено */}
+            {lastSaved && (
+              <View style={styles.successCard}>
+                <Text style={styles.successTitle}>✅ {t('common.saved')}</Text>
+                <Text style={[styles.successText, themeStyles.text]}>{lastSaved.name}</Text>
+                <Text style={[styles.successText, themeStyles.text]}>{t('common.revenue')}: {lastSaved.revenue} {currency.symbol}</Text>
+                <Text style={styles.successProfit}>{t('common.profit')}: +{lastSaved.profit} {currency.symbol}</Text>
+              </View>
+            )}
+          </ScrollView>
+        ) : (
+          <ExpensesView />
+        )}
+      </Animated.View>
+    </View>
   );
 }
 
@@ -386,6 +387,48 @@ const darkStyles = StyleSheet.create({
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  tabContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  segmentedControl: {
+    flexDirection: 'row',
+    borderRadius: 25,
+    padding: 4,
+    height: 46,
+  },
+  segmentedControlLight: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#eee',
+  },
+  segmentedControlDark: {
+    backgroundColor: '#000',
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  tabBtn: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 21,
+  },
+  tabBtnActive: {
+    backgroundColor: '#1D9E75',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+  },
+  tabTextActive: {
+    color: '#fff',
+  },
   voiceSection: {
     margin: 16,
     borderRadius: 12, padding: 16,
@@ -393,14 +436,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05, shadowRadius: 2, elevation: 2,
   },
   sectionTitle: { fontSize: 16, fontWeight: '600', marginBottom: 12 },
-  voiceBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: '#F0FBF7', borderRadius: 12, padding: 16,
-    borderWidth: 1.5, borderColor: '#1D9E75',
-  },
-  voiceBtnActive: { backgroundColor: '#FFE8E8', borderColor: '#E53935' },
-  voiceBtnIcon: { fontSize: 24 },
-  voiceBtnText: { fontSize: 15, color: '#1D9E75', fontWeight: '500', flex: 1 },
   voiceResult: { marginTop: 12, padding: 12, borderRadius: 8 },
   voiceResultLabel: { fontSize: 12, color: '#999', marginBottom: 4 },
   voiceResultText: { fontSize: 14, fontStyle: 'italic' },

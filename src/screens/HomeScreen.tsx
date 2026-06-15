@@ -1,122 +1,154 @@
-import { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
-  TouchableOpacity, RefreshControl, Alert, ActivityIndicator
+  TouchableOpacity, RefreshControl, Alert, PanResponder, Animated as RNAnimated
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
+import { Ionicons } from '@expo/vector-icons';
 import { getStats, getSalesToday, deleteSale } from '../db/database';
 import { useAppContext } from '../context/AppContext';
-import GeminiApi from '../utils/geminiApi';
+import { useAuth } from '../context/AuthContext';
+import { getSmartTip } from '../utils/smartTips';
+import CurrencyConversionBanner from '../components/CurrencyConversionBanner';
+
+function SaleListItem({ sale, onDelete, isDark, currency, t, i18n, themeStyles }: any) {
+  const translateX = useRef(new RNAnimated.Value(0)).current;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) => Math.abs(gestureState.dx) > 10,
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dx < 0) {
+          translateX.setValue(gestureState.dx);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dx < -80) {
+          RNAnimated.timing(translateX, {
+            toValue: -80,
+            duration: 200,
+            useNativeDriver: true,
+          }).start();
+        } else {
+          RNAnimated.spring(translateX, {
+            toValue: 0,
+            useNativeDriver: true,
+          }).start();
+        }
+      },
+    })
+  ).current;
+
+  const reset = () => {
+    RNAnimated.spring(translateX, {
+      toValue: 0,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  return (
+    <View style={styles.swipeContainer}>
+      <TouchableOpacity
+        style={styles.deleteBackground}
+        onPress={() => {
+          onDelete();
+          reset();
+        }}
+      >
+        <Ionicons name="trash" size={20} color="#fff" />
+      </TouchableOpacity>
+      <RNAnimated.View
+        style={[
+          styles.saleItem,
+          themeStyles.card,
+          { transform: [{ translateX }] }
+        ]}
+        {...panResponder.panHandlers}
+      >
+        <View style={styles.saleLeft}>
+          <Text style={[styles.saleName, themeStyles.text]}>{sale.product_name}</Text>
+          <Text style={styles.saleTime}>
+            {new Date(sale.created_at).toLocaleTimeString(i18n.language === 'tg' ? 'tg-TJ' : i18n.language === 'uz' ? 'uz-UZ' : 'ru-RU', {
+              hour: '2-digit', minute: '2-digit'
+            })}
+            {sale.quantity > 1 ? `  ×${sale.quantity}` : ''}
+          </Text>
+        </View>
+        <View style={styles.saleRight}>
+          <Text style={[styles.saleRevenue, themeStyles.text]}>
+            {(sale.sell_price * sale.quantity).toLocaleString()} {currency.symbol}
+          </Text>
+          <Text style={styles.saleProfit}>
+            +{sale.profit.toLocaleString()} {currency.symbol}
+          </Text>
+        </View>
+      </RNAnimated.View>
+    </View>
+  );
+}
+
+function StatCard({ label, value, currency, unit, icon, color, themeStyles, trend }: any) {
+  return (
+    <View style={[styles.statCard, themeStyles.card]}>
+      <View style={styles.statHeader}>
+        <Ionicons name={icon} size={16} color={color} />
+        <Text style={styles.statLabel} numberOfLines={1}>{label}</Text>
+      </View>
+      <Text style={[styles.statValue, themeStyles.text]}>
+        {value.toLocaleString()} {currency || unit}
+      </Text>
+      {trend !== undefined && trend !== null && (
+        <View style={styles.trendContainer}>
+          <Ionicons
+            name={trend >= 0 ? "trending-up" : "trending-down"}
+            size={12}
+            color={trend >= 0 ? "#1D9E75" : "#FF6B6B"}
+          />
+          <Text style={[styles.trendText, { color: trend >= 0 ? "#1D9E75" : "#FF6B6B" }]}>
+            {trend > 0 ? `+${trend}` : trend}% {trend === 0 ? '' : 'vs avg'}
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+}
 
 export default function HomeScreen() {
   const { t, i18n } = useTranslation();
   const { theme, currency } = useAppContext();
+  const { user } = useAuth();
+  const navigation = useNavigation<any>();
 
-  const gemini = useMemo(() => {
-    const keys = [
-      process.env.EXPO_PUBLIC_GEMINI_KEY,
-      process.env.EXPO_PUBLIC_GEMINI_KEY_2,
-      process.env.EXPO_PUBLIC_GEMINI_KEY_3,
-    ].filter(Boolean) as string[];
-    return new GeminiApi({ geminiKeys: keys.length ? keys : [''] });
-  }, []);
   const [stats, setStats] = useState({ revenue: 0, profit: 0, count: 0 });
+  const [stats7, setStats7] = useState({ revenue: 0, profit: 0, count: 0 });
   const [todaySales, setTodaySales] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [aiTip, setAiTip] = useState<string | null>(null);
-  const [loadingTip, setLoadingTip] = useState(false);
+  const [dailyTip, setDailyTip] = useState<string | null>(null);
 
   const loadData = () => {
     const s = getStats(1);
     setStats(s);
+    const s7 = getStats(7);
+    setStats7(s7);
     const sales = getSalesToday();
     setTodaySales(sales);
   };
 
+  const loadTip = async () => {
+    const tip = await getSmartTip(t, currency.symbol);
+    setDailyTip(tip);
+  };
+
   useFocusEffect(useCallback(() => {
     loadData();
-    loadAiTip();
-  }, []));
-
-  const loadAiTip = async () => {
-    const today = new Date().toISOString().split('T')[0];
-    const cacheKey = `ai_tip_${today}`;
-
-    try {
-      const cached = await AsyncStorage.getItem(cacheKey);
-      if (cached) {
-        setAiTip(cached);
-        return;
-      }
-
-      // Если нет в кеше, генерируем новый
-      console.log('KEY:', process.env.EXPO_PUBLIC_GEMINI_KEY); // Debug log
-      generateAiTip(cacheKey);
-    } catch (e) {
-      console.warn('AI Tip load error', e);
-    }
-  };
-
-  const generateAiTip = async (cacheKey: string) => {
-    if (!process.env.EXPO_PUBLIC_GEMINI_KEY) return;
-
-    // Check failure counter
-    const today = new Date().toISOString().split('T')[0];
-    const failKey = `ai_fail_count_${today}`;
-    const failCount = parseInt(await AsyncStorage.getItem(failKey) || '0');
-
-    if (failCount >= 3) {
-      const staticTips = [
-        "Следите за остатками популярных товаров, чтобы не упустить прибыль.",
-        "Всегда улыбайтесь покупателю — вежливость увеличивает продажи.",
-        "Предлагайте сопутствующие товары: к помидорам — огурцы, к муке — масло.",
-        "Записывайте даже мелкие продажи, чтобы видеть реальную картину прибыли.",
-        "Регулярно делайте ревизию склада для выявления залежалого товара.",
-        "Чистота на прилавке привлекает больше покупателей.",
-        "Постоянным клиентам можно делать небольшие скидки для лояльности."
-      ];
-      const dayOfWeek = new Date().getDay();
-      setAiTip(staticTips[dayOfWeek]);
-      return;
-    }
-
-    setLoadingTip(true);
-    try {
-      const weekStats = getStats(7);
-      const lang = await AsyncStorage.getItem('app_language') || 'ru';
-      const langName = lang === 'tg' ? 'таджикский' : lang === 'uz' ? 'узбекский' : 'русский';
-
-      const data = await gemini.generateContent({
-        contents: [{
-          parts: [{
-            text: `Ты опытный бизнес-консультант для малых торговцев в Центральной Азии.
-Дай один короткий (2-3 предложения), практичный и вдохновляющий совет на основе статистики за неделю:
-Выручка: ${weekStats.revenue} ${currency.symbol}, Прибыль: ${weekStats.profit} ${currency.symbol}, Продаж: ${weekStats.count}.
-Если данных мало, дай общий совет по торговле на базаре.
-Отвечай на языке: ${langName}.`
-          }]
-        }]
-      });
-      const tip = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-
-      if (tip) {
-        setAiTip(tip);
-        await AsyncStorage.setItem(cacheKey, tip);
-        await AsyncStorage.setItem(failKey, '0'); // Reset on success
-      }
-    } catch (e) {
-      console.warn('AI Tip generation error', e);
-      await AsyncStorage.setItem(failKey, String(failCount + 1));
-    } finally {
-      setLoadingTip(false);
-    }
-  };
+    loadTip();
+  }, [t, currency.symbol]));
 
   const onRefresh = () => {
     setRefreshing(true);
     loadData();
+    loadTip();
     setRefreshing(false);
   };
 
@@ -141,6 +173,14 @@ export default function HomeScreen() {
   const isDark = theme === 'dark';
   const themeStyles = isDark ? darkStyles : lightStyles;
 
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    const name = user?.name || '';
+    if (hour < 12) return t('home.greetingMorning', { name });
+    if (hour < 18) return t('home.greetingAfternoon', { name });
+    return t('home.greetingEvening', { name });
+  };
+
   return (
     <ScrollView
       style={[styles.container, themeStyles.container]}
@@ -148,7 +188,7 @@ export default function HomeScreen() {
     >
       {/* Заголовок */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>{t('reports.today')}</Text>
+        <Text style={styles.headerTitle}>{getGreeting()}</Text>
         <Text style={styles.headerDate}>
           {new Date().toLocaleDateString(i18n.language === 'tg' ? 'tg-TJ' : i18n.language === 'uz' ? 'uz-UZ' : 'ru-RU', {
             day: 'numeric', month: 'long', year: 'numeric'
@@ -156,45 +196,92 @@ export default function HomeScreen() {
         </Text>
       </View>
 
+      <CurrencyConversionBanner />
+
       {/* Карточки статистики */}
-      {aiTip || loadingTip ? (
-        <View style={[styles.aiCard, themeStyles.card]}>
-          <View style={styles.aiHeader}>
-            <Text style={styles.aiEmoji}>💡</Text>
-            <Text style={styles.aiTitle}>{t('home.aiTipTitle')}</Text>
+      {dailyTip ? (
+        <View style={[styles.tipCard, themeStyles.card]}>
+          <View style={styles.tipHeader}>
+            <Text style={styles.tipEmoji}>💡</Text>
+            <Text style={styles.tipTitle}>{t('home.tipTitle')}</Text>
           </View>
-          {loadingTip ? (
-            <ActivityIndicator size="small" color="#1D9E75" style={{ marginVertical: 10 }} />
-          ) : (
-            <Text style={[styles.aiText, themeStyles.text]}>{aiTip}</Text>
-          )}
+          <Text style={[styles.tipText, themeStyles.text]}>{dailyTip}</Text>
         </View>
       ) : null}
 
-      <View style={styles.statsRow}>
-        <View style={[styles.statCard, { backgroundColor: '#1D9E75' }]}>
-          <Text style={styles.statLabel}>{t('common.revenue')}</Text>
-          <Text style={styles.statValue}>{stats.revenue.toLocaleString()} {currency.symbol}</Text>
-        </View>
-        <View style={[styles.statCard, { backgroundColor: '#0C447C' }]}>
-          <Text style={styles.statLabel}>{t('common.profit')}</Text>
-          <Text style={styles.statValue}>{stats.profit.toLocaleString()} {currency.symbol}</Text>
-        </View>
+      {/* Quick Actions */}
+      <View style={styles.quickActions}>
+        <TouchableOpacity
+          style={[styles.actionChip, themeStyles.card]}
+          onPress={() => navigation.navigate(t('tabs.sale'))}
+        >
+          <Ionicons name="add-circle-outline" size={18} color="#1D9E75" />
+          <Text style={[styles.actionText, themeStyles.text]}>{t('tabs.sale')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.actionChip, themeStyles.card]}
+          onPress={() => navigation.navigate(t('tabs.expenses'))}
+        >
+          <Ionicons name="receipt-outline" size={18} color="#FF6B6B" />
+          <Text style={[styles.actionText, themeStyles.text]}>{t('tabs.expenses')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.actionChip, themeStyles.card]}
+          onPress={() => navigation.navigate('Калькулятор')}
+        >
+          <Ionicons name="calculator-outline" size={18} color="#0C447C" />
+          <Text style={[styles.actionText, themeStyles.text]}>{t('tabs.home') === 'Главная' ? 'Калькулятор' : 'Calc'}</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.statsRow}>
-        <View style={[styles.statCard, { backgroundColor: '#854F0B', flex: 1 }]}>
-          <Text style={styles.statLabel}>{t('home.salesCount')}</Text>
-          <Text style={styles.statValue}>{stats.count} {t('reports.pcs')}</Text>
-        </View>
-        <View style={[styles.statCard, { backgroundColor: '#3B6D11', flex: 1 }]}>
-          <Text style={styles.statLabel}>{t('home.avgCheck')}</Text>
-          <Text style={styles.statValue}>
-            {stats.count > 0
-              ? Math.round(stats.revenue / stats.count).toLocaleString()
-              : 0} {currency.symbol}
-          </Text>
-        </View>
+        <StatCard
+          label={t('common.revenue')}
+          value={stats.revenue}
+          currency={currency.symbol}
+          icon="cash-outline"
+          color="#1D9E75"
+          themeStyles={themeStyles}
+          trend={useMemo(() => {
+            const avg = (stats7.revenue - stats.revenue) / 6;
+            if (avg <= 0) return null;
+            const diff = (stats.revenue - avg) / avg;
+            return Math.round(diff * 100);
+          }, [stats.revenue, stats7.revenue])}
+        />
+        <StatCard
+          label={t('common.profit')}
+          value={stats.profit}
+          currency={currency.symbol}
+          icon="trending-up-outline"
+          color="#0C447C"
+          themeStyles={themeStyles}
+          trend={useMemo(() => {
+            const avg = (stats7.profit - stats.profit) / 6;
+            if (avg <= 0) return null;
+            const diff = (stats.profit - avg) / avg;
+            return Math.round(diff * 100);
+          }, [stats.profit, stats7.profit])}
+        />
+      </View>
+
+      <View style={styles.statsRow}>
+        <StatCard
+          label={t('home.salesCount')}
+          value={stats.count}
+          unit={t('reports.pcs')}
+          icon="cart-outline"
+          color="#854F0B"
+          themeStyles={themeStyles}
+        />
+        <StatCard
+          label={t('home.avgCheck')}
+          value={stats.count > 0 ? Math.round(stats.revenue / stats.count) : 0}
+          currency={currency.symbol}
+          icon="calculator-outline"
+          color="#3B6D11"
+          themeStyles={themeStyles}
+        />
       </View>
 
       {/* Последние продажи */}
@@ -202,35 +289,28 @@ export default function HomeScreen() {
 
       {todaySales.length === 0 ? (
         <View style={styles.empty}>
+          <Ionicons name="cart-outline" size={48} color={isDark ? '#444' : '#CCC'} />
           <Text style={styles.emptyText}>{t('home.noSales')}</Text>
           <Text style={styles.emptyHint}>{t('home.noSalesHint')}</Text>
+          <TouchableOpacity
+            style={styles.addSaleCta}
+            onPress={() => navigation.navigate(t('tabs.sale'))}
+          >
+            <Text style={styles.addSaleCtaText}>{t('home.addSaleCta')}</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         todaySales.map((sale: any) => (
-          <TouchableOpacity
+          <SaleListItem
             key={String(sale.id)}
-            style={[styles.saleItem, themeStyles.card]}
-            onLongPress={() => handleDeleteSale(sale)}
-            delayLongPress={500}
-          >
-            <View style={styles.saleLeft}>
-              <Text style={[styles.saleName, themeStyles.text]}>{sale.product_name}</Text>
-              <Text style={styles.saleTime}>
-                {new Date(sale.created_at).toLocaleTimeString(i18n.language === 'tg' ? 'tg-TJ' : i18n.language === 'uz' ? 'uz-UZ' : 'ru-RU', {
-                  hour: '2-digit', minute: '2-digit'
-                })}
-                {sale.quantity > 1 ? `  ×${sale.quantity}` : ''}
-              </Text>
-            </View>
-            <View style={styles.saleRight}>
-              <Text style={[styles.saleRevenue, themeStyles.text]}>
-                {(sale.sell_price * sale.quantity).toLocaleString()} {currency.symbol}
-              </Text>
-              <Text style={styles.saleProfit}>
-                +{sale.profit.toLocaleString()} {currency.symbol}
-              </Text>
-            </View>
-          </TouchableOpacity>
+            sale={sale}
+            onDelete={() => handleDeleteSale(sale)}
+            isDark={isDark}
+            currency={currency}
+            t={t}
+            i18n={i18n}
+            themeStyles={themeStyles}
+          />
         ))
       )}
     </ScrollView>
@@ -254,35 +334,71 @@ const styles = StyleSheet.create({
   header: { padding: 20, backgroundColor: '#1D9E75' },
   headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#fff' },
   headerDate: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
-  aiCard: {
+  tipCard: {
     margin: 16, marginBottom: 4, padding: 16,
     borderRadius: 12,
     borderLeftWidth: 4, borderLeftColor: '#1D9E75',
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1, shadowRadius: 2, elevation: 2,
   },
-  aiHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  aiEmoji: { fontSize: 18, marginRight: 8 },
-  aiTitle: { fontSize: 14, fontWeight: 'bold', color: '#1D9E75' },
-  aiText: { fontSize: 14, lineHeight: 20, fontStyle: 'italic' },
+  tipHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  tipEmoji: { fontSize: 18, marginRight: 8 },
+  tipTitle: { fontSize: 14, fontWeight: 'bold', color: '#1D9E75' },
+  tipText: { fontSize: 14, lineHeight: 20, fontStyle: 'italic' },
   statsRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, marginTop: 12 },
   statCard: {
-    flex: 1, borderRadius: 12, padding: 16,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1, shadowRadius: 4, elevation: 3,
+    flex: 1, borderRadius: 12, padding: 12,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1, shadowRadius: 2, elevation: 2,
   },
-  statLabel: { fontSize: 12, color: 'rgba(255,255,255,0.8)', marginBottom: 4 },
-  statValue: { fontSize: 20, fontWeight: 'bold', color: '#fff' },
+  statHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 },
+  statLabel: { fontSize: 11, color: '#999', flex: 1 },
+  statValue: { fontSize: 17, fontWeight: 'bold' },
+  trendContainer: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+  trendText: { fontSize: 10, fontWeight: '600', marginLeft: 2 },
   sectionTitle: {
     fontSize: 16, fontWeight: '600',
     paddingHorizontal: 16, marginTop: 24, marginBottom: 8
   },
   empty: { alignItems: 'center', padding: 40 },
-  emptyText: { fontSize: 16, color: '#999', marginBottom: 6 },
-  emptyHint: { fontSize: 13, color: '#bbb' },
+  emptyText: { fontSize: 16, color: '#999', marginTop: 12, marginBottom: 6 },
+  emptyHint: { fontSize: 13, color: '#bbb', marginBottom: 20 },
+  addSaleCta: {
+    backgroundColor: '#1D9E75',
+    paddingHorizontal: 20, paddingVertical: 10,
+    borderRadius: 20,
+  },
+  addSaleCtaText: { color: '#fff', fontWeight: '600' },
+  quickActions: {
+    flexDirection: 'row', gap: 10, paddingHorizontal: 16, marginTop: 16,
+  },
+  actionChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: 20,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05, shadowRadius: 2, elevation: 2,
+  },
+  actionText: { fontSize: 12, fontWeight: '500' },
+  swipeContainer: {
+    position: 'relative',
+    marginBottom: 8,
+    marginHorizontal: 16,
+  },
+  deleteBackground: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: 80,
+    backgroundColor: '#FF6B6B',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'flex-end',
+    paddingRight: 25,
+  },
   saleItem: {
     flexDirection: 'row', justifyContent: 'space-between',
-    marginHorizontal: 16, marginBottom: 8,
     borderRadius: 12, padding: 14,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05, shadowRadius: 2, elevation: 2,

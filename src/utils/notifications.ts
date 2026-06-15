@@ -1,5 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -23,6 +24,9 @@ export async function requestPermissions() {
 }
 
 export async function notifyLowStock(productName: string, currentStock: number) {
+  const enabled = await AsyncStorage.getItem('app_notifications_enabled');
+  if (enabled === 'false') return;
+
   await Notifications.scheduleNotificationAsync({
     content: {
       title: '⚠️ Низкий остаток товара!',
