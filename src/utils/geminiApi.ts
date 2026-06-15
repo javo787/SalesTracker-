@@ -49,7 +49,7 @@ class GeminiApi {
   /**
    * @param config
    */
-  constructor({ geminiKeys, groqKey, modelName = 'gemini-1.5-flash', maxRetries = 3 }: GeminiConfig) {
+  constructor({ geminiKeys, groqKey, modelName = 'gemini-2.5-flash', maxRetries = 3 }: GeminiConfig) {
     if (!Array.isArray(geminiKeys) || geminiKeys.length === 0) {
       throw new Error('GeminiApi requires at least one Gemini API key');
     }

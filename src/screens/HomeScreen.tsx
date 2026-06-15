@@ -52,6 +52,7 @@ export default function HomeScreen() {
       }
 
       // Если нет в кеше, генерируем новый
+      console.log('KEY:', process.env.EXPO_PUBLIC_GEMINI_KEY); // Debug log
       generateAiTip(cacheKey);
     } catch (e) {
       console.warn('AI Tip load error', e);
