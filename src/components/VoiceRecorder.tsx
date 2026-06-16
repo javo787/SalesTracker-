@@ -24,22 +24,46 @@ interface VoiceRecorderProps {
   onTranscript: (text: string) => void;
 }
 
-const WHISPER_PROMPT = "нарх, фурӯш, сомони, кило, дона, сабад, миқдор, доставка, скидка, килограмм, штук";
 const MAX_DURATION_MS = 60000;
 const WARNING_THRESHOLD_MS = 55000;
+const MIN_RECORDING_MS = 700; // меньше этого — не отправляем на Groq
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/audio/transcriptions';
 
-/**
- * Берём пресет expo-audio как есть — android.outputFormat / android.audioEncoder
- * внутри него уже гарантированно совпадают с типами установленной версии пакета.
- * Переопределяем только верхнеуровневые числовые поля (это просто числа, не enum),
- * чтобы уменьшить размер файла для слабого интернета.
- */
-const recordingOptions = {
+// Языкозависимый промпт — важно для качества Whisper
+const getWhisperPrompt = (lang: string): string => {
+  if (lang === 'tg') {
+    return 'нарх, фурӯш, сомонӣ, килограмм, дона, миқдор, кило, фоида, харид, анбор, мол';
+  }
+  if (lang === 'uz') {
+    return 'narx, sotuv, som, kilogram, dona, miqdor, kilo, foyda, xarid, нарх, сом, дона';
+  }
+  return 'нарх, фурӯш, сомони, кило, дона, сабад, миқдор, доставка, скидка, килограмм, штук';
+};
+
+// Expo-audio SDK 56: строки 'mpeg4'/'aac', НЕ числа из старого expo-av
+// sampleRate 22050 + моно + 64kbps — оптимально для слабого интернета Таджикистана
+// Используем any чтобы избежать конфликтов типов между минорными версиями SDK 56
+const recordingOptions: any = {
   ...RecordingPresets.HIGH_QUALITY,
-  sampleRate: 16000,
-  numberOfChannels: 1,
-  bitRate: 32000,
+  android: {
+    extension: '.m4a',
+    outputFormat: 'mpeg4',
+    audioEncoder: 'aac',
+    sampleRate: 22050,
+    numberOfChannels: 1,
+    bitRate: 64000,
+  },
+  ios: {
+    extension: '.m4a',
+    outputFormat: 'mpeg4aac',
+    audioQuality: 'medium',
+    sampleRate: 22050,
+    numberOfChannels: 1,
+    bitRate: 64000,
+    linearPCMBitDepth: 16,
+    linearPCMIsBigEndian: false,
+    linearPCMIsFloat: false,
+  },
 };
 
 export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
@@ -54,7 +78,10 @@ export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
   const durationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const warningTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  // Если пользователь отпустил кнопку пока recorder ещё инициализировался
   const stopRequestedDuringStartRef = useRef(false);
+  // Засекаем время старта для проверки минимальной длительности
+  const recordingStartTimeRef = useRef<number | null>(null);
 
   const isDark = theme === 'dark';
   const isRecording = recorder.isRecording;
@@ -93,21 +120,38 @@ export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
       if (language === 'tg') groqLang = 'tg';
       else if (language === 'uz') groqLang = 'uz';
 
+      // Определяем mimeType динамически из URI — защита от будущих изменений конфига
+      const extension = audioUri.split('.').pop()?.toLowerCase() ?? 'm4a';
+      const mimeTypeMap: Record<string, string> = {
+        'm4a': 'audio/m4a',
+        'mp4': 'audio/mp4',
+        '3gp': 'audio/3gpp',
+        'aac': 'audio/aac',
+        'wav': 'audio/wav',
+      };
+      const resolvedMimeType = mimeTypeMap[extension] ?? 'audio/m4a';
+
+      // FileSystem.uploadAsync (legacy) — единственный надёжный способ
+      // отправить бинарный файл без Blob API в React Native / Hermes
       const uploadResult = await FileSystem.uploadAsync(GROQ_API_URL, audioUri, {
         fieldName: 'file',
         httpMethod: 'POST',
-        mimeType: 'audio/m4a',
+        mimeType: resolvedMimeType,
         uploadType: FileSystem.FileSystemUploadType.MULTIPART,
         headers: {
-          Authorization: `Bearer ${apiKey}`,
+          'Authorization': `Bearer ${apiKey}`,
         },
         parameters: {
-          model: 'whisper-large-v3',
-          prompt: WHISPER_PROMPT,
-          response_format: 'json',
-          language: groqLang,
+          'model': 'whisper-large-v3',
+          'prompt': getWhisperPrompt(language),
+          'response_format': 'json',
+          'language': groqLang,
         },
       });
+
+      if (uploadResult.status === 429) {
+        throw new Error('Превышен лимит запросов Groq API');
+      }
 
       let responseBody: any;
       try {
@@ -116,12 +160,9 @@ export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
         responseBody = { message: uploadResult.body };
       }
 
-      if (uploadResult.status === 429) {
-        throw new Error('Превышен лимит запросов Groq API');
-      }
       if (uploadResult.status !== 200 && uploadResult.status !== 201) {
-        console.warn('Groq API error response:', uploadResult.status, responseBody);
-        throw new Error(responseBody?.error?.message || responseBody?.message || 'Ошибка API при распознавании');
+        const errMsg = responseBody?.error?.message || responseBody?.message || 'Ошибка API при распознавании';
+        throw new Error(`API Error (${uploadResult.status}): ${errMsg}`);
       }
 
       if (responseBody.text) {
@@ -130,6 +171,7 @@ export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
         throw new Error('Распознанный текст отсутствует в ответе API');
       }
 
+      // Удаляем локальный файл после успешной транскрипции
       await FileSystem.deleteAsync(audioUri, { idempotent: true });
     } catch (error: any) {
       if (error?.name === 'AbortError') return;
@@ -142,6 +184,7 @@ export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
   }, [language, onTranscript]);
 
   const stopRecordingInternal = useCallback(async () => {
+    // Чистим таймеры ДО async вызова — иначе при краше они остаются активными
     clearTimers();
     stopPulse();
     setShowWarning(false);
@@ -149,17 +192,32 @@ export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
     if (!recorder.isRecording) return;
 
     try {
+      // Проверяем минимальную длительность ДО stop()
+      const durationMs = recordingStartTimeRef.current
+        ? Date.now() - recordingStartTimeRef.current
+        : MIN_RECORDING_MS + 1;
+      recordingStartTimeRef.current = null;
+
       await recorder.stop();
       const uri = recorder.uri;
+
+      if (durationMs < MIN_RECORDING_MS) {
+        // Слишком короткое нажатие — не отправляем на Groq, показываем подсказку
+        Alert.alert('🎙️ Удержите микрофон', 'Нажмите и удерживайте кнопку пока говорите');
+        if (uri) await FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
+        return;
+      }
+
       if (uri) await transcribeAudio(uri);
     } catch (error: any) {
       const msg = error?.message || '';
       if (msg.includes('shared object') || msg.includes('released')) {
+        // Сессия уже освобождена — это нормально при быстром tap/release
         console.warn('Recorder session already released, skipping stop.');
-        return;
+      } else {
+        console.error('Failed to stop recording:', error);
+        Alert.alert('Ошибка', 'Не удалось остановить запись');
       }
-      console.error('Failed to stop recording:', error);
-      Alert.alert('Ошибка', 'Не удалось остановить запись');
     }
   }, [recorder, clearTimers, stopPulse, transcribeAudio]);
 
@@ -169,6 +227,7 @@ export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
     stopRequestedDuringStartRef.current = false;
 
     try {
+      // Cleanup любой зависшей сессии
       if (recorder.isRecording) {
         await recorder.stop().catch(() => {});
         await new Promise((resolve) => setTimeout(resolve, 100));
@@ -189,8 +248,11 @@ export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
       await recorder.prepareToRecordAsync();
       await recorder.record();
 
+      // Засекаем реальное время старта записи
+      recordingStartTimeRef.current = Date.now();
       setIsStarting(false);
 
+      // Если пользователь отпустил кнопку пока мы инициализировались — останавливаем
       if (stopRequestedDuringStartRef.current) {
         stopRequestedDuringStartRef.current = false;
         stopRecordingInternal();
@@ -218,6 +280,7 @@ export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
 
   const handleStop = () => {
     if (isStarting) {
+      // Пользователь отпустил кнопку во время фазы инициализации
       stopRequestedDuringStartRef.current = true;
       return;
     }

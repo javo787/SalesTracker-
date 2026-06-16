@@ -10,9 +10,28 @@ export function initDatabase() {
       name TEXT NOT NULL,
       buy_price REAL NOT NULL,
       sell_price REAL NOT NULL,
-      stock INTEGER DEFAULT 0,
-      min_stock_alert INTEGER DEFAULT 0,
+      stock REAL DEFAULT 0,
+      min_stock_alert REAL DEFAULT 0,
+      base_unit TEXT DEFAULT 'шт',
+      has_packages INTEGER DEFAULT 0,
+      package_name TEXT,
+      units_per_package REAL DEFAULT 1,
+      updated_at TEXT,
+      synced INTEGER DEFAULT 0,
+      is_deleted INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS stock_movements (
+      id TEXT PRIMARY KEY,
+      product_id INTEGER NOT NULL,
+      type TEXT NOT NULL,
+      quantity_change REAL NOT NULL,
+      price_per_unit REAL,
+      note TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      synced INTEGER DEFAULT 0,
+      FOREIGN KEY (product_id) REFERENCES products(id)
     );
 
     CREATE TABLE IF NOT EXISTS sales (
@@ -55,14 +74,45 @@ export function initDatabase() {
   if (!hasStockUpdated) {
     db.execSync('ALTER TABLE sales ADD COLUMN stock_updated INTEGER DEFAULT 0');
   }
+
+  // Migration: add new warehouse columns to products
+  const warehouseCols = [
+    { name: 'base_unit', type: 'TEXT DEFAULT \'шт\'' },
+    { name: 'has_packages', type: 'INTEGER DEFAULT 0' },
+    { name: 'package_name', type: 'TEXT' },
+    { name: 'units_per_package', type: 'REAL DEFAULT 1' },
+    { name: 'updated_at', type: 'TEXT' },
+    { name: 'synced', type: 'INTEGER DEFAULT 0' },
+    { name: 'is_deleted', type: 'INTEGER DEFAULT 0' }
+  ];
+
+  warehouseCols.forEach(col => {
+    if (!tableInfo.some(c => c.name === col.name)) {
+      db.execSync(`ALTER TABLE products ADD COLUMN ${col.name} ${col.type}`);
+    }
+  });
 }
 
 // Товары
-export function addProduct(name: string, buyPrice: number, sellPrice: number, stock: number, minStockAlert: number = 0) {
+export function addProduct(
+  name: string,
+  buyPrice: number,
+  sellPrice: number,
+  stock: number,
+  minStockAlert: number = 0,
+  baseUnit: string = 'шт',
+  hasPackages: number = 0,
+  packageName: string | null = null,
+  unitsPerPackage: number = 1
+) {
   try {
     const result = db.runSync(
-      'INSERT INTO products (name, buy_price, sell_price, stock, min_stock_alert) VALUES (?, ?, ?, ?, ?)',
-      [name, buyPrice, sellPrice, stock, minStockAlert]
+      `INSERT INTO products (
+        name, buy_price, sell_price, stock, min_stock_alert,
+        base_unit, has_packages, package_name, units_per_package,
+        updated_at, synced, is_deleted
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), 0, 0)`,
+      [name, buyPrice, sellPrice, stock, minStockAlert, baseUnit, hasPackages, packageName, unitsPerPackage]
     );
     if (stock <= minStockAlert && minStockAlert > 0) {
       notifyLowStock(name, stock);
@@ -74,11 +124,26 @@ export function addProduct(name: string, buyPrice: number, sellPrice: number, st
   }
 }
 
-export function updateProduct(id: number, name: string, buyPrice: number, sellPrice: number, stock: number, minStockAlert: number) {
+export function updateProduct(
+  id: number,
+  name: string,
+  buyPrice: number,
+  sellPrice: number,
+  stock: number,
+  minStockAlert: number,
+  baseUnit: string = 'шт',
+  hasPackages: number = 0,
+  packageName: string | null = null,
+  unitsPerPackage: number = 1
+) {
   try {
     const result = db.runSync(
-      'UPDATE products SET name = ?, buy_price = ?, sell_price = ?, stock = ?, min_stock_alert = ? WHERE id = ?',
-      [name, buyPrice, sellPrice, stock, minStockAlert, id]
+      `UPDATE products SET
+        name = ?, buy_price = ?, sell_price = ?, stock = ?, min_stock_alert = ?,
+        base_unit = ?, has_packages = ?, package_name = ?, units_per_package = ?,
+        updated_at = datetime('now'), synced = 0
+      WHERE id = ?`,
+      [name, buyPrice, sellPrice, stock, minStockAlert, baseUnit, hasPackages, packageName, unitsPerPackage, id]
     );
     if (stock <= minStockAlert && minStockAlert > 0) {
       notifyLowStock(name, stock);
@@ -91,7 +156,8 @@ export function updateProduct(id: number, name: string, buyPrice: number, sellPr
 }
 
 export function deleteProduct(id: number) {
-  return db.runSync('DELETE FROM products WHERE id = ?', [id]);
+  // Soft delete for sync compatibility
+  return db.runSync('UPDATE products SET is_deleted = 1, synced = 0, updated_at = datetime(\'now\') WHERE id = ?', [id]);
 }
 
 export function convertAllAmounts(rate: number) {
@@ -112,7 +178,108 @@ export function clearAllData() {
 }
 
 export function getProducts() {
-  return db.getAllSync('SELECT * FROM products ORDER BY name ASC');
+  return db.getAllSync('SELECT * FROM products WHERE is_deleted = 0 ORDER BY name ASC');
+}
+
+export function calcWeightedPrice(oldStock: number, oldPrice: number, incomingQty: number, incomingPrice: number): number {
+  const safeOldStock = Math.max(oldStock, 0); // защита от отрицательного остатка
+  const newStock = safeOldStock + incomingQty;
+  if (newStock === 0) return oldPrice;
+  return (safeOldStock * oldPrice + incomingQty * incomingPrice) / newStock;
+}
+
+// Приёмка товара
+export function addStockIn(
+  productId: number,
+  quantity: number,        // в единицах, указанных unitType
+  pricePerUnit: number,    // цена за единицу, указанную unitType
+  unitType: 'base' | 'package',
+  note: string = ''
+): void {
+  const product = db.getFirstSync('SELECT stock, buy_price, units_per_package FROM products WHERE id = ?', [productId]) as any;
+  if (!product) return;
+
+  let qtyBase = quantity;
+  let pricePerUnitBase = pricePerUnit;
+
+  if (unitType === 'package') {
+    qtyBase = quantity * product.units_per_package;
+    pricePerUnitBase = pricePerUnit / product.units_per_package;
+  }
+
+  const newBuyPrice = calcWeightedPrice(product.stock, product.buy_price, qtyBase, pricePerUnitBase);
+  const movementId = typeof crypto !== 'undefined' && (crypto as any).randomUUID ? (crypto as any).randomUUID() : Math.random().toString(36).substring(2, 15);
+
+  db.withTransactionSync(() => {
+    db.runSync(
+      'UPDATE products SET stock = stock + ?, buy_price = ?, updated_at = datetime(\'now\'), synced = 0 WHERE id = ?',
+      [qtyBase, newBuyPrice, productId]
+    );
+    db.runSync(
+      'INSERT INTO stock_movements (id, product_id, type, quantity_change, price_per_unit, note, created_at, synced) VALUES (?, ?, ?, ?, ?, ?, datetime(\'now\'), 0)',
+      [movementId, productId, 'stock_in', qtyBase, pricePerUnitBase, note]
+    );
+  });
+}
+
+// Списание брака/порчи
+export function addStockWaste(
+  productId: number,
+  quantity: number,
+  note: string = ''
+): void {
+  const product = db.getFirstSync('SELECT name, stock, min_stock_alert FROM products WHERE id = ?', [productId]) as any;
+  if (!product) return;
+
+  const movementId = typeof crypto !== 'undefined' && (crypto as any).randomUUID ? (crypto as any).randomUUID() : Math.random().toString(36).substring(2, 15);
+
+  db.withTransactionSync(() => {
+    db.runSync(
+      'UPDATE products SET stock = stock - ?, updated_at = datetime(\'now\'), synced = 0 WHERE id = ?',
+      [quantity, productId]
+    );
+    db.runSync(
+      'INSERT INTO stock_movements (id, product_id, type, quantity_change, price_per_unit, note, created_at, synced) VALUES (?, ?, ?, ?, ?, ?, datetime(\'now\'), 0)',
+      [movementId, productId, 'waste', -quantity, null, note]
+    );
+  });
+
+  const newStock = product.stock - quantity;
+  if (newStock <= product.min_stock_alert && product.min_stock_alert > 0) {
+    notifyLowStock(product.name, newStock);
+  }
+}
+
+// Инвентаризация (сверка с фактом)
+export function addStockCorrection(
+  productId: number,
+  actualStock: number,
+  note: string = ''
+): void {
+  const product = db.getFirstSync('SELECT stock FROM products WHERE id = ?', [productId]) as any;
+  if (!product) return;
+
+  const delta = actualStock - product.stock;
+  const movementId = typeof crypto !== 'undefined' && (crypto as any).randomUUID ? (crypto as any).randomUUID() : Math.random().toString(36).substring(2, 15);
+
+  db.withTransactionSync(() => {
+    db.runSync(
+      'UPDATE products SET stock = ?, updated_at = datetime(\'now\'), synced = 0 WHERE id = ?',
+      [actualStock, productId]
+    );
+    db.runSync(
+      'INSERT INTO stock_movements (id, product_id, type, quantity_change, price_per_unit, note, created_at, synced) VALUES (?, ?, ?, ?, ?, ?, datetime(\'now\'), 0)',
+      [movementId, productId, 'correction', delta, null, note]
+    );
+  });
+}
+
+// История движений товара
+export function getStockMovements(productId: number, limit: number = 20) {
+  return db.getAllSync(
+    'SELECT * FROM stock_movements WHERE product_id = ? ORDER BY created_at DESC LIMIT ?',
+    [productId, limit]
+  );
 }
 
 export function updateStock(productId: number, quantity: number) {
@@ -330,8 +497,10 @@ export function searchProductsForAutocomplete(query: string) {
           p.buy_price as purchasePrice,
           (SELECT s.sell_price FROM sales s WHERE s.product_id = p.id ORDER BY s.created_at DESC LIMIT 1) as lastSalePrice,
           (SELECT COUNT(*) FROM sales s WHERE s.product_id = p.id) as salesCount,
-          (SELECT MAX(s.created_at) FROM sales s WHERE s.product_id = p.id) as lastSoldAt
+          (SELECT MAX(s.created_at) FROM sales s WHERE s.product_id = p.id) as lastSoldAt,
+          p.base_unit, p.has_packages, p.package_name, p.units_per_package
         FROM products p
+        WHERE p.is_deleted = 0
         UNION ALL
         SELECT
           NULL as id,
@@ -362,9 +531,10 @@ export function searchProductsForAutocomplete(query: string) {
         p.buy_price as purchasePrice,
         (SELECT s.sell_price FROM sales s WHERE s.product_id = p.id ORDER BY s.created_at DESC LIMIT 1) as lastSalePrice,
         (SELECT COUNT(*) FROM sales s WHERE s.product_id = p.id) as salesCount,
-        (SELECT MAX(s.created_at) FROM sales s WHERE s.product_id = p.id) as lastSoldAt
+        (SELECT MAX(s.created_at) FROM sales s WHERE s.product_id = p.id) as lastSoldAt,
+        p.base_unit, p.has_packages, p.package_name, p.units_per_package
       FROM products p
-      WHERE p.name LIKE ? || '%'
+      WHERE p.name LIKE ? || '%' AND p.is_deleted = 0
     ),
     HistoryMatches AS (
       SELECT

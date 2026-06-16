@@ -5,20 +5,37 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
+import { Ionicons } from '@expo/vector-icons';
 import { addProduct, updateProduct, deleteProduct, getProducts } from '../db/database';
 import { useAppContext } from '../context/AppContext';
+import StockOperationModal from '../components/stock/StockOperationModal';
+import StockHistorySheet from '../components/stock/StockHistorySheet';
 
 export default function ProductsScreen() {
   const { t } = useTranslation();
   const { theme, currency, defaultMinStockAlert } = useAppContext();
   const [products, setProducts] = useState<any[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+
+  // Form fields
   const [name, setName] = useState('');
   const [buyPrice, setBuyPrice] = useState('');
   const [sellPrice, setSellPrice] = useState('');
   const [stock, setStock] = useState('');
   const [minStockAlert, setMinStockAlert] = useState(String(defaultMinStockAlert));
+  const [baseUnit, setBaseUnit] = useState('шт');
+  const [hasPackages, setHasPackages] = useState(false);
+  const [packageName, setPackageName] = useState('');
+  const [unitsPerPackage, setUnitsPerPackage] = useState('1');
+
+  // Modal states
+  const [opModalVisible, setOpModalVisible] = useState(false);
+  const [opType, setOpType] = useState<'stock_in' | 'waste' | 'correction'>('stock_in');
+  const [historyVisible, setHistoryVisible] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+
   const [refreshing, setRefreshing] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -40,19 +57,28 @@ export default function ProductsScreen() {
 
     const bPrice = parseFloat(buyPrice);
     const sPrice = parseFloat(sellPrice);
-    const st = parseInt(stock) || 0;
-    const alert = parseInt(minStockAlert) || 0;
+    const st = parseFloat(stock) || 0;
+    const alert = parseFloat(minStockAlert) || 0;
+
+    const uPerPkg = parseFloat(unitsPerPackage) || 1;
 
     if (editingId) {
-      updateProduct(editingId, name.trim(), bPrice, sPrice, st, alert);
+      updateProduct(editingId, name.trim(), bPrice, sPrice, st, alert, baseUnit, hasPackages ? 1 : 0, packageName, uPerPkg);
     } else {
-      addProduct(name.trim(), bPrice, sPrice, st, alert);
+      addProduct(name.trim(), bPrice, sPrice, st, alert, baseUnit, hasPackages ? 1 : 0, packageName, uPerPkg);
     }
 
-    setName(''); setBuyPrice(''); setSellPrice(''); setStock(''); setMinStockAlert(String(defaultMinStockAlert));
+    resetForm();
     setShowForm(false);
-    setEditingId(null);
     loadProducts();
+  };
+
+  const resetForm = () => {
+    setName(''); setBuyPrice(''); setSellPrice(''); setStock('');
+    setMinStockAlert(String(defaultMinStockAlert));
+    setBaseUnit('шт'); setHasPackages(false); setPackageName(''); setUnitsPerPackage('1');
+    setEditingId(null);
+    setShowAdvanced(false);
   };
 
   const handleLongPress = (p: any) => {
@@ -70,7 +96,12 @@ export default function ProductsScreen() {
             setSellPrice(String(p.sell_price));
             setStock(String(p.stock));
             setMinStockAlert(String(p.min_stock_alert || 0));
+            setBaseUnit(p.base_unit || 'шт');
+            setHasPackages(p.has_packages === 1);
+            setPackageName(p.package_name || '');
+            setUnitsPerPackage(String(p.units_per_package || 1));
             setShowForm(true);
+            setShowAdvanced(p.has_packages === 1 || p.base_unit !== 'шт');
             scrollViewRef.current?.scrollTo({ y: 0, animated: true });
           }
         },
@@ -113,8 +144,7 @@ export default function ProductsScreen() {
         onPress={() => {
           if (showForm) {
             setShowForm(false);
-            setEditingId(null);
-            setName(''); setBuyPrice(''); setSellPrice(''); setStock(''); setMinStockAlert(String(defaultMinStockAlert));
+            resetForm();
           } else {
             setShowForm(true);
           }
@@ -165,7 +195,7 @@ export default function ProductsScreen() {
 
           <View style={styles.row}>
             <View style={styles.half}>
-              <Text style={[styles.label, themeStyles.text]}>{t('products.stock')} ({t('reports.pcs')})</Text>
+              <Text style={[styles.label, themeStyles.text]}>{t('products.stock')} ({baseUnit})</Text>
               <TextInput
                 style={[styles.input, themeStyles.input]}
                 placeholder="0"
@@ -187,6 +217,61 @@ export default function ProductsScreen() {
               />
             </View>
           </View>
+
+          <TouchableOpacity
+            style={styles.advancedToggle}
+            onPress={() => setShowAdvanced(!showAdvanced)}
+          >
+            <Text style={styles.advancedToggleText}>{t('products.advancedSettings')}</Text>
+            <Ionicons name={showAdvanced ? 'chevron-up' : 'chevron-down'} size={16} color="#1D9E75" />
+          </TouchableOpacity>
+
+          {showAdvanced && (
+            <View style={styles.advancedForm}>
+              <Text style={[styles.label, themeStyles.text]}>{t('products.baseUnit')}</Text>
+              <TextInput
+                style={[styles.input, themeStyles.input]}
+                placeholder="шт, кг, л..."
+                placeholderTextColor={isDark ? '#888' : '#aaa'}
+                value={baseUnit}
+                onChangeText={setBaseUnit}
+              />
+
+              <TouchableOpacity
+                style={styles.checkboxRow}
+                onPress={() => setHasPackages(!hasPackages)}
+              >
+                <Ionicons name={hasPackages ? 'checkbox' : 'square-outline'} size={24} color="#1D9E75" />
+                <Text style={[styles.checkboxLabel, themeStyles.text]}>{t('products.hasPackages')}</Text>
+              </TouchableOpacity>
+
+              {hasPackages && (
+                <View style={styles.row}>
+                  <View style={styles.half}>
+                    <Text style={[styles.label, themeStyles.text]}>{t('products.packageName')}</Text>
+                    <TextInput
+                      style={[styles.input, themeStyles.input]}
+                      placeholder={t('products.packageNamePlaceholder')}
+                      placeholderTextColor={isDark ? '#888' : '#aaa'}
+                      value={packageName}
+                      onChangeText={setPackageName}
+                    />
+                  </View>
+                  <View style={styles.half}>
+                    <Text style={[styles.label, themeStyles.text]}>{t('products.unitsPerPackage')}</Text>
+                    <TextInput
+                      style={[styles.input, themeStyles.input]}
+                      placeholder="1"
+                      placeholderTextColor={isDark ? '#888' : '#aaa'}
+                      keyboardType="numeric"
+                      value={unitsPerPackage}
+                      onChangeText={setUnitsPerPackage}
+                    />
+                  </View>
+                </View>
+              )}
+            </View>
+          )}
 
           {buyPrice && sellPrice && (
             <View style={styles.marginPreview}>
@@ -216,32 +301,93 @@ export default function ProductsScreen() {
         </View>
       ) : (
         products.map((p: any) => (
-          <TouchableOpacity
-            key={String(p.id)}
-            style={[styles.productItem, themeStyles.card]}
-            onLongPress={() => handleLongPress(p)}
-            delayLongPress={500}
-          >
-            <View style={styles.productLeft}>
-              <Text style={[styles.productName, themeStyles.text]}>{p.name}</Text>
-              <Text style={styles.productPrices}>
-                {t('addSale.buyPrice')}: {p.buy_price} {currency.symbol} · {t('addSale.sellPrice')}: {p.sell_price} {currency.symbol}
-              </Text>
+          <View key={String(p.id)} style={[styles.productItem, themeStyles.card]}>
+            <TouchableOpacity
+              style={styles.productMain}
+              onPress={() => {
+                setSelectedProduct(p);
+                setHistoryVisible(true);
+              }}
+              onLongPress={() => handleLongPress(p)}
+              delayLongPress={500}
+            >
+              <View style={styles.productLeft}>
+                <Text style={[styles.productName, themeStyles.text]}>{p.name}</Text>
+                <Text style={styles.productPrices}>
+                  {t('addSale.buyPrice')}: {p.buy_price} {currency.symbol} · {t('addSale.sellPrice')}: {p.sell_price} {currency.symbol}
+                </Text>
+              </View>
+              <View style={styles.productRight}>
+                <Text style={[
+                  styles.productStock,
+                  themeStyles.text,
+                  p.stock <= (p.min_stock_alert || 0) && { color: '#E53935' }
+                ]}>
+                  {p.stock} {p.base_unit || t('reports.pcs')}
+                </Text>
+                <Text style={styles.productProfit}>
+                  +{(p.sell_price - p.buy_price).toFixed(0)} {currency.symbol}
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            <View style={styles.productActions}>
+              <TouchableOpacity
+                style={styles.actionBtn}
+                onPress={() => {
+                  setSelectedProduct(p);
+                  setOpType('stock_in');
+                  setOpModalVisible(true);
+                }}
+              >
+                <Ionicons name="add-circle-outline" size={18} color="#1D9E75" />
+                <Text style={styles.actionBtnText}>{t('warehouse.stockIn')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.actionBtn}
+                onPress={() => {
+                  setSelectedProduct(p);
+                  setOpType('waste');
+                  setOpModalVisible(true);
+                }}
+              >
+                <Ionicons name="trash-outline" size={18} color="#FF5252" />
+                <Text style={[styles.actionBtnText, { color: '#FF5252' }]}>{t('warehouse.waste')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.actionBtn}
+                onPress={() => {
+                  setSelectedProduct(p);
+                  setOpType('correction');
+                  setOpModalVisible(true);
+                }}
+              >
+                <Ionicons name="git-compare-outline" size={18} color="#FF9800" />
+                <Text style={[styles.actionBtnText, { color: '#FF9800' }]}>{t('warehouse.correction')}</Text>
+              </TouchableOpacity>
             </View>
-            <View style={styles.productRight}>
-              <Text style={[
-                styles.productStock,
-                themeStyles.text,
-                p.stock <= (p.min_stock_alert || 0) && { color: '#E53935' }
-              ]}>
-                {p.stock} {t('reports.pcs')}
-              </Text>
-              <Text style={styles.productProfit}>
-                +{(p.sell_price - p.buy_price).toFixed(0)} {currency.symbol}
-              </Text>
-            </View>
-          </TouchableOpacity>
+          </View>
         ))
+      )}
+
+      {selectedProduct && (
+        <>
+          <StockOperationModal
+            visible={opModalVisible}
+            product={selectedProduct}
+            initialType={opType}
+            onClose={() => setOpModalVisible(false)}
+            onSuccess={() => {
+              loadProducts();
+              setOpModalVisible(false);
+            }}
+          />
+          <StockHistorySheet
+            visible={historyVisible}
+            product={selectedProduct}
+            onClose={() => setHistoryVisible(false)}
+          />
+        </>
       )}
     </ScrollView>
   );
@@ -300,11 +446,14 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: 15, color: '#999', marginBottom: 6 },
   emptyHint: { fontSize: 13, color: '#bbb' },
   productItem: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    marginHorizontal: 16, marginBottom: 8,
-    borderRadius: 12, padding: 14,
+    marginHorizontal: 16, marginBottom: 12,
+    borderRadius: 12, overflow: 'hidden',
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05, shadowRadius: 2, elevation: 2,
+  },
+  productMain: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    padding: 14,
   },
   productLeft: { flex: 1 },
   productName: { fontSize: 15, fontWeight: '500' },
@@ -312,4 +461,52 @@ const styles = StyleSheet.create({
   productRight: { alignItems: 'flex-end' },
   productStock: { fontSize: 15, fontWeight: '600' },
   productProfit: { fontSize: 13, color: '#1D9E75', marginTop: 3 },
+  productActions: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.05)',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    backgroundColor: 'rgba(0,0,0,0.02)',
+  },
+  actionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  actionBtnText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#1D9E75',
+  },
+  advancedToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 15,
+    padding: 5,
+    gap: 5,
+  },
+  advancedToggleText: {
+    fontSize: 13,
+    color: '#1D9E75',
+    fontWeight: '500',
+  },
+  advancedForm: {
+    marginTop: 5,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+    paddingTop: 5,
+  },
+  checkboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 15,
+    gap: 10,
+  },
+  checkboxLabel: {
+    fontSize: 14,
+  },
 });
