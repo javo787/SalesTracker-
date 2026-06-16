@@ -1,8 +1,10 @@
+import 'react-native-gesture-handler';
 import { useEffect, useState } from 'react';
 import { View, ActivityIndicator, TouchableOpacity } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DrawerActions } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createDrawerNavigator } from '@react-navigation/drawer';
 import { I18nextProvider, useTranslation } from 'react-i18next';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initDatabase } from './src/db/database';
@@ -22,9 +24,11 @@ import CalculatorScreen from './src/screens/CalculatorScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import CurrencyScreen from './src/screens/CurrencyScreen';
+import CustomDrawerContent from './src/components/CustomDrawerContent';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
+const Drawer = createDrawerNavigator();
 
 function MainTabs() {
   const { t } = useTranslation();
@@ -47,8 +51,11 @@ function MainTabs() {
         headerTintColor: '#fff',
         headerTitleStyle: { fontWeight: 'bold' },
         headerRight: () => (
-          <TouchableOpacity onPress={() => navigation.navigate('Настройки')} style={{ marginRight: 12 }}>
-            <Ionicons name="settings-outline" size={22} color="#fff" />
+          <TouchableOpacity
+            onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
+            style={{ marginRight: 16 }}
+          >
+            <Ionicons name="menu-outline" size={28} color="#fff" />
           </TouchableOpacity>
         ),
       })}
@@ -90,7 +97,6 @@ function MainTabs() {
         }}
       />
 
-      {/* добавлен таб Валюта */}
       <Tab.Screen
         name="Валюта"
         component={CurrencyScreen}
@@ -98,16 +104,6 @@ function MainTabs() {
           tabBarLabel: 'Валюта',
           title: 'Курсы валют',
           tabBarIcon: ({ color, size }) => <Ionicons name="cash-outline" size={size} color={color} />,
-        }}
-      />
-
-      <Tab.Screen
-        name="Профиль"
-        component={ProfileScreen}
-        options={{
-          tabBarLabel: t('tabs.profile'),
-          title: t('profile.title'),
-          tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} />,
         }}
       />
 
@@ -121,6 +117,65 @@ function MainTabs() {
         }}
       />
     </Tab.Navigator>
+  );
+}
+
+function DrawerNavigator() {
+  const { t } = useTranslation();
+  const { theme } = useAppContext();
+  const isDark = theme === 'dark';
+
+  return (
+    <Drawer.Navigator
+      drawerContent={(props) => <CustomDrawerContent {...props} />}
+      screenOptions={{
+        drawerPosition: 'right',
+        headerShown: false,
+        drawerStyle: {
+          width: '75%',
+          backgroundColor: isDark ? '#1E1E1E' : '#fff',
+        },
+        drawerActiveTintColor: '#1D9E75',
+        drawerInactiveTintColor: isDark ? '#aaa' : '#555',
+        drawerLabelStyle: {
+          fontSize: 16,
+          fontWeight: '500',
+        },
+      }}
+    >
+      <Drawer.Screen
+        name="Tabs"
+        component={MainTabs}
+        options={{
+          drawerLabel: t('tabs.home'),
+          drawerIcon: ({ color }) => <Ionicons name="home-outline" size={22} color={color} />,
+        }}
+      />
+      <Drawer.Screen
+        name="Профиль"
+        component={ProfileScreen}
+        options={{
+          drawerLabel: t('profile.title'),
+          drawerIcon: ({ color }) => <Ionicons name="person-outline" size={22} color={color} />,
+        }}
+      />
+      <Drawer.Screen
+        name="ReportsDrawer"
+        component={ReportScreen}
+        options={{
+          drawerLabel: t('tabs.reports'),
+          drawerIcon: ({ color }) => <Ionicons name="stats-chart-outline" size={22} color={color} />,
+        }}
+      />
+      <Drawer.Screen
+        name="Настройки"
+        component={SettingsScreen}
+        options={{
+          drawerLabel: t('settings.title'),
+          drawerIcon: ({ color }) => <Ionicons name="settings-outline" size={22} color={color} />,
+        }}
+      />
+    </Drawer.Navigator>
   );
 }
 
@@ -157,14 +212,22 @@ function AppContent() {
     return <OnboardingScreen onFinish={() => setShowOnboarding(false)} />;
   }
 
+  const { t } = useTranslation();
+
   return (
     <NavigationContainer>
       <Stack.Navigator>
-        <Stack.Screen name="Main" component={MainTabs} options={{ headerShown: false }} />
+        <Stack.Screen name="Main" component={DrawerNavigator} options={{ headerShown: false }} />
+        {/* Keeping screens in stack for deeper navigation if needed, or if navigated from elsewhere */}
         <Stack.Screen
           name="Настройки"
           component={SettingsScreen}
           options={{ title: 'Настройки', headerStyle: { backgroundColor: '#1D9E75' }, headerTintColor: '#fff' }}
+        />
+        <Stack.Screen
+          name="Профиль"
+          component={ProfileScreen}
+          options={{ title: t('profile.title'), headerStyle: { backgroundColor: '#1D9E75' }, headerTintColor: '#fff' }}
         />
       </Stack.Navigator>
     </NavigationContainer>

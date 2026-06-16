@@ -566,7 +566,7 @@ const resources = {
         home: 'Asosiy',
         sale: '+ Sotuv',
         products: 'Mahsulotlar',
-        settings: 'Sozalamar',
+        settings: 'Sozlamalar',
         reports: 'Hisobot',
         profile: 'Profil',
         expenses: 'Xarajatlar',
