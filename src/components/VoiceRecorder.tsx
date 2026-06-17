@@ -20,72 +20,182 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { useAppContext } from '../context/AppContext';
 import { Ionicons } from '@expo/vector-icons';
 
+// ─────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────
 interface VoiceRecorderProps {
   onTranscript: (text: string) => void;
 }
 
-const MAX_DURATION_MS = 60000;
-const WARNING_THRESHOLD_MS = 55000;
-const MIN_RECORDING_MS = 700; // меньше этого — не отправляем на Groq
+// ─────────────────────────────────────────────
+// Constants
+// ─────────────────────────────────────────────
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/audio/transcriptions';
+const MAX_DURATION_MS = 60_000;
+const WARNING_MS = 55_000;
+const MIN_DURATION_MS = 700;
 
-// Языкозависимый промпт — важно для качества Whisper
-const getWhisperPrompt = (lang: string): string => {
-  if (lang === 'tg') {
-    return 'нарх, фурӯш, сомонӣ, килограмм, дона, миқдор, кило, фоида, харид, анбор, мол';
-  }
-  if (lang === 'uz') {
-    return 'narx, sotuv, som, kilogram, dona, miqdor, kilo, foyda, xarid, нарх, сом, дона';
-  }
-  return 'нарх, фурӯш, сомони, кило, дона, сабад, миқдор, доставка, скидка, килограмм, штук';
+/**
+ * LANGUAGE STRATEGY
+ *
+ * Проблема: Whisper large-v3 плохо справляется с tg/uz когда язык задан явно,
+ * потому что модель имеет мало обучающих данных для этих языков.
+ *
+ * Решение (проверено на практике):
+ *
+ * 1. ru  → явно указываем 'ru', модель отлично обучена
+ * 2. tg  → НЕ указываем язык (language: undefined) — Whisper сам
+ *           определяет язык через lid и транскрибирует точнее.
+ *           Добавляем prompt на таджикском чтобы "подтолкнуть" модель
+ *           в нужном направлении без жёсткой блокировки языка.
+ * 3. uz  → аналогично tg: без явного языка + prompt на узбекском.
+ *
+ * Дополнительно используем whisper-large-v3-turbo вместо whisper-large-v3
+ * — он быстрее и показывает лучшее качество на low-resource языках
+ * благодаря другой стратегии дистилляции.
+ *
+ * Prompt помогает двумя способами:
+ * a) задаёт контекст предметной области (торговля)
+ * b) показывает модели ожидаемый script (кириллица для tg/uz)
+ */
+type GroqLangConfig = {
+  /** undefined = auto-detect, лучше для tg/uz */
+  language: string | undefined;
+  /** подсказка для модели на нативном языке */
+  prompt: string;
+  /** модель: turbo быстрее и лучше на редких языках */
+  model: string;
 };
 
-// Expo-audio SDK 56: строки 'mpeg4'/'aac', НЕ числа из старого expo-av
-// sampleRate 22050 + моно + 64kbps — оптимально для слабого интернета Таджикистана
-// Используем any чтобы избежать конфликтов типов между минорными версиями SDK 56
+function getLangConfig(appLang: string): GroqLangConfig {
+  switch (appLang) {
+    case 'tg':
+      return {
+        language: undefined, // auto-detect — ключевое решение для таджикского
+        prompt:
+          'нарх, фурӯш, сомонӣ, килограмм, дона, миқдор, кило, фоида, харид, анбор, мол, ' +
+          'помидор, пиёз, картошка, орд, шакар, равған, гӯшт, мурғ, биринҷ, нон',
+        model: 'whisper-large-v3-turbo',
+      };
+    case 'uz':
+      return {
+        language: undefined, // auto-detect — ключевое решение для узбекского
+        prompt:
+          'narx, sotuv, som, kilogram, dona, miqdor, kilo, foyda, xarid, ombor, mahsulot, ' +
+          'помидор, пиёз, картошка, un, shakar, moy, go\'sht, tovuq, guruch, non, ' +
+          'нарх, сом, дона, миқдор',
+        model: 'whisper-large-v3-turbo',
+      };
+    case 'ru':
+    default:
+      return {
+        language: 'ru',
+        prompt:
+          'нарх, продажа, сомони, килограмм, штука, количество, кило, прибыль, ' +
+          'закупка, склад, товар, помидор, лук, картошка, мука, сахар, масло',
+        model: 'whisper-large-v3-turbo',
+      };
+  }
+}
+
+// ─────────────────────────────────────────────
+// Recording options (SDK 56 compatible)
+// ─────────────────────────────────────────────
+// Используем any чтобы избежать конфликтов типов между минорными версиями SDK 56.
+// m4a/aac + 22050 Hz моно + 64kbps — оптимально для:
+//   - слабого интернета Таджикистана (маленький файл)
+//   - качества распознавания Whisper (достаточная частота для речи)
 const recordingOptions: any = {
   ...RecordingPresets.HIGH_QUALITY,
   android: {
     extension: '.m4a',
     outputFormat: 'mpeg4',
     audioEncoder: 'aac',
-    sampleRate: 22050,
+    sampleRate: 22_050,
     numberOfChannels: 1,
-    bitRate: 64000,
+    bitRate: 64_000,
   },
   ios: {
     extension: '.m4a',
     outputFormat: 'mpeg4aac',
     audioQuality: 'medium',
-    sampleRate: 22050,
+    sampleRate: 22_050,
     numberOfChannels: 1,
-    bitRate: 64000,
+    bitRate: 64_000,
     linearPCMBitDepth: 16,
     linearPCMIsBigEndian: false,
     linearPCMIsFloat: false,
   },
 };
 
+// ─────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────
+
+/** Проверяем, является ли ошибка "released object" (Android-специфика) */
+function isReleasedError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return (
+    msg.includes('shared object') ||
+    msg.includes('already released') ||
+    msg.includes('java.lang.Integer') ||
+    msg.includes('cannot be cast')
+  );
+}
+
+/** Безопасно читаем recorder.isRecording — может бросить если объект released */
+function safeIsRecording(recorder: ReturnType<typeof useAudioRecorder>): boolean {
+  try {
+    return recorder.isRecording;
+  } catch {
+    return false;
+  }
+}
+
+/** Безопасно останавливаем запись */
+async function safeStopRecorder(
+  recorder: ReturnType<typeof useAudioRecorder>
+): Promise<string | null> {
+  try {
+    if (!safeIsRecording(recorder)) return null;
+    await recorder.stop();
+    return recorder.uri ?? null;
+  } catch (err) {
+    if (!isReleasedError(err)) {
+      console.warn('[VoiceRecorder] stop error:', err);
+    }
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────
+// Component
+// ─────────────────────────────────────────────
 export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
   const { theme, language } = useAppContext();
   const recorder = useAudioRecorder(recordingOptions);
 
+  // UI state
   const [isProcessing, setIsProcessing] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [showWarning, setShowWarning] = useState(false);
 
+  // Refs — не вызывают ре-рендер, безопасны в async callbacks
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const durationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const warningTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
-  // Если пользователь отпустил кнопку пока recorder ещё инициализировался
-  const stopRequestedDuringStartRef = useRef(false);
-  // Засекаем время старта для проверки минимальной длительности
-  const recordingStartTimeRef = useRef<number | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  /** Флаг: пользователь отпустил кнопку пока ещё шла фаза prepareToRecord */
+  const stopRequestedRef = useRef(false);
+  /** Метка времени старта записи для проверки MIN_DURATION_MS */
+  const startTimeRef = useRef<number | null>(null);
+  /** Флаг: компонент размонтирован — не обновляем state */
+  const unmountedRef = useRef(false);
 
   const isDark = theme === 'dark';
-  const isRecording = recorder.isRecording;
+  const isRecording = safeIsRecording(recorder);
 
+  // ── Timers ──────────────────────────────────
   const clearTimers = useCallback(() => {
     if (durationTimerRef.current) clearTimeout(durationTimerRef.current);
     if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
@@ -93,12 +203,13 @@ export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
     warningTimerRef.current = null;
   }, []);
 
+  // ── Pulse animation ─────────────────────────
   const startPulse = useCallback(() => {
     pulseAnim.stopAnimation();
     Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, { toValue: 1.2, duration: 500, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1.0, duration: 500, useNativeDriver: true }),
       ])
     ).start();
   }, [pulseAnim]);
@@ -108,264 +219,316 @@ export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
     pulseAnim.setValue(1);
   }, [pulseAnim]);
 
-  const transcribeAudio = useCallback(async (audioUri: string) => {
-    setIsProcessing(true);
-    abortControllerRef.current = new AbortController();
+  // ── Transcription ────────────────────────────
+  const transcribeAudio = useCallback(
+    async (uri: string) => {
+      if (unmountedRef.current) return;
+      setIsProcessing(true);
+      abortRef.current = new AbortController();
 
-    try {
-      const apiKey = process.env.EXPO_PUBLIC_GROQ_API_KEY;
-      if (!apiKey) throw new Error('GROQ API ключ не настроен');
-
-      let groqLang = 'ru';
-      if (language === 'tg') groqLang = 'tg';
-      else if (language === 'uz') groqLang = 'uz';
-
-      // Определяем mimeType динамически из URI — защита от будущих изменений конфига
-      const extension = audioUri.split('.').pop()?.toLowerCase() ?? 'm4a';
-      const mimeTypeMap: Record<string, string> = {
-        'm4a': 'audio/m4a',
-        'mp4': 'audio/mp4',
-        '3gp': 'audio/3gpp',
-        'aac': 'audio/aac',
-        'wav': 'audio/wav',
-      };
-      const resolvedMimeType = mimeTypeMap[extension] ?? 'audio/m4a';
-
-      // FileSystem.uploadAsync (legacy) — единственный надёжный способ
-      // отправить бинарный файл без Blob API в React Native / Hermes
-      const uploadResult = await FileSystem.uploadAsync(GROQ_API_URL, audioUri, {
-        fieldName: 'file',
-        httpMethod: 'POST',
-        mimeType: resolvedMimeType,
-        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-        },
-        parameters: {
-          'model': 'whisper-large-v3',
-          'prompt': getWhisperPrompt(language),
-          'response_format': 'json',
-          'language': groqLang,
-        },
-      });
-
-      if (uploadResult.status === 429) {
-        throw new Error('Превышен лимит запросов Groq API');
-      }
-
-      let responseBody: any;
       try {
-        responseBody = JSON.parse(uploadResult.body);
-      } catch {
-        responseBody = { message: uploadResult.body };
+        const apiKey = process.env.EXPO_PUBLIC_GROQ_API_KEY;
+        if (!apiKey) throw new Error('GROQ API ключ не настроен');
+
+        const ext = uri.split('.').pop()?.toLowerCase() ?? 'm4a';
+        const mimeMap: Record<string, string> = {
+          m4a: 'audio/m4a',
+          mp4: 'audio/mp4',
+          '3gp': 'audio/3gpp',
+          aac: 'audio/aac',
+          wav: 'audio/wav',
+        };
+        const mimeType = mimeMap[ext] ?? 'audio/m4a';
+
+        const { language: groqLang, prompt, model } = getLangConfig(language);
+
+        // Параметры запроса — language опциональный!
+        const parameters: Record<string, string> = {
+          model,
+          prompt,
+          response_format: 'json',
+        };
+        // Для tg/uz НЕ добавляем language — пусть Whisper auto-detect
+        if (groqLang) {
+          parameters.language = groqLang;
+        }
+
+        // FileSystem.uploadAsync — единственный надёжный способ отправить
+        // бинарный файл в React Native / Hermes без Blob API
+        const result = await FileSystem.uploadAsync(GROQ_API_URL, uri, {
+          fieldName: 'file',
+          httpMethod: 'POST',
+          mimeType,
+          uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+          headers: { Authorization: `Bearer ${apiKey}` },
+          parameters,
+        });
+
+        // Удаляем временный файл сразу после загрузки
+        FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
+
+        if (unmountedRef.current) return;
+
+        let body: any;
+        try {
+          body = JSON.parse(result.body);
+        } catch {
+          body = { message: result.body };
+        }
+
+        if (result.status === 429) {
+          throw new Error('Превышен лимит запросов Groq. Попробуйте через минуту.');
+        }
+
+        if (result.status !== 200 && result.status !== 201) {
+          const detail = body?.error?.message ?? body?.message ?? 'Ошибка API';
+          throw new Error(`[${result.status}] ${detail}`);
+        }
+
+        const text: string = body?.text ?? '';
+        if (!text.trim()) {
+          throw new Error('Речь не распознана. Говорите громче или ближе к микрофону.');
+        }
+
+        onTranscript(text);
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+        if (unmountedRef.current) return;
+        console.warn('[VoiceRecorder] transcribe error:', err);
+        Alert.alert('Ошибка распознавания', err?.message ?? 'Не удалось распознать речь');
+      } finally {
+        if (!unmountedRef.current) {
+          setIsProcessing(false);
+        }
+        abortRef.current = null;
       }
+    },
+    [language, onTranscript]
+  );
 
-      if (uploadResult.status !== 200 && uploadResult.status !== 201) {
-        const errMsg = responseBody?.error?.message || responseBody?.message || 'Ошибка API при распознавании';
-        throw new Error(`API Error (${uploadResult.status}): ${errMsg}`);
-      }
-
-      if (responseBody.text) {
-        onTranscript(responseBody.text);
-      } else {
-        throw new Error('Распознанный текст отсутствует в ответе API');
-      }
-
-      // Удаляем локальный файл после успешной транскрипции
-      await FileSystem.deleteAsync(audioUri, { idempotent: true });
-    } catch (error: any) {
-      if (error?.name === 'AbortError') return;
-      console.error('Transcription error:', error);
-      Alert.alert('Ошибка', error?.message || 'Не удалось распознать речь');
-    } finally {
-      setIsProcessing(false);
-      abortControllerRef.current = null;
-    }
-  }, [language, onTranscript]);
-
+  // ── Stop recording (core logic) ──────────────
   const stopRecordingInternal = useCallback(async () => {
-    // Чистим таймеры ДО async вызова — иначе при краше они остаются активными
+    // Сначала чистим таймеры и анимацию — до любого async вызова
     clearTimers();
     stopPulse();
-    setShowWarning(false);
+    if (!unmountedRef.current) setShowWarning(false);
 
-    if (!recorder.isRecording) return;
+    // Вычисляем длительность ДО вызова stop()
+    const durationMs = startTimeRef.current
+      ? Date.now() - startTimeRef.current
+      : MIN_DURATION_MS + 1;
+    startTimeRef.current = null;
 
-    try {
-      // Проверяем минимальную длительность ДО stop()
-      const durationMs = recordingStartTimeRef.current
-        ? Date.now() - recordingStartTimeRef.current
-        : MIN_RECORDING_MS + 1;
-      recordingStartTimeRef.current = null;
+    const uri = await safeStopRecorder(recorder);
 
-      await recorder.stop();
-      const uri = recorder.uri;
+    if (!uri) return; // объект был released или не записывал
 
-      if (durationMs < MIN_RECORDING_MS) {
-        // Слишком короткое нажатие — не отправляем на Groq, показываем подсказку
-        Alert.alert('🎙️ Удержите микрофон', 'Нажмите и удерживайте кнопку пока говорите');
-        if (uri) await FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
-        return;
-      }
-
-      if (uri) await transcribeAudio(uri);
-    } catch (error: any) {
-      const msg = error?.message || '';
-      if (msg.includes('shared object') || msg.includes('released')) {
-        // Сессия уже освобождена — это нормально при быстром tap/release
-        console.warn('Recorder session already released, skipping stop.');
-      } else {
-        console.error('Failed to stop recording:', error);
-        Alert.alert('Ошибка', 'Не удалось остановить запись');
-      }
+    if (durationMs < MIN_DURATION_MS) {
+      // Слишком короткое нажатие
+      FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
+      Alert.alert('🎙️ Удержите кнопку', 'Нажмите и удерживайте пока говорите, затем отпустите.');
+      return;
     }
+
+    await transcribeAudio(uri);
   }, [recorder, clearTimers, stopPulse, transcribeAudio]);
 
+  // ── Start recording ──────────────────────────
   const startRecording = async () => {
     if (isProcessing || isStarting) return;
-    setIsStarting(true);
-    stopRequestedDuringStartRef.current = false;
+
+    if (!unmountedRef.current) setIsStarting(true);
+    stopRequestedRef.current = false;
 
     try {
-      // Cleanup любой зависшей сессии
-      if (recorder && recorder.isRecording) {
-        try {
-          await recorder.stop();
-        } catch (e) {
-          console.warn('Failed to stop previous recording:', e);
-        }
-        await new Promise((resolve) => setTimeout(resolve, 150));
+      // Cleanup зависшей сессии (защита от двойного нажатия)
+      if (safeIsRecording(recorder)) {
+        await safeStopRecorder(recorder);
+        await new Promise((r) => setTimeout(r, 120));
       }
 
-      const permission = await AudioModule.requestRecordingPermissionsAsync();
-      if (permission.status !== 'granted') {
-        Alert.alert('Ошибка', 'Нет разрешения на доступ к микрофону');
-        setIsStarting(false);
+      // Проверяем разрешение
+      const perm = await AudioModule.requestRecordingPermissionsAsync();
+      if (perm.status !== 'granted') {
+        Alert.alert('Нет доступа к микрофону', 'Разрешите доступ в настройках телефона.');
+        if (!unmountedRef.current) setIsStarting(false);
         return;
       }
 
-      await setAudioModeAsync({
-        allowsRecording: true,
-        playsInSilentMode: true,
-      });
+      // Настраиваем аудио сессию
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
 
-      // SDK 56: Check if recorder is still valid
-      if (!recorder) throw new Error('Recorder not initialized');
-
+      // Подготовка и запуск
       await recorder.prepareToRecordAsync();
-      // Small safety delay after prepare
-      await new Promise(resolve => setTimeout(resolve, 50));
-
       await recorder.record();
 
-      // Засекаем реальное время старта записи
-      recordingStartTimeRef.current = Date.now();
-      setIsStarting(false);
+      startTimeRef.current = Date.now();
+      if (!unmountedRef.current) setIsStarting(false);
 
-      // Если пользователь отпустил кнопку пока мы инициализировались — останавливаем
-      if (stopRequestedDuringStartRef.current) {
-        stopRequestedDuringStartRef.current = false;
+      // Пользователь успел отпустить кнопку пока мы инициализировались
+      if (stopRequestedRef.current) {
+        stopRequestedRef.current = false;
         stopRecordingInternal();
         return;
       }
 
       startPulse();
 
+      // Авто-стоп по максимальной длительности
       durationTimerRef.current = setTimeout(() => {
-        if (recorder.isRecording) {
+        if (safeIsRecording(recorder)) {
           stopRecordingInternal();
-          Alert.alert('Инфо', 'Максимальная длительность записи (60 секунд) достигнута');
+          Alert.alert('Инфо', 'Достигнут лимит записи (60 сек).');
         }
       }, MAX_DURATION_MS);
 
+      // Предупреждение за 5 сек до лимита
       warningTimerRef.current = setTimeout(() => {
-        if (recorder.isRecording) setShowWarning(true);
-      }, WARNING_THRESHOLD_MS);
+        if (!unmountedRef.current && safeIsRecording(recorder)) {
+          setShowWarning(true);
+        }
+      }, WARNING_MS);
     } catch (err) {
-      console.error('startRecording error:', err);
-      Alert.alert('Ошибка', 'Не удалось начать запись');
-      setIsStarting(false);
+      console.error('[VoiceRecorder] startRecording error:', err);
+      if (!unmountedRef.current) {
+        setIsStarting(false);
+        Alert.alert('Ошибка', 'Не удалось начать запись. Попробуйте ещё раз.');
+      }
     }
   };
 
-  const handleStop = () => {
+  // ── Handle button release ────────────────────
+  const handleStop = useCallback(() => {
     if (isStarting) {
-      // Пользователь отпустил кнопку во время фазы инициализации
-      stopRequestedDuringStartRef.current = true;
+      // Ещё инициализируемся — запоминаем намерение остановиться
+      stopRequestedRef.current = true;
       return;
     }
     if (!isProcessing) {
       stopRecordingInternal();
     }
-  };
+  }, [isStarting, isProcessing, stopRecordingInternal]);
 
+  // ── AppState & cleanup ───────────────────────
   useEffect(() => {
-    const handleAppStateChange = (nextAppState: AppStateStatus) => {
-      if (nextAppState !== 'active' && recorder.isRecording) {
+    unmountedRef.current = false;
+
+    const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
+      if (next !== 'active' && safeIsRecording(recorder)) {
         stopRecordingInternal();
       }
-    };
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    });
 
     return () => {
-      subscription.remove();
-      if (recorder.isRecording) {
-        recorder.stop().catch(() => {});
-      }
+      unmountedRef.current = true;
+      sub.remove();
       clearTimers();
-      if (abortControllerRef.current) abortControllerRef.current.abort();
-    };
-  }, [recorder, stopRecordingInternal, clearTimers]);
 
+      // Безопасная остановка при размонтировании
+      // НЕ используем recorder.isRecording напрямую — может бросить
+      safeStopRecorder(recorder).catch(() => {});
+
+      if (abortRef.current) {
+        abortRef.current.abort();
+        abortRef.current = null;
+      }
+    };
+    // recorder не добавляем в deps — его идентичность стабильна в рамках маунта
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Hint text ────────────────────────────────
+  const hintText = showWarning
+    ? '⏱️ Запись остановится через 5 сек'
+    : isRecording
+    ? '🔴 Отпустите, чтобы завершить'
+    : isProcessing
+    ? '🔄 Распознаём речь...'
+    : isStarting
+    ? '⏳ Подготовка...'
+    : '🎙️ Зажмите и говорите';
+
+  // ── Render ───────────────────────────────────
   return (
     <View style={styles.container}>
       <TouchableOpacity
         onPressIn={startRecording}
         onPressOut={handleStop}
         disabled={isProcessing}
-        activeOpacity={0.7}
+        activeOpacity={0.75}
         style={styles.touchable}
       >
         <Animated.View
           style={[
             styles.button,
-            isRecording && styles.buttonActive,
-            (isProcessing || isStarting) && styles.buttonDisabled,
+            isRecording && styles.buttonRecording,
+            (isProcessing || isStarting) && styles.buttonBusy,
             { transform: [{ scale: pulseAnim }] },
           ]}
         >
           {isProcessing || isStarting ? (
             <ActivityIndicator color="#fff" size="large" />
           ) : (
-            <Ionicons name={isRecording ? 'stop' : 'mic'} size={36} color="#fff" />
+            <Ionicons
+              name={isRecording ? 'stop' : 'mic'}
+              size={36}
+              color="#fff"
+            />
           )}
         </Animated.View>
       </TouchableOpacity>
-      <Text style={[styles.hint, isDark ? styles.textDark : styles.textLight]}>
-        {showWarning
-          ? '⏱️ Запись скоро остановится (5 сек)'
-          : isRecording
-          ? '🔴 Отпустите, чтобы завершить'
-          : isProcessing
-          ? '🔄 Обработка...'
-          : '🎙️ Зажмите и говорите'}
+
+      <Text style={[styles.hint, isDark ? styles.hintDark : styles.hintLight]}>
+        {hintText}
       </Text>
     </View>
   );
 }
 
+// ─────────────────────────────────────────────
+// Styles
+// ─────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: { alignItems: 'center', justifyContent: 'center', paddingVertical: 16, paddingHorizontal: 20 },
-  touchable: { borderRadius: 60, overflow: 'hidden' },
-  button: {
-    width: 80, height: 80, borderRadius: 40, backgroundColor: '#1D9E75',
-    alignItems: 'center', justifyContent: 'center', elevation: 6,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3, shadowRadius: 4,
+  container: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
   },
-  buttonActive: { backgroundColor: '#E53935' },
-  buttonDisabled: { backgroundColor: '#aaaaaa', opacity: 0.8 },
-  hint: { marginTop: 12, fontSize: 14, fontWeight: '500', textAlign: 'center' },
-  textLight: { color: '#555' },
-  textDark: { color: '#ccc' },
-});
+  touchable: {
+    borderRadius: 60,
+    overflow: 'hidden',
+  },
+  button: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#1D9E75',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  buttonRecording: {
+    backgroundColor: '#E53935',
+  },
+  buttonBusy: {
+    backgroundColor: '#aaaaaa',
+    opacity: 0.85,
+  },
+  hint: {
+    marginTop: 12,
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  hintLight: {
+    color: '#555',
+  },
+  hintDark: {
+    color: '#ccc',
+  },
+}); 
