@@ -24,6 +24,7 @@ import CalculatorScreen from './src/screens/CalculatorScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import CurrencyScreen from './src/screens/CurrencyScreen';
+import ExpensesScreen from './src/screens/ExpensesScreen';
 import CustomDrawerContent from './src/components/CustomDrawerContent';
 
 const Tab = createBottomTabNavigator();
@@ -61,7 +62,7 @@ function MainTabs() {
       })}
     >
       <Tab.Screen
-        name="Главная"
+        name="Home"
         component={HomeScreen}
         options={{
           tabBarLabel: t('tabs.home'),
@@ -70,7 +71,7 @@ function MainTabs() {
         }}
       />
       <Tab.Screen
-        name="Продажа"
+        name="Sale"
         component={AddSaleScreen}
         options={{
           tabBarLabel: t('tabs.sale'),
@@ -79,7 +80,7 @@ function MainTabs() {
         }}
       />
       <Tab.Screen
-        name="Товары"
+        name="Products"
         component={ProductsScreen}
         options={{
           tabBarLabel: t('tabs.products'),
@@ -88,7 +89,7 @@ function MainTabs() {
         }}
       />
       <Tab.Screen
-        name="Калькулятор"
+        name="Calculator"
         component={CalculatorScreen}
         options={{
           tabBarLabel: 'Калькул.',
@@ -98,7 +99,7 @@ function MainTabs() {
       />
 
       <Tab.Screen
-        name="Валюта"
+        name="Currency"
         component={CurrencyScreen}
         options={{
           tabBarLabel: 'Валюта',
@@ -108,12 +109,22 @@ function MainTabs() {
       />
 
       <Tab.Screen
-        name="Отчёт"
+        name="Reports"
         component={ReportScreen}
         options={{
           tabBarLabel: t('tabs.reports'),
           title: t('reports.title'),
           tabBarIcon: ({ color, size }) => <Ionicons name="bar-chart-outline" size={size} color={color} />,
+        }}
+      />
+
+      <Tab.Screen
+        name="Expenses"
+        component={ExpensesScreen}
+        options={{
+          tabBarLabel: t('tabs.expenses'),
+          title: t('expenses.title'),
+          tabBarIcon: ({ color, size }) => <Ionicons name="receipt-outline" size={size} color={color} />,
         }}
       />
     </Tab.Navigator>
@@ -152,11 +163,19 @@ function DrawerNavigator() {
         }}
       />
       <Drawer.Screen
-        name="Профиль"
+        name="Profile"
         component={ProfileScreen}
         options={{
           drawerLabel: t('profile.title'),
           drawerIcon: ({ color }) => <Ionicons name="person-outline" size={22} color={color} />,
+        }}
+      />
+      <Drawer.Screen
+        name="Expenses"
+        component={ExpensesScreen}
+        options={{
+          drawerLabel: t('tabs.expenses'),
+          drawerIcon: ({ color }) => <Ionicons name="receipt-outline" size={22} color={color} />,
         }}
       />
       <Drawer.Screen
@@ -168,7 +187,7 @@ function DrawerNavigator() {
         }}
       />
       <Drawer.Screen
-        name="Настройки"
+        name="Settings"
         component={SettingsScreen}
         options={{
           drawerLabel: t('settings.title'),
@@ -220,14 +239,19 @@ function AppContent() {
         <Stack.Screen name="Main" component={DrawerNavigator} options={{ headerShown: false }} />
         {/* Keeping screens in stack for deeper navigation if needed, or if navigated from elsewhere */}
         <Stack.Screen
-          name="Настройки"
+          name="Settings"
           component={SettingsScreen}
           options={{ title: 'Настройки', headerStyle: { backgroundColor: '#1D9E75' }, headerTintColor: '#fff' }}
         />
         <Stack.Screen
-          name="Профиль"
+          name="Profile"
           component={ProfileScreen}
           options={{ title: t('profile.title'), headerStyle: { backgroundColor: '#1D9E75' }, headerTintColor: '#fff' }}
+        />
+        <Stack.Screen
+          name="Expenses"
+          component={ExpensesScreen}
+          options={{ title: t('tabs.expenses'), headerStyle: { backgroundColor: '#1D9E75' }, headerTintColor: '#fff' }}
         />
       </Stack.Navigator>
     </NavigationContainer>

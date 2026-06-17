@@ -132,7 +132,7 @@ export default function CalculatorScreen({ navigation }: any) {
     : parseFloat(cur).toLocaleString('ru-RU');
 
   const transferToSale = () => {
-    navigation.navigate('Продажа', { prefillPrice: cur });
+    navigation.navigate('Sale', { prefillPrice: cur });
   };
 
   // --- Торговые расчёты ---
@@ -173,7 +173,7 @@ export default function CalculatorScreen({ navigation }: any) {
   };
 
   const saveTrade = (sellPrice: string, buyPrice: string, qty: string = '1') => {
-    navigation.navigate('Продажа', {
+    navigation.navigate('Sale', {
       prefillSell: sellPrice,
       prefillBuy: buyPrice,
       prefillQty: qty,

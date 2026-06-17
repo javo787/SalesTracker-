@@ -6,17 +6,19 @@ import {
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { BarChart } from 'react-native-gifted-charts';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import { getStats, getSalesByPeriod, deleteSale } from '../db/database';
+import { getStats, getSalesByPeriod, deleteSale, getExpenseStats } from '../db/database';
 import { useAppContext } from '../context/AppContext';
 import AnnualReport from '../components/reports/AnnualReport';
 
 export default function ReportScreen() {
   const { t, i18n } = useTranslation();
   const { theme, currency } = useAppContext();
+  const navigation = useNavigation<any>();
   const [period, setPeriod] = useState(1);
   const [stats, setStats] = useState({ revenue: 0, profit: 0, count: 0 });
+  const [expenseTotal, setExpenseTotal] = useState(0);
   const [sales, setSales] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [filterText, setFilterText] = useState('');
@@ -24,6 +26,8 @@ export default function ReportScreen() {
   const loadData = (days: number) => {
     setStats(getStats(days));
     setSales(getSalesByPeriod(days));
+    const expStats = getExpenseStats(days);
+    setExpenseTotal(expStats.total);
   };
 
   useFocusEffect(useCallback(() => { loadData(period); }, [period]));
@@ -185,20 +189,26 @@ export default function ReportScreen() {
               <Text style={styles.statValue}>{stats.revenue.toLocaleString()}</Text>
               <Text style={styles.statCurrency}>{currency.symbol}</Text>
             </View>
-            <View style={[styles.statCard, { backgroundColor: '#0C447C' }]}>
-              <Text style={styles.statLabel}>{t('common.profit')}</Text>
-              <Text style={styles.statValue}>{stats.profit.toLocaleString()}</Text>
+            <TouchableOpacity
+              style={[styles.statCard, { backgroundColor: '#0C447C' }]}
+              onPress={() => navigation.navigate('Expenses')}
+            >
+              <Text style={styles.statLabel}>{t('reports.netProfit')}</Text>
+              <Text style={styles.statValue}>{(stats.profit - expenseTotal).toLocaleString()}</Text>
               <Text style={styles.statCurrency}>{currency.symbol}</Text>
-            </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.statCard, { backgroundColor: '#FF6B6B' }]}
+              onPress={() => navigation.navigate('Expenses')}
+            >
+              <Text style={styles.statLabel}>{t('reports.expenses')}</Text>
+              <Text style={styles.statValue}>{expenseTotal.toLocaleString()}</Text>
+              <Text style={styles.statCurrency}>{currency.symbol}</Text>
+            </TouchableOpacity>
             <View style={[styles.statCard, { backgroundColor: '#854F0B' }]}>
               <Text style={styles.statLabel}>{t('home.salesCount')}</Text>
               <Text style={styles.statValue}>{stats.count}</Text>
               <Text style={styles.statCurrency}>{t('reports.pcs')}</Text>
-            </View>
-            <View style={[styles.statCard, { backgroundColor: '#3B6D11' }]}>
-              <Text style={styles.statLabel}>{t('products.margin')}</Text>
-              <Text style={styles.statValue}>{margin}%</Text>
-              <Text style={styles.statCurrency}>рентабельность</Text>
             </View>
           </View>
 

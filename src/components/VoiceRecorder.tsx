@@ -228,9 +228,13 @@ export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
 
     try {
       // Cleanup любой зависшей сессии
-      if (recorder.isRecording) {
-        await recorder.stop().catch(() => {});
-        await new Promise((resolve) => setTimeout(resolve, 100));
+      if (recorder && recorder.isRecording) {
+        try {
+          await recorder.stop();
+        } catch (e) {
+          console.warn('Failed to stop previous recording:', e);
+        }
+        await new Promise((resolve) => setTimeout(resolve, 150));
       }
 
       const permission = await AudioModule.requestRecordingPermissionsAsync();
@@ -245,7 +249,13 @@ export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
         playsInSilentMode: true,
       });
 
+      // SDK 56: Check if recorder is still valid
+      if (!recorder) throw new Error('Recorder not initialized');
+
       await recorder.prepareToRecordAsync();
+      // Small safety delay after prepare
+      await new Promise(resolve => setTimeout(resolve, 50));
+
       await recorder.record();
 
       // Засекаем реальное время старта записи
