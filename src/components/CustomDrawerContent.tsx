@@ -32,7 +32,7 @@ export default function CustomDrawerContent(props: DrawerContentComponentProps) 
         {/* Header with User Info */}
         <View style={[styles.header, themeStyles.header]}>
           <TouchableOpacity
-            onPress={() => props.navigation.navigate('Профиль')}
+            onPress={() => props.navigation.navigate('Profile')}
             style={styles.profileClickable}
           >
             {user?.avatarUrl ? (

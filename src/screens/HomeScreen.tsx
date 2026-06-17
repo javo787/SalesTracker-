@@ -213,21 +213,21 @@ export default function HomeScreen() {
       <View style={styles.quickActions}>
         <TouchableOpacity
           style={[styles.actionChip, themeStyles.card]}
-          onPress={() => navigation.navigate(t('tabs.sale'))}
+          onPress={() => navigation.navigate('Sale')}
         >
           <Ionicons name="add-circle-outline" size={18} color="#1D9E75" />
           <Text style={[styles.actionText, themeStyles.text]}>{t('tabs.sale')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.actionChip, themeStyles.card]}
-          onPress={() => navigation.navigate(t('tabs.expenses'))}
+          onPress={() => navigation.navigate('Expenses')}
         >
           <Ionicons name="receipt-outline" size={18} color="#FF6B6B" />
           <Text style={[styles.actionText, themeStyles.text]}>{t('tabs.expenses')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.actionChip, themeStyles.card]}
-          onPress={() => navigation.navigate('Калькулятор')}
+          onPress={() => navigation.navigate('Calculator')}
         >
           <Ionicons name="calculator-outline" size={18} color="#0C447C" />
           <Text style={[styles.actionText, themeStyles.text]}>{t('tabs.home') === 'Главная' ? 'Калькулятор' : 'Calc'}</Text>
@@ -294,7 +294,7 @@ export default function HomeScreen() {
           <Text style={styles.emptyHint}>{t('home.noSalesHint')}</Text>
           <TouchableOpacity
             style={styles.addSaleCta}
-            onPress={() => navigation.navigate(t('tabs.sale'))}
+            onPress={() => navigation.navigate('Sale')}
           >
             <Text style={styles.addSaleCtaText}>{t('home.addSaleCta')}</Text>
           </TouchableOpacity>
