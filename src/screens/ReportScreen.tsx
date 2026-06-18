@@ -1,40 +1,78 @@
 import { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
-  TouchableOpacity, RefreshControl, Alert, TextInput
+  TouchableOpacity, RefreshControl, Alert, TextInput, Modal
 } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { BarChart } from 'react-native-gifted-charts';
+import { Calendar } from 'react-native-calendars';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getStats, getSalesByPeriod, deleteSale, getExpenseStats } from '../db/database';
 import { useAppContext } from '../context/AppContext';
 import AnnualReport from '../components/reports/AnnualReport';
+import RegistrationPromptModal from '../components/RegistrationPromptModal';
+import { useAuth } from '../context/AuthContext';
 
 export default function ReportScreen() {
   const { t, i18n } = useTranslation();
   const { theme, currency } = useAppContext();
   const navigation = useNavigation<any>();
-  const [period, setPeriod] = useState(1);
+  const [period, setPeriod] = useState<number | 'custom'>(1);
+  const [dateRange, setDateRange] = useState<{from: string, to: string} | null>(null);
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [selectedDates, setSelectedDates] = useState<any>({});
+
+  const { isGuest } = useAuth();
+  const [showRegPrompt, setShowRegPrompt] = useState(false);
+
   const [stats, setStats] = useState({ revenue: 0, profit: 0, count: 0 });
   const [expenseTotal, setExpenseTotal] = useState(0);
   const [sales, setSales] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [filterText, setFilterText] = useState('');
 
-  const loadData = (days: number) => {
-    setStats(getStats(days));
-    setSales(getSalesByPeriod(days));
-    const expStats = getExpenseStats(days);
-    setExpenseTotal(expStats.total);
-  };
+  const loadData = useCallback((p: number | 'custom', range?: {from: string, to: string}) => {
+    if (p === 'custom' && range) {
+      setStats(getStats(0, range.from, range.to));
+      setSales(getSalesByPeriod(0, range.from, range.to));
+      const expStats = getExpenseStats(0, range.from, range.to);
+      setExpenseTotal(expStats.total);
+    } else {
+      const days = typeof p === 'number' ? p : 1;
+      setStats(getStats(days));
+      setSales(getSalesByPeriod(days));
+      const expStats = getExpenseStats(days);
+      setExpenseTotal(expStats.total);
+    }
+  }, []);
 
-  useFocusEffect(useCallback(() => { loadData(period); }, [period]));
+  const checkRegPrompt = useCallback(async () => {
+    if (!isGuest) return;
+    try {
+      const lastPrompt = await AsyncStorage.getItem('last_reg_prompt');
+      const now = Date.now();
+      const weekInMs = 7 * 24 * 60 * 60 * 1000;
+      if (!lastPrompt || now - parseInt(lastPrompt) > weekInMs) {
+        setShowRegPrompt(true);
+        await AsyncStorage.setItem('last_reg_prompt', String(now));
+      }
+    } catch (e) {
+      console.warn('Failed to check reg prompt', e);
+    }
+  }, [isGuest]);
+
+  useFocusEffect(useCallback(() => {
+    loadData(period, dateRange || undefined);
+    checkRegPrompt();
+  }, [period, dateRange, loadData, checkRegPrompt]));
 
   const onRefresh = () => {
     setRefreshing(true);
-    loadData(period);
+    loadData(period, dateRange || undefined);
     setRefreshing(false);
   };
 
@@ -133,7 +171,53 @@ export default function ReportScreen() {
   const isDark = theme === 'dark';
   const themeStyles = isDark ? darkStyles : lightStyles;
 
+  const handleDayPress = (day: any) => {
+    const dateStr = day.dateString;
+    let newSelectedDates = { ...selectedDates };
+
+    if (!dateRange || (dateRange.from && dateRange.to) || !dateRange.from) {
+      // Start new range
+      newSelectedDates = {
+        [dateStr]: { startingDay: true, color: '#1D9E75', textColor: 'white' }
+      };
+      setDateRange({ from: dateStr, to: '' });
+    } else {
+      // Complete range
+      const start = new Date(dateRange.from);
+      const end = new Date(dateStr);
+
+      if (end < start) {
+        newSelectedDates = {
+          [dateStr]: { startingDay: true, color: '#1D9E75', textColor: 'white' }
+        };
+        setDateRange({ from: dateStr, to: '' });
+      } else {
+        // Fill range
+        let curr = new Date(start);
+        while (curr <= end) {
+          const dStr = curr.toISOString().split('T')[0];
+          newSelectedDates[dStr] = { color: '#E0F2F1', textColor: '#1D9E75' };
+          if (dStr === dateRange.from) newSelectedDates[dStr] = { startingDay: true, color: '#1D9E75', textColor: 'white' };
+          if (dStr === dateStr) newSelectedDates[dStr] = { endingDay: true, color: '#1D9E75', textColor: 'white' };
+          curr.setDate(curr.getDate() + 1);
+        }
+        setDateRange({ from: dateRange.from, to: dateStr });
+      }
+    }
+    setSelectedDates(newSelectedDates);
+  };
+
+  const applyCustomRange = () => {
+    if (dateRange && dateRange.from) {
+      const finalRange = dateRange.to ? dateRange : { from: dateRange.from, to: dateRange.from };
+      setDateRange(finalRange);
+      setPeriod('custom');
+      setShowCalendar(false);
+    }
+  };
+
   return (
+    <View style={styles.flex}>
     <ScrollView
       style={[styles.container, themeStyles.container]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -145,18 +229,39 @@ export default function ReportScreen() {
             <TouchableOpacity
               key={p.days}
               style={[styles.periodBtn, themeStyles.card, period === p.days && styles.periodBtnActive]}
-              onPress={() => setPeriod(p.days)}
+              onPress={() => {
+                setPeriod(p.days);
+                setDateRange(null);
+                setSelectedDates({});
+              }}
             >
               <Text style={[styles.periodText, period === p.days && styles.periodTextActive]}>
                 {p.label}
               </Text>
             </TouchableOpacity>
           ))}
+          <TouchableOpacity
+            style={[styles.periodBtn, themeStyles.card, period === 'custom' && styles.periodBtnActive]}
+            onPress={() => setShowCalendar(true)}
+          >
+            <Ionicons name="calendar-outline" size={18} color={period === 'custom' ? '#fff' : '#1D9E75'} />
+          </TouchableOpacity>
         </View>
         <TouchableOpacity style={[styles.exportBtn, themeStyles.card]} onPress={exportToCSV}>
           <Text style={styles.exportBtnText}>📄 CSV</Text>
         </TouchableOpacity>
       </View>
+
+      {period === 'custom' && dateRange && (
+        <View style={styles.customRangeInfo}>
+          <Text style={[styles.customRangeText, themeStyles.text]}>
+            📅 {new Date(dateRange.from).toLocaleDateString()} — {new Date(dateRange.to).toLocaleDateString()}
+          </Text>
+          <TouchableOpacity onPress={() => setShowCalendar(true)}>
+            <Text style={styles.changeRangeBtn}>Изменить</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {period === 365 ? (
         <AnnualReport />
@@ -289,6 +394,64 @@ export default function ReportScreen() {
       )}
 
     </ScrollView>
+
+    <RegistrationPromptModal
+      visible={showRegPrompt}
+      onClose={() => setShowRegPrompt(false)}
+      onRegister={() => {
+        setShowRegPrompt(false);
+        navigation.navigate('Profile');
+      }}
+    />
+
+    {/* Calendar Modal */}
+    <Modal visible={showCalendar} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.calendarContent, themeStyles.card]}>
+            <View style={styles.calendarHeader}>
+              <Text style={[styles.modalTitle, themeStyles.text]}>Выберите период</Text>
+              <TouchableOpacity onPress={() => setShowCalendar(false)}>
+                <Ionicons name="close" size={24} color={isDark ? '#eee' : '#333'} />
+              </TouchableOpacity>
+            </View>
+
+            <Calendar
+              onDayPress={handleDayPress}
+              markedDates={selectedDates}
+              markingType={'period'}
+              theme={{
+                calendarBackground: isDark ? '#1E1E1E' : '#fff',
+                textSectionTitleColor: '#1D9E75',
+                selectedDayBackgroundColor: '#1D9E75',
+                selectedDayTextColor: '#ffffff',
+                todayTextColor: '#1D9E75',
+                dayTextColor: isDark ? '#eee' : '#2d4150',
+                textDisabledColor: isDark ? '#444' : '#d9e1e8',
+                monthTextColor: '#1D9E75',
+                arrowColor: '#1D9E75',
+              }}
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => {
+                setShowCalendar(false);
+                setSelectedDates({});
+                setDateRange(null);
+              }}>
+                <Text style={styles.cancelBtnText}>{t('common.cancel')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmBtn, (!dateRange || !dateRange.from) && { opacity: 0.5 }]}
+                onPress={applyCustomRange}
+                disabled={!dateRange || !dateRange.from}
+              >
+                <Text style={styles.confirmBtnText}>Применить</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
   );
 }
 
@@ -308,6 +471,7 @@ const darkStyles = StyleSheet.create({
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  flex: { flex: 1 },
   topRow: {
     flexDirection: 'row', alignItems: 'center', paddingRight: 16,
   },
@@ -383,4 +547,35 @@ const styles = StyleSheet.create({
   saleRight: { alignItems: 'flex-end' },
   saleRevenue: { fontSize: 14, fontWeight: '600' },
   saleProfit: { fontSize: 13, color: '#1D9E75', marginTop: 2 },
+
+  modalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center', padding: 20
+  },
+  calendarContent: {
+    borderRadius: 20, padding: 16,
+  },
+  calendarHeader: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', marginBottom: 16,
+  },
+  modalTitle: { fontSize: 18, fontWeight: 'bold' },
+  modalActions: { flexDirection: 'row', gap: 12, marginTop: 20 },
+  cancelBtn: {
+    flex: 1, padding: 14, alignItems: 'center',
+    borderRadius: 10, borderWidth: 1, borderColor: '#E0E0E0'
+  },
+  cancelBtnText: { fontWeight: 'bold', color: '#888' },
+  confirmBtn: {
+    flex: 1, padding: 14, alignItems: 'center',
+    borderRadius: 10, backgroundColor: '#1D9E75'
+  },
+  confirmBtnText: { fontWeight: 'bold', color: '#fff' },
+  customRangeInfo: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', paddingHorizontal: 16,
+    marginBottom: 10,
+  },
+  customRangeText: { fontSize: 14, fontWeight: '600' },
+  changeRangeBtn: { fontSize: 13, color: '#1D9E75', fontWeight: '500' },
 });

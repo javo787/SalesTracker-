@@ -10,6 +10,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Sharing from 'expo-sharing';
 import { useAuth } from '../context/AuthContext';
 import { useAppContext } from '../context/AppContext';
+import RegistrationPromptModal from '../components/RegistrationPromptModal';
 import { api } from '../services/api';
 import { SyncService } from '../services/syncService';
 import { ProfileStats } from '../types/auth';
@@ -33,6 +34,26 @@ export default function ProfileScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showRegPrompt, setShowRegPrompt] = useState(false);
+
+  useEffect(() => {
+    checkRegPrompt();
+  }, [isGuest]);
+
+  const checkRegPrompt = async () => {
+    if (!isGuest) return;
+    try {
+      const lastPrompt = await AsyncStorage.getItem('last_reg_prompt');
+      const now = Date.now();
+      const weekInMs = 7 * 24 * 60 * 60 * 1000;
+      if (!lastPrompt || (lastPrompt && now - parseInt(lastPrompt) > weekInMs)) {
+        setShowRegPrompt(true);
+        await AsyncStorage.setItem('last_reg_prompt', String(now));
+      }
+    } catch (e) {
+      console.warn('Failed to check reg prompt', e);
+    }
+  };
 
   useEffect(() => {
     loadStats();
@@ -147,16 +168,18 @@ export default function ProfileScreen() {
     <ScrollView style={[styles.container, themeStyles.container]}>
       {/* Header Card */}
       <View style={[styles.card, themeStyles.card, styles.headerCard]}>
-        <TouchableOpacity onPress={handlePickImage}>
-          {user?.avatarUrl ? (
-            <Image source={{ uri: user.avatarUrl }} style={styles.avatar} />
-          ) : (
-            <View style={[styles.avatar, styles.avatarPlaceholder]}>
-              <Ionicons name="person" size={40} color="#fff" />
+        <TouchableOpacity onPress={handlePickImage} activeOpacity={0.8}>
+          <View style={{ position: 'relative' }}>
+            {user?.avatarUrl ? (
+              <Image source={{ uri: user.avatarUrl }} style={styles.avatar} />
+            ) : (
+              <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                <Ionicons name="person" size={50} color="#fff" />
+              </View>
+            )}
+            <View style={styles.editAvatarBadge}>
+              <Ionicons name="camera" size={16} color="#fff" />
             </View>
-          )}
-          <View style={styles.editAvatarBadge}>
-            <Ionicons name="camera" size={14} color="#fff" />
           </View>
         </TouchableOpacity>
 
@@ -292,6 +315,15 @@ export default function ProfileScreen() {
         </Text>
       </View>
 
+      <RegistrationPromptModal
+        visible={showRegPrompt}
+        onClose={() => setShowRegPrompt(false)}
+        onRegister={() => {
+          setShowRegPrompt(false);
+          setShowConvertModal(true);
+        }}
+      />
+
       {/* Conversion Modal */}
       <Modal visible={showConvertModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
@@ -350,10 +382,10 @@ const darkStyles = StyleSheet.create({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   card: { margin: 16, marginBottom: 0, borderRadius: 16, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 2 },
-  headerCard: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  avatar: { width: 80, height: 80, borderRadius: 40 },
+  headerCard: { flexDirection: 'row', alignItems: 'center', gap: 20 },
+  avatar: { width: 100, height: 100, borderRadius: 50, borderWidth: 3, borderColor: '#1D9E75' },
   avatarPlaceholder: { backgroundColor: '#1D9E75', justifyContent: 'center', alignItems: 'center' },
-  editAvatarBadge: { position: 'absolute', bottom: 0, right: 0, backgroundColor: '#1D9E75', width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: '#fff', justifyContent: 'center', alignItems: 'center' },
+  editAvatarBadge: { position: 'absolute', bottom: 2, right: 2, backgroundColor: '#1D9E75', width: 30, height: 30, borderRadius: 15, borderWidth: 3, borderColor: '#fff', justifyContent: 'center', alignItems: 'center' },
   headerInfo: { flex: 1, gap: 4 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   editNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },

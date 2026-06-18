@@ -9,6 +9,7 @@ import {
   Animated,
   AppState,
   AppStateStatus,
+  Modal,
 } from 'react-native';
 import {
   useAudioRecorder,
@@ -17,8 +18,10 @@ import {
   RecordingPresets,
 } from 'expo-audio';
 import * as FileSystem from 'expo-file-system/legacy';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppContext } from '../context/AppContext';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 
 // ─────────────────────────────────────────────
 // Types
@@ -172,10 +175,13 @@ async function safeStopRecorder(
 // Component
 // ─────────────────────────────────────────────
 export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
+  const { t } = useTranslation();
   const { theme, language } = useAppContext();
   const recorder = useAudioRecorder(recordingOptions);
 
   // UI state
+  const [voiceLang, setVoiceLang] = useState(language);
+  const [showInfo, setShowInfo] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [showWarning, setShowWarning] = useState(false);
@@ -240,7 +246,7 @@ export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
         };
         const mimeType = mimeMap[ext] ?? 'audio/m4a';
 
-        const { language: groqLang, prompt, model } = getLangConfig(language);
+        const { language: groqLang, prompt, model } = getLangConfig(voiceLang);
 
         // Параметры запроса — language опциональный!
         const parameters: Record<string, string> = {
@@ -409,6 +415,35 @@ export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
     }
   }, [isStarting, isProcessing, stopRecordingInternal]);
 
+  // ── Language Persistence ─────────────────────
+  const lastSystemLangRef = useRef(language);
+
+  useEffect(() => {
+    const loadVoiceLang = async () => {
+      const saved = await AsyncStorage.getItem('voice_language');
+      if (saved && (saved === 'ru' || saved === 'tg' || saved === 'uz')) {
+        setVoiceLang(saved);
+      } else {
+        setVoiceLang(language);
+      }
+    };
+    loadVoiceLang();
+  }, []);
+
+  useEffect(() => {
+    // Only override voice language when system language *changes* explicitly
+    if (language !== lastSystemLangRef.current) {
+      setVoiceLang(language);
+      AsyncStorage.setItem('voice_language', language);
+      lastSystemLangRef.current = language;
+    }
+  }, [language]);
+
+  const changeVoiceLang = async (lang: string) => {
+    setVoiceLang(lang);
+    await AsyncStorage.setItem('voice_language', lang);
+  };
+
   // ── AppState & cleanup ───────────────────────
   useEffect(() => {
     unmountedRef.current = false;
@@ -451,6 +486,36 @@ export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
   // ── Render ───────────────────────────────────
   return (
     <View style={styles.container}>
+      {/* Language Switcher */}
+      <View style={styles.langWrapper}>
+        <View style={[styles.langSwitcher, isDark ? styles.langSwitcherDark : styles.langSwitcherLight]}>
+          {['ru', 'tg', 'uz'].map((l) => (
+            <TouchableOpacity
+              key={l}
+              onPress={() => changeVoiceLang(l)}
+              style={[
+                styles.langBtn,
+                voiceLang === l && styles.langBtnActive
+              ]}
+            >
+              <Text style={[
+                styles.langBtnText,
+                voiceLang === l && styles.langBtnTextActive,
+                isDark && voiceLang !== l && { color: '#aaa' }
+              ]}>
+                {l.toUpperCase()}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <TouchableOpacity
+          style={styles.infoBtn}
+          onPress={() => setShowInfo(true)}
+        >
+          <Ionicons name="information-circle-outline" size={20} color={isDark ? '#aaa' : '#888'} />
+        </TouchableOpacity>
+      </View>
+
       <TouchableOpacity
         onPressIn={startRecording}
         onPressOut={handleStop}
@@ -481,6 +546,38 @@ export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
       <Text style={[styles.hint, isDark ? styles.hintDark : styles.hintLight]}>
         {hintText}
       </Text>
+
+      {/* Info Modal */}
+      <Modal
+        visible={showInfo}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowInfo(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowInfo(false)}
+        >
+          <View style={[styles.modalContent, isDark ? styles.modalContentDark : styles.modalContentLight]}>
+            <View style={styles.modalHeader}>
+              <Ionicons name="bulb-outline" size={24} color="#1D9E75" />
+              <Text style={[styles.modalTitle, isDark ? styles.textDark : styles.textLight]}>
+                {t('addSale.voiceTitle')}
+              </Text>
+            </View>
+            <Text style={[styles.modalText, isDark ? styles.textDark : styles.textLight]}>
+              {t('addSale.voiceLangInfo')}
+            </Text>
+            <TouchableOpacity
+              style={styles.closeBtn}
+              onPress={() => setShowInfo(false)}
+            >
+              <Text style={styles.closeBtnText}>{t('common.continue')}</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -492,17 +589,56 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
+    paddingVertical: 10,
     paddingHorizontal: 20,
+  },
+  langWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 8,
+  },
+  langSwitcher: {
+    flexDirection: 'row',
+    borderRadius: 20,
+    padding: 3,
+    borderWidth: 1,
+  },
+  langSwitcherLight: {
+    backgroundColor: '#eee',
+    borderColor: '#ddd',
+  },
+  langSwitcherDark: {
+    backgroundColor: '#2C2C2C',
+    borderColor: '#444',
+  },
+  langBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 16,
+  },
+  langBtnActive: {
+    backgroundColor: '#1D9E75',
+  },
+  langBtnText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#666',
+  },
+  langBtnTextActive: {
+    color: '#fff',
+  },
+  infoBtn: {
+    padding: 4,
   },
   touchable: {
     borderRadius: 60,
     overflow: 'hidden',
   },
   button: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     backgroundColor: '#1D9E75',
     alignItems: 'center',
     justifyContent: 'center',
@@ -520,10 +656,61 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
   hint: {
-    marginTop: 12,
-    fontSize: 14,
+    marginTop: 8,
+    fontSize: 13,
     fontWeight: '500',
     textAlign: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    width: '90%',
+    borderRadius: 20,
+    padding: 20,
+    elevation: 5,
+  },
+  modalContentLight: {
+    backgroundColor: '#fff',
+  },
+  modalContentDark: {
+    backgroundColor: '#1E1E1E',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 15,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  modalText: {
+    fontSize: 15,
+    lineHeight: 22,
+    marginBottom: 20,
+  },
+  textLight: {
+    color: '#333',
+  },
+  textDark: {
+    color: '#eee',
+  },
+  closeBtn: {
+    backgroundColor: '#1D9E75',
+    borderRadius: 10,
+    padding: 12,
+    alignItems: 'center',
+  },
+  closeBtnText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 15,
   },
   hintLight: {
     color: '#555',

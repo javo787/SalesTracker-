@@ -328,7 +328,13 @@ export function getSalesToday() {
   );
 }
 
-export function getSalesByPeriod(days: number) {
+export function getSalesByPeriod(days: number, fromDate?: string, toDate?: string) {
+  if (fromDate && toDate) {
+    return db.getAllSync(
+      "SELECT * FROM sales WHERE date(created_at) >= date(?) AND date(created_at) <= date(?) ORDER BY created_at DESC",
+      [fromDate, toDate]
+    );
+  }
   return db.getAllSync(
     "SELECT * FROM sales WHERE created_at >= datetime('now', '-' || ? || ' days') ORDER BY created_at DESC",
     [days]
@@ -349,7 +355,18 @@ export function deleteSale(saleId: number) {
 }
 
 // Статистика
-export function getStats(days: number = 1) {
+export function getStats(days: number = 1, fromDate?: string, toDate?: string) {
+  if (fromDate && toDate) {
+    const result = db.getFirstSync(`
+      SELECT
+        COALESCE(SUM(sell_price * quantity), 0) as revenue,
+        COALESCE(SUM(profit), 0) as profit,
+        COALESCE(COUNT(*), 0) as count
+      FROM sales
+      WHERE date(created_at) >= date(?) AND date(created_at) <= date(?)
+    `, [fromDate, toDate]) as any;
+    return result;
+  }
   const result = db.getFirstSync(`
     SELECT 
       COALESCE(SUM(sell_price * quantity), 0) as revenue,
@@ -392,7 +409,18 @@ export function deleteExpense(id: number) {
   return db.runSync('DELETE FROM expenses WHERE id = ?', [id]);
 }
 
-export function getExpenseStats(days: number = 1) {
+export function getExpenseStats(days: number = 1, fromDate?: string, toDate?: string) {
+  if (fromDate && toDate) {
+    const result = db.getFirstSync(`
+      SELECT
+        COALESCE(SUM(CASE WHEN type = 'operational' THEN amount ELSE 0 END), 0) as operational,
+        COALESCE(SUM(CASE WHEN type = 'inventory' THEN amount ELSE 0 END), 0) as inventory,
+        COALESCE(SUM(amount), 0) as total
+      FROM expenses
+      WHERE date(created_at) >= date(?) AND date(created_at) <= date(?)
+    `, [fromDate, toDate]) as any;
+    return result;
+  }
   const result = db.getFirstSync(`
     SELECT
       COALESCE(SUM(CASE WHEN type = 'operational' THEN amount ELSE 0 END), 0) as operational,

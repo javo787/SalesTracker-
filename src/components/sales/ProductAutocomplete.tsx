@@ -19,6 +19,7 @@ interface Props {
   onChange: (text: string) => void;
   onSelect: (product: AutocompleteResult) => void;
   inputStyle?: any;
+  containerStyle?: any;
   placeholder?: string;
   placeholderTextColor?: string;
 }
@@ -28,6 +29,7 @@ export function ProductAutocomplete({
   onChange,
   onSelect,
   inputStyle,
+  containerStyle,
   placeholder,
   placeholderTextColor,
 }: Props) {
@@ -82,7 +84,7 @@ export function ProductAutocomplete({
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, containerStyle]}>
       <TextInput
         style={inputStyle}
         value={value}
