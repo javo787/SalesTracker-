@@ -28,6 +28,8 @@ interface AppContextType {
   setNotificationsEnabled: (enabled: boolean) => Promise<void>;
   defaultMinStockAlert: number;
   setDefaultMinStockAlert: (value: number) => Promise<void>;
+  isPremium: boolean;
+  setIsPremium: (value: boolean) => Promise<void>;
   loading: boolean;
 }
 
@@ -39,6 +41,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [language, setLanguageState] = useState('ru');
   const [notificationsEnabled, setNotificationsEnabledState] = useState(true);
   const [defaultMinStockAlert, setDefaultMinStockAlertState] = useState(0);
+  const [isPremium, setIsPremiumState] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -47,12 +50,13 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const loadSettings = async () => {
     try {
-      const [savedTheme, savedCurrency, savedLang, savedNotifs, savedMinStock] = await Promise.all([
+      const [savedTheme, savedCurrency, savedLang, savedNotifs, savedMinStock, savedPremium] = await Promise.all([
         AsyncStorage.getItem('app_theme'),
         AsyncStorage.getItem('app_currency'),
         AsyncStorage.getItem('app_language'),
         AsyncStorage.getItem('app_notifications_enabled'),
         AsyncStorage.getItem('app_default_min_stock'),
+        AsyncStorage.getItem('app_is_premium'),
       ]);
 
       if (savedTheme) setThemeState(savedTheme as Theme);
@@ -60,6 +64,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (savedLang) setLanguageState(savedLang);
       if (savedNotifs !== null) setNotificationsEnabledState(savedNotifs === 'true');
       if (savedMinStock !== null) setDefaultMinStockAlertState(parseInt(savedMinStock) || 0);
+      if (savedPremium !== null) setIsPremiumState(savedPremium === 'true');
     } catch (e) {
       console.error('Failed to load settings', e);
     } finally {
@@ -96,6 +101,11 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     await AsyncStorage.setItem('app_default_min_stock', String(value));
   };
 
+  const setIsPremium = async (value: boolean) => {
+    setIsPremiumState(value);
+    await AsyncStorage.setItem('app_is_premium', String(value));
+  };
+
   return (
     <AppContext.Provider value={{
       theme,
@@ -105,6 +115,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setNotificationsEnabled,
       defaultMinStockAlert,
       setDefaultMinStockAlert,
+      isPremium,
+      setIsPremium,
       setTheme,
       setCurrency,
       setLanguage,

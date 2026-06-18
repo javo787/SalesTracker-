@@ -10,6 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initDatabase } from './src/db/database';
 import { requestPermissions } from './src/utils/notifications';
 import i18n from './src/i18n/i18n';
+import { adService } from './src/services/adService';
 import { AppContextProvider, useAppContext } from './src/context/AppContext';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
@@ -262,6 +263,7 @@ export default function App() {
   useEffect(() => {
     initDatabase();
     requestPermissions();
+    adService.init();
   }, []);
 
   return (
