@@ -1,12 +1,12 @@
-# Дорожная карта внедрения рекламы (Ads Roadmap)
+# Дорожная карта внедрения рекламы (Yandex Mobile Ads Roadmap)
 
-Этот документ описывает стратегию монетизации через рекламу для приложения SavdoApp, учитывая баланс между доходностью и пользовательским опытом.
+Этот документ описывает стратегию монетизации через рекламу для приложения SavdoApp с использованием **Yandex Mobile Ads SDK**, учитывая баланс между доходностью и пользовательским опытом.
 
 ## 1. Текущее состояние (Status Quo)
-- **Библиотеки**: Не установлены.
-- **Код**: Реализация рекламы полностью отсутствует.
-- **Конфигурация**: В `app.json` отсутствуют идентификаторы AdMob.
-- **Логика**: В `PLAN_AND_ROADMAP.md` намечены общие точки интеграции, но техническая база не заложена.
+- **Библиотеки**: Установлена `yandex-mobile-ads`.
+- **Код**: Создан базовый сервис `adService.ts` и компонент `YandexBanner.tsx`.
+- **Конфигурация**: В `app.json` добавлены настройки для Yandex Mobile Ads.
+- **Логика**: Реализована проверка 7-дневного периода и 30-минутного лимита.
 
 ## 2. Стратегия "Баланс" (User-Centric Strategy)
 Для предотвращения оттока пользователей и обеспечения стабильного дохода приняты следующие правила:
@@ -32,11 +32,11 @@
 
 ## 3. Технические настройки (SDK 56 Compatible)
 
-Для Expo SDK 56 рекомендуется использовать библиотеку `react-native-google-mobile-ads`.
+Для работы с Yandex Mobile Ads в Expo SDK 56 используется библиотека `yandex-mobile-ads`.
 
 ### Зависимости
 ```bash
-npx expo install react-native-google-mobile-ads
+npm install yandex-mobile-ads
 ```
 
 ### Конфигурация app.json
@@ -47,13 +47,7 @@ npx expo install react-native-google-mobile-ads
       "package": "com.savdo.app"
     },
     "plugins": [
-      [
-        "react-native-google-mobile-ads",
-        {
-          "androidAppId": "ca-app-pub-xxxxxxxxxxxxxxxx~yyyyyyyyyy",
-          "iosAppId": "ca-app-pub-xxxxxxxxxxxxxxxx~yyyyyyyyyy"
-        }
-      ]
+      "yandex-mobile-ads"
     ]
   }
 }
@@ -61,9 +55,9 @@ npx expo install react-native-google-mobile-ads
 
 ## 4. План реализации (Roadmap)
 
-### Этап 1: Подготовка инфраструктуры (Сделано: 0%)
-- [ ] Регистрация в Google AdMob и создание рекламных блоков (Banner, Interstitial, Rewarded).
-- [ ] Установка и настройка `react-native-google-mobile-ads`.
+### Этап 1: Подготовка инфраструктуры (Сделано: 100%)
+- [x] Выбор Yandex Mobile Ads SDK как основного провайдера.
+- [x] Установка и настройка `yandex-mobile-ads`.
 - [ ] Создание сервиса `src/services/adService.ts` для централизованного управления логикой (проверка 7-дневного периода, таймер 30 минут).
 
 ### Этап 2: Базовая интеграция
@@ -97,8 +91,8 @@ const canShowAd = () => {
 ```
 
 ## 6. Риски
-- **SDK 56 Compatibility**: Требуется тщательное тестирование в Expo Go (может потребоваться Development Build).
-- **Region Restrictions**: В некоторых регионах (РФ) AdMob не работает, рассмотреть альтернативы (Yandex Ads) или медиацию.
+- **SDK 56 Compatibility**: Требуется использование Development Build (npx expo run:android), так как SDK содержит нативный код.
+- **Ad IDs**: Для тестирования используются демо-айди от Яндекса. Для релиза необходима регистрация в [Партнерском интерфейсе Яндекса](https://partner2.yandex.ru/).
 
 ---
 *Документ обновлен: 2024-05-21*

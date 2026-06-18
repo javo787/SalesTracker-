@@ -37,7 +37,8 @@
         }
       ],
       "expo-font",
-      "expo-asset"
+      "expo-asset",
+      "yandex-mobile-ads"
     ],
     "extra": {
       "eas": {
