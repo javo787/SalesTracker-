@@ -10,11 +10,13 @@ import { addProduct, updateProduct, deleteProduct, getProducts } from '../db/dat
 import { useAppContext } from '../context/AppContext';
 import StockOperationModal from '../components/stock/StockOperationModal';
 import StockHistorySheet from '../components/stock/StockHistorySheet';
+import { ProductAutocomplete } from '../components/sales/ProductAutocomplete';
 
 export default function ProductsScreen() {
   const { t } = useTranslation();
   const { theme, currency, defaultMinStockAlert } = useAppContext();
   const [products, setProducts] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -42,6 +44,14 @@ export default function ProductsScreen() {
   const loadProducts = () => setProducts(getProducts());
 
   useFocusEffect(useCallback(() => { loadProducts(); }, []));
+
+  const filteredProducts = useMemo(() => {
+    if (!searchQuery.trim()) return products;
+    const query = searchQuery.toLowerCase();
+    return products.filter(p =>
+      p.name.toLowerCase().includes(query)
+    );
+  }, [products, searchQuery]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -134,10 +144,33 @@ export default function ProductsScreen() {
   const themeStyles = isDark ? darkStyles : lightStyles;
 
   return (
+    <View style={[styles.container, themeStyles.container]}>
+      {/* Search Bar with Autocomplete Suggestions */}
+      <View style={[styles.searchContainer, themeStyles.card]}>
+        <Ionicons name="search-outline" size={20} color={isDark ? '#888' : '#aaa'} style={styles.searchIcon} />
+        <ProductAutocomplete
+          containerStyle={styles.searchAutocompleteContainer}
+          inputStyle={[styles.searchInput, themeStyles.text]}
+          placeholder={t('products.searchPlaceholder')}
+          placeholderTextColor={isDark ? '#888' : '#aaa'}
+          value={searchQuery}
+          onChange={setSearchQuery}
+          onSelect={(p) => {
+            setSearchQuery(p.name);
+          }}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearIcon}>
+            <Ionicons name="close-circle" size={20} color={isDark ? '#888' : '#aaa'} />
+          </TouchableOpacity>
+        )}
+      </View>
+
     <ScrollView
       ref={scrollViewRef}
-      style={[styles.container, themeStyles.container]}
+      style={styles.flex}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      keyboardShouldPersistTaps="handled"
     >
       <TouchableOpacity
         style={[styles.addBtn, editingId ? { backgroundColor: '#FF9800' } : null]}
@@ -160,12 +193,34 @@ export default function ProductsScreen() {
           <Text style={[styles.formTitle, themeStyles.text]}>{editingId ? 'Редактировать товар' : 'Новый товар'}</Text>
 
           <Text style={[styles.label, themeStyles.text]}>{t('addSale.productName')} *</Text>
-          <TextInput
-            style={[styles.input, themeStyles.input]}
+          <ProductAutocomplete
+            inputStyle={[styles.input, themeStyles.input]}
             placeholder={t('addSale.productPlaceholder')}
             placeholderTextColor={isDark ? '#888' : '#aaa'}
             value={name}
-            onChangeText={setName}
+            onChange={setName}
+            onSelect={(p) => {
+              setName(p.name);
+              if (p.source === 'catalog' && p.id) {
+                // If it's already in catalog, we might want to switch to editing it
+                const existing = products.find(prod => String(prod.id) === String(p.id));
+                if (existing) {
+                  setEditingId(existing.id);
+                  setBuyPrice(String(existing.buy_price));
+                  setSellPrice(String(existing.sell_price));
+                  setStock(String(existing.stock));
+                  setMinStockAlert(String(existing.min_stock_alert || 0));
+                  setBaseUnit(existing.base_unit || 'шт');
+                  setHasPackages(existing.has_packages === 1);
+                  setPackageName(existing.package_name || '');
+                  setUnitsPerPackage(String(existing.units_per_package || 1));
+                  setShowAdvanced(existing.has_packages === 1 || existing.base_unit !== 'шт');
+                }
+              } else if (p.source === 'history') {
+                setBuyPrice(String(p.purchasePrice || ''));
+                setSellPrice(String(p.lastSalePrice || ''));
+              }
+            }}
           />
 
           <View style={styles.row}>
@@ -291,16 +346,16 @@ export default function ProductsScreen() {
       )}
 
       <Text style={[styles.sectionTitle, themeStyles.text]}>
-        Все товары ({products.length})
+        {searchQuery ? `Найдено: ${filteredProducts.length}` : `Все товары (${products.length})`}
       </Text>
 
-      {products.length === 0 ? (
+      {filteredProducts.length === 0 ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyText}>Товаров пока нет</Text>
-          <Text style={styles.emptyHint}>Добавь первый товар выше</Text>
+          <Text style={styles.emptyText}>{searchQuery ? 'Ничего не найдено' : 'Товаров пока нет'}</Text>
+          <Text style={styles.emptyHint}>{searchQuery ? 'Попробуй другой запрос' : 'Добавь первый товар выше'}</Text>
         </View>
       ) : (
-        products.map((p: any) => (
+        filteredProducts.map((p: any) => (
           <View key={String(p.id)} style={[styles.productItem, themeStyles.card]}>
             <TouchableOpacity
               style={styles.productMain}
@@ -390,6 +445,7 @@ export default function ProductsScreen() {
         </>
       )}
     </ScrollView>
+    </View>
   );
 }
 
@@ -409,6 +465,38 @@ const darkStyles = StyleSheet.create({
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  flex: { flex: 1 },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    margin: 16,
+    marginBottom: 8,
+    paddingLeft: 12,
+    paddingRight: 8,
+    borderRadius: 12,
+    height: 48,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+    zIndex: 100,
+  },
+  searchIcon: {
+    marginRight: 4,
+  },
+  searchAutocompleteContainer: {
+    flex: 1,
+    zIndex: 1000,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    height: '100%',
+  },
+  clearIcon: {
+    padding: 4,
+  },
   addBtn: {
     margin: 16, backgroundColor: '#1D9E75',
     borderRadius: 12, padding: 14, alignItems: 'center',
