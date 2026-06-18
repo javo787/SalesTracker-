@@ -10,7 +10,7 @@ interface YandexBannerProps {
 
 export default function YandexBanner({ size = BannerAdSize.STICKY_728x90 }: YandexBannerProps) {
   const [shouldShow, setShouldShow] = useState(false);
-  const { isPremium } = useAppContext() as any; // Предполагаем наличие в контексте
+  const { isPremium } = useAppContext();
 
   useEffect(() => {
     checkVisibility();
@@ -28,7 +28,10 @@ export default function YandexBanner({ size = BannerAdSize.STICKY_728x90 }: Yand
       <BannerAd
         adUnitId={adService.getBannerId()}
         size={size}
-        onAdLoaded={() => console.log('Banner loaded')}
+        onAdLoaded={() => {
+          console.log('Banner loaded');
+          adService.recordAdShown();
+        }}
         onAdFailedToLoad={(error: any) => console.error('Banner failed to load', error)}
       />
     </View>
