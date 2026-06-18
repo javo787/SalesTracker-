@@ -15,7 +15,7 @@ import { AppContextProvider, useAppContext } from './src/context/AppContext';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 
-import HomeScreen from './src/screens/HomeScreen';
+import HomeScreen from './src/screens/HomeScreen'; 
 import AuthScreen from './src/screens/AuthScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import AddSaleScreen from './src/screens/AddSaleScreen';
@@ -39,6 +39,7 @@ function MainTabs() {
 
   return (
     <Tab.Navigator
+      id="MainTabs"
       screenOptions={({ navigation }) => ({
         tabBarActiveTintColor: '#1D9E75',
         tabBarInactiveTintColor: isDark ? '#aaa' : '#888',
@@ -139,6 +140,7 @@ function DrawerNavigator() {
 
   return (
     <Drawer.Navigator
+      id="MainDrawer"
       drawerContent={(props) => <CustomDrawerContent {...props} />}
       screenOptions={{
         drawerPosition: 'right',
@@ -236,7 +238,7 @@ function AppContent() {
 
   return (
     <NavigationContainer>
-      <Stack.Navigator>
+      <Stack.Navigator id="RootStack">
         <Stack.Screen name="Main" component={DrawerNavigator} options={{ headerShown: false }} />
         {/* Keeping screens in stack for deeper navigation if needed, or if navigated from elsewhere */}
         <Stack.Screen
