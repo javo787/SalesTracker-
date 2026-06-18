@@ -89,6 +89,7 @@ const resources = {
         backupDesc: 'Сохраните копию всех ваших товаров, продаж и расходов в файл',
         backupExport: 'Экспортировать данные',
         privacyPolicy: 'Политика конфиденциальности',
+        rateApp: 'Оценить приложение',
         build: 'Сборка',
       },
       home: {
@@ -363,6 +364,7 @@ const resources = {
         backupDesc: 'Нусхаи ҳамаи молҳо, фурӯш ва хароҷоти худро дар файл захира кунед',
         backupExport: 'Экспорти маълумот',
         privacyPolicy: 'Сиёсати махфият',
+        rateApp: 'Баҳо додан ба барнома',
         build: 'Версияи сохтмон',
       },
       home: {
@@ -637,6 +639,7 @@ const resources = {
         backupDesc: 'Barcha mahsulotlar, sotuvlar va xarajatlaringiz nusxasini faylga saqlang',
         backupExport: 'Ma\'lumotlarni eksport qilish',
         privacyPolicy: 'Maxfiylik siyosati',
+        rateApp: 'Ilovani baholash',
         build: 'Versiya kodi',
       },
       home: {

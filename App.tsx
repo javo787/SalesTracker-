@@ -1,7 +1,7 @@
 import 'react-native-gesture-handler';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { View, ActivityIndicator, TouchableOpacity } from 'react-native';
-import { NavigationContainer, DrawerActions } from '@react-navigation/native';
+import { NavigationContainer, DrawerActions, useNavigationContainerRef } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createDrawerNavigator } from '@react-navigation/drawer';
@@ -11,6 +11,7 @@ import { initDatabase } from './src/db/database';
 import { requestPermissions } from './src/utils/notifications';
 import i18n from './src/i18n/i18n';
 import { adService } from './src/services/adService';
+import { analyticsService } from './src/services/analyticsService';
 import { AppContextProvider, useAppContext } from './src/context/AppContext';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
@@ -235,9 +236,25 @@ function AppContent() {
   }
 
   const { t } = useTranslation();
+  const navigationRef = useNavigationContainerRef();
+  const routeNameRef = useRef<string>(undefined);
 
   return (
-    <NavigationContainer>
+    <NavigationContainer
+      ref={navigationRef}
+      onReady={() => {
+        routeNameRef.current = (navigationRef as any).getCurrentRoute()?.name;
+      }}
+      onStateChange={async () => {
+        const previousRouteName = routeNameRef.current;
+        const currentRouteName = (navigationRef as any).getCurrentRoute()?.name;
+
+        if (previousRouteName !== currentRouteName && currentRouteName) {
+          await analyticsService.logScreenView(currentRouteName);
+        }
+        routeNameRef.current = currentRouteName;
+      }}
+    >
       <Stack.Navigator id="RootStack">
         <Stack.Screen name="Main" component={DrawerNavigator} options={{ headerShown: false }} />
         {/* Keeping screens in stack for deeper navigation if needed, or if navigated from elsewhere */}

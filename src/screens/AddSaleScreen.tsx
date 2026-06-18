@@ -7,6 +7,8 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import { addSale, getProducts } from '../db/database';
+import { analyticsService } from '../services/analyticsService';
+import { reviewService } from '../services/reviewService';
 import VoiceRecorder from '../components/VoiceRecorder';
 import { useAppContext } from '../context/AppContext';
 import GeminiApi from '../utils/geminiApi';
@@ -83,6 +85,7 @@ export default function AddSaleScreen(/* props */) {
     }
 
     setProcessing(true);
+    analyticsService.logEvent('ai_usage', { type: 'voice_sale', language: language });
     try {
       const data = await gemini.generateContent({
         contents: [{
@@ -169,6 +172,14 @@ export default function AddSaleScreen(/* props */) {
       bPrice,
       note
     );
+
+    analyticsService.logEvent('sale_added', {
+      product_id: selectedProduct?.id || 'none',
+      quantity: qty,
+      profit: profit,
+      revenue: sPrice * qty
+    });
+    reviewService.incrementSalesAndCheck();
 
     setLastSaved({
       name: productName,

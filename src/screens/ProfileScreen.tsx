@@ -4,6 +4,7 @@ import {
   Image, TextInput, Alert, Clipboard, ActivityIndicator, Dimensions,
   Modal
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
