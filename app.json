@@ -38,7 +38,7 @@
       ],
       "expo-font",
       "expo-asset",
-      "yandex-mobile-ads"
+      "@benfurkankilic/expo-yandex-mobile-ads"
     ],
     "extra": {
       "eas": {

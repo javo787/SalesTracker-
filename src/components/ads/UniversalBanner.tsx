@@ -16,13 +16,6 @@ export default function UniversalBanner() {
 
   const loadAds = async () => {
     try {
-      const canShow = await adService.canShowAd(isPremium);
-      if (!canShow) {
-        setDirectAd(null);
-        setLoading(false);
-        return;
-      }
-
       const activeDirect = await adService.getActiveDirectAd();
       setDirectAd(activeDirect);
     } catch (e) {

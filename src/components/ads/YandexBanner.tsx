@@ -8,7 +8,7 @@ interface YandexBannerProps {
   size?: any; // BannerAdSize
 }
 
-export default function YandexBanner({ size = BannerAdSize.STICKY_728x90 }: YandexBannerProps) {
+export default function YandexBanner({ size = BannerAdSize.BANNER_320x50 }: YandexBannerProps) {
   const [shouldShow, setShouldShow] = useState(false);
   const { isPremium } = useAppContext();
 

@@ -54,7 +54,7 @@ npm install yandex-mobile-ads
       "package": "com.savdo.app"
     },
     "plugins": [
-      "yandex-mobile-ads"
+      "@benfurkankilic/expo-yandex-mobile-ads"
     ]
   }
 }
@@ -104,7 +104,7 @@ const canShowAd = () => {
 
 ## 6. Риски
 - **SDK 56 Compatibility**: Требуется использование Development Build (npx expo run:android), так как SDK содержит нативный код.
-- **Ad IDs**: Для тестирования используются демо-айди от Яндекса. Для релиза необходима регистрация в [Партнерском интерфейсе Яндекса](https://partner2.yandex.ru/).
+- **Ad IDs**: Рабочие идентификаторы (`R-M-19465120-X`) интегрированы в `adService.ts`.
 
 ---
 *Документ обновлен: 2024-05-21*

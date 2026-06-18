@@ -1,8 +1,12 @@
 import { MobileAds } from 'yandex-mobile-ads';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Тестовые ID от Яндекса
-const TEST_BANNER_ID = 'demo-banner-yandex';
+// Рабочие ID от Яндекса
+const AD_UNIT_IDS = {
+  BANNER: 'R-M-19465120-1',
+  INTERSTITIAL: 'R-M-19465120-2',
+  REWARDED: 'R-M-19465120-3',
+};
 
 const STORAGE_KEYS = {
   LAST_AD_SHOWN: 'last_ad_shown_timestamp',
@@ -86,7 +90,15 @@ class AdService {
   }
 
   getBannerId() {
-    return TEST_BANNER_ID;
+    return AD_UNIT_IDS.BANNER;
+  }
+
+  getInterstitialId() {
+    return AD_UNIT_IDS.INTERSTITIAL;
+  }
+
+  getRewardedId() {
+    return AD_UNIT_IDS.REWARDED;
   }
 }
 

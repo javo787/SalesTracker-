@@ -1,6 +1,6 @@
 import React from 'react';
 import { TouchableOpacity, Image, StyleSheet, Linking, Text, View } from 'react-native';
-import { DirectAdConfig } from '../../services/adService';
+import { DirectAdConfig, adService } from '../../services/adService';
 
 interface DirectBannerProps {
   config: DirectAdConfig;
