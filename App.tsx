@@ -205,6 +205,9 @@ function DrawerNavigator() {
 function AppContent() {
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
   const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
+  const { t } = useTranslation();
+  const navigationRef = useNavigationContainerRef();
+  const routeNameRef = useRef<string>(undefined);
 
   useEffect(() => {
     checkOnboarding();
@@ -234,10 +237,6 @@ function AppContent() {
   if (showOnboarding) {
     return <OnboardingScreen onFinish={() => setShowOnboarding(false)} />;
   }
-
-  const { t } = useTranslation();
-  const navigationRef = useNavigationContainerRef();
-  const routeNameRef = useRef<string>(undefined);
 
   return (
     <NavigationContainer
