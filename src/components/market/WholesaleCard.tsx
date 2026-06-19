@@ -40,7 +40,7 @@ export default function WholesaleCard({ item, onPress }: Props) {
         </Text>
 
         <View style={styles.tagContainer}>
-          {item.categories.slice(0, 3).map((cat, i) => (
+          {item.categories?.slice(0, 3).map((cat, i) => (
             <View key={i} style={[styles.tag, isDark ? styles.tagDark : styles.tagLight]}>
               <Text style={styles.tagText}>{t(`wholesale.categories.${cat}`)}</Text>
             </View>
@@ -51,12 +51,14 @@ export default function WholesaleCard({ item, onPress }: Props) {
           <View style={styles.info}>
             <Ionicons name="cart-outline" size={14} color="#1D9E75" />
             <Text style={styles.footerText}>
-              {t('wholesale.minOrder', { amount: item.minOrderAmount || 0, currency: item.currency })}
+              {item.minOrderAmount
+                ? t('wholesale.minOrder', { amount: item.minOrderAmount, currency: item.currency })
+                : t('common.notSpecified') || 'Not specified'}
             </Text>
           </View>
           <View style={styles.info}>
             <Ionicons name="location-outline" size={14} color="#888" />
-            <Text style={styles.footerText} numberOfLines={1}>{item.cities.join(', ')}</Text>
+            <Text style={styles.footerText} numberOfLines={1}>{item.cities?.join(', ') || t('common.notSpecified')}</Text>
           </View>
         </View>
       </View>

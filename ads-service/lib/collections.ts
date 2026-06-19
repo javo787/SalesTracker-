@@ -23,11 +23,25 @@ export async function getNewsCollection() {
 }
 
 /**
+ * ID STRATEGY NOTE:
+ * - classifieds: Uses UUID strings for _id to simplify client-side generation
+ *   and ensure portability across potential future sync mechanisms.
+ * - other collections (wholesale, ads, news): Use standard MongoDB ObjectIds.
+ */
+
+/**
  * Create all required indexes on first run.
  * Call this once from an init script or the first API request.
  */
 export async function ensureIndexes() {
   const db = await getDb();
+
+  // Cleanup old indexes if necessary
+  try {
+    await db.collection('news_feed').dropIndex('ttl_news');
+  } catch (e) {
+    // Index might not exist, ignore
+  }
 
   // Classifieds: TTL 30 days + compound query index
   await db.collection('classifieds').createIndexes([
@@ -41,9 +55,9 @@ export async function ensureIndexes() {
     { key: { isActive: 1, isPaid: 1, paidUntil: 1, priority: -1 }, name: 'query_wholesale' },
   ]);
 
-  // News: TTL 7 days
+  // News: TTL 14 days (increased from 7 to buffer cron failures)
   await db.collection('news_feed').createIndexes([
-    { key: { generatedAt: 1 }, expireAfterSeconds: 604800, name: 'ttl_news' },
-    { key: { date: -1 }, name: 'date_news' },
+    { key: { generatedAt: 1 }, expireAfterSeconds: 1209600, name: 'ttl_news_v2' },
+    { key: { date: -1 }, unique: true, name: 'date_news_unique' },
   ]);
 }

@@ -91,7 +91,7 @@ export default function WholesaleDetailScreen() {
           <Text style={[styles.company, isDark ? styles.textWhite : styles.textBlack]}>{item.companyName}</Text>
 
           <View style={styles.tagContainer}>
-            {item.categories.map((cat, i) => (
+            {item.categories?.map((cat, i) => (
               <View key={i} style={[styles.tag, isDark ? styles.tagDark : styles.tagLight]}>
                 <Text style={styles.tagText}>{t(`wholesale.categories.${cat}`)}</Text>
               </View>
@@ -100,8 +100,10 @@ export default function WholesaleDetailScreen() {
 
           <View style={styles.priceSection}>
             <View style={styles.priceRow}>
-              <Text style={styles.priceLabel}>{t('wholesale.minOrder', { amount: '', currency: '' }).replace(': ', '')}</Text>
-              <Text style={styles.priceValue}>{item.minOrderAmount} {item.currency}</Text>
+              <Text style={styles.priceLabel}>{t('wholesale.minOrder', { amount: '', currency: '' }).split(':')[0]}</Text>
+              <Text style={styles.priceValue}>
+                {item.minOrderAmount ? `${item.minOrderAmount} ${item.currency}` : t('common.notSpecified')}
+              </Text>
             </View>
             {item.priceRange && (
               <View style={styles.priceRow}>

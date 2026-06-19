@@ -234,7 +234,6 @@ export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
 
       try {
         const apiUrl = process.env.EXPO_PUBLIC_ADS_API_URL;
-        const fallbackApiKey = process.env.EXPO_PUBLIC_GROQ_API_KEY;
 
         const transcribeUrl = apiUrl
           ? `${apiUrl}/api/proxy/transcribe`
@@ -266,9 +265,6 @@ export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
         // FileSystem.uploadAsync — единственный надёжный способ отправить
         // бинарный файл в React Native / Hermes без Blob API
         const uploadHeaders: Record<string, string> = {};
-        if (!apiUrl && fallbackApiKey) {
-          uploadHeaders['Authorization'] = `Bearer ${fallbackApiKey}`;
-        }
 
         const result = await FileSystem.uploadAsync(transcribeUrl, uri, {
           fieldName: 'file',

@@ -54,7 +54,7 @@ async function fetchNewsFromDuckDuckGo(): Promise<TavilyResult[]> {
   return results;
 }
 
-async function processWithGroq(rawArticles: TavilyResult[]): Promise<any[]> {
+async function processWithGroq(rawArticles: TavilyResult[]): Promise<{ articles: any[], model: string }> {
   const groqKey = process.env.GROQ_API_KEY;
   if (!groqKey) throw new Error('GROQ_API_KEY not set');
 
@@ -87,24 +87,36 @@ ${context}
   }
 ]`;
 
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${groqKey}` },
-    body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.3,
-      max_tokens: 1500,
-    }),
-  });
+  const models = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
+  let lastError: any = null;
 
-  if (!response.ok) throw new Error(`Groq error: ${response.status}`);
-  const data = await response.json();
-  const text = data.choices?.[0]?.message?.content || '[]';
+  for (const model of models) {
+    try {
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${groqKey}` },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.3,
+          max_tokens: 1500,
+        }),
+      });
 
-  // Safe parse — strip markdown fences if present
-  const cleaned = text.replace(/```json|```/g, '').trim();
-  return JSON.parse(cleaned);
+      if (!response.ok) throw new Error(`Groq error [${model}]: ${response.status}`);
+      const data = await response.json();
+      const text = data.choices?.[0]?.message?.content || '[]';
+
+      // Safe parse — strip markdown fences if present
+      const cleaned = text.replace(/```json|```/g, '').trim();
+      return { articles: JSON.parse(cleaned), model };
+    } catch (err) {
+      console.warn(`Groq model ${model} failed, trying next...`, err);
+      lastError = err;
+    }
+  }
+
+  throw lastError || new Error('All Groq models failed');
 }
 
 // GET /api/cron/news — called by Vercel Cron at 03:00 UTC daily
@@ -140,16 +152,22 @@ export async function GET(request: Request) {
     }
 
     // 2. Process with Groq AI
-    const articles = await processWithGroq(rawArticles);
+    const { articles, model } = await processWithGroq(rawArticles);
 
-    // 3. Save to MongoDB
-    await col.insertOne({
+    // 3. Save to MongoDB with upsert to prevent race condition duplicates
+    const doc = {
       date: todayStr,
       articles,
       generatedAt: new Date(),
-      model: 'llama-3.3-70b-versatile',
+      model,
       rawCount: rawArticles.length,
-    });
+    };
+
+    await col.updateOne(
+      { date: todayStr },
+      { $setOnInsert: doc },
+      { upsert: true }
+    );
 
     return NextResponse.json({ success: true, date: todayStr, articlesCount: articles.length });
   } catch (e: any) {
