@@ -11,6 +11,8 @@ import { useAppContext } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { getSmartTip } from '../utils/smartTips';
 import CurrencyConversionBanner from '../components/CurrencyConversionBanner';
+import WholesalePromoStrip from '../components/market/WholesalePromoStrip';
+import NewsPreviewCard from '../components/market/NewsPreviewCard';
 
 function SaleListItem({ sale, onDelete, isDark, currency, t, i18n, themeStyles }: any) {
   const translateX = useRef(new RNAnimated.Value(0)).current;
@@ -283,6 +285,9 @@ export default function HomeScreen() {
           themeStyles={themeStyles}
         />
       </View>
+
+      <WholesalePromoStrip />
+      <NewsPreviewCard />
 
       {/* Последние продажи */}
       <Text style={[styles.sectionTitle, themeStyles.text]}>{t('home.recentSales')}</Text>

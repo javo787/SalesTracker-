@@ -27,6 +27,11 @@ import SettingsScreen from './src/screens/SettingsScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import CurrencyScreen from './src/screens/CurrencyScreen';
 import ExpensesScreen from './src/screens/ExpensesScreen';
+import ClassifiedsScreen from './src/screens/ClassifiedsScreen';
+import ClassifiedDetailScreen from './src/screens/ClassifiedDetailScreen';
+import WholesaleScreen from './src/screens/WholesaleScreen';
+import WholesaleDetailScreen from './src/screens/WholesaleDetailScreen';
+import NewsScreen from './src/screens/NewsScreen';
 import CustomDrawerContent from './src/components/CustomDrawerContent';
 
 const Tab = createBottomTabNavigator();
@@ -191,6 +196,30 @@ function DrawerNavigator() {
         }}
       />
       <Drawer.Screen
+        name="Classifieds"
+        component={ClassifiedsScreen}
+        options={{
+          drawerLabel: t('classifieds.title'),
+          drawerIcon: ({ color }) => <Ionicons name="storefront-outline" size={22} color={color} />,
+        }}
+      />
+      <Drawer.Screen
+        name="Wholesale"
+        component={WholesaleScreen}
+        options={{
+          drawerLabel: t('wholesale.title'),
+          drawerIcon: ({ color }) => <Ionicons name="cube-outline" size={22} color={color} />,
+        }}
+      />
+      <Drawer.Screen
+        name="News"
+        component={NewsScreen}
+        options={{
+          drawerLabel: t('news.title'),
+          drawerIcon: ({ color }) => <Ionicons name="newspaper-outline" size={22} color={color} />,
+        }}
+      />
+      <Drawer.Screen
         name="Settings"
         component={SettingsScreen}
         options={{
@@ -271,6 +300,16 @@ function AppContent() {
           name="Expenses"
           component={ExpensesScreen}
           options={{ title: t('tabs.expenses'), headerStyle: { backgroundColor: '#1D9E75' }, headerTintColor: '#fff' }}
+        />
+        <Stack.Screen
+          name="ClassifiedDetail"
+          component={ClassifiedDetailScreen}
+          options={{ title: t('classifieds.title'), headerStyle: { backgroundColor: '#1D9E75' }, headerTintColor: '#fff' }}
+        />
+        <Stack.Screen
+          name="WholesaleDetail"
+          component={WholesaleDetailScreen}
+          options={{ title: t('wholesale.title'), headerStyle: { backgroundColor: '#1D9E75' }, headerTintColor: '#fff' }}
         />
       </Stack.Navigator>
     </NavigationContainer>
