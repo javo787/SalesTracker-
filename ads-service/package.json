@@ -10,15 +10,18 @@
     "init-db": "node scripts/init-db.js"
   },
   "dependencies": {
+    "cloudinary": "^2.5.0",
     "mongodb": "^6.3.0",
     "next": "14.2.3",
     "react": "^18",
-    "react-dom": "^18"
+    "react-dom": "^18",
+    "uuid": "^9.0.0"
   },
   "devDependencies": {
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@types/uuid": "^9.0.0",
     "dotenv": "^16.4.5",
     "typescript": "^5"
   }
