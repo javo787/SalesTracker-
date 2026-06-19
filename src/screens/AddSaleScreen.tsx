@@ -90,23 +90,33 @@ export default function AddSaleScreen(/* props */) {
       const data = await gemini.generateContent({
         contents: [{
           parts: [{
-            text: `Ты помощник торговца в Таджикистане. Из фразы извлеки данные о продаже.
-Фраза: "${text}"
+            text: `Act as a professional retail assistant for merchants in Central Asia (Tajikistan/Uzbekistan).
+Your task is to accurately extract sales data from voice transcripts.
 
-Верни ТОЛЬКО JSON без markdown:
+TRANSCRIPT: "${text}"
+
+RULES:
+1. Identify product name, sale price (sell_price), purchase price (buy_price), and quantity.
+2. If the user mentions total "revenue" (выручка/савдо) and "profit" (прибыль/фоида), include them.
+3. Handle multilingual input (Russian, Tajik, Uzbek).
+4. Return ONLY a pure JSON object. No markdown, no explanations.
+
+JSON STRUCTURE:
 {
-  "product_name": "название товара или пустая строка",
-  "sell_price": число или 0,
-  "buy_price": число или 0,
-  "quantity": число или 1,
-  "revenue": общая выручка если упомянута или 0,
-  "profit": прибыль если упомянута или 0
+  "product_name": string (capitalized),
+  "sell_price": number (0 if unknown),
+  "buy_price": number (0 if unknown),
+  "quantity": number (1 if unknown),
+  "revenue": number (0 if unknown),
+  "profit": number (0 if unknown)
 }
 
-Примеры:
-"сегодня сработал 2000 доход 400" → {"product_name":"","sell_price":0,"buy_price":0,"quantity":1,"revenue":2000,"profit":400}
-"продал 5 кг помидор по 8 сомони" → {"product_name":"помидоры","sell_price":8,"buy_price":0,"quantity":5,"revenue":40,"profit":0}
-"мука 2 мешка продал по 120 купил по 90" → {"product_name":"мука","sell_price":120,"buy_price":90,"quantity":2,"revenue":240,"profit":60}`
+FEW-SHOT EXAMPLES:
+"сегодня савдо 5000 фоида 1200" -> {"product_name":"","sell_price":0,"buy_price":0,"quantity":1,"revenue":5000,"profit":1200}
+"бист кило пиёз фурухтум бо дах сомони" -> {"product_name":"Пиёз","sell_price":10,"buy_price":0,"quantity":20,"revenue":200,"profit":0}
+"продал 3 пачки чая по 15 купил по 11" -> {"product_name":"Чай","sell_price":15,"buy_price":11,"quantity":3,"revenue":45,"profit":12}
+"десять коробок колы по 120 сомони" -> {"product_name":"Кола","sell_price":120,"buy_price":0,"quantity":10,"revenue":1200,"profit":0}
+"якешба 50 сомон фоида монд" -> {"product_name":"","sell_price":0,"buy_price":0,"quantity":1,"revenue":0,"profit":50}`
           }]
         }]
       });
