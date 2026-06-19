@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getClassifiedsCollection } from '../../../../lib/collections';
 import { deleteImage } from '../../../../lib/cloudinary';
+import jwt from 'jsonwebtoken';
 
 export const runtime = 'nodejs';
 
@@ -23,15 +24,40 @@ export async function GET(request: Request, { params }: { params: { id: string }
 }
 
 // DELETE /api/classifieds/:id — soft delete, cleanup Cloudinary
-// Body: { userId } — must match owner
+// Header: Authorization: Bearer <token>
 export async function DELETE(request: Request, { params }: { params: { id: string } }) {
   try {
-    const body = await request.json();
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const token = authHeader.split(' ')[1];
+    const jwtSecret = process.env.JWT_SECRET;
+
+    if (!jwtSecret) {
+      console.error('JWT_SECRET is not configured');
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+    }
+
+    let userId: string | null = null;
+
+    try {
+      const decoded = jwt.verify(token, jwtSecret) as any;
+      userId = decoded.userId;
+    } catch (err) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+
     const col = await getClassifiedsCollection();
 
     const item = await col.findOne({ _id: params.id as any });
     if (!item) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    if (item.userId && item.userId !== body.userId) {
+
+    // Authorization: only owner can delete.
+    // If userId does not match, return 403. This also covers guest posts (null userId),
+    // which cannot be deleted via this endpoint by anyone else (or at all if userId is null).
+    if (item.userId !== userId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -38,11 +38,19 @@ export default function ClassifiedsScreen() {
   const isDark = theme === 'dark';
 
   const [selectedCategory, setSelectedCategory] = useState<ClassifiedCategory | 'all'>('all');
+  const [debouncedCategory, setDebouncedCategory] = useState<ClassifiedCategory | 'all'>('all');
   const [modalVisible, setModalVisible] = useState(false);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedCategory(selectedCategory);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [selectedCategory]);
 
   const { classifieds, loading, refreshing, refresh, loadMore, hasMore } = useClassifieds(
     undefined,
-    selectedCategory === 'all' ? undefined : selectedCategory
+    debouncedCategory === 'all' ? undefined : debouncedCategory
   );
 
   const renderHeader = () => (

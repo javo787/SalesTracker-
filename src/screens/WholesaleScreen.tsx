@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -34,9 +34,17 @@ export default function WholesaleScreen() {
   const isDark = theme === 'dark';
 
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [debouncedCategory, setDebouncedCategory] = useState('all');
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedCategory(selectedCategory);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [selectedCategory]);
 
   const { ads, loading, refreshing, refresh } = useWholesale(
-    selectedCategory === 'all' ? undefined : selectedCategory
+    debouncedCategory === 'all' ? undefined : debouncedCategory
   );
 
   const renderHeader = () => (

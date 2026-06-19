@@ -19,7 +19,18 @@ export async function GET() {
 export async function POST(request: Request) {
   if (!checkAuth()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const body = await request.json();
-  const { images = [], ...rest } = body;
+  const { images = [], companyName, categories, cities, ...rest } = body;
+
+  // Validation
+  if (!companyName?.trim()) {
+    return NextResponse.json({ error: 'companyName is required' }, { status: 400 });
+  }
+  if (!Array.isArray(categories) || categories.length === 0) {
+    return NextResponse.json({ error: 'categories must be a non-empty array' }, { status: 400 });
+  }
+  if (!Array.isArray(cities) || cities.length === 0) {
+    return NextResponse.json({ error: 'cities must be a non-empty array' }, { status: 400 });
+  }
 
   const imageUrls: string[] = [];
   const imagePublicIds: string[] = [];
@@ -36,6 +47,9 @@ export async function POST(request: Request) {
 
   const doc = {
     ...rest,
+    companyName: companyName.trim(),
+    categories,
+    cities,
     images: imageUrls,
     imagePublicIds,
     isActive: true,
