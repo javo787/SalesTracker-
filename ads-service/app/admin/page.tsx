@@ -38,7 +38,7 @@ export default function AdminPage() {
     }
   };
 
-  const handleAddAd = async (e) => {
+  const handleAddAd = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const res = await fetch('/api/admin/ads', {
@@ -59,7 +59,7 @@ export default function AdminPage() {
     }
   };
 
-  const toggleActive = async (ad) => {
+  const toggleActive = async (ad: any) => {
     try {
       const res = await fetch(`/api/admin/ads/${ad._id}`, {
         method: 'PATCH',
@@ -75,7 +75,7 @@ export default function AdminPage() {
     }
   };
 
-  const deleteAd = async (id) => {
+  const deleteAd = async (id: string) => {
     if (!confirm('Удалить навсегда?')) return;
     try {
       const res = await fetch(`/api/admin/ads/${id}`, {
