@@ -13,6 +13,9 @@ const STORAGE_KEYS = {
 
 export interface DirectAdConfig {
   id: string;
+  _id?: string;
+  title?: string;
+  subtitle?: string;
   imageUrl: string;
   targetUrl: string;
   active: boolean;
@@ -22,13 +25,9 @@ export interface DirectAdConfig {
 class AdService {
   private isInitialized = false;
 
-  private directAd: DirectAdConfig | null = {
-    id: 'alif-bank-sponsor',
-    imageUrl: 'https://alif.tj/assets/images/logo.png',
-    targetUrl: 'https://alif.tj/business-loans',
-    active: true,
-    priority: 100,
-  };
+  private directAds: DirectAdConfig[] = [];
+  private ADS_CACHE_KEY = 'direct_ads_cache';
+  private CACHE_TTL = 6 * 60 * 60 * 1000; // 6 hours
 
   async init() {
     if (this.isInitialized) return;
@@ -63,11 +62,65 @@ class AdService {
     return true;
   }
 
+  private async refreshDirectAds() {
+    const apiUrl = process.env.EXPO_PUBLIC_ADS_API_URL;
+    if (!apiUrl) return;
+
+    try {
+      const response = await fetch(`${apiUrl}/api/ads`);
+      if (response.ok) {
+        const ads = await response.json();
+        this.directAds = ads;
+        await AsyncStorage.setItem(this.ADS_CACHE_KEY, JSON.stringify({
+          data: ads,
+          timestamp: Date.now()
+        }));
+      }
+    } catch (e) {
+      console.warn('Failed to refresh ads from server', e);
+      // Fallback to cache
+      const cached = await AsyncStorage.getItem(this.ADS_CACHE_KEY);
+      if (cached) {
+        const { data } = JSON.parse(cached);
+        this.directAds = data;
+      }
+    }
+  }
+
   async getActiveDirectAd(): Promise<DirectAdConfig | null> {
-    if (this.directAd && this.directAd.active) {
-      return this.directAd;
+    // Check cache first
+    if (this.directAds.length === 0) {
+      const cached = await AsyncStorage.getItem(this.ADS_CACHE_KEY);
+      if (cached) {
+        const { data, timestamp } = JSON.parse(cached);
+        this.directAds = data;
+
+        // Refresh in background if expired
+        if (Date.now() - timestamp > this.CACHE_TTL) {
+          this.refreshDirectAds();
+        }
+      } else {
+        await this.refreshDirectAds();
+      }
+    }
+
+    if (this.directAds.length > 0) {
+      // Return highest priority active ad
+      const activeAds = this.directAds.filter(ad => ad.active);
+      return activeAds.length > 0 ? activeAds[0] : null;
     }
     return null;
+  }
+
+  async recordAdClick(adId: string) {
+    const apiUrl = process.env.EXPO_PUBLIC_ADS_API_URL;
+    if (!apiUrl) return;
+
+    try {
+      await fetch(`${apiUrl}/api/ads/${adId}/click`, { method: 'POST' });
+    } catch (e) {
+      console.error('Failed to record ad click', e);
+    }
   }
 
   async recordAdShown() {

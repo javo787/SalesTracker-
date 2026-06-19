@@ -9,6 +9,11 @@ interface DirectBannerProps {
 export default function DirectBanner({ config }: DirectBannerProps) {
   const handlePress = () => {
     adService.recordAdShown();
+    // @ts-ignore - _id from MongoDB
+    if (config._id || config.id) {
+      // @ts-ignore
+      adService.recordAdClick(config._id || config.id);
+    }
     Linking.openURL(config.targetUrl).catch((err) => console.error("Couldn't load page", err));
   };
 
@@ -23,8 +28,8 @@ export default function DirectBanner({ config }: DirectBannerProps) {
         resizeMode="contain"
       />
       <View style={styles.textContainer}>
-        <Text style={styles.title}>Специальное предложение для бизнеса</Text>
-        <Text style={styles.subtitle}>Узнать больше на сайте партнера</Text>
+        <Text style={styles.title}>{config.title || 'Специальное предложение'}</Text>
+        <Text style={styles.subtitle}>{config.subtitle || 'Узнать больше на сайте партнера'}</Text>
       </View>
     </TouchableOpacity>
   );
