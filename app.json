@@ -16,6 +16,7 @@
     "scheme": "savdo",
     "android": {
       "package": "com.savdo.app",
+      "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.RECORD_AUDIO"
       ]
@@ -38,8 +39,14 @@
       ],
       "expo-font",
       "expo-asset",
-      "@benfurkankilic/expo-yandex-mobile-ads"
+      "@benfurkankilic/expo-yandex-mobile-ads",
+      "@react-native-firebase/app",
+      "@react-native-firebase/analytics"
     ],
+    "ios": {
+      "bundleIdentifier": "com.savdo.app",
+      "googleServicesFile": "./GoogleService-Info.plist"
+    },
     "extra": {
       "eas": {
         "projectId": "617f1baa-d4b4-4221-b3f6-f9b321325ec0"

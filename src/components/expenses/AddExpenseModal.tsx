@@ -18,6 +18,7 @@ import { ExpenseType, ExpenseCategory } from '../../types/expense';
 import CategoryPicker from './CategoryPicker';
 import VoiceRecorder from '../VoiceRecorder';
 import { useExpenses } from '../../hooks/useExpenses';
+import { analyticsService } from '../../services/analyticsService';
 
 interface AddExpenseModalProps {
   visible: boolean;
@@ -76,6 +77,7 @@ export default function AddExpenseModal({ visible, onClose, onSuccess }: AddExpe
         amount: numAmount,
         description,
       });
+      analyticsService.logEvent('expense_added', { type, category, amount: numAmount });
       onSuccess();
       onClose();
     } catch (error) {

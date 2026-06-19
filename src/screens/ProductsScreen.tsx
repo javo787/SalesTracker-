@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
   TouchableOpacity, TextInput, Alert, RefreshControl
@@ -7,6 +7,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { addProduct, updateProduct, deleteProduct, getProducts } from '../db/database';
+import { analyticsService } from '../services/analyticsService';
 import { useAppContext } from '../context/AppContext';
 import StockOperationModal from '../components/stock/StockOperationModal';
 import StockHistorySheet from '../components/stock/StockHistorySheet';
@@ -74,8 +75,10 @@ export default function ProductsScreen() {
 
     if (editingId) {
       updateProduct(editingId, name.trim(), bPrice, sPrice, st, alert, baseUnit, hasPackages ? 1 : 0, packageName, uPerPkg);
+      analyticsService.logEvent('product_updated', { product_id: editingId });
     } else {
-      addProduct(name.trim(), bPrice, sPrice, st, alert, baseUnit, hasPackages ? 1 : 0, packageName, uPerPkg);
+      const result = addProduct(name.trim(), bPrice, sPrice, st, alert, baseUnit, hasPackages ? 1 : 0, packageName, uPerPkg);
+      analyticsService.logEvent('product_added', { product_id: result.lastInsertRowId });
     }
 
     resetForm();

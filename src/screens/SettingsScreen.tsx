@@ -9,8 +9,10 @@ import { useFocusEffect } from '@react-navigation/native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import Constants from 'expo-constants';
+import { analyticsService } from '../services/analyticsService';
 import { useAppContext } from '../context/AppContext';
 import { getConversionRate } from '../utils/currencyRates';
+import { reviewService } from '../services/reviewService';
 import { convertAllAmounts, clearAllData, getProducts, getSalesByPeriod, getExpenses } from '../db/database';
 
 const LANGUAGES = [
@@ -158,6 +160,7 @@ export default function SettingsScreen() {
       const filePath = `${FileSystem.cacheDirectory}${fileName}`;
       await FileSystem.writeAsStringAsync(filePath, json, { encoding: FileSystem.EncodingType.UTF8 });
       if (await Sharing.isAvailableAsync()) {
+        analyticsService.logEvent('data_exported', { format: 'json' });
         await Sharing.shareAsync(filePath, {
           mimeType: 'application/json',
           dialogTitle: t('settings.backupExport'),
@@ -333,6 +336,9 @@ export default function SettingsScreen() {
         </TouchableOpacity>
         <TouchableOpacity style={styles.linkRow} onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}>
           <Text style={styles.linkText}>📄 {t('settings.privacyPolicy')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.linkRow} onPress={() => reviewService.openStoreListing()}>
+          <Text style={styles.linkText}>⭐ {t('settings.rateApp')}</Text>
         </TouchableOpacity>
       </View>
 

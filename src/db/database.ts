@@ -117,7 +117,7 @@ export function addProduct(
     if (stock <= minStockAlert && minStockAlert > 0) {
       notifyLowStock(name, stock);
     }
-    return result;
+    return result as { lastInsertRowId: number; changes: number };
   } catch (error) {
     console.error('Error adding product:', error);
     throw error;
