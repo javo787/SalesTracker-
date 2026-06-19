@@ -47,6 +47,21 @@
       "bundleIdentifier": "com.savdo.app",
       "googleServicesFile": "./GoogleService-Info.plist"
     },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "pwa": {
+        "enabled": true,
+        "display": "standalone",
+        "orientation": "portrait",
+        "themeColor": "#1D9E75",
+        "backgroundColor": "#1D9E75",
+        "name": "SavdoApp",
+        "shortName": "SavdoApp",
+        "description": "Умный помощник для торговли",
+        "lang": "ru"
+      }
+    },
     "extra": {
       "eas": {
         "projectId": "617f1baa-d4b4-4221-b3f6-f9b321325ec0"

@@ -233,8 +233,12 @@ export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
       abortRef.current = new AbortController();
 
       try {
-        const apiKey = process.env.EXPO_PUBLIC_GROQ_API_KEY;
-        if (!apiKey) throw new Error('GROQ API ключ не настроен');
+        const apiUrl = process.env.EXPO_PUBLIC_ADS_API_URL;
+        const fallbackApiKey = process.env.EXPO_PUBLIC_GROQ_API_KEY;
+
+        const transcribeUrl = apiUrl
+          ? `${apiUrl}/api/proxy/transcribe`
+          : GROQ_API_URL;
 
         const ext = uri.split('.').pop()?.toLowerCase() ?? 'm4a';
         const mimeMap: Record<string, string> = {
@@ -261,12 +265,17 @@ export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
 
         // FileSystem.uploadAsync — единственный надёжный способ отправить
         // бинарный файл в React Native / Hermes без Blob API
-        const result = await FileSystem.uploadAsync(GROQ_API_URL, uri, {
+        const uploadHeaders: Record<string, string> = {};
+        if (!apiUrl && fallbackApiKey) {
+          uploadHeaders['Authorization'] = `Bearer ${fallbackApiKey}`;
+        }
+
+        const result = await FileSystem.uploadAsync(transcribeUrl, uri, {
           fieldName: 'file',
           httpMethod: 'POST',
           mimeType,
           uploadType: FileSystem.FileSystemUploadType.MULTIPART,
-          headers: { Authorization: `Bearer ${apiKey}` },
+          headers: uploadHeaders,
           parameters,
         });
 
