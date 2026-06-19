@@ -59,7 +59,7 @@ export default function AdminPage() {
     }
   };
 
-  const toggleActive = async (ad) => {
+  const toggleActive = async (ad: any) => {
     try {
       const res = await fetch(`/api/admin/ads/${ad._id}`, {
         method: 'PATCH',
