@@ -275,6 +275,56 @@ const resources = {
           next: 'Далее',
           finish: 'Понятно'
         }
+      },
+      classifieds: {
+        title: 'Базар — Объявления',
+        post: 'Разместить объявление',
+        myAds: 'Мои объявления',
+        contactSeller: 'Связаться',
+        expires: 'Истекает: {{date}}',
+        city: 'Город',
+        market: 'Рынок/ТЦ',
+        price: 'Цена',
+        description: 'Описание',
+        createTitle: 'Новое объявление',
+        uploadImages: 'Фото (макс. 3)',
+        submit: 'Опубликовать',
+        success: 'Объявление отправлено на модерацию',
+        moderationPending: 'На модерации',
+        contact: 'Контактный телефон',
+        categories: {
+          rent_spot: 'Аренда места',
+          rent_shop: 'Аренда магазина',
+          hire_seller: 'Ищу продавца',
+          looking_for_job: 'Ищу работу',
+          sell_equipment: 'Продам оборудование',
+          buy_equipment: 'Куплю оборудование',
+          partnership: 'Партнёрство',
+          other: 'Прочее',
+        }
+      },
+      wholesale: {
+        title: 'Оптовики',
+        partners: 'Наши партнёры',
+        minOrder: 'Мин. заказ: {{amount}} {{currency}}',
+        call: 'Позвонить',
+        telegram: 'Telegram',
+        categories: {
+          clothing: 'Одежда',
+          shoes: 'Обувь',
+          accessories: 'Аксессуары',
+          food: 'Продукты',
+          electronics: 'Электроника',
+          other: 'Прочее',
+        }
+      },
+      news: {
+        title: 'Новости бизнеса',
+        updatedAt: 'Обновлено: {{date}}',
+        readMore: 'Читать полностью',
+        noNews: 'Новости обновляются каждое утро в 6:00',
+        refreshing: 'Обновление новостей...',
+        source: 'Источник: {{name}}',
       }
     }
   },
@@ -550,6 +600,57 @@ const resources = {
           next: 'Баъдӣ',
           finish: 'Фаҳмо'
         }
+      },
+      classifieds: {
+        title: 'Бозор — Эълонҳо',
+        post: 'Ҷойгир кардани эълон',
+        myAds: 'Эълонҳои ман',
+        contactSeller: 'Тамос',
+        expires: 'Мӯҳлат: {{date}}',
+        city: 'Шаҳр',
+        market: 'Бозор/Маркази савдо',
+        price: 'Нарх',
+        description: 'Тавсиф',
+        createTitle: 'Эълони нав',
+        uploadImages: 'Акс (макс. 3)',
+        submit: 'Интишор кардан',
+        success: 'Эълон барои санҷиш фиристода шуд',
+        errorFillAll: 'Лутфан, ҳамаи майдонҳои заруриро пур кунед',
+        moderationPending: 'Дар ҳоли санҷиш',
+        contact: 'Рақами телефон',
+        categories: {
+          rent_spot: 'Иҷораи ҷой',
+          rent_shop: 'Иҷораи мағоза',
+          hire_seller: 'Ҷустуҷӯи фурӯшанда',
+          looking_for_job: 'Ҷустуҷӯи кор',
+          sell_equipment: 'Фурӯши таҷҳизот',
+          buy_equipment: 'Хариди таҷҳизот',
+          partnership: 'Шарикӣ',
+          other: 'Дигар',
+        }
+      },
+      wholesale: {
+        title: 'Яклухтфурӯшон',
+        partners: 'Шарикони мо',
+        minOrder: 'Фармоиши камтарин: {{amount}} {{currency}}',
+        call: 'Занг задан',
+        telegram: 'Telegram',
+        categories: {
+          clothing: 'Либос',
+          shoes: 'Пойафзол',
+          accessories: 'Лавозимот',
+          food: 'Маҳсулоти хӯрокворӣ',
+          electronics: 'Электроника',
+          other: 'Дигар',
+        }
+      },
+      news: {
+        title: 'Хабарҳои тиҷорат',
+        updatedAt: 'Навсозӣ: {{date}}',
+        readMore: 'Пурра хондан',
+        noNews: 'Хабарҳо ҳар субҳ соати 6:00 нав карда мешаванд',
+        refreshing: 'Навсозии хабарҳо...',
+        source: 'Манбаъ: {{name}}',
       }
     }
   },
@@ -825,6 +926,57 @@ const resources = {
           next: 'Keyingi',
           finish: 'Tushunarli'
         }
+      },
+      classifieds: {
+        title: 'Bozor — E\'lonlar',
+        post: 'E\'lon joylashtirish',
+        myAds: 'Mening e\'lonlarim',
+        contactSeller: 'Bog\'lanish',
+        expires: 'Muddati: {{date}}',
+        city: 'Shahar',
+        market: 'Bozor/Savdo markazi',
+        price: 'Narxi',
+        description: 'Tavsif',
+        createTitle: 'Yangi e\'lon',
+        uploadImages: 'Rasm (maks. 3)',
+        submit: 'Chop etish',
+        success: 'E\'lon moderatorga yuborildi',
+        errorFillAll: 'Iltimos, barcha majburiy maydonlarni to\'ldiring',
+        moderationPending: 'Tekshirilmoqda',
+        contact: 'Telefon raqami',
+        categories: {
+          rent_spot: 'Joy ijarasi',
+          rent_shop: 'Do\'kon ijarasi',
+          hire_seller: 'Sotuvchi kerak',
+          looking_for_job: 'Ish qidiryapman',
+          sell_equipment: 'Uskuna sotiladi',
+          buy_equipment: 'Uskuna sotib olaman',
+          partnership: 'Hamkorlik',
+          other: 'Boshqa',
+        }
+      },
+      wholesale: {
+        title: 'Ulgurji savdogarlar',
+        partners: 'Bizning hamkorlarimiz',
+        minOrder: 'Minimal buyurtma: {{amount}} {{currency}}',
+        call: 'Qo\'ng\'iroq qilish',
+        telegram: 'Telegram',
+        categories: {
+          clothing: 'Kiyim',
+          shoes: 'Poyabzal',
+          accessories: 'Aksessuarlar',
+          food: 'Oziq-ovqat',
+          electronics: 'Elektronika',
+          other: 'Boshqa',
+        }
+      },
+      news: {
+        title: 'Biznes yangiliklari',
+        updatedAt: 'Yangilandi: {{date}}',
+        readMore: 'To\'liq o\'qish',
+        noNews: 'Yangiliklar har kuni ertalab soat 6:00 da yangilanadi',
+        refreshing: 'Yangiliklar yangilanmoqda...',
+        source: 'Manba: {{name}}',
       }
     }
   }
