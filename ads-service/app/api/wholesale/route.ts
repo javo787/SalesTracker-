@@ -22,7 +22,7 @@ export async function GET(request: Request) {
 
     const items = await col
       .find(filter)
-      .sort({ priority: -1, createdAt: -1 })
+      .sort({ tierOrder: -1, priority: -1, createdAt: -1 })
       .limit(50)
       .toArray();
 

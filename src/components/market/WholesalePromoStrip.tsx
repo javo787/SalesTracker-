@@ -34,7 +34,18 @@ export default function WholesalePromoStrip() {
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        {ads.slice(0, 5).map((item) => (
+        {ads
+          .sort((a, b) => {
+            const tierScore = { vip: 3, premium: 2, basic: 1 };
+            const aTier = a.tier || 'basic';
+            const bTier = b.tier || 'basic';
+            if (tierScore[aTier] !== tierScore[bTier]) {
+              return tierScore[bTier] - tierScore[aTier];
+            }
+            return (b.priority || 0) - (a.priority || 0);
+          })
+          .slice(0, 5)
+          .map((item) => (
           <TouchableOpacity
             key={item._id}
             style={[styles.promoCard, isDark ? styles.cardDark : styles.cardLight]}

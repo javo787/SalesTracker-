@@ -95,6 +95,15 @@ class MarketService {
     await fetch(`${ADS_API_URL}/api/wholesale/${id}/telegram`, { method: 'POST' });
   }
 
+  async trackWholesaleView(id: string): Promise<void> {
+    if (!ADS_API_URL) throw new Error('Ads API URL not configured');
+    try {
+      await fetch(`${ADS_API_URL}/api/wholesale/${id}/view`, { method: 'POST' });
+    } catch (e) {
+      console.warn('Failed to track view', e);
+    }
+  }
+
   // News
   async getLatestNews(): Promise<NewsFeed | null> {
     if (!ADS_API_URL) throw new Error('Ads API URL not configured');
