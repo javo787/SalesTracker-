@@ -53,7 +53,8 @@
       ],
       "@benfurkankilic/expo-yandex-mobile-ads",
       "@react-native-firebase/app",
-      "@react-native-firebase/analytics"
+      "@react-native-firebase/analytics",
+      "@react-native-firebase/messaging"
     ],
     "ios": {
       "bundleIdentifier": "com.savdo.app",
