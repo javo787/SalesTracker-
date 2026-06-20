@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 
-type Tab = 'direct_ads' | 'classifieds' | 'wholesale' | 'news';
+type Tab = 'direct_ads' | 'classifieds' | 'wholesale' | 'wholesale_requests' | 'news';
 
 export default function AdminPage() {
   const [password, setPassword] = useState('');
@@ -15,6 +15,7 @@ export default function AdminPage() {
   const [ads, setAds] = useState([]);
   const [classifieds, setClassifieds] = useState([]);
   const [wholesalers, setWholesalers] = useState([]);
+  const [wholesaleRequests, setWholesaleRequests] = useState([]);
   const [news, setNews] = useState<any>(null);
 
   // Forms states
@@ -38,6 +39,7 @@ export default function AdminPage() {
     currency: 'TJS',
     priceRange: '',
     priority: 0,
+    tier: 'basic',
     paidUntil: '',
     images: [] as string[],
   });
@@ -90,6 +92,20 @@ export default function AdminPage() {
     }
   };
 
+  const fetchWholesaleRequests = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/admin/wholesale/requests', {
+        headers: { 'x-admin-password': password },
+      });
+      if (res.ok) setWholesaleRequests(await res.json());
+    } catch (e) {
+      setMessage('Ошибка загрузки заявок');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const fetchNews = async () => {
     setLoading(true);
     try {
@@ -107,6 +123,7 @@ export default function AdminPage() {
       if (activeTab === 'direct_ads') fetchDirectAds();
       if (activeTab === 'classifieds') fetchClassifieds();
       if (activeTab === 'wholesale') fetchWholesalers();
+      if (activeTab === 'wholesale_requests') fetchWholesaleRequests();
       if (activeTab === 'news') fetchNews();
     }
   }, [isAuthorized, activeTab]);
@@ -170,7 +187,7 @@ export default function AdminPage() {
         setNewWholesale({
           companyName: '', contactPhone: '', contactTelegram: '', description: '',
           categories: '', cities: '', minOrderAmount: '', currency: 'TJS',
-          priceRange: '', priority: 0, paidUntil: '', images: [],
+          priceRange: '', priority: 0, tier: 'basic', paidUntil: '', images: [],
         });
         fetchWholesalers();
         setMessage('Оптовик добавлен');
@@ -205,7 +222,8 @@ export default function AdminPage() {
     if (!confirm('Удалить навсегда?')) return;
     const url = type === 'direct_ads' ? `/api/admin/ads/${id}` :
                 type === 'classifieds' ? `/api/admin/classifieds/${id}` :
-                `/api/admin/wholesale/${id}`;
+                type === 'wholesale' ? `/api/admin/wholesale/${id}` :
+                `/api/admin/wholesale/requests?id=${id}`;
     try {
       const res = await fetch(url, {
         method: 'DELETE',
@@ -262,6 +280,7 @@ export default function AdminPage() {
         <button onClick={() => setActiveTab('direct_ads')} style={{ padding: '10px 15px', backgroundColor: activeTab === 'direct_ads' ? '#1D9E75' : '#ccc', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Прямая реклама</button>
         <button onClick={() => setActiveTab('classifieds')} style={{ padding: '10px 15px', backgroundColor: activeTab === 'classifieds' ? '#1D9E75' : '#ccc', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Доска объявлений</button>
         <button onClick={() => setActiveTab('wholesale')} style={{ padding: '10px 15px', backgroundColor: activeTab === 'wholesale' ? '#1D9E75' : '#ccc', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Оптовики</button>
+        <button onClick={() => setActiveTab('wholesale_requests')} style={{ padding: '10px 15px', backgroundColor: activeTab === 'wholesale_requests' ? '#1D9E75' : '#ccc', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Заявки опт</button>
         <button onClick={() => setActiveTab('news')} style={{ padding: '10px 15px', backgroundColor: activeTab === 'news' ? '#1D9E75' : '#ccc', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Новости</button>
       </div>
 
@@ -350,6 +369,11 @@ export default function AdminPage() {
               </div>
               <input placeholder="Ценовой диапазон" value={newWholesale.priceRange} onChange={e => setNewWholesale({...newWholesale, priceRange: e.target.value})} style={{ display: 'block', width: '100%', marginBottom: 10, padding: 8 }} />
               <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+                <select value={newWholesale.tier} onChange={e => setNewWholesale({...newWholesale, tier: e.target.value})} style={{ flex: 1, padding: 8 }}>
+                  <option value="basic">Basic (Базовый)</option>
+                  <option value="premium">Premium (Премиум)</option>
+                  <option value="vip">VIP (Вип)</option>
+                </select>
                 <input placeholder="Приоритет" type="number" value={newWholesale.priority} onChange={e => setNewWholesale({...newWholesale, priority: Number(e.target.value)})} style={{ flex: 1, padding: 8 }} />
                 <input placeholder="Оплачено до (YYYY-MM-DD)" type="date" value={newWholesale.paidUntil} onChange={e => setNewWholesale({...newWholesale, paidUntil: e.target.value})} required style={{ flex: 2, padding: 8 }} />
               </div>
@@ -362,13 +386,51 @@ export default function AdminPage() {
               {wholesalers.map((item: any) => (
                 <div key={item._id} style={{ border: '1px solid #ccc', padding: 15, marginBottom: 10, borderRadius: 8, display: 'flex', justifyContent: 'space-between' }}>
                   <div>
-                    <strong>{item.companyName}</strong><br/>
+                    <strong>{item.companyName}</strong> <span style={{fontSize: 10, backgroundColor: '#eee', padding: '2px 4px', borderRadius: 4}}>{item.tier?.toUpperCase()}</span><br/>
                     <small>Кат: {item.categories?.join(', ')}</small><br/>
                     <small>Оплачено до: {new Date(item.paidUntil).toLocaleDateString()}</small><br/>
-                    <small>Статистика: {item.clicks || 0} кликов, {item.calls || 0} звонков</small>
+                    <small>Статистика: {item.views || 0} глаз, {item.clicks || 0} кликов, {item.calls || 0} тел, {item.telegramClicks || 0} TG</small>
                   </div>
                   <div>
                     <button onClick={() => deleteItem('wholesale', item._id)} style={{ color: 'red' }}>Удалить</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* WHOLESALE REQUESTS TAB */}
+      {activeTab === 'wholesale_requests' && (
+        <>
+          <h2>Заявки на размещение</h2>
+          {loading ? <p>Загрузка...</p> : (
+            <div style={{ color: '#000' }}>
+              {wholesaleRequests.length === 0 && <p>Заявок пока нет</p>}
+              {wholesaleRequests.map((item: any) => (
+                <div key={item._id} style={{ border: '1px solid #ccc', padding: 15, marginBottom: 10, borderRadius: 8, display: 'flex', justifyContent: 'space-between' }}>
+                  <div>
+                    <strong>{item.companyName}</strong> — {item.contactPhone}<br/>
+                    <small>TG: @{item.contactTelegram}</small><br/>
+                    <p style={{ margin: '5px 0' }}>{item.description}</p>
+                    <small>Кат: {item.categories?.join(', ')} | Гор: {item.cities?.join(', ')}</small>
+                  </div>
+                  <div>
+                    <button onClick={() => {
+                      setNewWholesale({
+                        ...newWholesale,
+                        companyName: item.companyName,
+                        contactPhone: item.contactPhone,
+                        contactTelegram: item.contactTelegram || '',
+                        description: item.description || '',
+                        categories: item.categories?.join(', ') || '',
+                        cities: item.cities?.join(', ') || '',
+                        tier: 'basic',
+                      });
+                      setActiveTab('wholesale');
+                    }} style={{ marginRight: 10 }}>Принять</button>
+                    <button onClick={() => deleteItem('wholesale_requests', item._id)} style={{ color: 'red' }}>Удалить</button>
                   </div>
                 </div>
               ))}

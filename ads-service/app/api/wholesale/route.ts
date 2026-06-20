@@ -22,9 +22,15 @@ export async function GET(request: Request) {
 
     const items = await col
       .find(filter)
-      .sort({ priority: -1, createdAt: -1 })
+      .sort({ tier: -1, priority: -1, createdAt: -1 })
       .limit(50)
       .toArray();
+
+    // Increment views for all returned ads (fire and forget)
+    if (items.length > 0) {
+      const ids = items.map(item => item._id);
+      col.updateMany({ _id: { $in: ids } }, { $inc: { views: 1 } }).catch(console.error);
+    }
 
     return NextResponse.json(items);
   } catch (e) {

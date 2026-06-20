@@ -54,6 +54,8 @@ export async function POST(request: Request) {
     imagePublicIds,
     isActive: true,
     isPaid: true,
+    tier: rest.tier || 'basic',
+    views: 0,
     clicks: 0,
     calls: 0,
     telegramClicks: 0,

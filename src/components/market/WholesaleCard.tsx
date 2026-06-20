@@ -28,9 +28,21 @@ function WholesaleCard({ item, onPress }: Props) {
             <Ionicons name="business-outline" size={40} color="#ccc" />
           </View>
         )}
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>PARTNER</Text>
-        </View>
+        {item.tier === 'vip' && (
+          <View style={[styles.badge, styles.badgeVip]}>
+            <Text style={styles.badgeTextVip}>VIP</Text>
+          </View>
+        )}
+        {item.tier === 'premium' && (
+          <View style={[styles.badge, styles.badgePremium]}>
+            <Text style={styles.badgeTextPremium}>TOP</Text>
+          </View>
+        )}
+        {(!item.tier || item.tier === 'basic') && (
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>PARTNER</Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.content}>
@@ -98,12 +110,28 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 10,
     right: 10,
-    backgroundColor: '#FFD700',
+    backgroundColor: '#eee',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,
   },
+  badgeVip: {
+    backgroundColor: '#1D9E75',
+  },
+  badgePremium: {
+    backgroundColor: '#FFD700',
+  },
   badgeText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#666',
+  },
+  badgeTextVip: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  badgeTextPremium: {
     fontSize: 10,
     fontWeight: 'bold',
     color: '#000',

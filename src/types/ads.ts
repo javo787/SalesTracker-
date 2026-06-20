@@ -45,9 +45,11 @@ export interface WholesaleAd {
   currency: string;
   priceRange?: string;
   priority: number;
+  tier: 'basic' | 'premium' | 'vip';
   isActive: boolean;
   isPaid: boolean;
   paidUntil: string;
+  views: number;
   clicks: number;
   calls: number;
   telegramClicks: number;
