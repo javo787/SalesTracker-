@@ -9,8 +9,10 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAppContext } from '../context/AppContext';
 import { useNews } from '../hooks/useNews';
+import { useNewsUnread } from '../hooks/useNewsUnread';
 import NewsCard from '../components/market/NewsCard';
 import NewsEmptyState from '../components/market/NewsEmptyState';
 
@@ -19,6 +21,13 @@ export default function NewsScreen() {
   const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
 
   const { news, loading, refreshing, refresh } = useNews();
+  const { markAsRead } = useNewsUnread();
+
+  useFocusEffect(
+    React.useCallback(() => {
+      markAsRead();
+    }, [markAsRead])
+  );
 
   const renderHeader = () => {
     if (!news) return null;

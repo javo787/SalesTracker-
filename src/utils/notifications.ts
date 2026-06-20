@@ -36,3 +36,17 @@ export async function notifyLowStock(productName: string, currentStock: number) 
     trigger: null, // немедленно
   });
 }
+
+export async function notifyImportantNews(titleRu: string, articleUrl: string) {
+  const enabled = await AsyncStorage.getItem('app_notifications_enabled');
+  if (enabled === 'false') return;
+
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: '📰 Важная новость',
+      body: titleRu,
+      data: { url: articleUrl, type: 'news' },
+    },
+    trigger: null,
+  });
+}

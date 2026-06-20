@@ -16,6 +16,7 @@ import { analyticsService } from './src/services/analyticsService';
 import { AppContextProvider, useAppContext } from './src/context/AppContext';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { AppLockProvider, useAppLock } from './src/context/AppLockContext';
+import { useNewsUnread } from './src/hooks/useNewsUnread';
 import { Ionicons } from '@expo/vector-icons';
 
 import HomeScreen from './src/screens/HomeScreen'; 
@@ -148,6 +149,7 @@ function DrawerNavigator() {
   const { t } = useTranslation();
   const { resolvedTheme } = useAppContext();
   const isDark = resolvedTheme === 'dark';
+  const { hasUnread } = useNewsUnread();
 
   return (
     <Drawer.Navigator
@@ -221,7 +223,12 @@ function DrawerNavigator() {
         component={NewsScreen}
         options={{
           drawerLabel: t('news.title'),
-          drawerIcon: ({ color }) => <Ionicons name="newspaper-outline" size={22} color={color} />,
+          drawerIcon: ({ color }) => (
+            <View>
+              <Ionicons name="newspaper-outline" size={22} color={color} />
+              {hasUnread && <View style={{ position: 'absolute', top: -2, right: -2, width: 8, height: 8, borderRadius: 4, backgroundColor: '#FF6B6B' }} />}
+            </View>
+          ),
         }}
       />
       <Drawer.Screen
