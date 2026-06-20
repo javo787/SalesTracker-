@@ -126,6 +126,15 @@ export function initDatabase() {
     db.withTransactionSync(() => {
       const tables = ['products', 'sales', 'expenses', 'stock_movements'];
       tables.forEach(table => {
+        // Shift existing UTC timestamps by +5 hours.
+        // We assume any record created WITHOUT a space in its string (e.g. '2023-01-01T12:00:00Z'
+        // or just a date '2023-01-01' without HH:MM:SS) might be from the old system
+        // that used datetime('now') which returns UTC 'YYYY-MM-DD HH:MM:SS'.
+        // Actually, datetime('now') returns 'YYYY-MM-DD HH:MM:SS'.
+        // To be safe, we only migrate records that were created BEFORE this migration script ran.
+        // Since we marked the migration with 'tz_migration_v1', and this runs in initDatabase
+        // before any new records can be inserted by the updated UI code,
+        // we can safely update all existing records.
         db.execSync(`UPDATE ${table} SET created_at = datetime(created_at, '+5 hours') WHERE created_at IS NOT NULL`);
       });
       db.runSync("INSERT INTO app_meta (key, value) VALUES ('tz_migration_v1', 'done')");
