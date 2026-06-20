@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 
-type Tab = 'direct_ads' | 'classifieds' | 'wholesale' | 'wholesale_requests' | 'news';
+type Tab = 'direct_ads' | 'classifieds' | 'wholesale' | 'wholesale_requests' | 'news' | 'notifications';
 
 export default function AdminPage() {
   const [password, setPassword] = useState('');
@@ -43,6 +43,11 @@ export default function AdminPage() {
     paidUntil: '',
     images: [] as string[],
   });
+
+  const [notifTitle, setNotifTitle] = useState('');
+  const [notifBody, setNotifBody] = useState('');
+  const [notifUrl, setNotifUrl] = useState('');
+  const [sendingNotif, setSendingNotif] = useState(false);
 
   const fetchDirectAds = async (pwd = password) => {
     setLoading(true);
@@ -218,6 +223,29 @@ export default function AdminPage() {
     }
   };
 
+  const handleSendNotification = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSendingNotif(true);
+    try {
+      const res = await fetch('/api/admin/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': password },
+        body: JSON.stringify({ title: notifTitle, body: notifBody, url: notifUrl || undefined }),
+      });
+      if (res.ok) {
+        setMessage('Уведомление отправлено');
+        setNotifTitle(''); setNotifBody(''); setNotifUrl('');
+      } else {
+        const err = await res.json();
+        setMessage(`Ошибка: ${err.error || 'неизвестно'}`);
+      }
+    } catch (e) {
+      setMessage('Ошибка сети');
+    } finally {
+      setSendingNotif(false);
+    }
+  };
+
   const deleteItem = async (type: Tab, id: string) => {
     if (!confirm('Удалить навсегда?')) return;
     const url = type === 'direct_ads' ? `/api/admin/ads/${id}` :
@@ -282,6 +310,7 @@ export default function AdminPage() {
         <button onClick={() => setActiveTab('wholesale')} style={{ padding: '10px 15px', backgroundColor: activeTab === 'wholesale' ? '#1D9E75' : '#ccc', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Оптовики</button>
         <button onClick={() => setActiveTab('wholesale_requests')} style={{ padding: '10px 15px', backgroundColor: activeTab === 'wholesale_requests' ? '#1D9E75' : '#ccc', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Заявки опт</button>
         <button onClick={() => setActiveTab('news')} style={{ padding: '10px 15px', backgroundColor: activeTab === 'news' ? '#1D9E75' : '#ccc', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Новости</button>
+        <button onClick={() => setActiveTab('notifications')} style={{ padding: '10px 15px', backgroundColor: activeTab === 'notifications' ? '#1D9E75' : '#ccc', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Уведомления</button>
       </div>
 
       {message && <div style={{ padding: 10, backgroundColor: '#fff4f4', border: '1px solid #ffcccc', marginBottom: 20, borderRadius: 4 }}>{message}</div>}
@@ -464,6 +493,20 @@ export default function AdminPage() {
             </div>
           ) : <p>Новостей пока нет</p>}
         </>
+      )}
+
+      {activeTab === 'notifications' && (
+        <div style={{ backgroundColor: '#f0f0f0', padding: 20, borderRadius: 8, color: '#000', maxWidth: 500 }}>
+          <h3>Отправить уведомление всем пользователям</h3>
+          <form onSubmit={handleSendNotification}>
+            <input placeholder="Заголовок" value={notifTitle} onChange={e => setNotifTitle(e.target.value)} required style={{ display: 'block', width: '100%', marginBottom: 10, padding: 8 }} />
+            <textarea placeholder="Текст уведомления" value={notifBody} onChange={e => setNotifBody(e.target.value)} required style={{ display: 'block', width: '100%', marginBottom: 10, padding: 8, height: 80 }} />
+            <input placeholder="Ссылка (необязательно)" value={notifUrl} onChange={e => setNotifUrl(e.target.value)} style={{ display: 'block', width: '100%', marginBottom: 10, padding: 8 }} />
+            <button type="submit" disabled={sendingNotif} style={{ padding: '10px 20px', backgroundColor: '#1D9E75', color: 'white', border: 'none', borderRadius: 4 }}>
+              {sendingNotif ? 'Отправка...' : 'Отправить'}
+            </button>
+          </form>
+        </div>
       )}
     </div>
   );

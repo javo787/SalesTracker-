@@ -50,3 +50,13 @@ export async function notifyImportantNews(titleRu: string, articleUrl: string) {
     trigger: null,
   });
 }
+
+export async function showRemoteNotification(title: string, body: string, data?: any) {
+  const enabled = await AsyncStorage.getItem('app_notifications_enabled');
+  if (enabled === 'false') return;
+
+  await Notifications.scheduleNotificationAsync({
+    content: { title, body, data },
+    trigger: null,
+  });
+}

@@ -9,8 +9,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { I18nextProvider, useTranslation } from 'react-i18next';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initDatabase } from './src/db/database';
-import { requestPermissions } from './src/utils/notifications';
+import { requestPermissions, showRemoteNotification } from './src/utils/notifications';
 import i18n from './src/i18n/i18n';
+import messaging from '@react-native-firebase/messaging';
+import * as Notifications from 'expo-notifications';
+import * as WebBrowser from 'expo-web-browser';
 import { adService } from './src/services/adService';
 import { analyticsService } from './src/services/analyticsService';
 import { AppContextProvider, useAppContext } from './src/context/AppContext';
@@ -243,6 +246,11 @@ function DrawerNavigator() {
   );
 }
 
+async function setupPushNotifications() {
+  await messaging().requestPermission();
+  await messaging().subscribeToTopic('app_announcements');
+}
+
 function AppContent() {
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
   const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
@@ -351,8 +359,30 @@ export default function App() {
     // Parallelize async initialization
     Promise.all([
       requestPermissions(),
-      adService.init()
+      adService.init(),
+      setupPushNotifications()
     ]).catch(err => console.warn('Initialization error:', err));
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = messaging().onMessage(async remoteMessage => {
+      await showRemoteNotification(
+        remoteMessage.notification?.title ?? 'SavdoApp',
+        remoteMessage.notification?.body ?? '',
+        remoteMessage.data
+      );
+    });
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    const subscription = Notifications.addNotificationResponseReceivedListener(response => {
+      const data = response.notification.request.content.data;
+      if (data?.url) {
+        WebBrowser.openBrowserAsync(data.url);
+      }
+    });
+    return () => subscription.remove();
   }, []);
 
   return (
