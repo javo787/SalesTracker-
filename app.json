@@ -39,6 +39,12 @@
       ],
       "expo-font",
       "expo-asset",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Используйте Face ID для быстрой и безопасной разблокировки SavdoApp"
+        }
+      ],
       "@benfurkankilic/expo-yandex-mobile-ads",
       "@react-native-firebase/app",
       "@react-native-firebase/analytics"

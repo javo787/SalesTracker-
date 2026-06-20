@@ -11,6 +11,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Sharing from 'expo-sharing';
 import { useAuth } from '../context/AuthContext';
 import { useAppContext } from '../context/AppContext';
+import { useAppLock } from '../context/AppLockContext';
 import RegistrationPromptModal from '../components/RegistrationPromptModal';
 import { api } from '../services/api';
 import { SyncService } from '../services/syncService';
@@ -23,6 +24,7 @@ export default function ProfileScreen() {
   const { t } = useTranslation();
   const { theme, currency } = useAppContext();
   const { user, logout, isGuest, updateProfile, convertGuestAccount } = useAuth();
+  const { setIsSystemDialogOpen } = useAppLock();
 
   const [stats, setStats] = useState<ProfileStats | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -116,6 +118,7 @@ export default function ProfileScreen() {
   };
 
   const handlePickImage = async () => {
+    setIsSystemDialogOpen(true);
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
@@ -123,6 +126,7 @@ export default function ProfileScreen() {
       quality: 0.5,
       base64: true,
     });
+    setTimeout(() => setIsSystemDialogOpen(false), 1000);
 
     if (!result.canceled && result.assets[0].base64) {
       try {
@@ -154,9 +158,11 @@ export default function ProfileScreen() {
 
   const shareReferral = async () => {
     if (await Sharing.isAvailableAsync()) {
+      setIsSystemDialogOpen(true);
       await Sharing.shareAsync(`https://savdo.app/join?code=${user?.referralCode}`, {
         dialogTitle: 'Присоединяйся к SavdoApp',
       });
+      setTimeout(() => setIsSystemDialogOpen(false), 1000);
     }
   };
 

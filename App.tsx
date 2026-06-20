@@ -14,6 +14,7 @@ import { adService } from './src/services/adService';
 import { analyticsService } from './src/services/analyticsService';
 import { AppContextProvider, useAppContext } from './src/context/AppContext';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { AppLockProvider, useAppLock } from './src/context/AppLockContext';
 import { Ionicons } from '@expo/vector-icons';
 
 import HomeScreen from './src/screens/HomeScreen'; 
@@ -33,6 +34,8 @@ import WholesaleScreen from './src/screens/WholesaleScreen';
 import WholesaleDetailScreen from './src/screens/WholesaleDetailScreen';
 import NewsScreen from './src/screens/NewsScreen';
 import CustomDrawerContent from './src/components/CustomDrawerContent';
+import LockScreen from './src/screens/LockScreen';
+import AppLockSetupScreen from './src/screens/AppLockSetupScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -234,6 +237,7 @@ function DrawerNavigator() {
 function AppContent() {
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
   const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
+  const { isLockEnabled, isLocked, isLoading: isAppLockLoading } = useAppLock();
   const { t } = useTranslation();
   const navigationRef = useNavigationContainerRef();
   const routeNameRef = useRef<string>(undefined);
@@ -251,7 +255,7 @@ function AppContent() {
     }
   };
 
-  if (showOnboarding === null || isAuthLoading) {
+  if (showOnboarding === null || isAuthLoading || isAppLockLoading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color="#1D9E75" />
@@ -265,6 +269,10 @@ function AppContent() {
 
   if (showOnboarding) {
     return <OnboardingScreen onFinish={() => setShowOnboarding(false)} />;
+  }
+
+  if (isLockEnabled && isLocked) {
+    return <LockScreen />;
   }
 
   return (
@@ -311,6 +319,11 @@ function AppContent() {
           component={WholesaleDetailScreen}
           options={{ title: t('wholesale.title'), headerStyle: { backgroundColor: '#1D9E75' }, headerTintColor: '#fff' }}
         />
+        <Stack.Screen
+          name="AppLockSetup"
+          component={AppLockSetupScreen}
+          options={{ title: t('appLock.title'), headerStyle: { backgroundColor: '#1D9E75' }, headerTintColor: '#fff' }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );
@@ -326,9 +339,11 @@ export default function App() {
   return (
     <AppContextProvider>
       <AuthProvider>
-        <I18nextProvider i18n={i18n}>
-          <AppContent />
-        </I18nextProvider>
+        <AppLockProvider>
+          <I18nextProvider i18n={i18n}>
+            <AppContent />
+          </I18nextProvider>
+        </AppLockProvider>
       </AuthProvider>
     </AppContextProvider>
   );

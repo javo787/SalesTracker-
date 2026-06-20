@@ -11,6 +11,7 @@ import * as Sharing from 'expo-sharing';
 import Constants from 'expo-constants';
 import { analyticsService } from '../services/analyticsService';
 import { useAppContext } from '../context/AppContext';
+import { useAppLock } from '../context/AppLockContext';
 import { getConversionRate } from '../utils/currencyRates';
 import { reviewService } from '../services/reviewService';
 import { convertAllAmounts, clearAllData, getProducts, getSalesByPeriod, getExpenses } from '../db/database';
@@ -36,13 +37,14 @@ const THEMES = [
 const PRIVACY_POLICY_URL = 'https://duxtur.org/privacy'; // TODO: replace with the actual hosted privacy policy URL before publishing to Google Play
 const SUPPORT_TELEGRAM_URL = 'https://t.me/savdoapp'; // TODO: verify this is the correct/active support channel
 
-export default function SettingsScreen() {
+export default function SettingsScreen(props: any) {
   const { t, i18n } = useTranslation();
   const {
     theme, currency, language, setTheme, setCurrency, setLanguage,
     notificationsEnabled, setNotificationsEnabled,
     defaultMinStockAlert, setDefaultMinStockAlert
   } = useAppContext();
+  const { isLockEnabled, setIsSystemDialogOpen } = useAppLock();
 
   const [conversionHistory, setConversionHistory] = useState<any[]>([]);
   const [loadingRate, setLoadingRate] = useState(false);
@@ -161,10 +163,12 @@ export default function SettingsScreen() {
       await FileSystem.writeAsStringAsync(filePath, json, { encoding: FileSystem.EncodingType.UTF8 });
       if (await Sharing.isAvailableAsync()) {
         analyticsService.logEvent('data_exported', { format: 'json' });
+        setIsSystemDialogOpen(true);
         await Sharing.shareAsync(filePath, {
           mimeType: 'application/json',
           dialogTitle: t('settings.backupExport'),
         });
+        setTimeout(() => setIsSystemDialogOpen(false), 1000);
       } else {
         Alert.alert(t('common.error'), 'Sharing not available on this device');
       }
@@ -284,6 +288,28 @@ export default function SettingsScreen() {
             placeholder="0"
           />
         </View>
+      </View>
+
+      {/* Безопасность */}
+      <View style={[styles.section, themeStyles.section]}>
+        <Text style={[styles.sectionTitle, themeStyles.text]}>🛡️ {t('appLock.securitySettings')}</Text>
+        <View style={styles.switchRow}>
+          <Text style={[styles.switchLabel, themeStyles.text]}>{t('appLock.enableLock')}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              {isLockEnabled && <Text style={{ color: '#1D9E75', fontSize: 12, fontWeight: 'bold' }}>ON</Text>}
+              <Switch
+                value={isLockEnabled}
+                onValueChange={() => props.navigation.navigate('AppLockSetup')}
+                trackColor={{ false: '#767577', true: '#1D9E75' }}
+                thumbColor={isLockEnabled ? '#fff' : '#f4f3f4'}
+              />
+          </View>
+        </View>
+        {isLockEnabled && (
+            <TouchableOpacity style={styles.linkRow} onPress={() => props.navigation.navigate('AppLockSetup')}>
+                <Text style={styles.linkText}>🔑 {t('appLock.changeMethod')}</Text>
+            </TouchableOpacity>
+        )}
       </View>
 
       {/* Тема */}
