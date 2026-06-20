@@ -6,8 +6,7 @@ import { useAppContext } from '../../context/AppContext';
 
 export default function NewsEmptyState() {
   const { t } = useTranslation();
-  const { theme } = useAppContext();
-  const isDark = theme === 'dark';
+  const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
 
   return (
     <View style={styles.container}>

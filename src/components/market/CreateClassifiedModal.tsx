@@ -39,8 +39,7 @@ const CATEGORIES: ClassifiedCategory[] = [
 
 export default function CreateClassifiedModal({ visible, onClose, onSuccess }: Props) {
   const { t } = useTranslation();
-  const { theme, currency } = useAppContext();
-  const isDark = theme === 'dark';
+  const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -96,7 +95,7 @@ export default function CreateClassifiedModal({ visible, onClose, onSuccess }: P
         city,
         market,
         price: price ? parseFloat(price) : undefined,
-        currency: currency as 'TJS' | 'UZS',
+        currency: currency.code as 'TJS' | 'UZS',
         userPhone: phone,
         images,
       });

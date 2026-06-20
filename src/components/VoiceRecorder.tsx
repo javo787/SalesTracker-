@@ -176,7 +176,7 @@ async function safeStopRecorder(
 // ─────────────────────────────────────────────
 export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
   const { t } = useTranslation();
-  const { theme, language } = useAppContext();
+  const { resolvedTheme, currency, language } = useAppContext(); const isDark = resolvedTheme === "dark";
   const recorder = useAudioRecorder(recordingOptions);
 
   // UI state
@@ -198,7 +198,6 @@ export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
   /** Флаг: компонент размонтирован — не обновляем state */
   const unmountedRef = useRef(false);
 
-  const isDark = theme === 'dark';
   const isRecording = safeIsRecording(recorder);
 
   // ── Timers ──────────────────────────────────

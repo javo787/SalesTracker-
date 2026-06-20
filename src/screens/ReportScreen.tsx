@@ -19,7 +19,7 @@ import { useAuth } from '../context/AuthContext';
 
 export default function ReportScreen() {
   const { t, i18n } = useTranslation();
-  const { theme, currency } = useAppContext();
+  const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
   const navigation = useNavigation<any>();
   const [period, setPeriod] = useState<number | 'custom'>(1);
   const [dateRange, setDateRange] = useState<{from: string, to: string} | null>(null);
@@ -168,7 +168,6 @@ export default function ReportScreen() {
     { label: t('reports.year'), days: 365 },
   ];
 
-  const isDark = theme === 'dark';
   const themeStyles = isDark ? darkStyles : lightStyles;
 
   const handleDayPress = (day: any) => {

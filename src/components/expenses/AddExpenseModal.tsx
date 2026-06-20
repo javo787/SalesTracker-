@@ -30,9 +30,8 @@ const EXPENSE_VOICE_PROMPT = "сомони, харид, нарх, обед, ар
 
 export default function AddExpenseModal({ visible, onClose, onSuccess }: AddExpenseModalProps) {
   const { t } = useTranslation();
-  const { theme, currency } = useAppContext();
+  const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
   const { addExpense } = useExpenses();
-  const isDark = theme === 'dark';
 
   const [type, setType] = useState<ExpenseType>('operational');
   const [category, setCategory] = useState<ExpenseCategory>('other');

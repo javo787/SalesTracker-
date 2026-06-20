@@ -15,7 +15,7 @@ const MONTH_FULL = ['Январь', 'Февраль', 'Март', 'Апрель'
 
 export default function AnnualReport() {
   const { t } = useTranslation();
-  const { theme, currency } = useAppContext();
+  const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
   const [annualData, setAnnualData] = useState<any>(null);
   const [showMonths, setShowMonths] = useState(false);
 
@@ -30,7 +30,6 @@ export default function AnnualReport() {
 
   if (!annualData) return null;
 
-  const isDark = theme === 'dark';
   const themeStyles = isDark ? darkStyles : lightStyles;
 
   const chartData = annualData.months.map((m: any) => ({

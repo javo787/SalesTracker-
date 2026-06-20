@@ -16,8 +16,7 @@ import NewsEmptyState from '../components/market/NewsEmptyState';
 
 export default function NewsScreen() {
   const { t } = useTranslation();
-  const { theme } = useAppContext();
-  const isDark = theme === 'dark';
+  const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
 
   const { news, loading, refreshing, refresh } = useNews();
 

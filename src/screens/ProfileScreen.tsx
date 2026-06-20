@@ -22,7 +22,7 @@ const { width } = Dimensions.get('window');
 
 export default function ProfileScreen() {
   const { t } = useTranslation();
-  const { theme, currency } = useAppContext();
+  const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
   const { user, logout, isGuest, updateProfile, convertGuestAccount } = useAuth();
   const { setIsSystemDialogOpen } = useAppLock();
 
@@ -166,7 +166,6 @@ export default function ProfileScreen() {
     }
   };
 
-  const isDark = theme === 'dark';
   const themeStyles = isDark ? darkStyles : lightStyles;
 
   const isRecentlySynced = lastSync && (new Date().getTime() - lastSync.getTime() < 5 * 60 * 1000);

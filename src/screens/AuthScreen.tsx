@@ -14,7 +14,7 @@ WebBrowser.maybeCompleteAuthSession();
 
 export default function AuthScreen() {
   const { t } = useTranslation();
-  const { theme } = useAppContext();
+  const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
   const { loginAsGuest, loginWithEmail, registerWithEmail, loginWithGoogle, loginWithTelegram } = useAuth();
 
   const [isLogin, setIsLogin] = useState(true);
@@ -88,7 +88,6 @@ export default function AuthScreen() {
     }
   };
 
-  const isDark = theme === 'dark';
   const themeStyles = isDark ? darkStyles : lightStyles;
 
   return (

@@ -11,8 +11,7 @@ interface Props {
 
 export default function NewsCard({ article }: Props) {
   const { t, i18n } = useTranslation();
-  const { theme } = useAppContext();
-  const isDark = theme === 'dark';
+  const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
   const lang = i18n.language as 'ru' | 'tg' | 'uz';
 
   const title = article[`title_${lang}`] || article.title_ru;

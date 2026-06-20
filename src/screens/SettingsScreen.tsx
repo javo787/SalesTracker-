@@ -32,6 +32,7 @@ const CURRENCIES = [
 const THEMES = [
   { code: 'light', label: 'Светлая', icon: '☀️' },
   { code: 'dark', label: 'Тёмная', icon: '🌙' },
+  { code: 'system', label: 'Как в системе', icon: '⚙️' },
 ];
 
 const PRIVACY_POLICY_URL = 'https://duxtur.org/privacy'; // TODO: replace with the actual hosted privacy policy URL before publishing to Google Play
@@ -178,7 +179,8 @@ export default function SettingsScreen(props: any) {
     }
   };
 
-  const isDark = theme === 'dark';
+  const { resolvedTheme } = useAppContext();
+  const isDark = resolvedTheme === 'dark';
   const themeStyles = isDark ? darkStyles : lightStyles;
 
   return (
@@ -324,7 +326,7 @@ export default function SettingsScreen(props: any) {
                 themeStyles.themeBtn,
                 theme === tOption.code && styles.themeBtnActive
               ]}
-              onPress={() => setTheme(tOption.code as 'light' | 'dark')}
+              onPress={() => setTheme(tOption.code as 'light' | 'dark' | 'system')}
             >
               <Text style={styles.themeIcon}>{tOption.icon}</Text>
               <Text style={[
@@ -332,7 +334,7 @@ export default function SettingsScreen(props: any) {
                 themeStyles.themeLabel,
                 theme === tOption.code && styles.themeLabelActive
               ]}>
-                {tOption.code === 'light' ? t('settings.light') : t('settings.dark')}
+                {tOption.code === 'light' ? t('settings.light') : tOption.code === 'dark' ? t('settings.dark') : t('settings.system')}
               </Text>
             </TouchableOpacity>
           ))}

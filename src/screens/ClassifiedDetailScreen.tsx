@@ -15,6 +15,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useRoute, useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppContext } from '../context/AppContext';
 import { marketService } from '../services/marketService';
 import { Classified } from '../types/ads';
@@ -23,10 +24,10 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function ClassifiedDetailScreen() {
   const { t } = useTranslation();
-  const { theme } = useAppContext();
+  const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
+  const insets = useSafeAreaInsets();
   const route = useRoute<any>();
   const navigation = useNavigation();
-  const isDark = theme === 'dark';
   const { id } = route.params;
 
   const [item, setItem] = useState<Classified | null>(null);
@@ -127,7 +128,7 @@ export default function ClassifiedDetailScreen() {
         </View>
       </ScrollView>
 
-      <View style={[styles.footer, isDark ? styles.footerDark : styles.footerLight]}>
+      <View style={[styles.footer, isDark ? styles.footerDark : styles.footerLight, { paddingBottom: 20 + insets.bottom }]}>
         <TouchableOpacity style={styles.shareBtn} onPress={handleShare}>
           <Ionicons name="share-social-outline" size={24} color={isDark ? '#fff' : '#333'} />
         </TouchableOpacity>

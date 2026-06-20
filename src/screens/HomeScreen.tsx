@@ -118,7 +118,7 @@ function StatCard({ label, value, currency, unit, icon, color, themeStyles, tren
 
 export default function HomeScreen() {
   const { t, i18n } = useTranslation();
-  const { theme, currency } = useAppContext();
+  const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
   const { user } = useAuth();
   const navigation = useNavigation<any>();
 
@@ -172,7 +172,6 @@ export default function HomeScreen() {
     );
   };
 
-  const isDark = theme === 'dark';
   const themeStyles = isDark ? darkStyles : lightStyles;
 
   const getGreeting = () => {

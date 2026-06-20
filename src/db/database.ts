@@ -3,6 +3,27 @@ import { notifyLowStock } from '../utils/notifications';
 
 const db = SQLite.openDatabaseSync('savdo.db');
 
+function nowLocalISO(): string {
+  // Возвращает локальное время устройства в формате 'YYYY-MM-DD HH:MM:SS'
+  // БЕЗ конвертации в UTC (в отличие от toISOString())
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function todayLocalDate(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function daysAgoLocalISO(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
 export function initDatabase() {
   db.execSync(`
     CREATE TABLE IF NOT EXISTS products (
@@ -19,7 +40,7 @@ export function initDatabase() {
       updated_at TEXT,
       synced INTEGER DEFAULT 0,
       is_deleted INTEGER DEFAULT 0,
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT
     );
 
     CREATE TABLE IF NOT EXISTS stock_movements (
@@ -29,7 +50,7 @@ export function initDatabase() {
       quantity_change REAL NOT NULL,
       price_per_unit REAL,
       note TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT,
       synced INTEGER DEFAULT 0,
       FOREIGN KEY (product_id) REFERENCES products(id)
     );
@@ -44,7 +65,7 @@ export function initDatabase() {
       profit REAL NOT NULL,
       note TEXT,
       stock_updated INTEGER DEFAULT 0,
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT,
       FOREIGN KEY (product_id) REFERENCES products(id)
     );
 
@@ -55,10 +76,15 @@ export function initDatabase() {
       amount REAL NOT NULL,
       description TEXT,
       linked_product_id INTEGER,
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT,
       user_id TEXT,
       FOREIGN KEY (linked_product_id) REFERENCES products(id)
     );
+
+    CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
+    CREATE INDEX IF NOT EXISTS idx_sales_product_id ON sales(product_id);
+    CREATE INDEX IF NOT EXISTS idx_sales_product_name ON sales(product_name);
+    CREATE INDEX IF NOT EXISTS idx_sales_created_at ON sales(created_at);
   `);
 
   // Migration: add min_stock_alert to products if it doesn't exist
@@ -91,6 +117,20 @@ export function initDatabase() {
       db.execSync(`ALTER TABLE products ADD COLUMN ${col.name} ${col.type}`);
     }
   });
+
+  // Migration: timezone shift + one-time migration check
+  db.execSync('CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT)');
+  const migrationDone = db.getFirstSync("SELECT value FROM app_meta WHERE key = 'tz_migration_v1'") as { value: string } | null;
+
+  if (!migrationDone) {
+    db.withTransactionSync(() => {
+      const tables = ['products', 'sales', 'expenses', 'stock_movements'];
+      tables.forEach(table => {
+        db.execSync(`UPDATE ${table} SET created_at = datetime(created_at, '+5 hours') WHERE created_at IS NOT NULL`);
+      });
+      db.runSync("INSERT INTO app_meta (key, value) VALUES ('tz_migration_v1', 'done')");
+    });
+  }
 }
 
 // Товары
@@ -106,13 +146,14 @@ export function addProduct(
   unitsPerPackage: number = 1
 ) {
   try {
+    const now = nowLocalISO();
     const result = db.runSync(
       `INSERT INTO products (
         name, buy_price, sell_price, stock, min_stock_alert,
         base_unit, has_packages, package_name, units_per_package,
-        updated_at, synced, is_deleted
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), 0, 0)`,
-      [name, buyPrice, sellPrice, stock, minStockAlert, baseUnit, hasPackages, packageName, unitsPerPackage]
+        updated_at, synced, is_deleted, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)`,
+      [name, buyPrice, sellPrice, stock, minStockAlert, baseUnit, hasPackages, packageName, unitsPerPackage, now, now]
     );
     if (stock <= minStockAlert && minStockAlert > 0) {
       notifyLowStock(name, stock);
@@ -141,9 +182,9 @@ export function updateProduct(
       `UPDATE products SET
         name = ?, buy_price = ?, sell_price = ?, stock = ?, min_stock_alert = ?,
         base_unit = ?, has_packages = ?, package_name = ?, units_per_package = ?,
-        updated_at = datetime('now'), synced = 0
+        updated_at = ?, synced = 0
       WHERE id = ?`,
-      [name, buyPrice, sellPrice, stock, minStockAlert, baseUnit, hasPackages, packageName, unitsPerPackage, id]
+      [name, buyPrice, sellPrice, stock, minStockAlert, baseUnit, hasPackages, packageName, unitsPerPackage, nowLocalISO(), id]
     );
     if (stock <= minStockAlert && minStockAlert > 0) {
       notifyLowStock(name, stock);
@@ -157,7 +198,7 @@ export function updateProduct(
 
 export function deleteProduct(id: number) {
   // Soft delete for sync compatibility
-  return db.runSync('UPDATE products SET is_deleted = 1, synced = 0, updated_at = datetime(\'now\') WHERE id = ?', [id]);
+  return db.runSync('UPDATE products SET is_deleted = 1, synced = 0, updated_at = ? WHERE id = ?', [nowLocalISO(), id]);
 }
 
 export function convertAllAmounts(rate: number) {
@@ -209,15 +250,16 @@ export function addStockIn(
 
   const newBuyPrice = calcWeightedPrice(product.stock, product.buy_price, qtyBase, pricePerUnitBase);
   const movementId = typeof crypto !== 'undefined' && (crypto as any).randomUUID ? (crypto as any).randomUUID() : Math.random().toString(36).substring(2, 15);
+  const now = nowLocalISO();
 
   db.withTransactionSync(() => {
     db.runSync(
-      'UPDATE products SET stock = stock + ?, buy_price = ?, updated_at = datetime(\'now\'), synced = 0 WHERE id = ?',
-      [qtyBase, newBuyPrice, productId]
+      'UPDATE products SET stock = stock + ?, buy_price = ?, updated_at = ?, synced = 0 WHERE id = ?',
+      [qtyBase, newBuyPrice, now, productId]
     );
     db.runSync(
-      'INSERT INTO stock_movements (id, product_id, type, quantity_change, price_per_unit, note, created_at, synced) VALUES (?, ?, ?, ?, ?, ?, datetime(\'now\'), 0)',
-      [movementId, productId, 'stock_in', qtyBase, pricePerUnitBase, note]
+      'INSERT INTO stock_movements (id, product_id, type, quantity_change, price_per_unit, note, created_at, synced) VALUES (?, ?, ?, ?, ?, ?, ?, 0)',
+      [movementId, productId, 'stock_in', qtyBase, pricePerUnitBase, note, now]
     );
   });
 }
@@ -232,15 +274,16 @@ export function addStockWaste(
   if (!product) return;
 
   const movementId = typeof crypto !== 'undefined' && (crypto as any).randomUUID ? (crypto as any).randomUUID() : Math.random().toString(36).substring(2, 15);
+  const now = nowLocalISO();
 
   db.withTransactionSync(() => {
     db.runSync(
-      'UPDATE products SET stock = stock - ?, updated_at = datetime(\'now\'), synced = 0 WHERE id = ?',
-      [quantity, productId]
+      'UPDATE products SET stock = stock - ?, updated_at = ?, synced = 0 WHERE id = ?',
+      [quantity, now, productId]
     );
     db.runSync(
-      'INSERT INTO stock_movements (id, product_id, type, quantity_change, price_per_unit, note, created_at, synced) VALUES (?, ?, ?, ?, ?, ?, datetime(\'now\'), 0)',
-      [movementId, productId, 'waste', -quantity, null, note]
+      'INSERT INTO stock_movements (id, product_id, type, quantity_change, price_per_unit, note, created_at, synced) VALUES (?, ?, ?, ?, ?, ?, ?, 0)',
+      [movementId, productId, 'waste', -quantity, null, note, now]
     );
   });
 
@@ -261,15 +304,16 @@ export function addStockCorrection(
 
   const delta = actualStock - product.stock;
   const movementId = typeof crypto !== 'undefined' && (crypto as any).randomUUID ? (crypto as any).randomUUID() : Math.random().toString(36).substring(2, 15);
+  const now = nowLocalISO();
 
   db.withTransactionSync(() => {
     db.runSync(
-      'UPDATE products SET stock = ?, updated_at = datetime(\'now\'), synced = 0 WHERE id = ?',
-      [actualStock, productId]
+      'UPDATE products SET stock = ?, updated_at = ?, synced = 0 WHERE id = ?',
+      [actualStock, now, productId]
     );
     db.runSync(
-      'INSERT INTO stock_movements (id, product_id, type, quantity_change, price_per_unit, note, created_at, synced) VALUES (?, ?, ?, ?, ?, ?, datetime(\'now\'), 0)',
-      [movementId, productId, 'correction', delta, null, note]
+      'INSERT INTO stock_movements (id, product_id, type, quantity_change, price_per_unit, note, created_at, synced) VALUES (?, ?, ?, ?, ?, ?, ?, 0)',
+      [movementId, productId, 'correction', delta, null, note, now]
     );
   });
 }
@@ -311,8 +355,8 @@ export function addSale(
   const stockUpdated = productId ? 1 : 0;
   try {
     db.runSync(
-      'INSERT INTO sales (product_id, product_name, quantity, sell_price, buy_price, profit, note, stock_updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [productId, productName, quantity, sellPrice, buyPrice, profit, note, stockUpdated]
+      'INSERT INTO sales (product_id, product_name, quantity, sell_price, buy_price, profit, note, stock_updated, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [productId, productName, quantity, sellPrice, buyPrice, profit, note, stockUpdated, nowLocalISO()]
     );
     if (productId) updateStock(productId, quantity);
     return profit;
@@ -324,7 +368,8 @@ export function addSale(
 
 export function getSalesToday() {
   return db.getAllSync(
-    `SELECT * FROM sales WHERE date(created_at) = date('now') ORDER BY created_at DESC`
+    `SELECT * FROM sales WHERE date(created_at) = ? ORDER BY created_at DESC`,
+    [todayLocalDate()]
   );
 }
 
@@ -336,8 +381,8 @@ export function getSalesByPeriod(days: number, fromDate?: string, toDate?: strin
     );
   }
   return db.getAllSync(
-    "SELECT * FROM sales WHERE created_at >= datetime('now', '-' || ? || ' days') ORDER BY created_at DESC",
-    [days]
+    "SELECT * FROM sales WHERE created_at >= ? ORDER BY created_at DESC",
+    [daysAgoLocalISO(days)]
   );
 }
 
@@ -373,8 +418,8 @@ export function getStats(days: number = 1, fromDate?: string, toDate?: string) {
       COALESCE(SUM(profit), 0) as profit,
       COALESCE(COUNT(*), 0) as count
     FROM sales 
-    WHERE created_at >= datetime('now', '-' || ? || ' days')
-  `, [days]) as any;
+    WHERE created_at >= ?
+  `, [daysAgoLocalISO(days)]) as any;
   return result;
 }
 
@@ -389,8 +434,8 @@ export function addExpense(
 ) {
   try {
     return db.runSync(
-      'INSERT INTO expenses (type, category, amount, description, user_id, linked_product_id) VALUES (?, ?, ?, ?, ?, ?)',
-      [type, category, amount, description, userId, linkedProductId]
+      'INSERT INTO expenses (type, category, amount, description, user_id, linked_product_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [type, category, amount, description, userId, linkedProductId, nowLocalISO()]
     );
   } catch (error) {
     console.error('Error adding expense:', error);
@@ -400,8 +445,8 @@ export function addExpense(
 
 export function getExpenses(days: number = 1) {
   return db.getAllSync(
-    "SELECT * FROM expenses WHERE created_at >= datetime('now', '-' || ? || ' days') ORDER BY created_at DESC",
-    [days]
+    "SELECT * FROM expenses WHERE created_at >= ? ORDER BY created_at DESC",
+    [daysAgoLocalISO(days)]
   );
 }
 
@@ -427,45 +472,45 @@ export function getExpenseStats(days: number = 1, fromDate?: string, toDate?: st
       COALESCE(SUM(CASE WHEN type = 'inventory' THEN amount ELSE 0 END), 0) as inventory,
       COALESCE(SUM(amount), 0) as total
     FROM expenses
-    WHERE created_at >= datetime('now', '-' || ? || ' days')
-  `, [days]) as any;
+    WHERE created_at >= ?
+  `, [daysAgoLocalISO(days)]) as any;
   return result;
 }
 
 export function getAnnualStats() {
-  // Monthly breakdown for the current year
   const year = new Date().getFullYear();
+
+  const monthlySales = db.getAllSync(`
+    SELECT
+      CAST(strftime('%m', created_at) AS INTEGER) as month,
+      SUM(sell_price * quantity) as revenue,
+      SUM(profit) as profit,
+      COUNT(*) as salesCount
+    FROM sales
+    WHERE strftime('%Y', created_at) = ?
+    GROUP BY month
+  `, [String(year)]) as any[];
+
+  const monthlyExpenses = db.getAllSync(`
+    SELECT
+      CAST(strftime('%m', created_at) AS INTEGER) as month,
+      SUM(amount) as total
+    FROM expenses
+    WHERE strftime('%Y', created_at) = ?
+    GROUP BY month
+  `, [String(year)]) as any[];
+
   const months = [];
-
   for (let m = 1; m <= 12; m++) {
-    const monthStr = String(m).padStart(2, '0');
-    const from = `${year}-${monthStr}-01`;
-    // Last day of month
-    const lastDay = new Date(year, m, 0).getDate();
-    const to = `${year}-${monthStr}-${lastDay}`;
-
-    const sales = db.getFirstSync(`
-      SELECT
-        COALESCE(SUM(sell_price * quantity), 0) as revenue,
-        COALESCE(SUM(profit), 0) as profit,
-        COALESCE(COUNT(*), 0) as salesCount
-      FROM sales
-      WHERE date(created_at) >= ? AND date(created_at) <= ?
-    `, [from, to]) as any;
-
-    const expenses = db.getFirstSync(`
-      SELECT COALESCE(SUM(amount), 0) as total
-      FROM expenses
-      WHERE date(created_at) >= ? AND date(created_at) <= ?
-    `, [from, to]) as any;
-
+    const s = monthlySales.find(ms => ms.month === m);
+    const e = monthlyExpenses.find(me => me.month === m);
     months.push({
       month: m,
-      revenue: sales?.revenue || 0,
-      profit: sales?.profit || 0,
-      salesCount: sales?.salesCount || 0,
-      expenses: expenses?.total || 0,
-      netProfit: (sales?.profit || 0) - (expenses?.total || 0),
+      revenue: s?.revenue || 0,
+      profit: s?.profit || 0,
+      salesCount: s?.salesCount || 0,
+      expenses: e?.total || 0,
+      netProfit: (s?.profit || 0) - (e?.total || 0),
     });
   }
 
@@ -477,11 +522,11 @@ export function getAnnualStats() {
       SUM(quantity) as totalQty,
       COUNT(*) as salesCount
     FROM sales
-    WHERE created_at >= date('${year}-01-01')
+    WHERE date(created_at) >= ?
     GROUP BY product_name
     ORDER BY totalProfit DESC
     LIMIT 10
-  `) as any[];
+  `, [`${year}-01-01`]) as any[];
 
   // Year totals
   const totals = db.getFirstSync(`
@@ -490,14 +535,14 @@ export function getAnnualStats() {
       COALESCE(SUM(profit), 0) as profit,
       COALESCE(COUNT(*), 0) as salesCount
     FROM sales
-    WHERE strftime('%Y', created_at) = '${year}'
-  `) as any;
+    WHERE strftime('%Y', created_at) = ?
+  `, [String(year)]) as any;
 
   const totalExpenses = db.getFirstSync(`
     SELECT COALESCE(SUM(amount), 0) as total
     FROM expenses
-    WHERE strftime('%Y', created_at) = '${year}'
-  `) as any;
+    WHERE strftime('%Y', created_at) = ?
+  `, [String(year)]) as any;
 
   return {
     year,
@@ -537,7 +582,8 @@ export function searchProductsForAutocomplete(query: string) {
           (SELECT s2.buy_price FROM sales s2 WHERE s2.product_name = s.product_name AND s2.product_id IS NULL ORDER BY s2.created_at DESC LIMIT 1) as purchasePrice,
           (SELECT s2.sell_price FROM sales s2 WHERE s2.product_name = s.product_name AND s2.product_id IS NULL ORDER BY s2.created_at DESC LIMIT 1) as lastSalePrice,
           COUNT(*) as salesCount,
-          MAX(s.created_at) as lastSoldAt
+          MAX(s.created_at) as lastSoldAt,
+          'шт' as base_unit, 0 as has_packages, NULL as package_name, 1 as units_per_package
         FROM sales s
         WHERE s.product_id IS NULL
           AND s.product_name NOT IN (SELECT name FROM products)
@@ -572,7 +618,8 @@ export function searchProductsForAutocomplete(query: string) {
         (SELECT s2.buy_price FROM sales s2 WHERE s2.product_name = s.product_name AND s2.product_id IS NULL ORDER BY s2.created_at DESC LIMIT 1) as purchasePrice,
         (SELECT s2.sell_price FROM sales s2 WHERE s2.product_name = s.product_name AND s2.product_id IS NULL ORDER BY s2.created_at DESC LIMIT 1) as lastSalePrice,
         COUNT(*) as salesCount,
-        MAX(s.created_at) as lastSoldAt
+        MAX(s.created_at) as lastSoldAt,
+        'шт' as base_unit, 0 as has_packages, NULL as package_name, 1 as units_per_package
       FROM sales s
       WHERE s.product_id IS NULL
         AND s.product_name LIKE ? || '%'

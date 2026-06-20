@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppContext } from '../context/AppContext';
 import { useClassifieds } from '../hooks/useClassifieds';
 import { ClassifiedCategory } from '../types/ads';
@@ -33,9 +34,9 @@ const CATEGORIES: (ClassifiedCategory | 'all')[] = [
 
 export default function ClassifiedsScreen() {
   const { t } = useTranslation();
-  const { theme } = useAppContext();
+  const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
-  const isDark = theme === 'dark';
 
   const [selectedCategory, setSelectedCategory] = useState<ClassifiedCategory | 'all'>('all');
   const [debouncedCategory, setDebouncedCategory] = useState<ClassifiedCategory | 'all'>('all');
@@ -52,6 +53,13 @@ export default function ClassifiedsScreen() {
     undefined,
     debouncedCategory === 'all' ? undefined : debouncedCategory
   );
+
+  const renderItem = useCallback(({ item }: any) => (
+    <ClassifiedCard
+      item={item}
+      onPress={(id) => navigation.navigate('ClassifiedDetail', { id })}
+    />
+  ), []);
 
   const renderHeader = () => (
     <View style={styles.header}>
@@ -110,12 +118,7 @@ export default function ClassifiedsScreen() {
       <FlatList
         data={classifieds}
         keyExtractor={(item) => item._id}
-        renderItem={({ item }) => (
-          <ClassifiedCard
-            item={item}
-            onPress={(id) => navigation.navigate('ClassifiedDetail', { id })}
-          />
-        )}
+        renderItem={renderItem}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={renderEmpty}
         ListFooterComponent={renderFooter}
@@ -128,7 +131,7 @@ export default function ClassifiedsScreen() {
       />
 
       <TouchableOpacity
-        style={styles.fab}
+        style={[styles.fab, { bottom: 20 + insets.bottom }]}
         onPress={() => setModalVisible(true)}
       >
         <Ionicons name="add" size={30} color="#fff" />

@@ -17,13 +17,12 @@ const GRID_SPACING = (width * 0.8) / GRID_SIZE;
 
 export default function LockScreen() {
   const { t } = useTranslation();
+  const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
   const {
     lockMethod, verifyPin, verifyPattern,
     authenticateWithBiometrics, biometricAvailable, biometricEnabled,
     unlock, isLoading
   } = useAppLock();
-  const { theme } = useAppContext();
-  const isDark = theme === 'dark';
 
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);

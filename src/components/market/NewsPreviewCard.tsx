@@ -8,9 +8,8 @@ import { useAppContext } from '../../context/AppContext';
 
 export default function NewsPreviewCard() {
   const { t, i18n } = useTranslation();
-  const { theme } = useAppContext();
+  const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
   const navigation = useNavigation<any>();
-  const isDark = theme === 'dark';
   const lang = i18n.language as 'ru' | 'tg' | 'uz';
 
   const { news, loading } = useNews();

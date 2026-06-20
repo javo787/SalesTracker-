@@ -15,7 +15,7 @@ import { ProductAutocomplete } from '../components/sales/ProductAutocomplete';
 
 export default function ProductsScreen() {
   const { t } = useTranslation();
-  const { theme, currency, defaultMinStockAlert } = useAppContext();
+  const { resolvedTheme, currency, defaultMinStockAlert } = useAppContext(); const isDark = resolvedTheme === "dark";
   const [products, setProducts] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -143,7 +143,6 @@ export default function ProductsScreen() {
     );
   };
 
-  const isDark = theme === 'dark';
   const themeStyles = isDark ? darkStyles : lightStyles;
 
   return (

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -10,10 +10,9 @@ interface Props {
   onPress: (id: string) => void;
 }
 
-export default function ClassifiedCard({ item, onPress }: Props) {
+function ClassifiedCard({ item, onPress }: Props) {
   const { t } = useTranslation();
-  const { theme } = useAppContext();
-  const isDark = theme === 'dark';
+  const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
 
   return (
     <TouchableOpacity
@@ -60,6 +59,8 @@ export default function ClassifiedCard({ item, onPress }: Props) {
     </TouchableOpacity>
   );
 }
+
+export default memo(ClassifiedCard);
 
 const styles = StyleSheet.create({
   card: {

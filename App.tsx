@@ -1,10 +1,11 @@
 import 'react-native-gesture-handler';
 import { useEffect, useState, useRef } from 'react';
-import { View, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, ActivityIndicator, TouchableOpacity, Platform } from 'react-native';
 import { NavigationContainer, DrawerActions, useNavigationContainerRef } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createDrawerNavigator } from '@react-navigation/drawer';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { I18nextProvider, useTranslation } from 'react-i18next';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initDatabase } from './src/db/database';
@@ -43,8 +44,9 @@ const Drawer = createDrawerNavigator();
 
 function MainTabs() {
   const { t } = useTranslation();
-  const { theme } = useAppContext();
-  const isDark = theme === 'dark';
+  const { resolvedTheme } = useAppContext();
+  const isDark = resolvedTheme === 'dark';
+  const insets = useSafeAreaInsets();
 
   return (
     <Tab.Navigator
@@ -56,8 +58,8 @@ function MainTabs() {
           backgroundColor: isDark ? '#121212' : '#fff',
           borderTopWidth: 0.5,
           borderTopColor: isDark ? '#333' : '#eee',
-          height: 60,
-          paddingBottom: 8,
+          height: 60 + insets.bottom,
+          paddingBottom: 8 + insets.bottom,
         },
         headerStyle: { backgroundColor: '#1D9E75' },
         headerTintColor: '#fff',
@@ -144,8 +146,8 @@ function MainTabs() {
 
 function DrawerNavigator() {
   const { t } = useTranslation();
-  const { theme } = useAppContext();
-  const isDark = theme === 'dark';
+  const { resolvedTheme } = useAppContext();
+  const isDark = resolvedTheme === 'dark';
 
   return (
     <Drawer.Navigator
@@ -332,8 +334,11 @@ function AppContent() {
 export default function App() {
   useEffect(() => {
     initDatabase();
-    requestPermissions();
-    adService.init();
+    // Parallelize async initialization
+    Promise.all([
+      requestPermissions(),
+      adService.init()
+    ]).catch(err => console.warn('Initialization error:', err));
   }, []);
 
   return (
