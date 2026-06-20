@@ -331,9 +331,16 @@ function AppContent() {
   );
 }
 
+// Initialize database synchronously at module level to prevent race conditions
+// with components that might perform DB operations on mount.
+try {
+  initDatabase();
+} catch (e) {
+  console.error('Failed to initialize database:', e);
+}
+
 export default function App() {
   useEffect(() => {
-    initDatabase();
     // Parallelize async initialization
     Promise.all([
       requestPermissions(),
