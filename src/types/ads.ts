@@ -66,7 +66,7 @@ export interface NewsArticle {
   summary_uz: string;
   url: string;
   source: string;
-  category: 'prices' | 'currency' | 'taxes' | 'import_export' | 'weather' | 'general';
+  category: 'customs' | 'currency' | 'logistics' | 'construction_materials' | 'textile' | 'fuel' | 'general';
   relevanceScore: number;
 }
 

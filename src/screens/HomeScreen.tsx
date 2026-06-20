@@ -12,7 +12,7 @@ import { useAuth } from '../context/AuthContext';
 import { getSmartTip } from '../utils/smartTips';
 import CurrencyConversionBanner from '../components/CurrencyConversionBanner';
 import WholesalePromoStrip from '../components/market/WholesalePromoStrip';
-import NewsPreviewCard from '../components/market/NewsPreviewCard';
+import { useNewsUnread } from '../hooks/useNewsUnread';
 
 function SaleListItem({ sale, onDelete, isDark, currency, t, i18n, themeStyles }: any) {
   const translateX = useRef(new RNAnimated.Value(0)).current;
@@ -121,6 +121,7 @@ export default function HomeScreen() {
   const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
   const { user } = useAuth();
   const navigation = useNavigation<any>();
+  const { hasUnread } = useNewsUnread();
 
   const [stats, setStats] = useState({ revenue: 0, profit: 0, count: 0 });
   const [stats7, setStats7] = useState({ revenue: 0, profit: 0, count: 0 });
@@ -189,7 +190,13 @@ export default function HomeScreen() {
     >
       {/* Заголовок */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>{getGreeting()}</Text>
+        <View style={styles.headerTopRow}>
+          <Text style={styles.headerTitle}>{getGreeting()}</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('News')} style={styles.newsBtn}>
+            <Ionicons name="newspaper-outline" size={22} color="#fff" />
+            {hasUnread && <View style={styles.newsBadgeDot} />}
+          </TouchableOpacity>
+        </View>
         <Text style={styles.headerDate}>
           {new Date().toLocaleDateString(i18n.language === 'tg' ? 'tg-TJ' : i18n.language === 'uz' ? 'uz-UZ' : 'ru-RU', {
             day: 'numeric', month: 'long', year: 'numeric'
@@ -286,7 +293,6 @@ export default function HomeScreen() {
       </View>
 
       <WholesalePromoStrip />
-      <NewsPreviewCard />
 
       {/* Последние продажи */}
       <Text style={[styles.sectionTitle, themeStyles.text]}>{t('home.recentSales')}</Text>
@@ -336,7 +342,10 @@ const darkStyles = StyleSheet.create({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { padding: 20, backgroundColor: '#1D9E75' },
+  headerTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#fff' },
+  newsBtn: { padding: 4, position: 'relative' },
+  newsBadgeDot: { position: 'absolute', top: 2, right: 2, width: 8, height: 8, borderRadius: 4, backgroundColor: '#FF6B6B' },
   headerDate: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
   tipCard: {
     margin: 16, marginBottom: 4, padding: 16,
