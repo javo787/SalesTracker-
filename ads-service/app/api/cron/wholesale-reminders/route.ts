@@ -27,8 +27,31 @@ export async function GET(request: Request) {
 
     console.log(`Found ${expiringSoon.length} wholesale ads expiring soon`);
 
-    // In a real scenario, we would send Push or Telegram notifications here.
-    // For now, we log them.
+    // Send Telegram notifications if configured
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    const adminChatId = process.env.ADMIN_TELEGRAM_ID;
+
+    if (botToken && adminChatId && expiringSoon.length > 0) {
+      const message = `🔔 *Напоминание об истечении опта* (${expiringSoon.length})\n\n` +
+        expiringSoon.map(ad =>
+          `• *${ad.companyName}*\n  До: ${new Date(ad.paidUntil).toLocaleDateString()}\n  Тел: ${ad.contactPhone}`
+        ).join('\n\n');
+
+      try {
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: adminChatId,
+            text: message,
+            parse_mode: 'Markdown'
+          })
+        });
+      } catch (e) {
+        console.error('Telegram notification error:', e);
+      }
+    }
+
     for (const ad of expiringSoon) {
       console.log(`REMINDER: Ad for "${ad.companyName}" expires on ${ad.paidUntil}. Contact: ${ad.contactPhone}`);
     }

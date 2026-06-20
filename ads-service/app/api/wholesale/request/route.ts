@@ -13,7 +13,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
+    // Basic validation
+    const validCategories = ['clothing', 'shoes', 'accessories', 'food', 'electronics', 'other'];
+    if (categories && Array.isArray(categories)) {
+      if (!categories.every(cat => validCategories.includes(cat))) {
+        return NextResponse.json({ error: 'Invalid categories' }, { status: 400 });
+      }
+    }
+
     const col = await getWholesaleRequestsCollection();
+
+    // Basic rate limit: check if a pending request from this phone exists in the last 24h
+    const existing = await col.findOne({
+      contactPhone,
+      createdAt: { $gt: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+    });
+    if (existing) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+    }
+
     const result = await col.insertOne({
       companyName,
       contactPhone,

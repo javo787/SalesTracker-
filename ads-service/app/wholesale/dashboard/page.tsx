@@ -5,25 +5,22 @@ import { useSearchParams } from 'next/navigation';
 
 function DashboardContent() {
   const searchParams = useSearchParams();
-  const id = searchParams.get('id');
+  const token = searchParams.get('token');
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!id) {
-      setError('ID объявления не указан');
+    if (!token) {
+      setError('Токен доступа не указан');
       setLoading(false);
       return;
     }
 
     async function fetchStats() {
       try {
-        // We use the public GET endpoint which increments clicks,
-        // but here we just want to show the current state.
-        // In a production app, we might want a dedicated stats endpoint.
-        const res = await fetch(`/api/wholesale/${id}`);
-        if (!res.ok) throw new Error('Объявление не найдено');
+        const res = await fetch(`/api/wholesale/stats?token=${token}`);
+        if (!res.ok) throw new Error('Объявление не найдено или токен недействителен');
         const json = await res.json();
         setData(json);
       } catch (e: any) {
@@ -34,7 +31,7 @@ function DashboardContent() {
     }
 
     fetchStats();
-  }, [id]);
+  }, [token]);
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center' }}>Загрузка статистики...</div>;
   if (error) return <div style={{ padding: 40, color: 'red', textAlign: 'center' }}>{error}</div>;

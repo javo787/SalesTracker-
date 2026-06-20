@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getWholesaleCollection } from '../../../../lib/collections';
 import { checkAuth } from '../../../../lib/auth';
 import { uploadImage } from '../../../../lib/cloudinary';
+import { v4 as uuidv4 } from 'uuid';
 
 export const runtime = 'nodejs';
 
@@ -45,6 +46,9 @@ export async function POST(request: Request) {
     }
   }
 
+  const tier = rest.tier || 'basic';
+  const tierOrderMap: Record<string, number> = { vip: 3, premium: 2, basic: 1 };
+
   const doc = {
     ...rest,
     companyName: companyName.trim(),
@@ -54,7 +58,9 @@ export async function POST(request: Request) {
     imagePublicIds,
     isActive: true,
     isPaid: true,
-    tier: rest.tier || 'basic',
+    tier,
+    tierOrder: tierOrderMap[tier] || 1,
+    dashboardToken: uuidv4(),
     views: 0,
     clicks: 0,
     calls: 0,

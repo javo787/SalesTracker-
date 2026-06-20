@@ -1,9 +1,10 @@
-import React, { memo } from 'react';
+import React, { memo, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { WholesaleAd } from '../../types/ads';
 import { useAppContext } from '../../context/AppContext';
+import { marketService } from '../../services/marketService';
 
 interface Props {
   item: WholesaleAd;
@@ -11,6 +12,16 @@ interface Props {
 }
 
 function WholesaleCard({ item, onPress }: Props) {
+  const viewedRef = useRef(false);
+
+  useEffect(() => {
+    // Simple deduplication: track view only once per component mount (session-ish)
+    if (!viewedRef.current) {
+      marketService.trackWholesaleView(item._id);
+      viewedRef.current = true;
+    }
+  }, [item._id]);
+
   const { t } = useTranslation();
   const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
 

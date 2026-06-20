@@ -57,7 +57,7 @@ export async function ensureIndexes() {
 
   // Wholesale: simple active query
   await db.collection('wholesale_ads').createIndexes([
-    { key: { isActive: 1, isPaid: 1, paidUntil: 1, tier: -1, priority: -1 }, name: 'query_wholesale_v2' },
+    { key: { isActive: 1, isPaid: 1, paidUntil: 1, tierOrder: -1, priority: -1 }, name: 'query_wholesale_v3' },
   ]);
 
   // Wholesale requests

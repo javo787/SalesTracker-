@@ -10,6 +10,10 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   const body = await request.json();
   delete body._id;
   if (body.paidUntil) body.paidUntil = new Date(body.paidUntil);
+  if (body.tier) {
+    const tierOrderMap: Record<string, number> = { vip: 3, premium: 2, basic: 1 };
+    body.tierOrder = tierOrderMap[body.tier] || 1;
+  }
   const col = await getWholesaleCollection();
   await col.updateOne({ _id: new ObjectId(params.id) }, { $set: { ...body, updatedAt: new Date() } });
   return NextResponse.json({ success: true });

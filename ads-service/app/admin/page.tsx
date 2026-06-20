@@ -374,7 +374,7 @@ export default function AdminPage() {
                   <option value="premium">Premium (Премиум)</option>
                   <option value="vip">VIP (Вип)</option>
                 </select>
-                <input placeholder="Приоритет" type="number" value={newWholesale.priority} onChange={e => setNewWholesale({...newWholesale, priority: Number(e.target.value)})} style={{ flex: 1, padding: 8 }} />
+                <input title="Место внутри тира (выше = раньше)" placeholder="Приоритет" type="number" value={newWholesale.priority} onChange={e => setNewWholesale({...newWholesale, priority: Number(e.target.value)})} style={{ flex: 1, padding: 8 }} />
                 <input placeholder="Оплачено до (YYYY-MM-DD)" type="date" value={newWholesale.paidUntil} onChange={e => setNewWholesale({...newWholesale, paidUntil: e.target.value})} required style={{ flex: 2, padding: 8 }} />
               </div>
               <button type="submit" style={{ padding: '10px 20px', backgroundColor: '#1D9E75', color: 'white', border: 'none', borderRadius: 4 }}>Добавить</button>
@@ -387,9 +387,12 @@ export default function AdminPage() {
                 <div key={item._id} style={{ border: '1px solid #ccc', padding: 15, marginBottom: 10, borderRadius: 8, display: 'flex', justifyContent: 'space-between' }}>
                   <div>
                     <strong>{item.companyName}</strong> <span style={{fontSize: 10, backgroundColor: '#eee', padding: '2px 4px', borderRadius: 4}}>{item.tier?.toUpperCase()}</span><br/>
-                    <small>Кат: {item.categories?.join(', ')}</small><br/>
+                    <small>Кат: {item.categories?.join(', ')} | Prio: {item.priority || 0}</small><br/>
                     <small>Оплачено до: {new Date(item.paidUntil).toLocaleDateString()}</small><br/>
-                    <small>Статистика: {item.views || 0} глаз, {item.clicks || 0} кликов, {item.calls || 0} тел, {item.telegramClicks || 0} TG</small>
+                    <small>Статистика: {item.views || 0} глаз, {item.clicks || 0} кликов, {item.calls || 0} тел, {item.telegramClicks || 0} TG</small><br/>
+                    {item.dashboardToken && (
+                      <small>Дашборд: <a href={`/wholesale/dashboard?token=${item.dashboardToken}`} target="_blank" style={{color: '#1D9E75'}}>открыть ссылку</a></small>
+                    )}
                   </div>
                   <div>
                     <button onClick={() => deleteItem('wholesale', item._id)} style={{ color: 'red' }}>Удалить</button>
