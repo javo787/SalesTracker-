@@ -21,6 +21,12 @@
         "android.permission.RECORD_AUDIO"
       ]
     },
+    "updates": {
+      "url": "https://u.expo.dev/617f1baa-d4b4-4221-b3f6-f9b321325ec0"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "plugins": [
       [
         "expo-audio",
