@@ -13,6 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { BarChart } from 'react-native-gifted-charts';
 import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppContext } from '../../context/AppContext';
 import { useExpenses } from '../../hooks/useExpenses';
 import { Expense } from '../../types/expense';
@@ -23,9 +24,9 @@ type Period = 1 | 7 | 30;
 
 export default function ExpensesView() {
   const { t, i18n } = useTranslation();
-  const { theme, currency } = useAppContext();
+  const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
+  const insets = useSafeAreaInsets();
   const { getExpenses, getTotals, deleteExpense } = useExpenses();
-  const isDark = theme === 'dark';
 
   const [period, setPeriod] = useState<Period>(1);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -213,7 +214,7 @@ export default function ExpensesView() {
 
       {/* FAB */}
       <TouchableOpacity
-        style={styles.fab}
+        style={[styles.fab, { bottom: 30 + insets.bottom }]}
         onPress={() => setModalVisible(true)}
       >
         <Ionicons name="add" size={30} color="#fff" />

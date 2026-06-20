@@ -33,11 +33,11 @@ export function ProductAutocomplete({
   placeholder,
   placeholderTextColor,
 }: Props) {
+  const { resolvedTheme, currency } = useAppContext();
+  const isDark = resolvedTheme === 'dark';
   const { t } = useTranslation();
-  const { theme, currency } = useAppContext();
   const { results, search, getTopProducts } = useProductAutocomplete();
   const [isVisible, setIsVisible] = useState(false);
-  const isDark = theme === 'dark';
 
   const handleInputChange = (text: string) => {
     onChange(text);

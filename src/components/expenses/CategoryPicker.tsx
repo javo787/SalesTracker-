@@ -22,8 +22,7 @@ interface CategoryPickerProps {
 
 export default function CategoryPicker({ selectedCategory, onSelect }: CategoryPickerProps) {
   const { t } = useTranslation();
-  const { theme } = useAppContext();
-  const isDark = theme === 'dark';
+  const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
 
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.container}>

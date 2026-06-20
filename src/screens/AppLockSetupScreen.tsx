@@ -17,13 +17,12 @@ const GRID_SPACING = (width * 0.8) / GRID_SIZE;
 
 export default function AppLockSetupScreen() {
   const { t } = useTranslation();
+  const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
   const navigation = useNavigation();
   const {
     isLockEnabled, lockMethod, biometricEnabled, biometricAvailable,
     setupPin, setupPattern, verifyPin, verifyPattern, disableLock, setBiometricEnabled
   } = useAppLock();
-  const { theme } = useAppContext();
-  const isDark = theme === 'dark';
 
   const [step, setStep] = useState<'choose' | 'verify_old' | 'setup' | 'confirm' | 'biometric'>('choose');
   const [method, setMethod] = useState<'pin' | 'pattern' | null>(null);

@@ -20,7 +20,7 @@ const CACHE_TTL = 60 * 60 * 1000; // 1 час в мс
 
 export default function AddSaleScreen(/* props */) {
   const { t } = useTranslation();
-  const { theme, currency, language } = useAppContext();
+  const { resolvedTheme, currency, language } = useAppContext(); const isDark = resolvedTheme === "dark";
 
   const gemini = useMemo(() => {
     const keys = [
@@ -208,7 +208,6 @@ FEW-SHOT EXAMPLES:
     setSalePricePlaceholder(null);
   };
 
-  const isDark = theme === 'dark';
   const themeStyles = isDark ? darkStyles : lightStyles;
 
 

@@ -1,7 +1,8 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useMemo } from 'react';
+import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-type Theme = 'light' | 'dark';
+type Theme = 'light' | 'dark' | 'system';
 
 interface Currency {
   code: string;
@@ -19,6 +20,7 @@ const CURRENCIES: Record<string, Currency> = {
 
 interface AppContextType {
   theme: Theme;
+  resolvedTheme: 'light' | 'dark';
   currency: Currency;
   language: string;
   setTheme: (theme: Theme) => void;
@@ -36,7 +38,8 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [theme, setThemeState] = useState<Theme>('light');
+  const systemColorScheme = useColorScheme();
+  const [theme, setThemeState] = useState<Theme>('system');
   const [currency, setCurrencyState] = useState<Currency>(CURRENCIES.TJS);
   const [language, setLanguageState] = useState('ru');
   const [notificationsEnabled, setNotificationsEnabledState] = useState(true);
@@ -59,7 +62,12 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         AsyncStorage.getItem('app_is_premium'),
       ]);
 
-      if (savedTheme) setThemeState(savedTheme as Theme);
+      if (savedTheme) {
+        setThemeState(savedTheme as Theme);
+      } else {
+        // For new users, default to system
+        setThemeState('system');
+      }
       if (savedCurrency && CURRENCIES[savedCurrency]) setCurrencyState(CURRENCIES[savedCurrency]);
       if (savedLang) setLanguageState(savedLang);
       if (savedNotifs !== null) setNotificationsEnabledState(savedNotifs === 'true');
@@ -106,22 +114,41 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     await AsyncStorage.setItem('app_is_premium', String(value));
   };
 
+  const resolvedTheme = useMemo(() => {
+    if (theme === 'system') {
+      return systemColorScheme === 'dark' ? 'dark' : 'light';
+    }
+    return theme;
+  }, [theme, systemColorScheme]);
+
+  const contextValue = useMemo(() => ({
+    theme,
+    resolvedTheme,
+    currency,
+    language,
+    notificationsEnabled,
+    setNotificationsEnabled,
+    defaultMinStockAlert,
+    setDefaultMinStockAlert,
+    isPremium,
+    setIsPremium,
+    setTheme,
+    setCurrency,
+    setLanguage,
+    loading
+  }), [
+    theme,
+    resolvedTheme,
+    currency,
+    language,
+    notificationsEnabled,
+    defaultMinStockAlert,
+    isPremium,
+    loading
+  ]);
+
   return (
-    <AppContext.Provider value={{
-      theme,
-      currency,
-      language,
-      notificationsEnabled,
-      setNotificationsEnabled,
-      defaultMinStockAlert,
-      setDefaultMinStockAlert,
-      isPremium,
-      setIsPremium,
-      setTheme,
-      setCurrency,
-      setLanguage,
-      loading
-    }}>
+    <AppContext.Provider value={contextValue}>
       {children}
     </AppContext.Provider>
   );

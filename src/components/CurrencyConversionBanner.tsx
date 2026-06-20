@@ -7,7 +7,7 @@ import { useAppContext } from '../context/AppContext';
 
 export default function CurrencyConversionBanner() {
   const { t, i18n } = useTranslation();
-  const { theme } = useAppContext();
+  const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
   const [visible, setVisible] = useState(false);
   const [logEntry, setLogEntry] = useState<any>(null);
 
@@ -44,7 +44,6 @@ export default function CurrencyConversionBanner() {
 
   if (!visible || !logEntry) return null;
 
-  const isDark = theme === 'dark';
   const date = new Date(logEntry.date).toLocaleDateString(
     i18n.language === 'tg' ? 'tg-TJ' : i18n.language === 'uz' ? 'uz-UZ' : 'ru-RU'
   );

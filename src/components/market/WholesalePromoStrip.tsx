@@ -7,9 +7,8 @@ import { useAppContext } from '../../context/AppContext';
 
 export default function WholesalePromoStrip() {
   const { t } = useTranslation();
-  const { theme } = useAppContext();
+  const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
   const navigation = useNavigation<any>();
-  const isDark = theme === 'dark';
 
   const { ads, loading } = useWholesale();
 

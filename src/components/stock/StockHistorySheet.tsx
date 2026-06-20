@@ -16,8 +16,7 @@ interface StockHistorySheetProps {
 
 export default function StockHistorySheet({ visible, onClose, product }: StockHistorySheetProps) {
   const { t } = useTranslation();
-  const { theme, currency } = useAppContext();
-  const isDark = theme === 'dark';
+  const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
   const [movements, setMovements] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 

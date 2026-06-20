@@ -20,9 +20,9 @@ interface StockOperationModalProps {
 export default function StockOperationModal({
   visible, onClose, onSuccess, product, initialType = 'stock_in'
 }: StockOperationModalProps) {
+  const { resolvedTheme, currency } = useAppContext();
+  const isDark = resolvedTheme === 'dark';
   const { t } = useTranslation();
-  const { theme, currency } = useAppContext();
-  const isDark = theme === 'dark';
 
   const [type, setType] = useState<'stock_in' | 'waste' | 'correction'>(initialType);
   const [quantity, setQuantity] = useState('');

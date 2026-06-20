@@ -14,6 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useRoute, useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppContext } from '../context/AppContext';
 import { marketService } from '../services/marketService';
 import { WholesaleAd } from '../types/ads';
@@ -22,10 +23,10 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function WholesaleDetailScreen() {
   const { t } = useTranslation();
-  const { theme } = useAppContext();
+  const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
+  const insets = useSafeAreaInsets();
   const route = useRoute<any>();
   const navigation = useNavigation();
-  const isDark = theme === 'dark';
   const { id } = route.params;
 
   const [item, setItem] = useState<WholesaleAd | null>(null);
@@ -142,7 +143,7 @@ export default function WholesaleDetailScreen() {
         </View>
       </ScrollView>
 
-      <View style={[styles.footer, isDark ? styles.footerDark : styles.footerLight]}>
+      <View style={[styles.footer, isDark ? styles.footerDark : styles.footerLight, { paddingBottom: 20 + insets.bottom }]}>
         {item.contactTelegram && (
           <TouchableOpacity style={styles.tgBtn} onPress={handleTelegram}>
             <Ionicons name="paper-plane" size={24} color="#fff" />

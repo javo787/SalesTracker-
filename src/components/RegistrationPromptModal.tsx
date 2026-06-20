@@ -21,8 +21,7 @@ const { width } = Dimensions.get('window');
 
 export default function RegistrationPromptModal({ visible, onClose, onRegister }: Props) {
   const { t } = useTranslation();
-  const { theme } = useAppContext();
-  const isDark = theme === 'dark';
+  const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
 
   return (
     <Modal

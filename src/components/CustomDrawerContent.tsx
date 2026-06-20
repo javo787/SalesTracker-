@@ -20,9 +20,8 @@ import { useAppContext } from '../context/AppContext';
 
 export default function CustomDrawerContent(props: DrawerContentComponentProps) {
   const { t } = useTranslation();
+  const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
   const { user, logout, isGuest } = useAuth();
-  const { theme } = useAppContext();
-  const isDark = theme === 'dark';
 
   const themeStyles = isDark ? darkStyles : lightStyles;
 

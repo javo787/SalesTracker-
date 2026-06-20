@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -29,9 +29,8 @@ const CATEGORIES = [
 
 export default function WholesaleScreen() {
   const { t } = useTranslation();
-  const { theme } = useAppContext();
+  const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
   const navigation = useNavigation<any>();
-  const isDark = theme === 'dark';
 
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [debouncedCategory, setDebouncedCategory] = useState('all');
@@ -46,6 +45,13 @@ export default function WholesaleScreen() {
   const { ads, loading, refreshing, refresh } = useWholesale(
     debouncedCategory === 'all' ? undefined : debouncedCategory
   );
+
+  const renderItem = useCallback(({ item }: any) => (
+    <WholesaleCard
+      item={item}
+      onPress={(id) => navigation.navigate('WholesaleDetail', { id })}
+    />
+  ), []);
 
   const renderHeader = () => (
     <View style={styles.header}>
@@ -98,12 +104,7 @@ export default function WholesaleScreen() {
       <FlatList
         data={ads}
         keyExtractor={(item) => item._id}
-        renderItem={({ item }) => (
-          <WholesaleCard
-            item={item}
-            onPress={(id) => navigation.navigate('WholesaleDetail', { id })}
-          />
-        )}
+        renderItem={renderItem}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={renderEmpty}
         contentContainerStyle={styles.listContent}
@@ -139,6 +140,7 @@ const styles = StyleSheet.create({
   chipDark: { backgroundColor: '#1E1E1E' },
   filterChipText: { fontSize: 13, fontWeight: '600' },
   textWhite: { color: '#fff' },
+  textBlack: { color: '#000' },
   textGray: { color: '#888' },
   textDarkGray: { color: '#555' },
   emptyContainer: { height: 400, justifyContent: 'center', alignItems: 'center', gap: 16 },
