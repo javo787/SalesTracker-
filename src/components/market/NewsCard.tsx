@@ -19,11 +19,12 @@ export default function NewsCard({ article }: Props) {
 
   const getCategoryIcon = (cat: string) => {
     switch (cat) {
-      case 'prices': return 'pricetag-outline';
+      case 'customs': return 'document-text-outline';
       case 'currency': return 'cash-outline';
-      case 'taxes': return 'receipt-outline';
-      case 'import_export': return 'boat-outline';
-      case 'weather': return 'sunny-outline';
+      case 'logistics': return 'bus-outline';
+      case 'construction_materials': return 'construct-outline';
+      case 'textile': return 'shirt-outline';
+      case 'fuel': return 'flame-outline';
       default: return 'newspaper-outline';
     }
   };
