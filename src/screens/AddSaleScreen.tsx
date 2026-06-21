@@ -373,7 +373,7 @@ FEW-SHOT EXAMPLES:
 
             {/* Успешно сохранено */}
             {lastSaved && (
-              <View style={styles.successCard}>
+              <View style={[styles.successCard, themeStyles.successCard]}>
                 <Text style={styles.successTitle}>✅ {t('common.saved')}</Text>
                 <Text style={[styles.successText, themeStyles.text]}>{lastSaved.name}</Text>
                 <Text style={[styles.successText, themeStyles.text]}>{t('common.revenue')}: {lastSaved.revenue} {currency.symbol}</Text>
@@ -395,6 +395,7 @@ const lightStyles = StyleSheet.create({
   text: { color: '#333' },
   voiceResult: { backgroundColor: '#F8F8F8' },
   input: { backgroundColor: '#F5F5F5', borderColor: '#E0E0E0' },
+  successCard: { backgroundColor: '#F0FBF7' },
 });
 
 const darkStyles = StyleSheet.create({
@@ -403,6 +404,7 @@ const darkStyles = StyleSheet.create({
   text: { color: '#EEE' },
   voiceResult: { backgroundColor: '#2C2C2C' },
   input: { backgroundColor: '#2C2C2C', borderColor: '#444', color: '#EEE' },
+  successCard: { backgroundColor: '#16332A' },
 });
 
 const styles = StyleSheet.create({
@@ -496,7 +498,7 @@ const styles = StyleSheet.create({
     padding: 12, borderBottomWidth: 0.5, borderBottomColor: '#EEE'
   },
   successCard: {
-    margin: 16, marginTop: 0, backgroundColor: '#F0FBF7',
+    margin: 16, marginTop: 0,
     borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#1D9E75',
   },
   successTitle: { fontSize: 16, fontWeight: 'bold', color: '#1D9E75', marginBottom: 8 },

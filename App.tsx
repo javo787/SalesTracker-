@@ -135,15 +135,6 @@ function MainTabs() {
         }}
       />
 
-      <Tab.Screen
-        name="Expenses"
-        component={ExpensesScreen}
-        options={{
-          tabBarLabel: t('tabs.expenses'),
-          title: t('expenses.title'),
-          tabBarIcon: ({ color, size }) => <Ionicons name="receipt-outline" size={size} color={color} />,
-        }}
-      />
     </Tab.Navigator>
   );
 }

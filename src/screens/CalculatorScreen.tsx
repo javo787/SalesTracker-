@@ -7,6 +7,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
+import { useAppContext } from '../context/AppContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
@@ -16,6 +17,9 @@ type TradeTab = 'markup' | 'margin' | 'batch' | 'reverse';
 
 export default function CalculatorScreen({ navigation }: any) {
   const { t } = useTranslation();
+  const { resolvedTheme } = useAppContext();
+  const isDark = resolvedTheme === 'dark';
+  const themeStyles = isDark ? darkStyles : lightStyles;
   const insets = useSafeAreaInsets();
   const [mode, setMode] = useState<Mode>('normal');
   const [tradeTab, setTradeTab] = useState<TradeTab>('markup');
@@ -186,10 +190,10 @@ export default function CalculatorScreen({ navigation }: any) {
   const rv = reverseResult();
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, themeStyles.container]}>
       <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
         {/* Переключатель режима */}
-        <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+        <View style={[styles.header, themeStyles.header, { paddingTop: insets.top + 10 }]}>
           <View style={styles.modeSwitch}>
             <TouchableOpacity
               style={[styles.modeBtn, mode === 'normal' && styles.modeBtnActive]}
@@ -214,10 +218,10 @@ export default function CalculatorScreen({ navigation }: any) {
         {mode === 'normal' && (
           <View style={styles.normalSection}>
             {/* Дисплей */}
-            <View style={styles.display}>
+            <View style={[styles.display, themeStyles.display]}>
               <Text style={styles.displayExpr} numberOfLines={1}>{expr}</Text>
               <View style={styles.displayMain}>
-                <Text style={styles.displayVal} numberOfLines={1} adjustsFontSizeToFit>
+                <Text style={[styles.displayVal, themeStyles.displayVal]} numberOfLines={1} adjustsFontSizeToFit>
                   {displayValue}
                 </Text>
                 <TouchableOpacity style={styles.backspaceBtn} onPress={() => pressKey('BACK')}>
@@ -229,23 +233,23 @@ export default function CalculatorScreen({ navigation }: any) {
             {/* Кнопки */}
             <View style={styles.keys}>
               {/* Ряд 1 */}
-              <TouchableOpacity style={[styles.key, styles.keyFn]} onPress={() => pressKey('AC')}>
-                <Text style={styles.keyFnText}>AC</Text>
+              <TouchableOpacity style={[styles.key, styles.keyFn, themeStyles.keyFn]} onPress={() => pressKey('AC')}>
+                <Text style={[styles.keyFnText, themeStyles.keyFnText]}>AC</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.key, styles.keyFn]} onPress={() => pressKey('+/-')}>
-                <Text style={styles.keyFnText}>+/−</Text>
+              <TouchableOpacity style={[styles.key, styles.keyFn, themeStyles.keyFn]} onPress={() => pressKey('+/-')}>
+                <Text style={[styles.keyFnText, themeStyles.keyFnText]}>+/−</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.key, styles.keyFn]} onPress={() => pressKey('%')}>
-                <Text style={styles.keyFnText}>%</Text>
+              <TouchableOpacity style={[styles.key, styles.keyFn, themeStyles.keyFn]} onPress={() => pressKey('%')}>
+                <Text style={[styles.keyFnText, themeStyles.keyFnText]}>%</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.key, styles.keyOp]} onPress={() => pressKey('/')}>
                 <Text style={styles.keyOpText}>÷</Text>
               </TouchableOpacity>
 
               {/* Ряд 2 */}
-              {['7','8','9'].map(k => (
-                <TouchableOpacity key={k} style={styles.key} onPress={() => pressKey(k)}>
-                  <Text style={styles.keyText}>{k}</Text>
+              {['1','2','3'].map(k => (
+                <TouchableOpacity key={k} style={[styles.key, themeStyles.key]} onPress={() => pressKey(k)}>
+                  <Text style={[styles.keyText, themeStyles.keyText]}>{k}</Text>
                 </TouchableOpacity>
               ))}
               <TouchableOpacity style={[styles.key, styles.keyOp]} onPress={() => pressKey('*')}>
@@ -254,8 +258,8 @@ export default function CalculatorScreen({ navigation }: any) {
 
               {/* Ряд 3 */}
               {['4','5','6'].map(k => (
-                <TouchableOpacity key={k} style={styles.key} onPress={() => pressKey(k)}>
-                  <Text style={styles.keyText}>{k}</Text>
+                <TouchableOpacity key={k} style={[styles.key, themeStyles.key]} onPress={() => pressKey(k)}>
+                  <Text style={[styles.keyText, themeStyles.keyText]}>{k}</Text>
                 </TouchableOpacity>
               ))}
               <TouchableOpacity style={[styles.key, styles.keyOp]} onPress={() => pressKey('-')}>
@@ -263,9 +267,9 @@ export default function CalculatorScreen({ navigation }: any) {
               </TouchableOpacity>
 
               {/* Ряд 4 */}
-              {['1','2','3'].map(k => (
-                <TouchableOpacity key={k} style={styles.key} onPress={() => pressKey(k)}>
-                  <Text style={styles.keyText}>{k}</Text>
+              {['7','8','9'].map(k => (
+                <TouchableOpacity key={k} style={[styles.key, themeStyles.key]} onPress={() => pressKey(k)}>
+                  <Text style={[styles.keyText, themeStyles.keyText]}>{k}</Text>
                 </TouchableOpacity>
               ))}
               <TouchableOpacity style={[styles.key, styles.keyOp]} onPress={() => pressKey('+')}>
@@ -273,11 +277,11 @@ export default function CalculatorScreen({ navigation }: any) {
               </TouchableOpacity>
 
               {/* Ряд 5 */}
-              <TouchableOpacity style={[styles.key, styles.keyZero]} onPress={() => pressKey('0')}>
-                <Text style={styles.keyText}>0</Text>
+              <TouchableOpacity style={[styles.key, styles.keyZero, themeStyles.key]} onPress={() => pressKey('0')}>
+                <Text style={[styles.keyText, themeStyles.keyText]}>0</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.key} onPress={() => pressKey('.')}>
-                <Text style={styles.keyText}>.</Text>
+              <TouchableOpacity style={[styles.key, themeStyles.key]} onPress={() => pressKey('.')}>
+                <Text style={[styles.keyText, themeStyles.keyText]}>.</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.key, styles.keyEq]} onPress={() => pressKey('=')}>
                 <Text style={styles.keyEqText}>=</Text>
@@ -307,10 +311,10 @@ export default function CalculatorScreen({ navigation }: any) {
                 return (
                   <TouchableOpacity
                     key={tId}
-                    style={[styles.tradeTab, tradeTab === tId && styles.tradeTabActive]}
+                    style={[styles.tradeTab, themeStyles.tradeTab, tradeTab === tId && styles.tradeTabActive]}
                     onPress={() => setTradeTab(tId)}
                   >
-                    <Text style={[styles.tradeTabText, tradeTab === tId && styles.tradeTabTextActive]}>
+                    <Text style={[styles.tradeTabText, themeStyles.tradeTabText, tradeTab === tId && styles.tradeTabTextActive]}>
                       {labels[tId]}
                     </Text>
                   </TouchableOpacity>
@@ -322,18 +326,18 @@ export default function CalculatorScreen({ navigation }: any) {
               {/* Наценка */}
               {tradeTab === 'markup' && (
                 <View>
-                  <Text style={styles.label}>{t('calculator.labels.buyPrice')}</Text>
-                  <TextInput style={styles.input} keyboardType="numeric"
-                    placeholder="0" value={tBuy} onChangeText={setTBuy} />
-                  <Text style={styles.label}>{t('calculator.labels.desiredMarkup')}</Text>
-                  <TextInput style={styles.input} keyboardType="numeric"
-                    placeholder="0" value={tPct} onChangeText={setTPct} />
+                  <Text style={[styles.label, themeStyles.tradeTabText]}>{t('calculator.labels.buyPrice')}</Text>
+                  <TextInput style={[styles.input, themeStyles.input]} keyboardType="numeric"
+                    placeholder="0" placeholderTextColor={isDark ? '#888' : '#aaa'} value={tBuy} onChangeText={setTBuy} />
+                  <Text style={[styles.label, themeStyles.tradeTabText]}>{t('calculator.labels.desiredMarkup')}</Text>
+                  <TextInput style={[styles.input, themeStyles.input]} keyboardType="numeric"
+                    placeholder="0" placeholderTextColor={isDark ? '#888' : '#aaa'} value={tPct} onChangeText={setTPct} />
                   <View style={styles.resultCards}>
-                    <View style={styles.rCard}>
+                    <View style={[styles.rCard, themeStyles.rCard]}>
                       <Text style={styles.rLabel}>{t('calculator.labels.sellPrice')}</Text>
-                      <Text style={styles.rVal}>{mu.sell}</Text>
+                      <Text style={[styles.rVal, themeStyles.rVal]}>{mu.sell}</Text>
                     </View>
-                    <View style={styles.rCard}>
+                    <View style={[styles.rCard, themeStyles.rCard]}>
                       <Text style={styles.rLabel}>{t('calculator.labels.profitPerItem')}</Text>
                       <Text style={[styles.rVal, styles.rValAccent]}>{mu.profit}</Text>
                     </View>
@@ -351,18 +355,18 @@ export default function CalculatorScreen({ navigation }: any) {
               {/* Маржа */}
               {tradeTab === 'margin' && (
                 <View>
-                  <Text style={styles.label}>{t('calculator.labels.buyPrice')}</Text>
-                  <TextInput style={styles.input} keyboardType="numeric"
-                    placeholder="0" value={mBuy} onChangeText={setMBuy} />
-                  <Text style={styles.label}>{t('calculator.labels.sellPrice')}</Text>
-                  <TextInput style={styles.input} keyboardType="numeric"
-                    placeholder="0" value={mSell} onChangeText={setMSell} />
+                  <Text style={[styles.label, themeStyles.tradeTabText]}>{t('calculator.labels.buyPrice')}</Text>
+                  <TextInput style={[styles.input, themeStyles.input]} keyboardType="numeric"
+                    placeholder="0" placeholderTextColor={isDark ? '#888' : '#aaa'} value={mBuy} onChangeText={setMBuy} />
+                  <Text style={[styles.label, themeStyles.tradeTabText]}>{t('calculator.labels.sellPrice')}</Text>
+                  <TextInput style={[styles.input, themeStyles.input]} keyboardType="numeric"
+                    placeholder="0" placeholderTextColor={isDark ? '#888' : '#aaa'} value={mSell} onChangeText={setMSell} />
                   <View style={styles.resultCards}>
-                    <View style={styles.rCard}>
+                    <View style={[styles.rCard, themeStyles.rCard]}>
                       <Text style={styles.rLabel}>{t('calculator.labels.margin')}</Text>
-                      <Text style={styles.rVal}>{mr.pct}</Text>
+                      <Text style={[styles.rVal, themeStyles.rVal]}>{mr.pct}</Text>
                     </View>
-                    <View style={styles.rCard}>
+                    <View style={[styles.rCard, themeStyles.rCard]}>
                       <Text style={styles.rLabel}>{t('calculator.labels.profitPerItem')}</Text>
                       <Text style={[styles.rVal, styles.rValAccent]}>{mr.profit}</Text>
                     </View>
@@ -377,21 +381,21 @@ export default function CalculatorScreen({ navigation }: any) {
               {/* Партия */}
               {tradeTab === 'batch' && (
                 <View>
-                  <Text style={styles.label}>{t('calculator.labels.buyPrice')}</Text>
-                  <TextInput style={styles.input} keyboardType="numeric"
-                    placeholder="0" value={bBuy} onChangeText={setBBuy} />
-                  <Text style={styles.label}>{t('calculator.labels.sellPrice')}</Text>
-                  <TextInput style={styles.input} keyboardType="numeric"
-                    placeholder="0" value={bSell} onChangeText={setBSell} />
-                  <Text style={styles.label}>{t('calculator.labels.quantity')}</Text>
-                  <TextInput style={styles.input} keyboardType="numeric"
-                    placeholder="1" value={bQty} onChangeText={setBQty} />
+                  <Text style={[styles.label, themeStyles.tradeTabText]}>{t('calculator.labels.buyPrice')}</Text>
+                  <TextInput style={[styles.input, themeStyles.input]} keyboardType="numeric"
+                    placeholder="0" placeholderTextColor={isDark ? '#888' : '#aaa'} value={bBuy} onChangeText={setBBuy} />
+                  <Text style={[styles.label, themeStyles.tradeTabText]}>{t('calculator.labels.sellPrice')}</Text>
+                  <TextInput style={[styles.input, themeStyles.input]} keyboardType="numeric"
+                    placeholder="0" placeholderTextColor={isDark ? '#888' : '#aaa'} value={bSell} onChangeText={setBSell} />
+                  <Text style={[styles.label, themeStyles.tradeTabText]}>{t('calculator.labels.quantity')}</Text>
+                  <TextInput style={[styles.input, themeStyles.input]} keyboardType="numeric"
+                    placeholder="1" placeholderTextColor={isDark ? '#888' : '#aaa'} value={bQty} onChangeText={setBQty} />
                   <View style={styles.resultCards}>
-                    <View style={styles.rCard}>
+                    <View style={[styles.rCard, themeStyles.rCard]}>
                       <Text style={styles.rLabel}>{t('calculator.labels.revenue')}</Text>
-                      <Text style={styles.rVal}>{bt.rev}</Text>
+                      <Text style={[styles.rVal, themeStyles.rVal]}>{bt.rev}</Text>
                     </View>
-                    <View style={styles.rCard}>
+                    <View style={[styles.rCard, themeStyles.rCard]}>
                       <Text style={styles.rLabel}>{t('calculator.labels.profit')}</Text>
                       <Text style={[styles.rVal, styles.rValAccent]}>{bt.profit}</Text>
                     </View>
@@ -406,20 +410,20 @@ export default function CalculatorScreen({ navigation }: any) {
               {/* Обратный */}
               {tradeTab === 'reverse' && (
                 <View>
-                  <Text style={styles.label}>{t('calculator.labels.buyPrice')}</Text>
-                  <TextInput style={styles.input} keyboardType="numeric"
-                    placeholder="0" value={rvBuy} onChangeText={setRvBuy} />
-                  <Text style={styles.label}>{t('calculator.labels.desiredProfit')}</Text>
-                  <TextInput style={styles.input} keyboardType="numeric"
-                    placeholder="0" value={rvProfit} onChangeText={setRvProfit} />
+                  <Text style={[styles.label, themeStyles.tradeTabText]}>{t('calculator.labels.buyPrice')}</Text>
+                  <TextInput style={[styles.input, themeStyles.input]} keyboardType="numeric"
+                    placeholder="0" placeholderTextColor={isDark ? '#888' : '#aaa'} value={rvBuy} onChangeText={setRvBuy} />
+                  <Text style={[styles.label, themeStyles.tradeTabText]}>{t('calculator.labels.desiredProfit')}</Text>
+                  <TextInput style={[styles.input, themeStyles.input]} keyboardType="numeric"
+                    placeholder="0" placeholderTextColor={isDark ? '#888' : '#aaa'} value={rvProfit} onChangeText={setRvProfit} />
                   <View style={styles.resultCards}>
-                    <View style={styles.rCard}>
+                    <View style={[styles.rCard, themeStyles.rCard]}>
                       <Text style={styles.rLabel}>{t('calculator.labels.sellPrice')}</Text>
                       <Text style={[styles.rVal, styles.rValAccent]}>{rv.sell}</Text>
                     </View>
-                    <View style={styles.rCard}>
+                    <View style={[styles.rCard, themeStyles.rCard]}>
                       <Text style={styles.rLabel}>{t('calculator.labels.margin')}</Text>
-                      <Text style={styles.rVal}>{rv.pct}</Text>
+                      <Text style={[styles.rVal, themeStyles.rVal]}>{rv.pct}</Text>
                     </View>
                   </View>
                   <TouchableOpacity style={styles.saveBtn}
@@ -486,6 +490,38 @@ export default function CalculatorScreen({ navigation }: any) {
 }
 
 const GREEN = '#1D9E75';
+
+const lightStyles = StyleSheet.create({
+  container: { backgroundColor: '#F8F9FA' },
+  header: { backgroundColor: '#FFF', borderBottomColor: '#F0F0F0' },
+  display: { backgroundColor: '#FFF' },
+  displayVal: { color: '#212529' },
+  key: { backgroundColor: '#FFF' },
+  keyText: { color: '#212529' },
+  keyFn: { backgroundColor: '#F8F9FA' },
+  keyFnText: { color: '#495057' },
+  input: { backgroundColor: '#FFF', color: '#212529', borderColor: '#E9ECEF' },
+  rCard: { backgroundColor: '#FFF', borderColor: '#E9ECEF' },
+  rVal: { color: '#212529' },
+  tradeTab: { backgroundColor: '#FFF', borderColor: '#E9ECEF' },
+  tradeTabText: { color: '#495057' },
+});
+
+const darkStyles = StyleSheet.create({
+  container: { backgroundColor: '#000' },
+  header: { backgroundColor: '#1E1E1E', borderBottomColor: '#333' },
+  display: { backgroundColor: '#1E1E1E' },
+  displayVal: { color: '#EEE' },
+  key: { backgroundColor: '#1E1E1E' },
+  keyText: { color: '#EEE' },
+  keyFn: { backgroundColor: '#2C2C2C' },
+  keyFnText: { color: '#CCC' },
+  input: { backgroundColor: '#2C2C2C', color: '#EEE', borderColor: '#444' },
+  rCard: { backgroundColor: '#1E1E1E', borderColor: '#444' },
+  rVal: { color: '#EEE' },
+  tradeTab: { backgroundColor: '#1E1E1E', borderColor: '#444' },
+  tradeTabText: { color: '#CCC' },
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },

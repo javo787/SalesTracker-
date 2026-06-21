@@ -19,6 +19,7 @@ import { useClassifieds } from '../hooks/useClassifieds';
 import { ClassifiedCategory } from '../types/ads';
 import ClassifiedCard from '../components/market/ClassifiedCard';
 import CreateClassifiedModal from '../components/market/CreateClassifiedModal';
+import UniversalBanner from '../components/ads/UniversalBanner';
 
 const CATEGORIES: (ClassifiedCategory | 'all')[] = [
   'all',
@@ -105,10 +106,14 @@ export default function ClassifiedsScreen() {
   );
 
   const renderFooter = () => {
-    if (!hasMore) return null;
     return (
-      <View style={styles.footerLoader}>
-        <ActivityIndicator size="small" color="#1D9E75" />
+      <View>
+        <UniversalBanner />
+        {hasMore && (
+          <View style={styles.footerLoader}>
+            <ActivityIndicator size="small" color="#1D9E75" />
+          </View>
+        )}
       </View>
     );
   };
