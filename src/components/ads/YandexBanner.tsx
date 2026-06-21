@@ -3,12 +3,13 @@ import { View, StyleSheet } from 'react-native';
 import { adService } from '../../services/adService';
 import { useAppContext } from '../../context/AppContext';
 
-// Условный импорт — пакет может быть недоступен в dev без нативной сборки
-let BannerAd: any = null;
+// Условный импорт — используем базовый пакет yandex-mobile-ads
+// чтобы избежать импорта @expo/config-plugins в рантайме через @benfurkankilic/expo-yandex-mobile-ads
+let BannerView: any = null;
 let BannerAdSize: any = null;
 try {
-  const yandex = require('@benfurkankilic/expo-yandex-mobile-ads');
-  BannerAd = yandex.BannerAd;
+  const yandex = require('yandex-mobile-ads');
+  BannerView = yandex.BannerView;
   BannerAdSize = yandex.BannerAdSize;
 } catch (e) {
   console.warn('Yandex Mobile Ads not available:', e);
@@ -28,18 +29,19 @@ export default function YandexBanner({ size }: YandexBannerProps) {
 
   const checkVisibility = async () => {
     const canShow = await adService.canShowAd(isPremium);
-    setShouldShow(canShow && BannerAd !== null);
+    setShouldShow(canShow && BannerView !== null);
   };
 
-  if (!shouldShow || !BannerAd) return null;
+  if (!shouldShow || !BannerView) return null;
 
-  const adSize = BannerAdSize?.BANNER_320x50 ?? '320x50';
+  // BannerAdSize.sticky(width) или BANNER_320x50
+  const adSize = BannerAdSize?.BANNER_320x50 ?? { width: 320, height: 50 };
 
   return (
     <View style={styles.container}>
-      <BannerAd
+      <BannerView
         adUnitId={adService.getBannerId()}
-        size={size ?? adSize}
+        adSize={size ?? adSize}
         onAdLoaded={() => {
           console.log('Banner loaded');
           adService.recordAdShown();
