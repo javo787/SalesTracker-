@@ -21,6 +21,7 @@ import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { AppLockProvider, useAppLock } from './src/context/AppLockContext';
 import { useNewsUnread } from './src/hooks/useNewsUnread';
 import { Ionicons } from '@expo/vector-icons';
+import { FEATURES } from './src/config/features';
 
 import HomeScreen from './src/screens/HomeScreen'; 
 import AuthScreen from './src/screens/AuthScreen';
@@ -196,22 +197,26 @@ function DrawerNavigator() {
           drawerIcon: ({ color }) => <Ionicons name="stats-chart-outline" size={22} color={color} />,
         }}
       />
-      <Drawer.Screen
-        name="Classifieds"
-        component={ClassifiedsScreen}
-        options={{
-          drawerLabel: t('classifieds.title'),
-          drawerIcon: ({ color }) => <Ionicons name="storefront-outline" size={22} color={color} />,
-        }}
-      />
-      <Drawer.Screen
-        name="Wholesale"
-        component={WholesaleScreen}
-        options={{
-          drawerLabel: t('wholesale.title'),
-          drawerIcon: ({ color }) => <Ionicons name="cube-outline" size={22} color={color} />,
-        }}
-      />
+      {FEATURES.CLASSIFIEDS_ENABLED && (
+        <Drawer.Screen
+          name="Classifieds"
+          component={ClassifiedsScreen}
+          options={{
+            drawerLabel: t('classifieds.title'),
+            drawerIcon: ({ color }) => <Ionicons name="storefront-outline" size={22} color={color} />,
+          }}
+        />
+      )}
+      {FEATURES.WHOLESALE_ENABLED && (
+        <Drawer.Screen
+          name="Wholesale"
+          component={WholesaleScreen}
+          options={{
+            drawerLabel: t('wholesale.title'),
+            drawerIcon: ({ color }) => <Ionicons name="cube-outline" size={22} color={color} />,
+          }}
+        />
+      )}
       <Drawer.Screen
         name="News"
         component={NewsScreen}
