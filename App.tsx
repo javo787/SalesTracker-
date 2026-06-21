@@ -374,7 +374,7 @@ export default function App() {
   useEffect(() => {
     const subscription = Notifications.addNotificationResponseReceivedListener(response => {
       const data = response.notification.request.content.data;
-      if (data?.url) {
+      if (typeof data?.url === 'string') {
         WebBrowser.openBrowserAsync(data.url);
       }
     });
