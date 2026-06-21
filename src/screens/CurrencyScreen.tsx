@@ -4,6 +4,7 @@ import {
   TouchableOpacity, TextInput, ActivityIndicator, RefreshControl
 } from 'react-native';
 import { getBaseRates, FALLBACK_RATES } from '../utils/currencyRates';
+import UniversalBanner from '../components/ads/UniversalBanner';
 
 const CURRENCIES = [
   { code: 'USD', name: 'Доллар США',       flag: '🇺🇸' },
@@ -219,6 +220,8 @@ export default function CurrencyScreen() {
           <Text style={styles.refreshBtnText}>Обновить курсы</Text>
         </TouchableOpacity>
       </View>
+
+      <UniversalBanner />
 
       <View style={{ height: 32 }} />
     </ScrollView>

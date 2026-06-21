@@ -15,6 +15,7 @@ import { getStats, getSalesByPeriod, deleteSale, getExpenseStats } from '../db/d
 import { useAppContext } from '../context/AppContext';
 import AnnualReport from '../components/reports/AnnualReport';
 import RegistrationPromptModal from '../components/RegistrationPromptModal';
+import UniversalBanner from '../components/ads/UniversalBanner';
 import { useAuth } from '../context/AuthContext';
 
 export default function ReportScreen() {
@@ -389,6 +390,7 @@ export default function ReportScreen() {
               ))
             )}
           </View>
+          <UniversalBanner />
         </>
       )}
 

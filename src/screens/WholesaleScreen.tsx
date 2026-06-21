@@ -16,6 +16,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useAppContext } from '../context/AppContext';
 import { useWholesale } from '../hooks/useWholesale';
 import WholesaleCard from '../components/market/WholesaleCard';
+import UniversalBanner from '../components/ads/UniversalBanner';
 
 const CATEGORIES = [
   'all',
@@ -107,6 +108,7 @@ export default function WholesaleScreen() {
         renderItem={renderItem}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={renderEmpty}
+        ListFooterComponent={<UniversalBanner />}
         contentContainerStyle={styles.listContent}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={refresh} colors={['#1D9E75']} tintColor="#1D9E75" />

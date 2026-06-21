@@ -15,6 +15,7 @@ import { useNews } from '../hooks/useNews';
 import { useNewsUnread } from '../hooks/useNewsUnread';
 import NewsCard from '../components/market/NewsCard';
 import NewsEmptyState from '../components/market/NewsEmptyState';
+import UniversalBanner from '../components/ads/UniversalBanner';
 
 export default function NewsScreen() {
   const { t } = useTranslation();
@@ -53,6 +54,7 @@ export default function NewsScreen() {
           renderItem={({ item }) => <NewsCard article={item} />}
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={<NewsEmptyState />}
+          ListFooterComponent={<UniversalBanner />}
           contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl

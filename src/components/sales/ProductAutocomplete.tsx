@@ -94,7 +94,7 @@ export function ProductAutocomplete({
         placeholderTextColor={placeholderTextColor}
       />
 
-      {isVisible && (results.length > 0 || (value.trim() && !results.some(r => r.name.toLowerCase() === value.trim().toLowerCase()))) && (
+      {isVisible && results.length > 0 && (
         <View
           style={[
             styles.dropdown,
@@ -121,25 +121,6 @@ export function ProductAutocomplete({
                 </View>
                 {historyItems.map(renderItem)}
               </>
-            )}
-
-            {value.trim() && !results.some(r => r.name.toLowerCase() === value.trim().toLowerCase()) && (
-              <TouchableOpacity
-                style={styles.item}
-                onPress={() => handleSelect({
-                  id: null,
-                  name: value.trim(),
-                  source: 'history',
-                  purchasePrice: 0,
-                  lastSalePrice: null,
-                  salesCount: 0,
-                  lastSoldAt: null
-                })}
-              >
-                <Text style={[styles.addNew, { color: '#1D9E75' }]}>
-                  ➕ {t('common.addNew')} "{value.trim()}"
-                </Text>
-              </TouchableOpacity>
             )}
           </ScrollView>
         </View>
