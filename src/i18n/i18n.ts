@@ -247,6 +247,9 @@ const resources = {
         registrationPromptDesc: 'Вы используете гостевой режим. Зарегистрируйтесь, чтобы ваши товары и продажи сохранялись в облаке и были доступны на любом устройстве.',
         bestProduct: 'Лучший товар',
         memberSince: 'В приложении с',
+        avatarUploadError: 'Не удалось загрузить фото профиля',
+        nameUpdateError: 'Не удалось изменить имя',
+        offlineGuestEditBlocked: 'Изменение профиля недоступно в офлайн-режиме. Подключитесь к интернету или войдите через Google/Email.',
       },
       calculator: {
         title: 'Калькулятор',
@@ -606,6 +609,9 @@ const resources = {
         registrationPromptDesc: 'Шумо режими меҳмонро истифода мебаред. Барои он ки молҳо ва фурӯшҳои шумо дар абр нигоҳ дошта шаванд ва дар ҳар дастгоҳ дастрас бошанд, худро сабт кунед.',
         bestProduct: 'Моли беҳтарин',
         memberSince: 'Дар барнома аз',
+        avatarUploadError: 'Боргирии акси профил ноком шуд',
+        nameUpdateError: 'Иваз кардани ном ноком шуд',
+        offlineGuestEditBlocked: 'Таҳрири профил дар ҳолати офлайн дастрас нест. Ба интернет пайваст шавед ё тавассути Google/Email ворид шавед.',
       },
       calculator: {
         title: 'Калкулятор',
@@ -966,6 +972,9 @@ const resources = {
         registrationPromptDesc: 'Siz mehmon rejimidan foydalanyapsiz. Mahsulotlaringiz va sotuvlaringiz bulutda saqlanishi va har qanday qurilmada mavjud bo‘lishi uchun ro‘yxatdan o‘ting.',
         bestProduct: 'Eng yaxshi mahsulot',
         memberSince: 'Ilovada foydanuvchi',
+        avatarUploadError: 'Profil rasmini yuklab bo‘lmadi',
+        nameUpdateError: 'Ismni o‘zgartirib bo‘lmadi',
+        offlineGuestEditBlocked: 'Profilni tahrirlash oflayn rejimda mavjud emas. Internetga ulaning yoki Google/Email orqali kiring.',
       },
       calculator: {
         title: 'Kalkulyator',
