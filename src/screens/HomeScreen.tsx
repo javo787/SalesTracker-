@@ -13,6 +13,7 @@ import { getSmartTip } from '../utils/smartTips';
 import CurrencyConversionBanner from '../components/CurrencyConversionBanner';
 import WholesalePromoStrip from '../components/market/WholesalePromoStrip';
 import { useNewsUnread } from '../hooks/useNewsUnread';
+import { FEATURES } from '../config/features';
 
 function SaleListItem({ sale, onDelete, isDark, currency, t, i18n, themeStyles }: any) {
   const translateX = useRef(new RNAnimated.Value(0)).current;
@@ -292,7 +293,7 @@ export default function HomeScreen() {
         />
       </View>
 
-      <WholesalePromoStrip />
+      {FEATURES.WHOLESALE_ENABLED && <WholesalePromoStrip />}
 
       {/* Последние продажи */}
       <Text style={[styles.sectionTitle, themeStyles.text]}>{t('home.recentSales')}</Text>
