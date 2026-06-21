@@ -349,7 +349,7 @@ FEW-SHOT EXAMPLES:
 
         {/* Предварительный расчёт */}
         {(sellPrice || salePricePlaceholder) && buyPrice ? (
-          <View style={styles.preview}>
+          <View style={[styles.preview, themeStyles.preview]}>
             <Text style={styles.previewTitle}>{t('addSale.previewTitle')}</Text>
             <View style={styles.previewRow}>
               <Text style={[styles.previewLabel, themeStyles.text]}>{t('common.revenue')}:</Text>
@@ -396,6 +396,7 @@ const lightStyles = StyleSheet.create({
   voiceResult: { backgroundColor: '#F8F8F8' },
   input: { backgroundColor: '#F5F5F5', borderColor: '#E0E0E0' },
   successCard: { backgroundColor: '#F0FBF7' },
+  preview: { backgroundColor: '#F0FBF7' },
 });
 
 const darkStyles = StyleSheet.create({
@@ -405,6 +406,7 @@ const darkStyles = StyleSheet.create({
   voiceResult: { backgroundColor: '#2C2C2C' },
   input: { backgroundColor: '#2C2C2C', borderColor: '#444', color: '#EEE' },
   successCard: { backgroundColor: '#16332A' },
+  preview: { backgroundColor: '#16332A' },
 });
 
 const styles = StyleSheet.create({
@@ -478,7 +480,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 10 },
   halfField: { flex: 1 },
   preview: {
-    marginTop: 16, padding: 14, backgroundColor: '#F0FBF7',
+    marginTop: 16, padding: 14,
     borderRadius: 10, borderWidth: 1, borderColor: '#1D9E75',
   },
   previewTitle: { fontSize: 13, fontWeight: '600', color: '#1D9E75', marginBottom: 8 },

@@ -8,13 +8,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import * as DocumentPicker from 'expo-document-picker';
 import Constants from 'expo-constants';
 import { analyticsService } from '../services/analyticsService';
 import { useAppContext } from '../context/AppContext';
 import { useAppLock } from '../context/AppLockContext';
 import { getConversionRate } from '../utils/currencyRates';
 import { reviewService } from '../services/reviewService';
-import { convertAllAmounts, clearAllData, getProducts, getSalesByPeriod, getExpenses } from '../db/database';
+import { convertAllAmounts, clearAllData, getProducts, getSalesByPeriod, getExpenses, importBackupData } from '../db/database';
 
 const LANGUAGES = [
   { code: 'ru', label: 'Русский', flag: '🇷🇺' },
@@ -177,6 +178,47 @@ export default function SettingsScreen(props: any) {
       console.error('Backup export failed', e);
       Alert.alert(t('common.error'), 'Failed to export backup');
     }
+  };
+
+  const handleImportBackup = async () => {
+    Alert.alert(
+      t('settings.backupImport'),
+      t('settings.backupImportConfirm'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('common.continue'),
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const result = await DocumentPicker.getDocumentAsync({
+                type: 'application/json',
+                copyToCacheDirectory: true,
+              });
+
+              if (result.canceled || !result.assets || result.assets.length === 0) return;
+
+              const fileUri = result.assets[0].uri;
+              const content = await FileSystem.readAsStringAsync(fileUri);
+              const data = JSON.parse(content);
+
+              if (!data.products || !data.sales) {
+                throw new Error('Invalid backup file');
+              }
+
+              importBackupData(data);
+              if (data.currency) setCurrency(data.currency);
+
+              analyticsService.logEvent('data_imported', { format: 'json' });
+              Alert.alert(t('common.success'), t('settings.backupImportSuccess'));
+            } catch (e) {
+              console.error('Backup import failed', e);
+              Alert.alert(t('common.error'), t('settings.backupImportError'));
+            }
+          }
+        }
+      ]
+    );
   };
 
   const { resolvedTheme } = useAppContext();
@@ -374,9 +416,14 @@ export default function SettingsScreen(props: any) {
       <View style={[styles.section, themeStyles.section]}>
         <Text style={[styles.sectionTitle, themeStyles.text]}>💾 {t('settings.backup')}</Text>
         <Text style={[styles.backupDesc, { color: isDark ? '#AAA' : '#666' }]}>{t('settings.backupDesc')}</Text>
-        <TouchableOpacity style={styles.backupBtn} onPress={handleExportBackup}>
-          <Text style={styles.backupBtnText}>{t('settings.backupExport')}</Text>
-        </TouchableOpacity>
+        <View style={{ gap: 10 }}>
+          <TouchableOpacity style={styles.backupBtn} onPress={handleExportBackup}>
+            <Text style={styles.backupBtnText}>{t('settings.backupExport')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.backupBtn, { backgroundColor: 'transparent' }]} onPress={handleImportBackup}>
+            <Text style={styles.backupBtnText}>{t('settings.backupImport')}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Опасная зона */}
