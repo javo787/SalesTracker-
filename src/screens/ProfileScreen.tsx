@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as Sharing from 'expo-sharing';
+import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { useAppContext } from '../context/AppContext';
 import { useAppLock } from '../context/AppLockContext';
@@ -22,6 +23,7 @@ const { width } = Dimensions.get('window');
 
 export default function ProfileScreen() {
   const { t } = useTranslation();
+  const navigation = useNavigation<any>();
   const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
   const { user, logout, isGuest, updateProfile, convertGuestAccount } = useAuth();
   const { setIsSystemDialogOpen } = useAppLock();
@@ -327,6 +329,10 @@ export default function ProfileScreen() {
         onRegister={() => {
           setShowRegPrompt(false);
           setShowConvertModal(true);
+        }}
+        onBackup={() => {
+          setShowRegPrompt(false);
+          navigation.navigate('Settings');
         }}
       />
 

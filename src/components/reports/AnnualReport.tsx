@@ -50,7 +50,7 @@ export default function AnnualReport() {
         return `${m.month},${MONTH_FULL[m.month - 1]},${m.revenue},${m.profit},${m.expenses},${m.netProfit},${m.salesCount}`;
       }).join('\n');
 
-      const csvContent = header + rows;
+      const csvContent = '\uFEFF' + header + rows;
       const fileName = `annual_report_${annualData.year}.csv`;
       const filePath = `${FileSystem.cacheDirectory}${fileName}`;
 
