@@ -486,6 +486,63 @@ export function getExpenseStats(days: number = 1, fromDate?: string, toDate?: st
   return result;
 }
 
+export function importBackupData(data: any) {
+  db.withTransactionSync(() => {
+    // Clear all existing data
+    db.runSync('DELETE FROM sales');
+    db.runSync('DELETE FROM products');
+    db.runSync('DELETE FROM expenses');
+    db.runSync('DELETE FROM stock_movements');
+    try {
+      db.runSync("DELETE FROM sqlite_sequence WHERE name IN ('products','sales','expenses')");
+    } catch (e) {}
+
+    // Import products
+    if (Array.isArray(data.products)) {
+      data.products.forEach((p: any) => {
+        db.runSync(
+          `INSERT INTO products (
+            id, name, buy_price, sell_price, stock, min_stock_alert,
+            base_unit, has_packages, package_name, units_per_package,
+            updated_at, synced, is_deleted, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            p.id, p.name, p.buy_price, p.sell_price, p.stock, p.min_stock_alert || 0,
+            p.base_unit || 'шт', p.has_packages || 0, p.package_name || null, p.units_per_package || 1,
+            p.updated_at || nowLocalISO(), p.synced || 0, p.is_deleted || 0, p.created_at || nowLocalISO()
+          ]
+        );
+      });
+    }
+
+    // Import sales
+    if (Array.isArray(data.sales)) {
+      data.sales.forEach((s: any) => {
+        db.runSync(
+          `INSERT INTO sales (
+            id, product_id, product_name, quantity, sell_price, buy_price, profit, note, stock_updated, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            s.id, s.product_id, s.product_name, s.quantity, s.sell_price, s.buy_price, s.profit, s.note, s.stock_updated || 0, s.created_at
+          ]
+        );
+      });
+    }
+
+    // Import expenses
+    if (Array.isArray(data.expenses)) {
+      data.expenses.forEach((e: any) => {
+        db.runSync(
+          `INSERT INTO expenses (id, type, category, amount, description, linked_product_id, created_at, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            e.id, e.type, e.category, e.amount, e.description, e.linked_product_id, e.created_at, e.user_id
+          ]
+        );
+      });
+    }
+  });
+}
+
 export function getAnnualStats() {
   const year = new Date().getFullYear();
 
