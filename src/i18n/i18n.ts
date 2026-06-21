@@ -255,6 +255,9 @@ const resources = {
         backupWithoutReg: 'Сделать резервную копию без регистрации',
         bestProduct: 'Лучший товар',
         memberSince: 'В приложении с',
+        avatarUploadError: 'Не удалось загрузить фото профиля',
+        nameUpdateError: 'Не удалось изменить имя',
+        offlineGuestEditBlocked: 'Изменение профиля недоступно в офлайн-режиме. Подключитесь к интернету или войдите через Google/Email.',
       },
       calculator: {
         title: 'Калькулятор',
@@ -622,6 +625,9 @@ const resources = {
         backupWithoutReg: 'Нусхаи эҳтиётӣ бидуни сабти ном',
         bestProduct: 'Моли беҳтарин',
         memberSince: 'Дар барнома аз',
+        avatarUploadError: 'Боргирии акси профил ноком шуд',
+        nameUpdateError: 'Иваз кардани ном ноком шуд',
+        offlineGuestEditBlocked: 'Таҳрири профил дар ҳолати офлайн дастрас нест. Ба интернет пайваст шавед ё тавассути Google/Email ворид шавед.',
       },
       calculator: {
         title: 'Калкулятор',
@@ -990,6 +996,9 @@ const resources = {
         backupWithoutReg: 'Ro‘yxatdan o‘tmasdan zaxira nusxasini olish',
         bestProduct: 'Eng yaxshi mahsulot',
         memberSince: 'Ilovada foydanuvchi',
+        avatarUploadError: 'Profil rasmini yuklab bo‘lmadi',
+        nameUpdateError: 'Ismni o‘zgartirib bo‘lmadi',
+        offlineGuestEditBlocked: 'Profilni tahrirlash oflayn rejimda mavjud emas. Internetga ulaning yoki Google/Email orqali kiring.',
       },
       calculator: {
         title: 'Kalkulyator',

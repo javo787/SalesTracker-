@@ -8,6 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import * as Sharing from 'expo-sharing';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
@@ -33,6 +34,10 @@ export default function ProfileScreen() {
   const [isEditingName, setIsEditingName] = useState(false);
   const [newName, setNewName] = useState(user?.name || '');
   const [lastSync, setLastSync] = useState<Date | null>(user?.lastSyncAt ? new Date(user.lastSyncAt) : null);
+
+  useEffect(() => {
+    setNewName(user?.name || '');
+  }, [user?.name]);
 
   // Conversion state
   const [showConvertModal, setShowConvertModal] = useState(false);
@@ -120,6 +125,10 @@ export default function ProfileScreen() {
   };
 
   const handlePickImage = async () => {
+    if (user?._id === 'local_guest') {
+      Alert.alert(t('common.error'), t('profile.offlineGuestEditBlocked'));
+      return;
+    }
     setIsSystemDialogOpen(true);
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
@@ -130,12 +139,20 @@ export default function ProfileScreen() {
     });
     setTimeout(() => setIsSystemDialogOpen(false), 1000);
 
-    if (!result.canceled && result.assets[0].base64) {
+    if (!result.canceled && result.assets[0].uri) {
       try {
-        const base64 = `data:image/jpeg;base64,${result.assets[0].base64}`;
-        await updateProfile({ avatarUrl: base64 });
+        const manipResult = await ImageManipulator.manipulateAsync(
+          result.assets[0].uri,
+          [{ resize: { width: 512, height: 512 } }],
+          { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+        );
+
+        if (manipResult.base64) {
+          const base64 = `data:image/jpeg;base64,${manipResult.base64}`;
+          await updateProfile({ avatarUrl: base64 });
+        }
       } catch (e) {
-        Alert.alert(t('common.error'), 'Failed to upload avatar');
+        Alert.alert(t('common.error'), t('profile.avatarUploadError'));
       }
     }
   };
@@ -149,7 +166,7 @@ export default function ProfileScreen() {
       await updateProfile({ name: newName });
       setIsEditingName(false);
     } catch (e) {
-      Alert.alert(t('common.error'), 'Failed to update name');
+      Alert.alert(t('common.error'), t('profile.nameUpdateError'));
     }
   };
 
@@ -207,8 +224,18 @@ export default function ProfileScreen() {
           ) : (
             <View style={styles.nameRow}>
               <Text style={[styles.name, themeStyles.text]}>{user?.name}</Text>
-              <TouchableOpacity onPress={() => setIsEditingName(true)}>
-                <Ionicons name="create-outline" size={16} color="#888" />
+              <TouchableOpacity
+                style={styles.editNameBtn}
+                onPress={() => {
+                  if (user?._id === 'local_guest') {
+                    Alert.alert(t('common.error'), t('profile.offlineGuestEditBlocked'));
+                    return;
+                  }
+                  setIsEditingName(true);
+                }}
+              >
+                <Ionicons name="create-outline" size={20} color="#1D9E75" />
+                <Text style={styles.editNameText}>{t('profile.editName')}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -399,8 +426,10 @@ const styles = StyleSheet.create({
   avatarPlaceholder: { backgroundColor: '#1D9E75', justifyContent: 'center', alignItems: 'center' },
   editAvatarBadge: { position: 'absolute', bottom: 2, right: 2, backgroundColor: '#1D9E75', width: 30, height: 30, borderRadius: 15, borderWidth: 3, borderColor: '#fff', justifyContent: 'center', alignItems: 'center' },
   headerInfo: { flex: 1, gap: 4 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' },
   editNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  editNameBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  editNameText: { color: '#1D9E75', fontSize: 14, fontWeight: '500' },
   name: { fontSize: 20, fontWeight: 'bold' },
   nameInput: { flex: 1, fontSize: 18, borderBottomWidth: 1, borderBottomColor: '#1D9E75', paddingVertical: 2 },
   providerBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
