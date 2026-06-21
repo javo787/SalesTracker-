@@ -15,11 +15,12 @@ interface Props {
   visible: boolean;
   onClose: () => void;
   onRegister: () => void;
+  onBackup?: () => void;
 }
 
 const { width } = Dimensions.get('window');
 
-export default function RegistrationPromptModal({ visible, onClose, onRegister }: Props) {
+export default function RegistrationPromptModal({ visible, onClose, onRegister, onBackup }: Props) {
   const { t } = useTranslation();
   const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
 
@@ -51,6 +52,12 @@ export default function RegistrationPromptModal({ visible, onClose, onRegister }
           <TouchableOpacity style={styles.registerBtn} onPress={onRegister}>
             <Text style={styles.registerBtnText}>{t('auth.register')}</Text>
           </TouchableOpacity>
+
+          {onBackup && (
+            <TouchableOpacity style={styles.maybeLaterBtn} onPress={onBackup}>
+              <Text style={styles.maybeLaterText}>{t('profile.backupWithoutReg')}</Text>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity style={styles.maybeLaterBtn} onPress={onClose}>
             <Text style={styles.maybeLaterText}>{t('common.continue')}</Text>

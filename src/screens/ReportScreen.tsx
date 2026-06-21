@@ -141,7 +141,7 @@ export default function ReportScreen() {
         return `${s.id},"${name}",${s.quantity},${s.sell_price},${s.buy_price},${s.profit},"${note}",${s.created_at}`;
       }).join('\n');
 
-      const csvContent = header + rows;
+      const csvContent = '\uFEFF' + header + rows;
       const fileName = `sales_report_${new Date().getTime()}.csv`;
       const filePath = `${FileSystem.cacheDirectory}${fileName}`;
 
@@ -402,6 +402,10 @@ export default function ReportScreen() {
       onRegister={() => {
         setShowRegPrompt(false);
         navigation.navigate('Profile');
+      }}
+      onBackup={() => {
+        setShowRegPrompt(false);
+        navigation.navigate('Settings');
       }}
     />
 

@@ -50,16 +50,24 @@ export default function SettingsScreen(props: any) {
 
   const [conversionHistory, setConversionHistory] = useState<any[]>([]);
   const [loadingRate, setLoadingRate] = useState(false);
+  const [lastBackupAt, setLastBackupAt] = useState<string | null>(null);
 
   useEffect(() => {
     loadConversionHistory();
+    loadLastBackupTime();
   }, []);
 
   useFocusEffect(
     useCallback(() => {
       loadConversionHistory();
+      loadLastBackupTime();
     }, [])
   );
+
+  const loadLastBackupTime = async () => {
+    const time = await AsyncStorage.getItem('last_backup_at');
+    setLastBackupAt(time);
+  };
 
   const loadConversionHistory = async () => {
     const log = await AsyncStorage.getItem('currency_conversion_log');
@@ -170,6 +178,9 @@ export default function SettingsScreen(props: any) {
           mimeType: 'application/json',
           dialogTitle: t('settings.backupExport'),
         });
+        const now = String(Date.now());
+        await AsyncStorage.setItem('last_backup_at', now);
+        setLastBackupAt(now);
         setTimeout(() => setIsSystemDialogOpen(false), 1000);
       } else {
         Alert.alert(t('common.error'), 'Sharing not available on this device');
@@ -224,6 +235,15 @@ export default function SettingsScreen(props: any) {
   const { resolvedTheme } = useAppContext();
   const isDark = resolvedTheme === 'dark';
   const themeStyles = isDark ? darkStyles : lightStyles;
+
+  const renderLastBackupStatus = () => {
+    if (!lastBackupAt) return t('settings.noBackupYet');
+    const timestamp = parseInt(lastBackupAt);
+    const diffDays = Math.floor((Date.now() - timestamp) / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return t('settings.lastBackupToday');
+    return t('settings.lastBackup', { time: t('settings.daysAgo', { count: diffDays }) });
+  };
 
   return (
     <ScrollView style={[styles.container, themeStyles.container]}>
@@ -416,6 +436,9 @@ export default function SettingsScreen(props: any) {
       <View style={[styles.section, themeStyles.section]}>
         <Text style={[styles.sectionTitle, themeStyles.text]}>💾 {t('settings.backup')}</Text>
         <Text style={[styles.backupDesc, { color: isDark ? '#AAA' : '#666' }]}>{t('settings.backupDesc')}</Text>
+        <Text style={[styles.backupStatus, { color: isDark ? '#1D9E75' : '#1D9E75' }]}>
+          {renderLastBackupStatus()}
+        </Text>
         <View style={{ gap: 10 }}>
           <TouchableOpacity style={styles.backupBtn} onPress={handleExportBackup}>
             <Text style={styles.backupBtnText}>{t('settings.backupExport')}</Text>
@@ -534,7 +557,8 @@ const styles = StyleSheet.create({
     borderRadius: 8, padding: 10,
     fontSize: 15, borderWidth: 1,
   },
-  backupDesc: { fontSize: 13, marginBottom: 16, lineHeight: 18 },
+  backupDesc: { fontSize: 13, marginBottom: 8, lineHeight: 18 },
+  backupStatus: { fontSize: 12, fontWeight: '600', marginBottom: 16 },
   backupBtn: {
     backgroundColor: '#F0FBF7', borderRadius: 10,
     padding: 12, alignItems: 'center',
