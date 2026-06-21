@@ -1,5 +1,5 @@
 {
   "compilerOptions": {},
   "extends": "expo/tsconfig.base",
-  "exclude": ["backend", "node_modules"]
+  "exclude": ["backend", "node_modules", "ads-service"]
 }
