@@ -1,5 +1,5 @@
 {
-  "name": "savdo-app",
+  
   "main": "index.js",
   "dependencies": {
     "@benfurkankilic/expo-yandex-mobile-ads": "^1.0.0",
