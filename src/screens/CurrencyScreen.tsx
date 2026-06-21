@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { getBaseRates, FALLBACK_RATES } from '../utils/currencyRates';
 import UniversalBanner from '../components/ads/UniversalBanner';
+import { useAppContext } from '../context/AppContext';
 
 const CURRENCIES = [
   { code: 'USD', name: 'Доллар США',       flag: '🇺🇸' },
@@ -27,6 +28,9 @@ const FROM_OPTIONS = ['USD', 'RUB', 'CNY', 'UZS', 'KZT', 'EUR', 'KGS', 'TJS'];
 const TO_OPTIONS   = ['TJS', 'USD', 'RUB', 'CNY', 'UZS', 'KZT', 'EUR', 'KGS'];
 
 export default function CurrencyScreen() {
+  const { resolvedTheme } = useAppContext();
+  const isDark = resolvedTheme === 'dark';
+  const themeStyles = isDark ? darkStyles : lightStyles;
   const [rates, setRates]           = useState<Record<string, number>>(FALLBACK_RATES);
   const [updatedAt, setUpdatedAt]   = useState<string>('');
   const [loading, setLoading]       = useState(true);
@@ -85,7 +89,7 @@ export default function CurrencyScreen() {
 
   return (
     <ScrollView
-      style={styles.container}
+      style={[styles.container, themeStyles.container]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       {/* Шапка с быстрыми карточками */}
@@ -113,10 +117,10 @@ export default function CurrencyScreen() {
               <View key={q.code} style={styles.quickCard}>
                 <Text style={styles.quickCardLabel}>{q.label} →</Text>
                 <Text style={styles.quickCardVal}>
-                  {val ? fmt(val) + ' сом' : '—'}
+                  {val ? fmt(val) + ' TJS' : '—'}
                 </Text>
                 <Text style={styles.quickCardRate}>
-                  1 {q.code} = {rate1str} сом
+                  1 {q.code} = {rate1str} TJS
                 </Text>
               </View>
             );
@@ -125,16 +129,17 @@ export default function CurrencyScreen() {
       </View>
 
       {/* Конвертер */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Конвертер</Text>
+      <View style={[styles.section, themeStyles.section]}>
+        <Text style={[styles.sectionTitle, themeStyles.sectionTitle]}>Конвертер</Text>
 
         <Text style={styles.label}>Сумма</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, themeStyles.input]}
           keyboardType="numeric"
           value={amount}
           onChangeText={setAmount}
           placeholder="0"
+          placeholderTextColor={isDark ? '#888' : '#aaa'}
         />
 
         <View style={styles.row}>
@@ -144,10 +149,10 @@ export default function CurrencyScreen() {
               {FROM_OPTIONS.map(c => (
                 <TouchableOpacity
                   key={c}
-                  style={[styles.pickerItem, fromCur === c && styles.pickerItemActive]}
+                  style={[styles.pickerItem, themeStyles.pickerItem, fromCur === c && styles.pickerItemActive]}
                   onPress={() => setFromCur(c)}
                 >
-                  <Text style={[styles.pickerText, fromCur === c && styles.pickerTextActive]}>
+                  <Text style={[styles.pickerText, themeStyles.pickerText, fromCur === c && styles.pickerTextActive]}>
                     {c}
                   </Text>
                 </TouchableOpacity>
@@ -157,7 +162,7 @@ export default function CurrencyScreen() {
 
           <View style={styles.swapCol}>
             <TouchableOpacity
-              style={styles.swapBtn}
+              style={[styles.swapBtn, themeStyles.swapBtn]}
               onPress={() => { setFromCur(toCur); setToCur(fromCur); }}
             >
               <Text style={styles.swapBtnText}>⇄</Text>
@@ -170,10 +175,10 @@ export default function CurrencyScreen() {
               {TO_OPTIONS.map(c => (
                 <TouchableOpacity
                   key={c}
-                  style={[styles.pickerItem, toCur === c && styles.pickerItemActive]}
+                  style={[styles.pickerItem, themeStyles.pickerItem, toCur === c && styles.pickerItemActive]}
                   onPress={() => setToCur(c)}
                 >
-                  <Text style={[styles.pickerText, toCur === c && styles.pickerTextActive]}>
+                  <Text style={[styles.pickerText, themeStyles.pickerText, toCur === c && styles.pickerTextActive]}>
                     {c}
                   </Text>
                 </TouchableOpacity>
@@ -182,7 +187,7 @@ export default function CurrencyScreen() {
           </View>
         </View>
 
-        <View style={styles.resultBox}>
+        <View style={[styles.resultBox, themeStyles.resultBox]}>
           <Text style={styles.resultMain}>{fmt(convResult)} {toCur}</Text>
           <Text style={styles.resultSub}>
             1 {fromCur} = {fmt(rate1)} {toCur}
@@ -191,26 +196,26 @@ export default function CurrencyScreen() {
       </View>
 
       {/* Таблица курсов */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Все курсы к сомони (TJS)</Text>
+      <View style={[styles.section, themeStyles.section]}>
+        <Text style={[styles.sectionTitle, themeStyles.sectionTitle]}>Все курсы к сомони (TJS)</Text>
         {CURRENCIES.map((c, i) => {
           const tjsVal  = fmt(convertAmount(1, c.code, 'TJS'));
           const invVal  = fmt(convertAmount(1, 'TJS', c.code));
           return (
             <View
               key={c.code}
-              style={[styles.rateRow, i === CURRENCIES.length - 1 && { borderBottomWidth: 0 }]}
+              style={[styles.rateRow, themeStyles.rateRow, i === CURRENCIES.length - 1 && { borderBottomWidth: 0 }]}
             >
               <View style={styles.rateLeft}>
                 <Text style={styles.rateFlag}>{c.flag}</Text>
                 <View>
-                  <Text style={styles.rateCode}>{c.code}</Text>
+                  <Text style={[styles.rateCode, themeStyles.rateCode]}>{c.code}</Text>
                   <Text style={styles.rateName}>{c.name}</Text>
                 </View>
               </View>
               <View style={styles.rateRight}>
-                <Text style={styles.rateVal}>{tjsVal} <Text style={styles.rateCur}>сом</Text></Text>
-                <Text style={styles.rateInv}>1 сом = {invVal} {c.code}</Text>
+                <Text style={[styles.rateVal, themeStyles.rateCode]}>{tjsVal} <Text style={styles.rateCur}>TJS</Text></Text>
+                <Text style={styles.rateInv}>1 TJS = {invVal} {c.code}</Text>
               </View>
             </View>
           );
@@ -229,6 +234,32 @@ export default function CurrencyScreen() {
 }
 
 const GREEN = '#1D9E75';
+
+const lightStyles = StyleSheet.create({
+  container: { backgroundColor: '#F5F5F5' },
+  section: { backgroundColor: '#fff', borderColor: '#E0E0E0' },
+  sectionTitle: { color: '#333' },
+  input: { backgroundColor: '#F5F5F5', color: '#222', borderColor: '#E0E0E0' },
+  pickerItem: { backgroundColor: '#F9F9F9', borderColor: '#E0E0E0' },
+  pickerText: { color: '#555' },
+  swapBtn: { backgroundColor: '#F0FBF7' },
+  resultBox: { backgroundColor: '#F0FBF7' },
+  rateRow: { borderBottomColor: '#F0F0F0' },
+  rateCode: { color: '#222' },
+});
+
+const darkStyles = StyleSheet.create({
+  container: { backgroundColor: '#000' },
+  section: { backgroundColor: '#1E1E1E', borderColor: '#333' },
+  sectionTitle: { color: '#EEE' },
+  input: { backgroundColor: '#2C2C2C', color: '#EEE', borderColor: '#444' },
+  pickerItem: { backgroundColor: '#2C2C2C', borderColor: '#444' },
+  pickerText: { color: '#AAA' },
+  swapBtn: { backgroundColor: '#16332A' },
+  resultBox: { backgroundColor: '#16332A' },
+  rateRow: { borderBottomColor: '#333' },
+  rateCode: { color: '#EEE' },
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F5F5' },
