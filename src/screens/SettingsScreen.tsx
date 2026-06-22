@@ -24,7 +24,7 @@ const LANGUAGES = [
 ];
 
 const CURRENCIES = [
-  { code: 'TJS', label: 'Сомони', symbol: 'сом', country: '🇹🇯 Таджикистан' },
+  { code: 'TJS', label: 'Сомони', symbol: 'TJS', country: '🇹🇯 Таджикистан' },
   { code: 'UZS', label: 'Сум', symbol: 'сум', country: '🇺🇿 Узбекистан' },
   { code: 'KZT', label: 'Тенге', symbol: '₸', country: '🇰🇿 Казахстан' },
   { code: 'KGS', label: 'Сом', symbol: 'с', country: '🇰🇬 Кыргызстан' },

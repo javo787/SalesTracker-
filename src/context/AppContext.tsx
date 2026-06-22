@@ -12,7 +12,7 @@ interface Currency {
 }
 
 const CURRENCIES: Record<string, Currency> = {
-  TJS: { code: 'TJS', label: 'Сомони', symbol: 'сом', country: '🇹🇯 Таджикистан' },
+  TJS: { code: 'TJS', label: 'Сомони', symbol: 'TJS', country: '🇹🇯 Таджикистан' },
   UZS: { code: 'UZS', label: 'Сум', symbol: 'сум', country: '🇺🇿 Узбекистан' },
   KZT: { code: 'KZT', label: 'Тенге', symbol: '₸', country: '🇰🇿 Казахстан' },
   KGS: { code: 'KGS', label: 'Сом', symbol: 'с', country: '🇰🇬 Кыргызстан' },

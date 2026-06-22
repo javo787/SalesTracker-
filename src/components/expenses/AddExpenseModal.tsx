@@ -49,7 +49,7 @@ export default function AddExpenseModal({ visible, onClose, onSuccess }: AddExpe
   }, [visible]);
 
   const extractAmountFromText = (text: string): number | null => {
-    const match = text.match(/(\d[\d\s]*)\s*(сомон|сом)?/i);
+    const match = text.match(/(\d[\d\s]*)\s*(сомон|сом|tjs)?/i);
     if (match) return parseInt(match[1].replace(/\s/g, ''));
     return null;
   };
