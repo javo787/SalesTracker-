@@ -403,7 +403,7 @@ const resources = {
         noInternet: 'Нет подключения. Попробуйте позже.',
       },
       forecast: {
-        buttonLabel: 'Прогноз на неделю',
+        buttonLabel: 'Прогноз на неделю · Смотреть видео',
         buttonLabelCached: 'Прогноз готов · Смотреть',
         buttonLabelLoading: 'Анализируем данные...',
         refreshesIn: 'Обновится через {{count}} ч.',
@@ -819,7 +819,7 @@ const resources = {
         noInternet: 'Пайвастшавӣ нест. Баъдтар кӯшиш кунед.',
       },
       forecast: {
-        buttonLabel: 'Пешгӯии ҳафта',
+        buttonLabel: 'Пешгӯии ҳафта · Тамошои видео',
         buttonLabelCached: 'Пешгӯӣ омода аст · Дидан',
         buttonLabelLoading: 'Таҳлили маълумот...',
         refreshesIn: 'Пас аз {{count}} соат нав мешавад',
@@ -1235,7 +1235,7 @@ const resources = {
         noInternet: 'Ulanish mavjud emas. Keyinroq urinib ko‘ring.',
       },
       forecast: {
-        buttonLabel: 'Haftalik prognoz',
+        buttonLabel: 'Haftalik prognoz · Videoni ko‘rish',
         buttonLabelCached: 'Prognoz tayyor · Ko‘rish',
         buttonLabelLoading: 'Ma’lumotlar tahlil qilinmoqda...',
         refreshesIn: '{{count}} soatdan keyin yangilanadi',

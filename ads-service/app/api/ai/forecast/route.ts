@@ -2,8 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'edge';
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+const GEMINI_API_KEYS = [
+  process.env.GEMINI_API_KEY,
+  process.env.GEMINI_API_KEY_1,
+  process.env.GEMINI_API_KEY_2,
+  process.env.GEMINI_API_KEY_3,
+].filter(Boolean) as string[];
+
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
 
 interface SalesDay {
   day: number;
@@ -56,8 +62,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'invalid_request' }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
     }
 
-    if (!GEMINI_API_KEY) {
-      console.error('GEMINI_API_KEY is not set');
+    if (GEMINI_API_KEYS.length === 0 && !GROQ_API_KEY) {
+      console.error('No AI API keys configured');
       return NextResponse.json({ error: 'config_error' }, { status: 500, headers: { 'Cache-Control': 'no-store' } });
     }
 
@@ -125,37 +131,76 @@ ${slicedWeeklyTotals.map(w => `${w.weekLabel}: выручка ${w.revenue}, пр
 3. Какой товар пересмотреть (цену или количество)`;
     }
 
-    const geminiRequestBody = {
-      contents: [{ parts: [{ text: userMessage }] }],
-      system_instruction: { parts: [{ text: systemInstruction }] },
-      generationConfig: {
-        maxOutputTokens: 400,
-        temperature: 0.7,
-      },
-    };
+    let forecast = null;
+    let lastError = null;
 
-    const response = await fetch(GEMINI_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(geminiRequestBody),
-    });
+    // 1. Try Gemini with fallback keys
+    for (const key of GEMINI_API_KEYS) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`;
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: userMessage }] }],
+            system_instruction: { parts: [{ text: systemInstruction }] },
+            generationConfig: { maxOutputTokens: 400, temperature: 0.7 },
+          }),
+        });
 
-    if (response.status === 429) {
-      return NextResponse.json(
-        { error: 'rate_limit', message: 'Попробуйте через несколько минут' },
-        { status: 503, headers: { 'Cache-Control': 'no-store' } }
-      );
+        if (response.status === 429) {
+          lastError = 'rate_limit';
+          continue;
+        }
+
+        if (response.ok) {
+          const data = await response.json();
+          forecast = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (forecast) break;
+        }
+      } catch (err) {
+        console.warn('Gemini key failed, trying next...', err);
+      }
     }
 
-    if (!response.ok) {
-      console.error(`Gemini API error: ${response.status} ${await response.text()}`);
-      return NextResponse.json({ error: 'gemini_error' }, { status: 502, headers: { 'Cache-Control': 'no-store' } });
-    }
+    // 2. Final fallback to Groq if Gemini failed
+    if (!forecast && GROQ_API_KEY) {
+      try {
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${GROQ_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: 'llama-3.3-70b-versatile',
+            messages: [
+              { role: 'system', content: systemInstruction },
+              { role: 'user', content: userMessage },
+            ],
+            temperature: 0.7,
+            max_tokens: 400,
+          }),
+        });
 
-    const data = await response.json();
-    const forecast = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (response.ok) {
+          const data = await response.json();
+          forecast = data.choices?.[0]?.message?.content;
+        } else if (response.status === 429) {
+          lastError = 'rate_limit';
+        }
+      } catch (err) {
+        console.error('Groq fallback failed:', err);
+      }
+    }
 
     if (!forecast) {
+      if (lastError === 'rate_limit') {
+        return NextResponse.json(
+          { error: 'rate_limit', message: 'Попробуйте через несколько минут' },
+          { status: 503, headers: { 'Cache-Control': 'no-store' } }
+        );
+      }
       return NextResponse.json({ error: 'gemini_error' }, { status: 502, headers: { 'Cache-Control': 'no-store' } });
     }
 

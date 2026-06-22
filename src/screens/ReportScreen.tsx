@@ -500,7 +500,7 @@ export default function ReportScreen() {
             style={[styles.forecastBtn, styles.forecastBtnDefault, themeStyles.card]}
             onPress={handleForecastPress}
           >
-            <Text style={styles.forecastBtnTextDefault}>🔮 {t('forecast.buttonLabel')} · Смотреть видео</Text>
+            <Text style={styles.forecastBtnTextDefault}>🔮 {t('forecast.buttonLabel')}</Text>
           </TouchableOpacity>
         )}
       </View>
