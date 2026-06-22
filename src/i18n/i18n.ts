@@ -306,6 +306,7 @@ const resources = {
         uploadImages: 'Фото (макс. 3)',
         submit: 'Опубликовать',
         success: 'Объявление отправлено на модерацию',
+        errorFillAll: 'Пожалуйста, заполните все обязательные поля',
         moderationPending: 'На модерации',
         contact: 'Контактный телефон',
         categories: {
