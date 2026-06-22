@@ -6,7 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useAppContext } from '../../context/AppContext';
-import { getStockMovements } from '../../db/database';
+import { getStockMovements, getLastPurchaseInfo } from '../../db/database';
 
 interface StockHistorySheetProps {
   visible: boolean;
@@ -18,6 +18,7 @@ export default function StockHistorySheet({ visible, onClose, product }: StockHi
   const { t } = useTranslation();
   const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
   const [movements, setMovements] = useState<any[]>([]);
+  const [lastPurchaseInfo, setLastPurchaseInfo] = useState<{ price_per_unit: number; created_at: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -30,6 +31,8 @@ export default function StockHistorySheet({ visible, onClose, product }: StockHi
     setLoading(true);
     const data = getStockMovements(product.id);
     setMovements(data);
+    const lastPurchase = getLastPurchaseInfo(product.id);
+    setLastPurchaseInfo(lastPurchase);
     setLoading(false);
   };
 
@@ -92,6 +95,12 @@ export default function StockHistorySheet({ visible, onClose, product }: StockHi
             </TouchableOpacity>
           </View>
 
+          {lastPurchaseInfo && (
+            <Text style={styles.lastPurchase}>
+              Последняя закупка: {lastPurchaseInfo.price_per_unit} {currency.symbol} ({new Date(lastPurchaseInfo.created_at).toLocaleDateString('ru-RU')})
+            </Text>
+          )}
+
           {loading ? (
             <ActivityIndicator size="large" color="#1D9E75" style={{ marginTop: 20 }} />
           ) : (
@@ -133,6 +142,12 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 },
   title: { fontSize: 20, fontWeight: 'bold' },
   subtitle: { fontSize: 14, color: '#999', marginTop: 2 },
+  lastPurchase: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#666',
+    marginBottom: 15,
+  },
   item: { flexDirection: 'row', padding: 12, borderRadius: 12, marginBottom: 8, alignItems: 'center' },
   itemLight: { backgroundColor: '#F9F9F9' },
   itemDark: { backgroundColor: '#1E1E1E' },

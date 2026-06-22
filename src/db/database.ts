@@ -394,6 +394,13 @@ export function getStockMovements(productId: number, limit: number = 20) {
   );
 }
 
+export function getLastPurchaseInfo(productId: number): { price_per_unit: number; created_at: string } | null {
+  return db.getFirstSync(
+    "SELECT price_per_unit, created_at FROM stock_movements WHERE product_id = ? AND type = 'stock_in' ORDER BY created_at DESC LIMIT 1",
+    [productId]
+  ) as { price_per_unit: number; created_at: string } | null;
+}
+
 export function updateStock(productId: number, quantity: number) {
   db.runSync('UPDATE products SET stock = stock - ? WHERE id = ?', [quantity, productId]);
   const p = db.getFirstSync('SELECT name, stock, min_stock_alert FROM products WHERE id = ?', [productId]) as any;
