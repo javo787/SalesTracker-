@@ -81,6 +81,42 @@ export function initDatabase() {
       FOREIGN KEY (linked_product_id) REFERENCES products(id)
     );
 
+    CREATE TABLE IF NOT EXISTS clients (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      phone TEXT,
+      note TEXT,
+      created_at TEXT,
+      updated_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS debts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id INTEGER NOT NULL,
+      sale_id INTEGER,
+      amount_total REAL NOT NULL,
+      amount_paid REAL DEFAULT 0,
+      status TEXT DEFAULT 'active',
+      due_date TEXT,
+      note TEXT,
+      created_at TEXT,
+      updated_at TEXT,
+      FOREIGN KEY (client_id) REFERENCES clients(id),
+      FOREIGN KEY (sale_id) REFERENCES sales(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS debt_payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      debt_id INTEGER NOT NULL,
+      amount REAL NOT NULL,
+      note TEXT,
+      created_at TEXT,
+      FOREIGN KEY (debt_id) REFERENCES debts(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_debts_client_id ON debts(client_id);
+    CREATE INDEX IF NOT EXISTS idx_debts_status ON debts(status);
+
     CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
     CREATE INDEX IF NOT EXISTS idx_sales_product_id ON sales(product_id);
     CREATE INDEX IF NOT EXISTS idx_sales_product_name ON sales(product_name);
@@ -363,12 +399,12 @@ export function addSale(
   const profit = (sellPrice - buyPrice) * quantity;
   const stockUpdated = productId ? 1 : 0;
   try {
-    db.runSync(
+    const result = db.runSync(
       'INSERT INTO sales (product_id, product_name, quantity, sell_price, buy_price, profit, note, stock_updated, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [productId, productName, quantity, sellPrice, buyPrice, profit, note, stockUpdated, nowLocalISO()]
     );
     if (productId) updateStock(productId, quantity);
-    return profit;
+    return result;
   } catch (error) {
     console.error('Error adding sale:', error);
     throw error;
@@ -622,6 +658,115 @@ export function getAnnualStats() {
       netProfit: (totals?.profit || 0) - (totalExpenses?.total || 0),
     }
   };
+}
+
+// ── Clients ──────────────────────────────────────────
+
+export function searchClients(query: string) {
+  if (!query.trim()) {
+    return db.getAllSync(
+      'SELECT * FROM clients ORDER BY updated_at DESC LIMIT 8'
+    );
+  }
+  return db.getAllSync(
+    "SELECT * FROM clients WHERE name LIKE ? || '%' ORDER BY name ASC LIMIT 8",
+    [query]
+  );
+}
+
+export function upsertClient(name: string, phone: string = '', note: string = ''): number {
+  const existing = db.getFirstSync(
+    'SELECT id FROM clients WHERE name = ?',
+    [name]
+  ) as any;
+  if (existing) {
+    db.runSync(
+      'UPDATE clients SET phone = ?, updated_at = ? WHERE id = ?',
+      [phone || existing.phone, nowLocalISO(), existing.id]
+    );
+    return existing.id;
+  }
+  const result = db.runSync(
+    'INSERT INTO clients (name, phone, note, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+    [name, phone, note, nowLocalISO(), nowLocalISO()]
+  );
+  return result.lastInsertRowId;
+}
+
+// ── Debts ─────────────────────────────────────────────
+
+export function addDebt(
+  clientId: number,
+  saleId: number | null,
+  amountTotal: number,
+  amountPaid: number = 0,
+  note: string = '',
+  dueDate: string = ''
+) {
+  const now = nowLocalISO();
+  return db.runSync(
+    `INSERT INTO debts
+       (client_id, sale_id, amount_total, amount_paid, status, due_date, note, created_at, updated_at)
+     VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?)`,
+    [clientId, saleId, amountTotal, amountPaid, dueDate || null, note, now, now]
+  );
+}
+
+export function getDebtsWithClients() {
+  return db.getAllSync(`
+    SELECT
+      d.*,
+      c.name  AS client_name,
+      c.phone AS client_phone,
+      (d.amount_total - d.amount_paid) AS remaining
+    FROM debts d
+    JOIN clients c ON c.id = d.client_id
+    WHERE d.status != 'paid'
+    ORDER BY d.created_at DESC
+  `);
+}
+
+export function getDebtSummary(): { total_remaining: number; debtor_count: number } {
+  const result = db.getFirstSync(`
+    SELECT
+      COALESCE(SUM(amount_total - amount_paid), 0) AS total_remaining,
+      COUNT(DISTINCT client_id)                     AS debtor_count
+    FROM debts
+    WHERE status != 'paid'
+  `) as any;
+  return result ?? { total_remaining: 0, debtor_count: 0 };
+}
+
+export function getDebtsByClient(clientId: number) {
+  return db.getAllSync(
+    `SELECT * FROM debts WHERE client_id = ? ORDER BY created_at DESC`,
+    [clientId]
+  );
+}
+
+export function recordDebtPayment(debtId: number, amount: number, note: string = '') {
+  const debt = db.getFirstSync('SELECT * FROM debts WHERE id = ?', [debtId]) as any;
+  if (!debt) return;
+  const newPaid = debt.amount_paid + amount;
+  const newStatus = newPaid >= debt.amount_total ? 'paid' : 'active';
+  const now = nowLocalISO();
+  db.withTransactionSync(() => {
+    db.runSync(
+      'UPDATE debts SET amount_paid = ?, status = ?, updated_at = ? WHERE id = ?',
+      [newPaid, newStatus, now, debtId]
+    );
+    db.runSync(
+      'INSERT INTO debt_payments (debt_id, amount, note, created_at) VALUES (?, ?, ?, ?)',
+      [debtId, amount, note, now]
+    );
+  });
+}
+
+export function getDebtPayments(debtId: number) {
+  return db.getAllSync(
+    'SELECT * FROM debt_payments WHERE debt_id = ? ORDER BY created_at DESC',
+    [debtId]
+  );
 }
 
 export function searchProductsForAutocomplete(query: string) {

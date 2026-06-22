@@ -6,11 +6,12 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
-import { addSale, getProducts } from '../db/database';
+import { addSale, getProducts, upsertClient, addDebt } from '../db/database';
 import { analyticsService } from '../services/analyticsService';
 import { reviewService } from '../services/reviewService';
 import VoiceRecorder from '../components/VoiceRecorder';
 import { useAppContext } from '../context/AppContext';
+import ClientAutocomplete from '../components/debt/ClientAutocomplete';
 import GeminiApi from '../utils/geminiApi';
 import ExpensesView from '../components/expenses/ExpensesView';
 import { ProductAutocomplete } from '../components/sales/ProductAutocomplete';
@@ -20,7 +21,7 @@ const CACHE_TTL = 60 * 60 * 1000; // 1 час в мс
 
 export default function AddSaleScreen(/* props */) {
   const { t } = useTranslation();
-  const { resolvedTheme, currency, language } = useAppContext(); const isDark = resolvedTheme === "dark";
+  const { resolvedTheme, currency, language, sellerMode } = useAppContext(); const isDark = resolvedTheme === "dark";
 
   const gemini = useMemo(() => {
     const keys = [
@@ -38,6 +39,12 @@ export default function AddSaleScreen(/* props */) {
   const [quantity, setQuantity] = useState('');
   const [note, setNote] = useState('');
   const [salePricePlaceholder, setSalePricePlaceholder] = useState<number | null>(null);
+
+  const [paymentType, setPaymentType] = useState<'full' | 'partial' | 'debt'>('full');
+  const [paidAmount, setPaidAmount] = useState('');
+  const [clientName, setClientName] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
+  const [clientId, setClientId] = useState<number | null>(null);
 
   const quantityInputRef = useRef<TextInput>(null);
   const [processing, setProcessing] = useState(false);
@@ -194,38 +201,45 @@ FEW-SHOT EXAMPLES:
     const bPrice = parseFloat(buyPrice);
     const qty = parseInt(quantity) || 1;
 
-    const profit = addSale(
+    const saleId = addSale(
       selectedProduct?.id ? parseInt(selectedProduct.id) : null,
       productName.trim(),
       qty,
       sPrice,
       bPrice,
       note
-    );
+    ) as any;
+
+    // Handle debt
+    if (paymentType !== 'full' && clientName.trim()) {
+      const resolvedClientId = upsertClient(clientName.trim(), clientPhone.trim());
+      const paid = paymentType === 'partial' ? (parseFloat(paidAmount) || 0) : 0;
+      const totalDebt = sPrice * qty;
+      addDebt(resolvedClientId, saleId?.lastInsertRowId ?? null, totalDebt, paid);
+    }
+
+    const profit = (sPrice - bPrice) * qty;
 
     analyticsService.logEvent('sale_added', {
       product_id: selectedProduct?.id || 'none',
       quantity: qty,
       profit: profit,
-      revenue: sPrice * qty
+      revenue: sPrice * qty,
+      payment_type: paymentType,
     });
     reviewService.incrementSalesAndCheck();
 
     setLastSaved({
       name: productName,
       profit: profit.toFixed(0),
-      revenue: (sPrice * qty).toFixed(0)
+      revenue: (sPrice * qty).toFixed(0),
     });
 
-    // Сброс формы
-    setProductName('');
-    setSellPrice('');
-    setBuyPrice('');
-    setQuantity('');
-    setNote('');
-    setVoiceText('');
-    setSelectedProduct(null);
-    setSalePricePlaceholder(null);
+    setProductName(''); setSellPrice(''); setBuyPrice('');
+    setQuantity(''); setNote(''); setVoiceText('');
+    setSelectedProduct(null); setSalePricePlaceholder(null);
+    setPaymentType('full'); setPaidAmount('');
+    setClientName(''); setClientPhone(''); setClientId(null);
   };
 
   const themeStyles = isDark ? darkStyles : lightStyles;
@@ -366,6 +380,63 @@ FEW-SHOT EXAMPLES:
           onChangeText={setNote}
           multiline
         />
+
+    {/* Payment type selector — shown only in wholesale mode */}
+    {sellerMode === 'wholesale' && (
+      <View style={styles.paymentSection}>
+        <Text style={[styles.label, themeStyles.text]}>Оплата</Text>
+        <View style={styles.paymentRow}>
+          {(['full', 'partial', 'debt'] as const).map((type) => {
+            const labels = { full: '✅ Полностью', partial: '💰 Частично', debt: '📋 В долг' };
+            return (
+              <TouchableOpacity
+                key={type}
+                style={[
+                  styles.paymentBtn,
+                  isDark ? styles.paymentBtnDark : styles.paymentBtnLight,
+                  paymentType === type && styles.paymentBtnActive,
+                ]}
+                onPress={() => setPaymentType(type)}
+              >
+                <Text style={[
+                  styles.paymentBtnText,
+                  paymentType === type && styles.paymentBtnTextActive,
+                ]}>
+                  {labels[type]}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {paymentType === 'partial' && (
+          <TextInput
+            style={[styles.input, themeStyles.input, { marginTop: 8 }]}
+            placeholder="Внесено сейчас"
+            placeholderTextColor={isDark ? '#888' : '#aaa'}
+            keyboardType="numeric"
+            value={paidAmount}
+            onChangeText={setPaidAmount}
+          />
+        )}
+
+        {(paymentType === 'partial' || paymentType === 'debt') && (
+          <View style={{ marginTop: 8 }}>
+            <ClientAutocomplete
+              value={clientName}
+              phone={clientPhone}
+              onChange={setClientName}
+              onChangePhone={setClientPhone}
+              onSelect={(c) => {
+                setClientName(c.name);
+                setClientPhone(c.phone);
+                setClientId(c.id);
+              }}
+            />
+          </View>
+        )}
+      </View>
+    )}
 
         {/* Предварительный расчёт */}
         {(sellPrice || salePricePlaceholder) && buyPrice ? (
@@ -526,4 +597,24 @@ const styles = StyleSheet.create({
   successTitle: { fontSize: 16, fontWeight: 'bold', color: '#1D9E75', marginBottom: 8 },
   successText: { fontSize: 14, marginBottom: 4 },
   successProfit: { fontSize: 16, fontWeight: 'bold', color: '#1D9E75', marginTop: 4 },
+  paymentSection: {
+    marginTop: 12,
+  },
+  paymentRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 6,
+  },
+  paymentBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  paymentBtnLight: { backgroundColor: '#F5F5F5', borderColor: '#E0E0E0' },
+  paymentBtnDark:  { backgroundColor: '#2C2C2C', borderColor: '#444' },
+  paymentBtnActive: { backgroundColor: '#1D9E75', borderColor: '#1D9E75' },
+  paymentBtnText: { fontSize: 12, fontWeight: '500', color: '#666' },
+  paymentBtnTextActive: { color: '#fff' },
 });
