@@ -42,6 +42,7 @@ import NewsScreen from './src/screens/NewsScreen';
 import CustomDrawerContent from './src/components/CustomDrawerContent';
 import LockScreen from './src/screens/LockScreen';
 import AppLockSetupScreen from './src/screens/AppLockSetupScreen';
+import DebtorsScreen from './src/screens/DebtorsScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -336,6 +337,15 @@ function AppContent() {
           name="AppLockSetup"
           component={AppLockSetupScreen}
           options={{ title: t('appLock.title'), headerStyle: { backgroundColor: '#1D9E75' }, headerTintColor: '#fff' }}
+        />
+        <Stack.Screen
+          name="Debtors"
+          component={DebtorsScreen}
+          options={{
+            title: 'Должники',
+            headerStyle: { backgroundColor: '#1D9E75' },
+            headerTintColor: '#fff',
+          }}
         />
       </Stack.Navigator>
     </NavigationContainer>

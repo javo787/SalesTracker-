@@ -6,7 +6,7 @@ import {
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
-import { getStats, getSalesToday, deleteSale } from '../db/database';
+import { getStats, getSalesToday, deleteSale, getDebtSummary } from '../db/database';
 import { useAppContext } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { getSmartTip } from '../utils/smartTips';
@@ -119,7 +119,7 @@ function StatCard({ label, value, currency, unit, icon, color, themeStyles, tren
 
 export default function HomeScreen() {
   const { t, i18n } = useTranslation();
-  const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
+  const { resolvedTheme, currency, sellerMode } = useAppContext(); const isDark = resolvedTheme === "dark";
   const { user } = useAuth();
   const navigation = useNavigation<any>();
   const { hasUnread } = useNewsUnread();
@@ -129,6 +129,7 @@ export default function HomeScreen() {
   const [todaySales, setTodaySales] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [dailyTip, setDailyTip] = useState<string | null>(null);
+  const [debtSummary, setDebtSummary] = useState({ total_remaining: 0, debtor_count: 0 });
 
   const loadData = () => {
     const s = getStats(1);
@@ -137,6 +138,7 @@ export default function HomeScreen() {
     setStats7(s7);
     const sales = getSalesToday();
     setTodaySales(sales);
+    setDebtSummary(getDebtSummary());
   };
 
   const loadTip = async () => {
@@ -206,6 +208,30 @@ export default function HomeScreen() {
       </View>
 
       <CurrencyConversionBanner />
+
+  {sellerMode === 'wholesale' && debtSummary.total_remaining > 0 && (
+    <TouchableOpacity
+      style={[styles.debtWidget, themeStyles.card]}
+      onPress={() => navigation.navigate('Debtors')}
+      activeOpacity={0.7}
+    >
+      <View style={styles.debtWidgetLeft}>
+        <Text style={styles.debtWidgetIcon}>📋</Text>
+        <View>
+          <Text style={styles.debtWidgetLabel}>Вам должны</Text>
+          <Text style={styles.debtWidgetCount}>
+            {debtSummary.debtor_count} чел.
+          </Text>
+        </View>
+      </View>
+      <View style={styles.debtWidgetRight}>
+        <Text style={[styles.debtWidgetAmount, themeStyles.text]}>
+          {debtSummary.total_remaining.toLocaleString()} {currency.symbol}
+        </Text>
+        <Ionicons name="chevron-forward" size={16} color="#1D9E75" />
+      </View>
+    </TouchableOpacity>
+  )}
 
       {/* Карточки статистики */}
       {dailyTip ? (
@@ -423,4 +449,18 @@ const styles = StyleSheet.create({
   saleRight: { alignItems: 'flex-end' },
   saleRevenue: { fontSize: 15, fontWeight: '600' },
   saleProfit: { fontSize: 13, color: '#1D9E75', marginTop: 3 },
+  debtWidget: {
+    marginHorizontal: 16, marginTop: 12, marginBottom: 0,
+    borderRadius: 12, padding: 14,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    borderLeftWidth: 4, borderLeftColor: '#E53935',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08, shadowRadius: 2, elevation: 2,
+  },
+  debtWidgetLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  debtWidgetIcon: { fontSize: 22 },
+  debtWidgetLabel: { fontSize: 13, color: '#999' },
+  debtWidgetCount: { fontSize: 12, color: '#E53935', fontWeight: '500' },
+  debtWidgetRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  debtWidgetAmount: { fontSize: 18, fontWeight: 'bold' },
 });
