@@ -44,7 +44,8 @@ export default function SettingsScreen(props: any) {
   const {
     theme, currency, language, setTheme, setCurrency, setLanguage,
     notificationsEnabled, setNotificationsEnabled,
-    defaultMinStockAlert, setDefaultMinStockAlert
+    defaultMinStockAlert, setDefaultMinStockAlert,
+    sellerMode, setSellerMode
   } = useAppContext();
   const { isLockEnabled, setIsSystemDialogOpen } = useAppLock();
 
@@ -374,6 +375,48 @@ export default function SettingsScreen(props: any) {
                 <Text style={styles.linkText}>🔑 {t('appLock.changeMethod')}</Text>
             </TouchableOpacity>
         )}
+      </View>
+
+      {/* Режим продавца */}
+      <View style={[styles.section, themeStyles.section]}>
+        <Text style={[styles.sectionTitle, themeStyles.text]}>🏪 Режим торговли</Text>
+        <Text style={[{ fontSize: 13, marginBottom: 14 }, { color: isDark ? '#AAA' : '#666' }]}>
+          Влияет на функции в разделе «Товары» и «Продажа»
+        </Text>
+        <View style={styles.optionGrid}>
+          <TouchableOpacity
+            style={[
+              styles.optionCard,
+              themeStyles.optionCard,
+              sellerMode === 'retail' && styles.optionCardActive
+            ]}
+            onPress={() => setSellerMode('retail')}
+          >
+            <Text style={styles.optionFlag}>🛒</Text>
+            <Text style={[
+              styles.optionLabel,
+              themeStyles.optionLabel,
+              sellerMode === 'retail' && styles.optionLabelActive
+            ]}>Розница</Text>
+            {sellerMode === 'retail' && <Text style={styles.checkmark}>✓</Text>}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.optionCard,
+              themeStyles.optionCard,
+              sellerMode === 'wholesale' && styles.optionCardActive
+            ]}
+            onPress={() => setSellerMode('wholesale')}
+          >
+            <Text style={styles.optionFlag}>📦</Text>
+            <Text style={[
+              styles.optionLabel,
+              themeStyles.optionLabel,
+              sellerMode === 'wholesale' && styles.optionLabelActive
+            ]}>Опт</Text>
+            {sellerMode === 'wholesale' && <Text style={styles.checkmark}>✓</Text>}
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Тема */}
