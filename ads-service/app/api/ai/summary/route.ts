@@ -41,16 +41,15 @@ async function callAIWithFallback(
   prompt: string,
   systemInstruction: string
 ): Promise<{ text: string; provider: string }> {
-  const providers = [
+  const providers = ([
     { key: process.env.GEMINI_API_KEY, name: 'gemini' },
     { key: process.env.GEMINI_API_KEY_1, name: 'gemini_1' },
     { key: process.env.GEMINI_API_KEY_2, name: 'gemini_2' },
     { key: process.env.GEMINI_API_KEY_3, name: 'gemini_3' },
-  ];
+  ].filter(p => !!p.key) as { key: string; name: string }[]);
 
   // 1. Try Gemini keys
   for (const provider of providers) {
-    if (!provider.key) continue;
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${provider.key}`;
       const response = await fetch(url, {

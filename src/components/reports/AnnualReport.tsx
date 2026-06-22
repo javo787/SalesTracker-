@@ -45,7 +45,8 @@ export default function AnnualReport() {
   };
 
   const getPeriodLabel = () => {
-    return `${t('reports.year')} ${annualData?.year}`;
+    if (!annualData) return '';
+    return `01.01.${annualData.year} — 31.12.${annualData.year}`;
   };
 
   const checkExportCache = async (data: any) => {

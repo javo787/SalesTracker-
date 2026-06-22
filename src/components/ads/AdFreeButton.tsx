@@ -86,6 +86,7 @@ export default function AdFreeButton() {
       });
 
       rewarded.onAdDismissed(() => {
+        rewarded.removeAllListeners();
         if (rewardedEarned) {
           AdFreeService.onRewardedWatched().then(loadState);
         }
