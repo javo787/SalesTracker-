@@ -17,6 +17,21 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { useAppContext } from '../context/AppContext';
+import AdFreeButton from './ads/AdFreeButton';
+
+function Divider() {
+  const { resolvedTheme } = useAppContext();
+  const isDark = resolvedTheme === 'dark';
+  return (
+    <View
+      style={{
+        height: 1,
+        backgroundColor: isDark ? '#333' : '#EEE',
+        marginVertical: 8,
+      }}
+    />
+  );
+}
 
 export default function CustomDrawerContent(props: DrawerContentComponentProps) {
   const { t } = useTranslation();
@@ -60,6 +75,11 @@ export default function CustomDrawerContent(props: DrawerContentComponentProps) 
           <DrawerItemList {...props} />
         </View>
       </DrawerContentScrollView>
+
+      <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
+        <AdFreeButton />
+      </View>
+      <Divider />
 
       {/* Logout Button */}
       <View style={[styles.footer, themeStyles.footer]}>

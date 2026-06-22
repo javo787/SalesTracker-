@@ -226,7 +226,9 @@ export default function CurrencyScreen() {
         </TouchableOpacity>
       </View>
 
-      <UniversalBanner />
+      <View style={{ width: '100%' }}>
+        <UniversalBanner />
+      </View>
 
       <View style={{ height: 32 }} />
     </ScrollView>

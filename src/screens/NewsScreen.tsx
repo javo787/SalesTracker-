@@ -54,7 +54,11 @@ export default function NewsScreen() {
           renderItem={({ item }) => <NewsCard article={item} />}
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={<NewsEmptyState />}
-          ListFooterComponent={<UniversalBanner />}
+          ListFooterComponent={
+            <View style={{ width: '100%' }}>
+              <UniversalBanner />
+            </View>
+          }
           contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl
