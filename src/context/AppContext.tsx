@@ -32,6 +32,8 @@ interface AppContextType {
   setDefaultMinStockAlert: (value: number) => Promise<void>;
   isPremium: boolean;
   setIsPremium: (value: boolean) => Promise<void>;
+  sellerMode: 'retail' | 'wholesale';
+  setSellerMode: (mode: 'retail' | 'wholesale') => Promise<void>;
   loading: boolean;
 }
 
@@ -45,6 +47,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [notificationsEnabled, setNotificationsEnabledState] = useState(true);
   const [defaultMinStockAlert, setDefaultMinStockAlertState] = useState(0);
   const [isPremium, setIsPremiumState] = useState(false);
+  const [sellerMode, setSellerModeState] = useState<'retail' | 'wholesale'>('retail');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -53,13 +56,14 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const loadSettings = async () => {
     try {
-      const [savedTheme, savedCurrency, savedLang, savedNotifs, savedMinStock, savedPremium] = await Promise.all([
+      const [savedTheme, savedCurrency, savedLang, savedNotifs, savedMinStock, savedPremium, savedSellerMode] = await Promise.all([
         AsyncStorage.getItem('app_theme'),
         AsyncStorage.getItem('app_currency'),
         AsyncStorage.getItem('app_language'),
         AsyncStorage.getItem('app_notifications_enabled'),
         AsyncStorage.getItem('app_default_min_stock'),
         AsyncStorage.getItem('app_is_premium'),
+        AsyncStorage.getItem('app_seller_mode'),
       ]);
 
       if (savedTheme) {
@@ -73,6 +77,9 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (savedNotifs !== null) setNotificationsEnabledState(savedNotifs === 'true');
       if (savedMinStock !== null) setDefaultMinStockAlertState(parseInt(savedMinStock) || 0);
       if (savedPremium !== null) setIsPremiumState(savedPremium === 'true');
+      if (savedSellerMode === 'retail' || savedSellerMode === 'wholesale') {
+        setSellerModeState(savedSellerMode);
+      }
     } catch (e) {
       console.error('Failed to load settings', e);
     } finally {
@@ -114,6 +121,11 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     await AsyncStorage.setItem('app_is_premium', String(value));
   };
 
+  const setSellerMode = async (mode: 'retail' | 'wholesale') => {
+    setSellerModeState(mode);
+    await AsyncStorage.setItem('app_seller_mode', mode);
+  };
+
   const resolvedTheme = useMemo(() => {
     if (theme === 'system') {
       return systemColorScheme === 'dark' ? 'dark' : 'light';
@@ -132,6 +144,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setDefaultMinStockAlert,
     isPremium,
     setIsPremium,
+    sellerMode,
+    setSellerMode,
     setTheme,
     setCurrency,
     setLanguage,
@@ -144,6 +158,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     notificationsEnabled,
     defaultMinStockAlert,
     isPremium,
+    sellerMode,
+    setSellerMode,
     loading
   ]);
 

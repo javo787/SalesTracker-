@@ -15,7 +15,7 @@ import { ProductAutocomplete } from '../components/sales/ProductAutocomplete';
 
 export default function ProductsScreen() {
   const { t } = useTranslation();
-  const { resolvedTheme, currency, defaultMinStockAlert } = useAppContext(); const isDark = resolvedTheme === "dark";
+  const { resolvedTheme, currency, defaultMinStockAlert, sellerMode } = useAppContext(); const isDark = resolvedTheme === "dark";
   const [products, setProducts] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -347,9 +347,24 @@ export default function ProductsScreen() {
         </View>
       )}
 
-      <Text style={[styles.sectionTitle, themeStyles.text]}>
-        {searchQuery ? `Найдено: ${filteredProducts.length}` : `Все товары (${products.length})`}
-      </Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 8 }}>
+        <Text style={[styles.sectionTitle, themeStyles.text, { paddingHorizontal: 0, marginBottom: 0 }]}>
+          {searchQuery ? `Найдено: ${filteredProducts.length}` : `Все товары (${products.length})`}
+        </Text>
+        <View style={{
+          paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12,
+          backgroundColor: sellerMode === 'wholesale' ? '#FFF3E0' : '#F0FBF7',
+          borderWidth: 1,
+          borderColor: sellerMode === 'wholesale' ? '#FF9800' : '#1D9E75',
+        }}>
+          <Text style={{
+            fontSize: 11, fontWeight: '600',
+            color: sellerMode === 'wholesale' ? '#E65100' : '#1D9E75',
+          }}>
+            {sellerMode === 'wholesale' ? '📦 Опт' : '🛒 Розница'}
+          </Text>
+        </View>
+      </View>
 
       {filteredProducts.length === 0 ? (
         <View style={styles.empty}>
