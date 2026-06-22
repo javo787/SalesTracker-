@@ -37,6 +37,7 @@ export function initDatabase() {
       has_packages INTEGER DEFAULT 0,
       package_name TEXT,
       units_per_package REAL DEFAULT 1,
+      category TEXT,
       updated_at TEXT,
       synced INTEGER DEFAULT 0,
       is_deleted INTEGER DEFAULT 0,
@@ -154,6 +155,11 @@ export function initDatabase() {
     }
   });
 
+  // Migration: add category to products
+  if (!tableInfo.some(col => col.name === 'category')) {
+    db.execSync('ALTER TABLE products ADD COLUMN category TEXT');
+  }
+
   // Migration: timezone shift + one-time migration check
   db.execSync('CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT)');
   const migrationDone = db.getFirstSync("SELECT value FROM app_meta WHERE key = 'tz_migration_v1'") as { value: string } | null;
@@ -188,7 +194,8 @@ export function addProduct(
   baseUnit: string = 'шт',
   hasPackages: number = 0,
   packageName: string | null = null,
-  unitsPerPackage: number = 1
+  unitsPerPackage: number = 1,
+  category: string | null = null
 ) {
   try {
     const now = nowLocalISO();
@@ -196,9 +203,9 @@ export function addProduct(
       `INSERT INTO products (
         name, buy_price, sell_price, stock, min_stock_alert,
         base_unit, has_packages, package_name, units_per_package,
-        updated_at, synced, is_deleted, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)`,
-      [name, buyPrice, sellPrice, stock, minStockAlert, baseUnit, hasPackages, packageName, unitsPerPackage, now, now]
+        category, updated_at, synced, is_deleted, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)`,
+      [name, buyPrice, sellPrice, stock, minStockAlert, baseUnit, hasPackages, packageName, unitsPerPackage, category, now, now]
     );
     if (stock <= minStockAlert && minStockAlert > 0) {
       notifyLowStock(name, stock);
@@ -220,16 +227,17 @@ export function updateProduct(
   baseUnit: string = 'шт',
   hasPackages: number = 0,
   packageName: string | null = null,
-  unitsPerPackage: number = 1
+  unitsPerPackage: number = 1,
+  category: string | null = null
 ) {
   try {
     const result = db.runSync(
       `UPDATE products SET
         name = ?, buy_price = ?, sell_price = ?, stock = ?, min_stock_alert = ?,
         base_unit = ?, has_packages = ?, package_name = ?, units_per_package = ?,
-        updated_at = ?, synced = 0
+        category = ?, updated_at = ?, synced = 0
       WHERE id = ?`,
-      [name, buyPrice, sellPrice, stock, minStockAlert, baseUnit, hasPackages, packageName, unitsPerPackage, nowLocalISO(), id]
+      [name, buyPrice, sellPrice, stock, minStockAlert, baseUnit, hasPackages, packageName, unitsPerPackage, category, nowLocalISO(), id]
     );
     if (stock <= minStockAlert && minStockAlert > 0) {
       notifyLowStock(name, stock);
@@ -265,6 +273,21 @@ export function clearAllData() {
 
 export function getProducts() {
   return db.getAllSync('SELECT * FROM products WHERE is_deleted = 0 ORDER BY name ASC');
+}
+
+export function getDistinctCategories(): string[] {
+  const rows = db.getAllSync('SELECT DISTINCT category FROM products WHERE category IS NOT NULL AND is_deleted = 0 ORDER BY category ASC') as { category: string }[];
+  return rows.map(r => r.category);
+}
+
+export function getProductIdsWithDebts(): number[] {
+  const rows = db.getAllSync(`
+    SELECT DISTINCT s.product_id
+    FROM sales s
+    JOIN debts d ON d.sale_id = s.id
+    WHERE d.status != 'paid' AND s.product_id IS NOT NULL
+  `) as { product_id: number }[];
+  return rows.map(r => r.product_id);
 }
 
 export function calcWeightedPrice(oldStock: number, oldPrice: number, incomingQty: number, incomingPrice: number): number {
@@ -540,12 +563,12 @@ export function importBackupData(data: any) {
           `INSERT INTO products (
             id, name, buy_price, sell_price, stock, min_stock_alert,
             base_unit, has_packages, package_name, units_per_package,
-            updated_at, synced, is_deleted, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            category, updated_at, synced, is_deleted, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             p.id, p.name, p.buy_price, p.sell_price, p.stock, p.min_stock_alert || 0,
             p.base_unit || 'шт', p.has_packages || 0, p.package_name || null, p.units_per_package || 1,
-            p.updated_at || nowLocalISO(), p.synced || 0, p.is_deleted || 0, p.created_at || nowLocalISO()
+            p.category || null, p.updated_at || nowLocalISO(), p.synced || 0, p.is_deleted || 0, p.created_at || nowLocalISO()
           ]
         );
       });

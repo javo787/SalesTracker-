@@ -6,7 +6,7 @@ import {
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
-import { addProduct, updateProduct, deleteProduct, getProducts } from '../db/database';
+import { addProduct, updateProduct, deleteProduct, getProducts, getDistinctCategories, getProductIdsWithDebts } from '../db/database';
 import { analyticsService } from '../services/analyticsService';
 import { useAppContext } from '../context/AppContext';
 import StockOperationModal from '../components/stock/StockOperationModal';
@@ -33,6 +33,14 @@ export default function ProductsScreen() {
   const [hasPackages, setHasPackages] = useState(false);
   const [packageName, setPackageName] = useState('');
   const [unitsPerPackage, setUnitsPerPackage] = useState('1');
+  const [category, setCategory] = useState('');
+  const [allCategories, setAllCategories] = useState<string[]>([]);
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+
+  // Filters & Sorting
+  const [activeFilter, setActiveFilter] = useState<'all' | 'low_stock' | 'debts' | { category: string }>('all');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [debtProductIds, setDebtProductIds] = useState<Set<number>>(new Set());
 
   // Modal states
   const [opModalVisible, setOpModalVisible] = useState(false);
@@ -43,17 +51,42 @@ export default function ProductsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
 
-  const loadProducts = () => setProducts(getProducts());
+  const loadProducts = () => {
+    setProducts(getProducts());
+    setAllCategories(getDistinctCategories());
+    if (sellerMode === 'wholesale') {
+      setDebtProductIds(new Set(getProductIdsWithDebts()));
+    }
+  };
 
   useFocusEffect(useCallback(() => { loadProducts(); }, []));
 
   const filteredProducts = useMemo(() => {
-    if (!searchQuery.trim()) return products;
-    const query = searchQuery.toLowerCase();
-    return products.filter(p =>
-      p.name.toLowerCase().includes(query)
-    );
-  }, [products, searchQuery]);
+    let result = [...products];
+
+    // 1. Search Query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(p => p.name.toLowerCase().includes(query));
+    }
+
+    // 2. Chip Filter
+    if (activeFilter === 'low_stock') {
+      result = result.filter(p => p.stock <= (p.min_stock_alert || 0));
+    } else if (activeFilter === 'debts') {
+      result = result.filter(p => debtProductIds.has(p.id));
+    } else if (typeof activeFilter === 'object' && activeFilter.category) {
+      result = result.filter(p => p.category === activeFilter.category);
+    }
+
+    // 3. Sorting (by stock)
+    result.sort((a, b) => {
+      if (sortDirection === 'asc') return a.stock - b.stock;
+      return b.stock - a.stock;
+    });
+
+    return result;
+  }, [products, searchQuery, activeFilter, sortDirection, debtProductIds]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -73,12 +106,13 @@ export default function ProductsScreen() {
     const alert = parseFloat(minStockAlert) || 0;
 
     const uPerPkg = parseFloat(unitsPerPackage) || 1;
+    const cat = category.trim() || null;
 
     if (editingId) {
-      updateProduct(editingId, name.trim(), bPrice, sPrice, st, alert, baseUnit, hasPackages ? 1 : 0, packageName, uPerPkg);
+      updateProduct(editingId, name.trim(), bPrice, sPrice, st, alert, baseUnit, hasPackages ? 1 : 0, packageName, uPerPkg, cat);
       analyticsService.logEvent('product_updated', { product_id: editingId });
     } else {
-      const result = addProduct(name.trim(), bPrice, sPrice, st, alert, baseUnit, hasPackages ? 1 : 0, packageName, uPerPkg);
+      const result = addProduct(name.trim(), bPrice, sPrice, st, alert, baseUnit, hasPackages ? 1 : 0, packageName, uPerPkg, cat);
       analyticsService.logEvent('product_added', { product_id: result.lastInsertRowId });
     }
 
@@ -91,6 +125,7 @@ export default function ProductsScreen() {
     setName(''); setBuyPrice(''); setSellPrice(''); setStock('');
     setMinStockAlert(String(defaultMinStockAlert));
     setBaseUnit('шт'); setHasPackages(false); setPackageName(''); setUnitsPerPackage('1');
+    setCategory('');
     setEditingId(null);
     setShowAdvanced(false);
   };
@@ -114,6 +149,7 @@ export default function ProductsScreen() {
             setHasPackages(p.has_packages === 1);
             setPackageName(p.package_name || '');
             setUnitsPerPackage(String(p.units_per_package || 1));
+            setCategory(p.category || '');
             setShowForm(true);
             setShowAdvanced(p.has_packages === 1 || p.base_unit !== 'шт');
             scrollViewRef.current?.scrollTo({ y: 0, animated: true });
@@ -169,6 +205,58 @@ export default function ProductsScreen() {
         )}
       </View>
 
+      {/* Filters Chips */}
+      <View style={{ marginBottom: 8 }}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chipsContainer}
+        >
+          <TouchableOpacity
+            style={[styles.chip, themeStyles.chip, activeFilter === 'all' && styles.chipActive]}
+            onPress={() => setActiveFilter('all')}
+          >
+            <Text style={[styles.chipText, themeStyles.chipText, activeFilter === 'all' && styles.chipTextActive]}>Все</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.chip, themeStyles.chip, activeFilter === 'low_stock' && styles.chipActive]}
+            onPress={() => setActiveFilter('low_stock')}
+          >
+            <Text style={[styles.chipText, themeStyles.chipText, activeFilter === 'low_stock' && styles.chipTextActive]}>🔴 Мало</Text>
+          </TouchableOpacity>
+
+          {sellerMode === 'wholesale' && (
+            <TouchableOpacity
+              style={[styles.chip, themeStyles.chip, activeFilter === 'debts' && styles.chipActive]}
+              onPress={() => setActiveFilter('debts')}
+            >
+              <Text style={[styles.chipText, themeStyles.chipText, activeFilter === 'debts' && styles.chipTextActive]}>📋 Долги</Text>
+            </TouchableOpacity>
+          )}
+
+          {allCategories.map((cat, idx) => (
+            <TouchableOpacity
+              key={idx}
+              style={[
+                styles.chip,
+                themeStyles.chip,
+                typeof activeFilter === 'object' && activeFilter.category === cat && styles.chipActive
+              ]}
+              onPress={() => setActiveFilter({ category: cat })}
+            >
+              <Text style={[
+                styles.chipText,
+                themeStyles.chipText,
+                typeof activeFilter === 'object' && activeFilter.category === cat && styles.chipTextActive
+              ]}>
+                {cat}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
     <ScrollView
       ref={scrollViewRef}
       style={styles.flex}
@@ -217,6 +305,7 @@ export default function ProductsScreen() {
                   setHasPackages(existing.has_packages === 1);
                   setPackageName(existing.package_name || '');
                   setUnitsPerPackage(String(existing.units_per_package || 1));
+                  setCategory(existing.category || '');
                   setShowAdvanced(existing.has_packages === 1 || existing.base_unit !== 'шт');
                 }
               } else if (p.source === 'history') {
@@ -225,6 +314,59 @@ export default function ProductsScreen() {
               }
             }}
           />
+
+          <View style={styles.row}>
+            <View style={styles.half}>
+              <Text style={[styles.label, themeStyles.text]}>Категория</Text>
+              <View style={{ zIndex: 2000 }}>
+                <TextInput
+                  style={[styles.input, themeStyles.input]}
+                  placeholder="Напр. Напитки"
+                  placeholderTextColor={isDark ? '#888' : '#aaa'}
+                  value={category}
+                  onChangeText={(text) => {
+                    setCategory(text);
+                    setShowCategoryDropdown(true);
+                  }}
+                  onFocus={() => setShowCategoryDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowCategoryDropdown(false), 200)}
+                />
+                {showCategoryDropdown && (
+                  <View style={[styles.categoryDropdown, themeStyles.card]}>
+                    <ScrollView keyboardShouldPersistTaps="always" style={{ maxHeight: 150 }}>
+                      {allCategories
+                        .filter(c => c.toLowerCase().includes(category.toLowerCase()))
+                        .map((c, i) => (
+                          <TouchableOpacity
+                            key={i}
+                            style={styles.categoryItem}
+                            onPress={() => {
+                              setCategory(c);
+                              setShowCategoryDropdown(false);
+                            }}
+                          >
+                            <Text style={[themeStyles.text]}>{c}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      {category.trim() !== '' && !allCategories.includes(category) && (
+                        <TouchableOpacity
+                          style={styles.categoryItem}
+                          onPress={() => setShowCategoryDropdown(false)}
+                        >
+                          <Text style={{ color: '#1D9E75', fontWeight: 'bold' }}>+ Новая: {category}</Text>
+                        </TouchableOpacity>
+                      )}
+                      {allCategories.length === 0 && category === '' && (
+                        <View style={styles.categoryItem}>
+                          <Text style={{ color: '#999', fontStyle: 'italic' }}>Нет категорий</Text>
+                        </View>
+                      )}
+                    </ScrollView>
+                  </View>
+                )}
+              </View>
+            </View>
+          </View>
 
           <View style={styles.row}>
             <View style={styles.half}>
@@ -349,22 +491,33 @@ export default function ProductsScreen() {
       )}
 
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 8 }}>
-        <Text style={[styles.sectionTitle, themeStyles.text, { paddingHorizontal: 0, marginBottom: 0 }]}>
-          {searchQuery ? `Найдено: ${filteredProducts.length}` : `Все товары (${products.length})`}
-        </Text>
-        <View style={{
-          paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12,
-          backgroundColor: sellerMode === 'wholesale' ? '#FFF3E0' : '#F0FBF7',
-          borderWidth: 1,
-          borderColor: sellerMode === 'wholesale' ? '#FF9800' : '#1D9E75',
-        }}>
-          <Text style={{
-            fontSize: 11, fontWeight: '600',
-            color: sellerMode === 'wholesale' ? '#E65100' : '#1D9E75',
-          }}>
-            {sellerMode === 'wholesale' ? '📦 Опт' : '🛒 Розница'}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Text style={[styles.sectionTitle, themeStyles.text, { paddingHorizontal: 0, marginBottom: 0 }]}>
+            {searchQuery ? `Найдено: ${filteredProducts.length}` : `Все товары (${products.length})`}
           </Text>
+          <View style={{
+            paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12,
+            backgroundColor: sellerMode === 'wholesale' ? '#FFF3E0' : '#F0FBF7',
+            borderWidth: 1,
+            borderColor: sellerMode === 'wholesale' ? '#FF9800' : '#1D9E75',
+          }}>
+            <Text style={{
+              fontSize: 11, fontWeight: '600',
+              color: sellerMode === 'wholesale' ? '#E65100' : '#1D9E75',
+            }}>
+              {sellerMode === 'wholesale' ? '📦 Опт' : '🛒 Розница'}
+            </Text>
+          </View>
         </View>
+
+        <TouchableOpacity
+          style={styles.sortBtn}
+          onPress={() => setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
+        >
+          <Text style={[styles.sortBtnText, themeStyles.text]}>
+            Сток {sortDirection === 'asc' ? '↑' : '↓'}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {filteredProducts.length === 0 ? (
@@ -456,6 +609,7 @@ export default function ProductsScreen() {
           </View>
         ))
       )}
+    </ScrollView>
 
       {selectedProduct && (
         <>
@@ -476,7 +630,6 @@ export default function ProductsScreen() {
           />
         </>
       )}
-    </ScrollView>
     </View>
   );
 }
@@ -486,6 +639,8 @@ const lightStyles = StyleSheet.create({
   card: { backgroundColor: '#fff' },
   text: { color: '#333' },
   input: { backgroundColor: '#F5F5F5', borderColor: '#E0E0E0' },
+  chip: { backgroundColor: '#F0F0F0', borderColor: '#E0E0E0' },
+  chipText: { color: '#666' },
 });
 
 const darkStyles = StyleSheet.create({
@@ -493,6 +648,8 @@ const darkStyles = StyleSheet.create({
   card: { backgroundColor: '#1E1E1E' },
   text: { color: '#EEE' },
   input: { backgroundColor: '#2C2C2C', borderColor: '#444', color: '#EEE' },
+  chip: { backgroundColor: '#2C2C2C', borderColor: '#444' },
+  chipText: { color: '#AAA' },
 });
 
 const styles = StyleSheet.create({
@@ -605,6 +762,36 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1D9E75',
   },
+  chipsContainer: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  chipActive: {
+    backgroundColor: '#1D9E75',
+    borderColor: '#1D9E75',
+  },
+  chipText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  chipTextActive: {
+    color: '#FFF',
+  },
+  sortBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 6,
+  },
+  sortBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
   advancedToggle: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -623,6 +810,27 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#f0f0f0',
     paddingTop: 5,
+  },
+  categoryDropdown: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    borderRadius: 8,
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    zIndex: 3000,
+  },
+  categoryItem: {
+    padding: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#EEE',
   },
   checkboxRow: {
     flexDirection: 'row',
