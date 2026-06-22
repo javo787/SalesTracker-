@@ -17,9 +17,10 @@ try {
 
 interface YandexBannerProps {
   size?: string;
+  onFailed?: () => void;
 }
 
-export default function YandexBanner({ size }: YandexBannerProps) {
+export default function YandexBanner({ size, onFailed }: YandexBannerProps) {
   const [shouldShow, setShouldShow] = useState(false);
   const { isPremium } = useAppContext();
 
@@ -29,7 +30,11 @@ export default function YandexBanner({ size }: YandexBannerProps) {
 
   const checkVisibility = async () => {
     const canShow = await adService.canShowAd(isPremium);
-    setShouldShow(canShow && BannerView !== null);
+    if (canShow && BannerView !== null) {
+      setShouldShow(true);
+    } else {
+      if (onFailed) onFailed();
+    }
   };
 
   if (!shouldShow || !BannerView) return null;
@@ -46,9 +51,10 @@ export default function YandexBanner({ size }: YandexBannerProps) {
           console.log('Banner loaded');
           adService.recordAdShown();
         }}
-        onAdFailedToLoad={(error: any) =>
-          console.error('Banner failed to load', error)
-        }
+        onAdFailedToLoad={(error: any) => {
+          console.error('Banner failed to load', error);
+          if (onFailed) onFailed();
+        }}
       />
     </View>
   );

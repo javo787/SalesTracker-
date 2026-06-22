@@ -5,11 +5,17 @@ import DirectBanner from './DirectBanner';
 import { adService, DirectAdConfig } from '../../services/adService';
 import { useAppContext } from '../../context/AppContext';
 import { AdFreeService } from '../../services/AdFreeService';
+import { AD_UNIT_IDS } from '../../constants/ads';
 
-export default function UniversalBanner() {
+interface UniversalBannerProps {
+  size?: string;
+}
+
+export default function UniversalBanner({ size }: UniversalBannerProps) {
   const [directAd, setDirectAd] = useState<DirectAdConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdFree, setIsAdFree] = React.useState(false);
+  const [yandexFailed, setYandexFailed] = useState(false);
   const { isPremium } = useAppContext();
 
   useEffect(() => {
@@ -30,10 +36,18 @@ export default function UniversalBanner() {
 
   if (loading || isPremium || isAdFree) return null;
 
-  // Если есть прямая реклама (спонсор), показываем её. Если нет - показываем Yandex.
+  // Banner fallback chain:
+  // 1. Yandex banner loads successfully -> show it
+  // 2. Yandex returns onAdFailedToLoad -> if DirectBanner data exists, show it
+  // 3. Otherwise -> null
+
+  if (!yandexFailed) {
+    return <YandexBanner size={size} onFailed={() => setYandexFailed(true)} />;
+  }
+
   if (directAd) {
     return <DirectBanner config={directAd} />;
   }
 
-  return <YandexBanner />;
+  return null;
 }

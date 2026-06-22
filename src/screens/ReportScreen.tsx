@@ -19,6 +19,7 @@ import UniversalBanner from '../components/ads/UniversalBanner';
 import { useAuth } from '../context/AuthContext';
 import { ExtendedReportService } from '../services/ExtendedReportService';
 import { adService } from '../services/adService';
+import { AD_UNIT_IDS } from '../constants/ads';
 
 let RewardedAd: any = null;
 try {
@@ -252,7 +253,7 @@ export default function ReportScreen() {
     setIsAdLoading(true);
 
     try {
-      const adUnitId = adService.getRewardedId();
+      const adUnitId = AD_UNIT_IDS.REWARDED;
       const rewarded = RewardedAd.createForAdUnitId(adUnitId);
 
       let rewardedEarned = false;
@@ -265,7 +266,7 @@ export default function ReportScreen() {
       rewarded.onAdFailedToLoad((error: any) => {
         setIsAdLoading(false);
         console.error('Extended Rewarded ad failed to load:', error);
-        Alert.alert('', t('extendedReport.noInternet'));
+        Alert.alert('', 'Нет подключения. Попробуйте позже.');
       });
 
       rewarded.onAdRewarded(() => {
@@ -286,7 +287,7 @@ export default function ReportScreen() {
     } catch (e) {
       setIsAdLoading(false);
       console.error('Error showing extended rewarded ad:', e);
-      Alert.alert('', t('extendedReport.noInternet'));
+      Alert.alert('', 'Нет подключения. Попробуйте позже.');
     }
   };
 

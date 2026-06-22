@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { AdFreeService } from '../../services/AdFreeService';
 import { adService } from '../../services/adService';
 import { useAppContext } from '../../context/AppContext';
+import { AD_UNIT_IDS } from '../../constants/ads';
 
 let RewardedAd: any = null;
 try {
@@ -64,7 +65,7 @@ export default function AdFreeButton() {
     setIsAdLoading(true);
 
     try {
-      const adUnitId = adService.getRewardedId();
+      const adUnitId = AD_UNIT_IDS.REWARDED;
       const rewarded = RewardedAd.createForAdUnitId(adUnitId);
 
       let rewardedEarned = false;
@@ -77,7 +78,7 @@ export default function AdFreeButton() {
       rewarded.onAdFailedToLoad((error: any) => {
         setIsAdLoading(false);
         console.error('Rewarded ad failed to load:', error);
-        Alert.alert('', t('adFree.noInternet'));
+        Alert.alert('', 'Нет подключения. Попробуйте позже.');
       });
 
       rewarded.onAdRewarded(() => {
@@ -94,7 +95,7 @@ export default function AdFreeButton() {
     } catch (e) {
       setIsAdLoading(false);
       console.error('Error showing rewarded ad:', e);
-      Alert.alert('', t('adFree.noInternet'));
+      Alert.alert('', 'Нет подключения. Попробуйте позже.');
     }
   };
 

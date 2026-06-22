@@ -1,10 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const AD_UNIT_IDS = {
-  BANNER: 'R-M-19465120-1',
-  INTERSTITIAL: 'R-M-19465120-2',
-  REWARDED: 'R-M-19465120-3',
-};
+import { AD_UNIT_IDS } from '../constants/ads';
 
 const STORAGE_KEYS = {
   LAST_AD_SHOWN: 'last_ad_shown_timestamp',
