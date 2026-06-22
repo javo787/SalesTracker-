@@ -1,23 +1,38 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  Alert
+  Alert, Modal, ActivityIndicator
 } from 'react-native';
 import { BarChart } from 'react-native-gifted-charts';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import * as XLSX from 'xlsx';
 import { useTranslation } from 'react-i18next';
 import { getAnnualStats } from '../../db/database';
 import { useAppContext } from '../../context/AppContext';
+import { AD_UNIT_IDS } from '../../constants/ads';
+import { ExportSummaryService, SummaryPayload } from '../../services/ExportSummaryService';
+
+let RewardedAd: any = null;
+try {
+  const yandex = require('yandex-mobile-ads');
+  RewardedAd = yandex.RewardedAd;
+} catch (e) {
+  console.warn('Yandex RewardedAd not available:', e);
+}
 
 const MONTH_SHORT = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
 const MONTH_FULL = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 
 export default function AnnualReport() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
   const [annualData, setAnnualData] = useState<any>(null);
   const [showMonths, setShowMonths] = useState(false);
+
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [cachedSummary, setCachedSummary] = useState<string | null>(null);
+  const [isExportLoading, setIsExportLoading] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -26,6 +41,18 @@ export default function AnnualReport() {
   const loadData = () => {
     const data = getAnnualStats();
     setAnnualData(data);
+    checkExportCache(data);
+  };
+
+  const getPeriodLabel = () => {
+    return `${t('reports.year')} ${annualData?.year}`;
+  };
+
+  const checkExportCache = async (data: any) => {
+    if (!data) return;
+    const label = `${t('reports.year')} ${data.year}`;
+    const summary = await ExportSummaryService.getCachedSummary(label, i18n.language);
+    setCachedSummary(summary);
   };
 
   if (!annualData) return null;
@@ -42,6 +69,143 @@ export default function AnnualReport() {
 
   const bestMonth = annualData.months.reduce((a: any, b: any) => a.netProfit > b.netProfit ? a : b);
   const worstMonth = annualData.months.reduce((a: any, b: any) => a.netProfit < b.netProfit ? a : b);
+
+  const handleAIExport = async () => {
+    if (cachedSummary) {
+      generateAIExcel(cachedSummary);
+      setShowExportModal(false);
+      return;
+    }
+
+    if (!RewardedAd) {
+      Alert.alert('', t('exportSummary.noInternet'));
+      return;
+    }
+
+    setShowExportModal(false);
+    setIsExportLoading(true);
+
+    try {
+      const adUnitId = AD_UNIT_IDS.REWARDED;
+      const rewarded = RewardedAd.createForAdUnitId(adUnitId);
+
+      let rewardedEarned = false;
+
+      rewarded.onAdLoaded(() => {
+        rewarded.show();
+      });
+
+      rewarded.onAdFailedToLoad((error: any) => {
+        setIsExportLoading(false);
+        Alert.alert('', t('exportSummary.noInternet'));
+      });
+
+      rewarded.onAdRewarded(() => {
+        rewardedEarned = true;
+      });
+
+      rewarded.onAdDismissed(() => {
+        rewarded.removeAllListeners();
+        if (rewardedEarned) {
+          fetchAndExportAI();
+        } else {
+          setIsExportLoading(false);
+        }
+      });
+
+      rewarded.load();
+    } catch (e) {
+      setIsExportLoading(false);
+      Alert.alert('', t('exportSummary.noInternet'));
+    }
+  };
+
+  const fetchAndExportAI = async () => {
+    try {
+      const bestMonth = annualData.months.reduce((a: any, b: any) => a.netProfit > b.netProfit ? a : b);
+      const worstMonth = annualData.months.reduce((a: any, b: any) => a.netProfit < b.netProfit ? a : b);
+
+      const payload: SummaryPayload = {
+        language: i18n.language as 'ru' | 'tj' | 'uz',
+        currency: currency.symbol,
+        periodLabel: getPeriodLabel(),
+        totalRevenue: annualData.totals.revenue,
+        totalProfit: annualData.totals.profit,
+        totalExpenses: annualData.totals.expenses,
+        netProfit: annualData.totals.netProfit,
+        averageMargin: Math.round((annualData.totals.profit / annualData.totals.revenue) * 100),
+        totalTransactions: annualData.totals.salesCount,
+        topProducts: annualData.topProducts.slice(0, 5).map((p: any) => ({
+          name: p.product_name,
+          revenue: 0, // Not explicitly tracked in annual top products, but bbackend can handle
+          profit: p.totalProfit,
+          margin: 0,
+          salesCount: p.totalQty
+        })),
+        salesByDayOfWeek: [], // Not applicable for annual
+        bestDay: MONTH_FULL[bestMonth.month - 1],
+        worstDay: MONTH_FULL[worstMonth.month - 1],
+        revenueGrowthPercent: null
+      };
+
+      const summary = await ExportSummaryService.fetchSummary(payload);
+      setCachedSummary(summary);
+      generateAIExcel(summary);
+    } catch (e) {
+      console.error('Annual AI fetch error', e);
+      Alert.alert('', t('exportSummary.serverError'));
+    } finally {
+      setIsExportLoading(false);
+    }
+  };
+
+  const generateAIExcel = async (summary: string) => {
+    try {
+      const wb = XLSX.utils.book_new();
+
+      // Sheet 1: AI Summary
+      const summaryData = [
+        ["Отчёт SavdoApp (Годовой)"],
+        [getPeriodLabel()],
+        [],
+        [t('exportSummary.headerRevenue'), `${annualData.totals.revenue} ${currency.symbol}`],
+        [t('exportSummary.headerProfit'), `${annualData.totals.profit} ${currency.symbol}`],
+        [t('exportSummary.headerExpenses'), `${annualData.totals.expenses} ${currency.symbol}`],
+        [t('exportSummary.headerNet'), `${annualData.totals.netProfit} ${currency.symbol}`],
+        [],
+        [t('exportSummary.headerAnalysis')],
+        [summary]
+      ];
+      const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+      wsSummary['!cols'] = [{ wch: 20 }, { wch: 50 }];
+      XLSX.utils.book_append_sheet(wb, wsSummary, t('exportSummary.sheetName'));
+
+      // Sheet 2: Monthly Data
+      const monthHeader = [t('expenses.month'), t('common.revenue'), t('common.profit'), t('reports.expenses'), t('reports.netProfit'), t('home.salesCount')];
+      const monthRows = annualData.months.map((m: any) => [
+        MONTH_FULL[m.month - 1], m.revenue, m.profit, m.expenses, m.netProfit, m.salesCount
+      ]);
+      const wsMonths = XLSX.utils.aoa_to_sheet([monthHeader, ...monthRows]);
+      XLSX.utils.book_append_sheet(wb, wsMonths, t('expenses.month'));
+
+      const wbout = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+      const fileName = `SavdoApp_Annual_AI_${annualData.year}.xlsx`;
+      const filePath = `${FileSystem.cacheDirectory}${fileName}`;
+
+      await FileSystem.writeAsStringAsync(filePath, wbout, { encoding: FileSystem.EncodingType.Base64 });
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(filePath, {
+          mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          dialogTitle: t('exportSummary.fileReady'),
+          UTI: 'com.microsoft.excel.xlsx'
+        });
+      }
+    } catch (e) {
+      console.error('Annual Excel generation error', e);
+      Alert.alert(t('common.error'), 'Error');
+    }
+  };
 
   const exportToCSV = async () => {
     try {
@@ -204,9 +368,66 @@ export default function AnnualReport() {
       </View>
 
       {/* G. Export button */}
-      <TouchableOpacity style={[styles.exportBtn, themeStyles.card]} onPress={exportToCSV}>
-        <Text style={styles.exportBtnText}>📄 Экспорт годового отчёта (CSV)</Text>
+      <TouchableOpacity style={[styles.exportBtn, themeStyles.card]} onPress={() => setShowExportModal(true)}>
+        <Text style={styles.exportBtnText}>📤 {t('reports.exportCsv')}</Text>
       </TouchableOpacity>
+
+      {/* Export Choice Modal */}
+      <Modal
+        visible={showExportModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowExportModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, themeStyles.card]}>
+            <Text style={[styles.modalTitle, themeStyles.text, { marginBottom: 20 }]}>
+              Выберите формат экспорта
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.exportOption, themeStyles.card, { borderWidth: 1, borderColor: '#eee' }]}
+              onPress={() => {
+                setShowExportModal(false);
+                exportToCSV();
+              }}
+            >
+              <View style={styles.exportOptionLeft}>
+                <Text style={styles.exportOptionEmoji}>📊</Text>
+                <View>
+                  <Text style={[styles.exportOptionTitle, themeStyles.text]}>{t('exportSummary.buttonBasic')}</Text>
+                  <Text style={styles.exportOptionDesc}>Таблица с данными за год</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.exportOption, themeStyles.card, { borderWidth: 1, borderColor: '#eee' }, isExportLoading && { opacity: 0.7 }]}
+              onPress={handleAIExport}
+              disabled={isExportLoading}
+            >
+              <View style={styles.exportOptionLeft}>
+                <Text style={styles.exportOptionEmoji}>✨</Text>
+                <View>
+                  <Text style={[styles.exportOptionTitle, themeStyles.text]}>{t('exportSummary.buttonAI')}</Text>
+                  <Text style={styles.exportOptionDesc}>+ годовой анализ от AI</Text>
+                  <Text style={styles.exportOptionAd}>
+                    {cachedSummary ? `[ ✅ ${t('forecast.buttonLabelCached')} ]` : `[ ${t('extendedReport.watchVideo')} ]`}
+                  </Text>
+                </View>
+              </View>
+              {isExportLoading && <ActivityIndicator size="small" color="#1D9E75" />}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.modalCancelBtn}
+              onPress={() => setShowExportModal(false)}
+            >
+              <Text style={styles.modalCancelBtnText}>{t('common.cancel')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -223,6 +444,62 @@ const darkStyles = StyleSheet.create({
 
 const styles = StyleSheet.create({
   container: { paddingBottom: 30 },
+  modalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center', padding: 20
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 320,
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+    alignSelf: 'center',
+  },
+  modalTitle: { fontSize: 18, fontWeight: 'bold' },
+  modalCancelBtn: {
+    width: '100%',
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  modalCancelBtnText: {
+    color: '#888',
+    fontSize: 14,
+  },
+  exportOption: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  exportOptionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  exportOptionEmoji: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  exportOptionTitle: {
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  exportOptionDesc: {
+    fontSize: 12,
+    color: '#888',
+    marginTop: 2,
+  },
+  exportOptionAd: {
+    fontSize: 11,
+    color: '#1D9E75',
+    fontWeight: 'bold',
+    marginTop: 4,
+  },
   header: {
     margin: 16, padding: 16, borderRadius: 12,
     alignItems: 'center',
