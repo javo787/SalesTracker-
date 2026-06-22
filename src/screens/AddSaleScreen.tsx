@@ -212,7 +212,7 @@ FEW-SHOT EXAMPLES:
 
     const sPrice = parseFloat(finalSellPrice);
     const bPrice = parseFloat(buyPrice);
-    const qty = parseInt(quantity) || 1;
+    const qty = parseFloat(quantity) || 1;
 
     if (sellerMode === 'wholesale' && paymentType !== 'full' && !clientName.trim()) {
       Alert.alert(t('common.error'), 'Введите имя клиента для записи долга');
@@ -463,13 +463,13 @@ FEW-SHOT EXAMPLES:
             <View style={styles.previewRow}>
               <Text style={[styles.previewLabel, themeStyles.text]}>{t('common.revenue')}:</Text>
               <Text style={[styles.previewValue, themeStyles.text]}>
-                {(parseFloat(sellPrice || String(salePricePlaceholder)) * (parseInt(quantity) || 1)).toLocaleString()} {currency.symbol}
+                {(parseFloat(sellPrice || String(salePricePlaceholder)) * (parseFloat(quantity) || 1)).toLocaleString()} {currency.symbol}
               </Text>
             </View>
             <View style={styles.previewRow}>
               <Text style={[styles.previewLabel, themeStyles.text]}>{t('common.profit')}:</Text>
               <Text style={[styles.previewValue, { color: '#1D9E75' }]}>
-                {((parseFloat(sellPrice || String(salePricePlaceholder)) - parseFloat(buyPrice)) * (parseInt(quantity) || 1)).toLocaleString()} {currency.symbol}
+                {((parseFloat(sellPrice || String(salePricePlaceholder)) - parseFloat(buyPrice)) * (parseFloat(quantity) || 1)).toLocaleString()} {currency.symbol}
               </Text>
             </View>
           </View>

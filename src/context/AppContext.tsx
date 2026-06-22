@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useContext, useMemo } from 'react';
+import React, { createContext, useState, useEffect, useContext, useMemo, useCallback } from 'react';
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -87,44 +87,44 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
-  const setTheme = async (newTheme: Theme) => {
+  const setTheme = useCallback(async (newTheme: Theme) => {
     setThemeState(newTheme);
     await AsyncStorage.setItem('app_theme', newTheme);
-  };
+  }, []);
 
-  const setCurrency = async (code: string) => {
+  const setCurrency = useCallback(async (code: string) => {
     if (CURRENCIES[code]) {
       setCurrencyState(CURRENCIES[code]);
       await AsyncStorage.setItem('app_currency', code);
     }
-  };
+  }, []);
 
-  const setLanguage = async (lang: string) => {
+  const setLanguage = useCallback(async (lang: string) => {
     setLanguageState(lang);
     await AsyncStorage.setItem('app_language', lang);
     const i18n = (await import('../i18n/i18n')).default;
     i18n.changeLanguage(lang);
-  };
+  }, []);
 
-  const setNotificationsEnabled = async (enabled: boolean) => {
+  const setNotificationsEnabled = useCallback(async (enabled: boolean) => {
     setNotificationsEnabledState(enabled);
     await AsyncStorage.setItem('app_notifications_enabled', String(enabled));
-  };
+  }, []);
 
-  const setDefaultMinStockAlert = async (value: number) => {
+  const setDefaultMinStockAlert = useCallback(async (value: number) => {
     setDefaultMinStockAlertState(value);
     await AsyncStorage.setItem('app_default_min_stock', String(value));
-  };
+  }, []);
 
-  const setIsPremium = async (value: boolean) => {
+  const setIsPremium = useCallback(async (value: boolean) => {
     setIsPremiumState(value);
     await AsyncStorage.setItem('app_is_premium', String(value));
-  };
+  }, []);
 
-  const setSellerMode = async (mode: 'retail' | 'wholesale') => {
+  const setSellerMode = useCallback(async (mode: 'retail' | 'wholesale') => {
     setSellerModeState(mode);
     await AsyncStorage.setItem('app_seller_mode', mode);
-  };
+  }, []);
 
   const resolvedTheme = useMemo(() => {
     if (theme === 'system') {
@@ -156,10 +156,16 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     currency,
     language,
     notificationsEnabled,
+    setNotificationsEnabled,
     defaultMinStockAlert,
+    setDefaultMinStockAlert,
     isPremium,
+    setIsPremium,
     sellerMode,
     setSellerMode,
+    setTheme,
+    setCurrency,
+    setLanguage,
     loading
   ]);
 

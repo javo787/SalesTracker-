@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
   TouchableOpacity, TextInput, Alert, RefreshControl
@@ -40,7 +40,7 @@ export default function ProductsScreen() {
   // Filters & Sorting
   const [activeFilter, setActiveFilter] = useState<'all' | 'low_stock' | 'debts' | { category: string }>('all');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [debtProductIds, setDebtProductIds] = useState<Set<number>>(new Set());
+  const [debtProductIdsList, setDebtProductIdsList] = useState<number[]>([]);
 
   // Modal states
   const [opModalVisible, setOpModalVisible] = useState(false);
@@ -60,14 +60,21 @@ export default function ProductsScreen() {
     setAllCategories(cats.sort());
 
     if (sellerMode === 'wholesale') {
-      setDebtProductIds(new Set(getProductIdsWithDebts()));
+      setDebtProductIdsList(getProductIdsWithDebts());
     }
   };
 
   useFocusEffect(useCallback(() => { loadProducts(); }, []));
 
+  useEffect(() => {
+    if (sellerMode === 'retail' && activeFilter === 'debts') {
+      setActiveFilter('all');
+    }
+  }, [sellerMode]);
+
   const filteredProducts = useMemo(() => {
     let result = [...products];
+    const debtSet = new Set(debtProductIdsList);
 
     // 1. Search Query
     if (searchQuery.trim()) {
@@ -79,7 +86,7 @@ export default function ProductsScreen() {
     if (activeFilter === 'low_stock') {
       result = result.filter(p => p.stock <= (p.min_stock_alert || 0));
     } else if (activeFilter === 'debts') {
-      result = result.filter(p => debtProductIds.has(p.id));
+      result = result.filter(p => debtSet.has(p.id));
     } else if (typeof activeFilter === 'object' && activeFilter.category) {
       result = result.filter(p => p.category === activeFilter.category);
     }
@@ -91,7 +98,7 @@ export default function ProductsScreen() {
     });
 
     return result;
-  }, [products, searchQuery, activeFilter, sortDirection, debtProductIds]);
+  }, [products, searchQuery, activeFilter, sortDirection, debtProductIdsList]);
 
   const onRefresh = () => {
     setRefreshing(true);

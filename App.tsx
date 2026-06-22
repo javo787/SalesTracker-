@@ -1,6 +1,6 @@
 import 'react-native-gesture-handler';
 import { useEffect, useState, useRef } from 'react';
-import { View, ActivityIndicator, TouchableOpacity, Platform } from 'react-native';
+import { View, ActivityIndicator, TouchableOpacity, Platform, Text } from 'react-native';
 import { NavigationContainer, DrawerActions, useNavigationContainerRef } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -361,16 +361,20 @@ function AppContent() {
   );
 }
 
-// Initialize database synchronously at module level to prevent race conditions
-// with components that might perform DB operations on mount.
-try {
-  initDatabase();
-} catch (e) {
-  console.error('Failed to initialize database:', e);
-}
-
 export default function App() {
+  const [isDbReady, setIsDbReady] = useState(false);
+  const [dbError, setDbError] = useState<Error | null>(null);
+
   useEffect(() => {
+    // Initialize database
+    try {
+      initDatabase();
+      setIsDbReady(true);
+    } catch (e) {
+      console.error('Failed to initialize database:', e);
+      setDbError(e instanceof Error ? e : new Error('Unknown database error'));
+    }
+
     // Parallelize async initialization
     Promise.all([
       requestPermissions(),
@@ -399,6 +403,31 @@ export default function App() {
     });
     return () => subscription.remove();
   }, []);
+
+  if (dbError) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+        <Ionicons name="alert-circle-outline" size={64} color="#FF6B6B" />
+        <Text style={{ fontSize: 18, fontWeight: 'bold', marginTop: 16, textAlign: 'center' }}>
+          Ошибка базы данных
+        </Text>
+        <Text style={{ fontSize: 14, color: '#666', marginTop: 8, textAlign: 'center' }}>
+          Не удалось запустить приложение. Пожалуйста, попробуйте перезагрузить его.
+        </Text>
+        <Text style={{ fontSize: 12, color: '#999', marginTop: 16 }}>
+          {dbError.message}
+        </Text>
+      </View>
+    );
+  }
+
+  if (!isDbReady) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#1D9E75" />
+      </View>
+    );
+  }
 
   return (
     <AppContextProvider>

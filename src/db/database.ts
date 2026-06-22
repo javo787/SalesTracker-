@@ -552,6 +552,11 @@ export function getExpenseStats(days: number = 1, fromDate?: string, toDate?: st
   return result;
 }
 
+const safeNum = (v: any, def = 0) =>
+  isFinite(parseFloat(v)) ? parseFloat(v) : def;
+const safeStr = (v: any, def: any = '') =>
+  typeof v === 'string' ? v.slice(0, 500) : (v === null || v === undefined ? def : String(v).slice(0, 500));
+
 export function importBackupData(data: any) {
   db.withTransactionSync(() => {
     // Clear all existing data
@@ -573,9 +578,9 @@ export function importBackupData(data: any) {
             category, updated_at, synced, is_deleted, created_at
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
-            p.id, p.name, p.buy_price, p.sell_price, p.stock, p.min_stock_alert || 0,
-            p.base_unit || 'шт', p.has_packages || 0, p.package_name || null, p.units_per_package || 1,
-            p.category || null, p.updated_at || nowLocalISO(), p.synced || 0, p.is_deleted || 0, p.created_at || nowLocalISO()
+            p.id, safeStr(p.name), safeNum(p.buy_price), safeNum(p.sell_price), safeNum(p.stock), safeNum(p.min_stock_alert, 0),
+            safeStr(p.base_unit, 'шт'), safeNum(p.has_packages, 0), safeStr(p.package_name, null), safeNum(p.units_per_package, 1),
+            safeStr(p.category, null), safeStr(p.updated_at, nowLocalISO()), safeNum(p.synced, 0), safeNum(p.is_deleted, 0), safeStr(p.created_at, nowLocalISO())
           ]
         );
       });
@@ -589,7 +594,7 @@ export function importBackupData(data: any) {
             id, product_id, product_name, quantity, sell_price, buy_price, profit, note, stock_updated, created_at
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
-            s.id, s.product_id, s.product_name, s.quantity, s.sell_price, s.buy_price, s.profit, s.note, s.stock_updated || 0, s.created_at
+            s.id, s.product_id, safeStr(s.product_name), safeNum(s.quantity), safeNum(s.sell_price), safeNum(s.buy_price), safeNum(s.profit), safeStr(s.note, null), safeNum(s.stock_updated, 0), safeStr(s.created_at)
           ]
         );
       });
@@ -601,7 +606,7 @@ export function importBackupData(data: any) {
         db.runSync(
           `INSERT INTO expenses (id, type, category, amount, description, linked_product_id, created_at, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
           [
-            e.id, e.type, e.category, e.amount, e.description, e.linked_product_id, e.created_at, e.user_id
+            e.id, safeStr(e.type), safeStr(e.category), safeNum(e.amount), safeStr(e.description, null), e.linked_product_id, safeStr(e.created_at), safeStr(e.user_id)
           ]
         );
       });
@@ -694,9 +699,14 @@ export function getAnnualStats() {
 
 export function searchClients(query: string) {
   if (!query.trim()) {
-    return db.getAllSync(
-      'SELECT * FROM clients ORDER BY updated_at DESC LIMIT 8'
-    );
+    return db.getAllSync(`
+      SELECT c.*, COUNT(d.id) as debt_count
+      FROM clients c
+      LEFT JOIN debts d ON d.client_id = c.id
+      GROUP BY c.id
+      ORDER BY debt_count DESC, c.updated_at DESC
+      LIMIT 8
+    `);
   }
   return db.getAllSync(
     "SELECT * FROM clients WHERE name LIKE ? || '%' ORDER BY name ASC LIMIT 8",
