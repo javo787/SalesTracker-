@@ -20,6 +20,8 @@ import { useAuth } from '../context/AuthContext';
 import { ExtendedReportService } from '../services/ExtendedReportService';
 import { adService } from '../services/adService';
 import { AD_UNIT_IDS } from '../constants/ads';
+import { ForecastService } from '../services/ForecastService';
+import { aggregateSalesForForecast } from '../utils/aggregateSalesForForecast';
 
 let RewardedAd: any = null;
 try {
@@ -42,6 +44,10 @@ export default function ReportScreen() {
   const [remainingHours, setRemainingHours] = useState(0);
   const [showExtendedModal, setShowExtendedModal] = useState(false);
   const [isAdLoading, setIsAdLoading] = useState(false);
+
+  const [forecastCache, setForecastCache] = useState<any>(null);
+  const [isForecastLoading, setIsForecastLoading] = useState(false);
+  const [showForecastModal, setShowForecastModal] = useState(false);
 
   const { isGuest } = useAuth();
   const [showRegPrompt, setShowRegPrompt] = useState(false);
@@ -93,11 +99,16 @@ export default function ReportScreen() {
     ExtendedReportService.getRemainingHours().then(setRemainingHours);
   }, [period]);
 
+  const checkForecast = useCallback(() => {
+    ForecastService.getCachedForecast().then(setForecastCache);
+  }, []);
+
   useFocusEffect(useCallback(() => {
     loadData(period, dateRange || undefined);
     checkRegPrompt();
     checkExtendedUnlock();
-  }, [period, dateRange, loadData, checkRegPrompt, checkExtendedUnlock]));
+    checkForecast();
+  }, [period, dateRange, loadData, checkRegPrompt, checkExtendedUnlock, checkForecast]));
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -269,7 +280,7 @@ export default function ReportScreen() {
       rewarded.onAdFailedToLoad((error: any) => {
         setIsAdLoading(false);
         console.error('Extended Rewarded ad failed to load:', error);
-        Alert.alert('', 'Нет подключения. Попробуйте позже.');
+        Alert.alert('', t('extendedReport.noInternet'));
       });
 
       rewarded.onAdRewarded(() => {
@@ -291,9 +302,86 @@ export default function ReportScreen() {
     } catch (e) {
       setIsAdLoading(false);
       console.error('Error showing extended rewarded ad:', e);
-      Alert.alert('', 'Нет подключения. Попробуйте позже.');
+      Alert.alert('', t('extendedReport.noInternet'));
     }
   };
+
+  const handleForecastPress = async () => {
+    if (forecastCache && forecastCache.language === i18n.language) {
+      setShowForecastModal(true);
+      return;
+    }
+
+    if (!RewardedAd) {
+      Alert.alert('', t('forecast.noInternet'));
+      return;
+    }
+
+    setIsForecastLoading(true);
+
+    try {
+      const adUnitId = AD_UNIT_IDS.REWARDED;
+      const rewarded = RewardedAd.createForAdUnitId(adUnitId);
+
+      let rewardedEarned = false;
+
+      rewarded.onAdLoaded(() => {
+        rewarded.show();
+      });
+
+      rewarded.onAdFailedToLoad((error: any) => {
+        setIsForecastLoading(false);
+        console.error('Forecast Rewarded ad failed to load:', error);
+        Alert.alert('', t('forecast.noInternet'));
+      });
+
+      rewarded.onAdRewarded(() => {
+        rewardedEarned = true;
+      });
+
+      rewarded.onAdDismissed(() => {
+        rewarded.removeAllListeners();
+        if (rewardedEarned) {
+          generateForecast();
+        } else {
+          setIsForecastLoading(false);
+        }
+      });
+
+      rewarded.load();
+    } catch (e) {
+      setIsForecastLoading(false);
+      console.error('Error showing forecast rewarded ad:', e);
+      Alert.alert('', t('forecast.noInternet'));
+    }
+  };
+
+  const generateForecast = async () => {
+    try {
+      const payload = await aggregateSalesForForecast(
+        i18n.language as 'ru' | 'tj' | 'uz',
+        currency.symbol
+      );
+      const forecast = await ForecastService.fetchForecast(payload);
+      const updatedCache = await ForecastService.getCachedForecast();
+      setForecastCache(updatedCache);
+      setShowForecastModal(true);
+    } catch (e: any) {
+      if (e.message === 'no_data') {
+        Alert.alert('', t('forecast.noData'));
+      } else if (e.message === 'rate_limit') {
+        Alert.alert('', t('forecast.rateLimited'));
+      } else {
+        Alert.alert('', t('forecast.serverError'));
+      }
+    } finally {
+      setIsForecastLoading(false);
+    }
+  };
+
+  const forecastRefreshesIn = forecastCache
+    ? Math.max(0, Math.ceil((new Date(forecastCache.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60)))
+    : 0;
 
   return (
     <View style={styles.flex}>
@@ -385,6 +473,37 @@ export default function ReportScreen() {
           </TouchableOpacity>
         </View>
       )}
+
+      {/* AI Forecast Entry Point */}
+      <View style={styles.forecastContainer}>
+        {isForecastLoading ? (
+          <View style={[styles.forecastBtn, styles.forecastBtnLoading, themeStyles.card]}>
+            <ActivityIndicator size="small" color="#1D9E75" style={{ marginRight: 8 }} />
+            <Text style={[styles.forecastBtnTextLoading, { color: '#1D9E75' }]}>
+              {t('forecast.buttonLabelLoading')}
+            </Text>
+          </View>
+        ) : forecastCache && forecastCache.language === i18n.language ? (
+          <View style={{ alignItems: 'center', width: '100%' }}>
+            <TouchableOpacity
+              style={[styles.forecastBtn, styles.forecastBtnCached]}
+              onPress={handleForecastPress}
+            >
+              <Text style={styles.forecastBtnTextActive}>🔮 {t('forecast.buttonLabelCached')}</Text>
+            </TouchableOpacity>
+            <Text style={styles.forecastRefreshText}>
+              {t('forecast.refreshesIn', { count: forecastRefreshesIn })}
+            </Text>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={[styles.forecastBtn, styles.forecastBtnDefault, themeStyles.card]}
+            onPress={handleForecastPress}
+          >
+            <Text style={styles.forecastBtnTextDefault}>🔮 {t('forecast.buttonLabel')} · Смотреть видео</Text>
+          </TouchableOpacity>
+        )}
+      </View>
 
       {period === 365 ? (
         <AnnualReport />
@@ -566,6 +685,55 @@ export default function ReportScreen() {
       </View>
     </Modal>
 
+    {/* Forecast Modal */}
+    <Modal
+      visible={showForecastModal}
+      transparent
+      animationType="slide"
+      onRequestClose={() => setShowForecastModal(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={[styles.forecastModalContent, themeStyles.card]}>
+          <View style={styles.forecastModalHeader}>
+            <View>
+              <Text style={[styles.forecastModalTitle, themeStyles.text]}>{t('forecast.modalTitle')}</Text>
+              <Text style={styles.forecastModalSubtitle}>{t('forecast.modalSubtitle')}</Text>
+            </View>
+            <TouchableOpacity onPress={() => setShowForecastModal(false)}>
+              <Ionicons name="close" size={24} color={isDark ? '#eee' : '#333'} />
+            </TouchableOpacity>
+          </View>
+
+          {forecastCache && forecastCache.language !== i18n.language && (
+            <View style={styles.langWarningBanner}>
+              <Text style={styles.langWarningText}>{t('forecast.wrongLanguage')}</Text>
+              <TouchableOpacity onPress={() => { setShowForecastModal(false); handleForecastPress(); }}>
+                <Text style={styles.langWarningLink}>{t('forecast.refresh')}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <ScrollView style={styles.forecastScroll} showsVerticalScrollIndicator={false}>
+            <Text style={[styles.forecastText, themeStyles.text]}>
+              {forecastCache?.forecast}
+            </Text>
+          </ScrollView>
+
+          <View style={styles.forecastModalFooter}>
+            <Text style={styles.forecastRefreshText}>
+              {t('forecast.refreshesIn', { count: forecastRefreshesIn })}
+            </Text>
+            <TouchableOpacity
+              style={styles.forecastCloseBtn}
+              onPress={() => setShowForecastModal(false)}
+            >
+              <Text style={styles.forecastCloseBtnText}>{t('forecast.close')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+
     {/* Calendar Modal */}
     <Modal visible={showCalendar} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
@@ -742,6 +910,127 @@ const styles = StyleSheet.create({
   },
   customRangeText: { fontSize: 14, fontWeight: '600' },
   changeRangeBtn: { fontSize: 13, color: '#1D9E75', fontWeight: '500' },
+
+  forecastContainer: {
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  forecastBtn: {
+    width: '100%',
+    paddingVertical: 12,
+    borderRadius: 100,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    borderWidth: 1.5,
+  },
+  forecastBtnDefault: {
+    borderColor: '#1D9E75',
+    backgroundColor: 'transparent',
+  },
+  forecastBtnCached: {
+    backgroundColor: '#1D9E75',
+    borderColor: '#1D9E75',
+  },
+  forecastBtnLoading: {
+    borderColor: '#E0E0E0',
+    backgroundColor: 'transparent',
+  },
+  forecastBtnTextDefault: {
+    color: '#1D9E75',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  forecastBtnTextActive: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  forecastBtnTextLoading: {
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  forecastRefreshText: {
+    fontSize: 11,
+    color: '#888',
+    marginTop: 4,
+  },
+  forecastModalContent: {
+    flex: 1,
+    marginTop: 80,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 20,
+  },
+  forecastModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 20,
+  },
+  forecastModalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  forecastModalSubtitle: {
+    fontSize: 12,
+    color: '#888',
+    marginTop: 2,
+  },
+  forecastScroll: {
+    flex: 1,
+  },
+  forecastText: {
+    fontSize: 15,
+    lineHeight: 24,
+  },
+  forecastModalFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 20,
+    paddingTop: 16,
+    borderTopWidth: 0.5,
+    borderTopColor: '#EEE',
+  },
+  forecastCloseBtn: {
+    backgroundColor: '#1D9E75',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+  },
+  forecastCloseBtnText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  langWarningBanner: {
+    backgroundColor: '#FFF9C4',
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  langWarningText: {
+    fontSize: 12,
+    color: '#827717',
+    flex: 1,
+    marginRight: 8,
+  },
+  langWarningLink: {
+    fontSize: 12,
+    color: '#1D9E75',
+    fontWeight: 'bold',
+    textDecorationLine: 'underline',
+  },
+
   badgeRow: {
     paddingHorizontal: 16,
     marginBottom: 8,

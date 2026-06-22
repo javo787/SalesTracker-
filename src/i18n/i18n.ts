@@ -401,6 +401,21 @@ const resources = {
         watchVideo: '▶  Смотреть видео (30 сек)',
         cancel: 'Отмена',
         noInternet: 'Нет подключения. Попробуйте позже.',
+      },
+      forecast: {
+        buttonLabel: 'Прогноз на неделю',
+        buttonLabelCached: 'Прогноз готов · Смотреть',
+        buttonLabelLoading: 'Анализируем данные...',
+        refreshesIn: 'Обновится через {{count}} ч.',
+        modalTitle: 'Прогноз на следующую неделю',
+        modalSubtitle: 'На основе ваших продаж за 60 дней',
+        close: 'Закрыть',
+        noData: 'Недостаточно данных. Добавьте продажи за несколько дней.',
+        rateLimited: 'Попробуйте через несколько минут.',
+        serverError: 'Не удалось получить прогноз. Попробуйте позже.',
+        noInternet: 'Нет подключения. Попробуйте позже.',
+        wrongLanguage: 'Прогноз на другом языке. Обновите для перевода.',
+        refresh: 'Обновить',
       }
     }
   },
@@ -802,6 +817,21 @@ const resources = {
         watchVideo: '▶  Тамошои видео (30 сония)',
         cancel: 'Бекор кардан',
         noInternet: 'Пайвастшавӣ нест. Баъдтар кӯшиш кунед.',
+      },
+      forecast: {
+        buttonLabel: 'Пешгӯии ҳафта',
+        buttonLabelCached: 'Пешгӯӣ омода аст · Дидан',
+        buttonLabelLoading: 'Таҳлили маълумот...',
+        refreshesIn: 'Пас аз {{count}} соат нав мешавад',
+        modalTitle: 'Пешгӯӣ барои ҳафтаи оянда',
+        modalSubtitle: 'Дар асоси фурӯши 60 рӯзи охир',
+        close: 'Бастан',
+        noData: 'Маълумот нокифоя аст. Фурӯшҳоро барои чанд рӯз илова кунед.',
+        rateLimited: 'Пас аз чанд дақиқа дубора кӯшиш кунед.',
+        serverError: 'Пешгӯӣ гирифта нашуд. Баъдтар кӯшиш кунед.',
+        noInternet: 'Пайвастшавӣ нест. Баъдтар кӯшиш кунед.',
+        wrongLanguage: 'Пешгӯӣ бо забони дигар. Барои тарҷума навсозӣ кунед.',
+        refresh: 'Навсозӣ',
       }
     }
   },
@@ -1203,6 +1233,21 @@ const resources = {
         watchVideo: '▶  Videoni ko‘rish (30 soniya)',
         cancel: 'Bekor qilish',
         noInternet: 'Ulanish mavjud emas. Keyinroq urinib ko‘ring.',
+      },
+      forecast: {
+        buttonLabel: 'Haftalik prognoz',
+        buttonLabelCached: 'Prognoz tayyor · Ko‘rish',
+        buttonLabelLoading: 'Ma’lumotlar tahlil qilinmoqda...',
+        refreshesIn: '{{count}} soatdan keyin yangilanadi',
+        modalTitle: 'Keyingi hafta uchun prognoz',
+        modalSubtitle: 'Oxirgi 60 kunlik savdolar asosida',
+        close: 'Yopish',
+        noData: 'Ma’lumot yetarli emas. Bir necha kunlik savdolarni qo‘shing.',
+        rateLimited: 'Bir necha daqiqadan so‘ng urinib ko‘ring.',
+        serverError: 'Prognozni olib bo‘lmadi. Keyinroq urinib ko‘ring.',
+        noInternet: 'Ulanish mavjud emas. Keyinroq urinib ko‘ring.',
+        wrongLanguage: 'Prognoz boshqa tilda. Tarjima qilish uchun yangilang.',
+        refresh: 'Yangilash',
       }
     }
   }
