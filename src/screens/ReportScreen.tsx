@@ -1,7 +1,7 @@
-import { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
-  TouchableOpacity, RefreshControl, Alert, TextInput, Modal
+  TouchableOpacity, RefreshControl, Alert, TextInput, Modal, ActivityIndicator
 } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -17,15 +17,30 @@ import AnnualReport from '../components/reports/AnnualReport';
 import RegistrationPromptModal from '../components/RegistrationPromptModal';
 import UniversalBanner from '../components/ads/UniversalBanner';
 import { useAuth } from '../context/AuthContext';
+import { ExtendedReportService } from '../services/ExtendedReportService';
+import { adService } from '../services/adService';
+
+let RewardedAd: any = null;
+try {
+  const yandex = require('yandex-mobile-ads');
+  RewardedAd = yandex.RewardedAd;
+} catch (e) {
+  console.warn('Yandex RewardedAd not available:', e);
+}
 
 export default function ReportScreen() {
   const { t, i18n } = useTranslation();
   const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
   const navigation = useNavigation<any>();
-  const [period, setPeriod] = useState<number | 'custom'>(1);
+  const [period, setPeriod] = useState<number | 'custom'>(30);
   const [dateRange, setDateRange] = useState<{from: string, to: string} | null>(null);
   const [showCalendar, setShowCalendar] = useState(false);
   const [selectedDates, setSelectedDates] = useState<any>({});
+
+  const [extendedUnlocked, setExtendedUnlocked] = useState(false);
+  const [remainingHours, setRemainingHours] = useState(0);
+  const [showExtendedModal, setShowExtendedModal] = useState(false);
+  const [isAdLoading, setIsAdLoading] = useState(false);
 
   const { isGuest } = useAuth();
   const [showRegPrompt, setShowRegPrompt] = useState(false);
@@ -66,10 +81,16 @@ export default function ReportScreen() {
     }
   }, [isGuest]);
 
+  const checkExtendedUnlock = useCallback(() => {
+    ExtendedReportService.isUnlocked().then(setExtendedUnlocked);
+    ExtendedReportService.getRemainingHours().then(setRemainingHours);
+  }, []);
+
   useFocusEffect(useCallback(() => {
     loadData(period, dateRange || undefined);
     checkRegPrompt();
-  }, [period, dateRange, loadData, checkRegPrompt]));
+    checkExtendedUnlock();
+  }, [period, dateRange, loadData, checkRegPrompt, checkExtendedUnlock]));
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -166,8 +187,13 @@ export default function ReportScreen() {
     { label: t('reports.today'), days: 1 },
     { label: t('reports.days7'), days: 7 },
     { label: t('reports.days30'), days: 30 },
-    { label: t('reports.year'), days: 365 },
   ];
+
+  if (extendedUnlocked) {
+    PERIODS.push({ label: t('reports.days60'), days: 60 });
+    PERIODS.push({ label: t('reports.days90'), days: 90 });
+    PERIODS.push({ label: t('reports.days365'), days: 365 });
+  }
 
   const themeStyles = isDark ? darkStyles : lightStyles;
 
@@ -216,6 +242,54 @@ export default function ReportScreen() {
     }
   };
 
+  const handleWatchExtendedVideo = async () => {
+    if (!RewardedAd) {
+      Alert.alert('', t('extendedReport.noInternet'));
+      return;
+    }
+
+    setShowExtendedModal(false);
+    setIsAdLoading(true);
+
+    try {
+      const adUnitId = adService.getRewardedId();
+      const rewarded = RewardedAd.createForAdUnitId(adUnitId);
+
+      let rewardedEarned = false;
+
+      rewarded.onAdLoaded(() => {
+        setIsAdLoading(false);
+        rewarded.show();
+      });
+
+      rewarded.onAdFailedToLoad((error: any) => {
+        setIsAdLoading(false);
+        console.error('Extended Rewarded ad failed to load:', error);
+        Alert.alert('', t('extendedReport.noInternet'));
+      });
+
+      rewarded.onAdRewarded(() => {
+        rewardedEarned = true;
+      });
+
+      rewarded.onAdDismissed(() => {
+        if (rewardedEarned) {
+          ExtendedReportService.onRewardedWatched().then(() => {
+            setExtendedUnlocked(true);
+            setRemainingHours(24);
+            setPeriod(90);
+          });
+        }
+      });
+
+      rewarded.load();
+    } catch (e) {
+      setIsAdLoading(false);
+      console.error('Error showing extended rewarded ad:', e);
+      Alert.alert('', t('extendedReport.noInternet'));
+    }
+  };
+
   return (
     <View style={styles.flex}>
     <ScrollView
@@ -242,14 +316,45 @@ export default function ReportScreen() {
           ))}
           <TouchableOpacity
             style={[styles.periodBtn, themeStyles.card, period === 'custom' && styles.periodBtnActive]}
-            onPress={() => setShowCalendar(true)}
+            onPress={() => {
+              if (extendedUnlocked) {
+                setShowCalendar(true);
+              } else {
+                setShowExtendedModal(true);
+              }
+            }}
           >
-            <Ionicons name="calendar-outline" size={18} color={period === 'custom' ? '#fff' : '#1D9E75'} />
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Ionicons name="calendar-outline" size={18} color={period === 'custom' ? '#fff' : '#1D9E75'} />
+              {!extendedUnlocked && (
+                <Ionicons name="lock-closed" size={10} color={period === 'custom' ? '#fff' : '#1D9E75'} style={{ marginLeft: 2 }} />
+              )}
+            </View>
           </TouchableOpacity>
         </View>
         <TouchableOpacity style={[styles.exportBtn, themeStyles.card]} onPress={exportToCSV}>
           <Text style={styles.exportBtnText}>📄 CSV</Text>
         </TouchableOpacity>
+      </View>
+
+      <View style={styles.badgeRow}>
+        {!extendedUnlocked ? (
+          <TouchableOpacity
+            style={styles.lockBadge}
+            onPress={() => setShowExtendedModal(true)}
+          >
+            <Text style={styles.lockBadgeText}>🔒 {t('extendedReport.lockBadge')}</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.unlockedBadge}>
+            <Text style={styles.unlockedBadgeText}>
+              ✅ {t('extendedReport.unlockedBadge', { count: remainingHours })}
+            </Text>
+          </View>
+        )}
+        {isAdLoading && (
+          <ActivityIndicator size="small" color="#1D9E75" style={{ marginLeft: 10 }} />
+        )}
       </View>
 
       {period === 'custom' && dateRange && (
@@ -410,6 +515,38 @@ export default function ReportScreen() {
         navigation.navigate('Settings');
       }}
     />
+
+    {/* Extended Report Modal */}
+    <Modal
+      visible={showExtendedModal}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setShowExtendedModal(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={[styles.modalContent, themeStyles.card]}>
+          <Text style={styles.modalEmoji}>📊</Text>
+          <Text style={[styles.modalTitle, themeStyles.text]}>
+            {t('extendedReport.modalTitle')}
+          </Text>
+          <Text style={[styles.modalBodyText, themeStyles.text]}>
+            {t('extendedReport.modalBody')}
+          </Text>
+          <TouchableOpacity
+            style={styles.watchBtn}
+            onPress={handleWatchExtendedVideo}
+          >
+            <Text style={styles.watchBtnText}>{t('extendedReport.watchVideo')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.modalCancelBtn}
+            onPress={() => setShowExtendedModal(false)}
+          >
+            <Text style={styles.modalCancelBtnText}>{t('extendedReport.cancel')}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
 
     {/* Calendar Modal */}
     <Modal visible={showCalendar} animationType="slide" transparent>
@@ -585,4 +722,74 @@ const styles = StyleSheet.create({
   },
   customRangeText: { fontSize: 14, fontWeight: '600' },
   changeRangeBtn: { fontSize: 13, color: '#1D9E75', fontWeight: '500' },
+  badgeRow: {
+    paddingHorizontal: 16,
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  lockBadge: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 100,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    backgroundColor: 'transparent',
+  },
+  lockBadgeText: {
+    fontSize: 12,
+    color: '#888',
+  },
+  unlockedBadge: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 100,
+    borderWidth: 1,
+    borderColor: '#1D9E75',
+    backgroundColor: 'transparent',
+  },
+  unlockedBadgeText: {
+    fontSize: 12,
+    color: '#1D9E75',
+    fontWeight: '500',
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 320,
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+  },
+  modalEmoji: {
+    fontSize: 40,
+    marginBottom: 16,
+  },
+  modalBodyText: {
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  watchBtn: {
+    width: '100%',
+    backgroundColor: '#1D9E75',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  watchBtnText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  modalCancelBtn: {
+    width: '100%',
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  modalCancelBtnText: {
+    color: '#888',
+    fontSize: 14,
+  },
 });
