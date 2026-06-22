@@ -22,11 +22,22 @@ export default function ClientAutocomplete({
   const [results, setResults] = useState<any[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
 
+  const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  React.useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
   const handleChange = useCallback((text: string) => {
     onChange(text);
-    const found = searchClients(text) as any[];
-    setResults(found);
-    setShowDropdown(found.length > 0);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      const found = searchClients(text) as any[];
+      setResults(found);
+      setShowDropdown(found.length > 0);
+    }, 300);
   }, [onChange]);
 
   const handleFocus = useCallback(() => {

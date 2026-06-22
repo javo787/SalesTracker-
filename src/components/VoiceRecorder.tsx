@@ -313,7 +313,7 @@ export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
         abortRef.current = null;
       }
     },
-    [language, onTranscript]
+    [language, onTranscript, voiceLang]
   );
 
   // ── Stop recording (core logic) ──────────────

@@ -290,7 +290,8 @@ export default function ReportScreen() {
     const fromDate = d2.toISOString().split('T')[0];
     const prevStats = getStats(0, fromDate, toDate);
     if (!prevStats || prevStats.revenue === 0) return null;
-    return Math.round(((stats.revenue - prevStats.revenue) / prevStats.revenue) * 100);
+    const growth = Math.round(((stats.revenue - prevStats.revenue) / prevStats.revenue) * 100);
+    return Math.max(-999, Math.min(999, growth));
   }, [period, stats.revenue]);
 
   const handleAIExport = async () => {

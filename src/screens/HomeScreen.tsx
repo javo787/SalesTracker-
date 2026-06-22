@@ -15,7 +15,7 @@ import WholesalePromoStrip from '../components/market/WholesalePromoStrip';
 import { useNewsUnread } from '../hooks/useNewsUnread';
 import { FEATURES } from '../config/features';
 
-function SaleListItem({ sale, onDelete, isDark, currency, t, i18n, themeStyles }: any) {
+const SaleListItem = React.memo(({ sale, onDelete, isDark, currency, t, i18n, themeStyles }: any) => {
   const translateX = useRef(new RNAnimated.Value(0)).current;
 
   const panResponder = useRef(
@@ -89,7 +89,7 @@ function SaleListItem({ sale, onDelete, isDark, currency, t, i18n, themeStyles }
       </RNAnimated.View>
     </View>
   );
-}
+});
 
 function StatCard({ label, value, currency, unit, icon, color, themeStyles, trend }: any) {
   return (
@@ -138,7 +138,9 @@ export default function HomeScreen() {
     setStats7(s7);
     const sales = getSalesToday();
     setTodaySales(sales);
-    setDebtSummary(getDebtSummary());
+    if (sellerMode === 'wholesale') {
+      setDebtSummary(getDebtSummary());
+    }
   };
 
   const loadTip = async () => {
