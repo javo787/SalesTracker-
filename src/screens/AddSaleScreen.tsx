@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { useRoute } from '@react-navigation/native';
+import { useRoute, useNavigation } from '@react-navigation/native';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, ScrollView, Alert, ActivityIndicator, Animated
@@ -21,6 +21,7 @@ const CACHE_TTL = 60 * 60 * 1000; // 1 час в мс
 
 export default function AddSaleScreen(/* props */) {
   const { t } = useTranslation();
+  const navigation = useNavigation<any>();
   const { resolvedTheme, currency, language, sellerMode } = useAppContext(); const isDark = resolvedTheme === "dark";
 
   const gemini = useMemo(() => {
@@ -57,31 +58,43 @@ export default function AddSaleScreen(/* props */) {
   const route = useRoute<any>(); // useRoute in @react-navigation/native is notoriously hard to type without complex generic
 
   useEffect(() => {
-    if (route.params?.prefillSell) setSellPrice(String(route.params.prefillSell));
-    if (route.params?.prefillBuy) setBuyPrice(String(route.params.prefillBuy));
-    if (route.params?.prefillQty) setQuantity(String(route.params.prefillQty));
-    if (route.params?.prefillPrice) setSellPrice(String(route.params.prefillPrice));
-    if (route.params?.prefillProductName) setProductName(String(route.params.prefillProductName));
-    if (route.params?.prefillProductId) {
-      const products = getProducts() as any[];
-      const found = products.find(p => p.id === route.params.prefillProductId);
-      if (found) {
-        setSelectedProduct({
-          id: String(found.id),
-          name: found.name,
-          source: 'catalog',
-          purchasePrice: found.buy_price,
-          lastSalePrice: found.sell_price,
-          salesCount: 0,
-          lastSoldAt: null,
-          base_unit: found.base_unit,
-          has_packages: found.has_packages,
-          package_name: found.package_name,
-          units_per_package: found.units_per_package,
-        });
+    if (route.params?.prefillSell || route.params?.prefillBuy || route.params?.prefillQty || route.params?.prefillPrice || route.params?.prefillProductName || route.params?.prefillProductId) {
+      if (route.params?.prefillSell) setSellPrice(String(route.params.prefillSell));
+      if (route.params?.prefillBuy) setBuyPrice(String(route.params.prefillBuy));
+      if (route.params?.prefillQty) setQuantity(String(route.params.prefillQty));
+      if (route.params?.prefillPrice) setSellPrice(String(route.params.prefillPrice));
+      if (route.params?.prefillProductName) setProductName(String(route.params.prefillProductName));
+      if (route.params?.prefillProductId) {
+        const products = getProducts() as any[];
+        const found = products.find(p => p.id === route.params.prefillProductId);
+        if (found) {
+          setSelectedProduct({
+            id: String(found.id),
+            name: found.name,
+            source: 'catalog',
+            purchasePrice: found.buy_price,
+            lastSalePrice: found.sell_price,
+            salesCount: 0,
+            lastSoldAt: null,
+            base_unit: found.base_unit,
+            has_packages: found.has_packages,
+            package_name: found.package_name,
+            units_per_package: found.units_per_package,
+          });
+        }
       }
+
+      // Clear params to prevent them from reappearing on tab switch
+      navigation.setParams({
+        prefillSell: undefined,
+        prefillBuy: undefined,
+        prefillQty: undefined,
+        prefillPrice: undefined,
+        prefillProductName: undefined,
+        prefillProductId: undefined,
+      });
     }
-  }, [route.params]);
+  }, [route.params, navigation]);
 
 
   const handleTranscript = (text: string) => {
@@ -200,6 +213,11 @@ FEW-SHOT EXAMPLES:
     const sPrice = parseFloat(finalSellPrice);
     const bPrice = parseFloat(buyPrice);
     const qty = parseInt(quantity) || 1;
+
+    if (sellerMode === 'wholesale' && paymentType !== 'full' && !clientName.trim()) {
+      Alert.alert(t('common.error'), 'Введите имя клиента для записи долга');
+      return;
+    }
 
     const saleId = addSale(
       selectedProduct?.id ? parseInt(selectedProduct.id) : null,

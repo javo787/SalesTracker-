@@ -178,6 +178,20 @@ export default function HomeScreen() {
 
   const themeStyles = isDark ? darkStyles : lightStyles;
 
+  const revenueTrend = useMemo(() => {
+    const avg = (stats7.revenue - stats.revenue) / 6;
+    if (avg <= 0) return null;
+    const diff = (stats.revenue - avg) / avg;
+    return Math.round(diff * 100);
+  }, [stats.revenue, stats7.revenue]);
+
+  const profitTrend = useMemo(() => {
+    const avg = (stats7.profit - stats.profit) / 6;
+    if (avg <= 0) return null;
+    const diff = (stats.profit - avg) / avg;
+    return Math.round(diff * 100);
+  }, [stats.profit, stats7.profit]);
+
   const getGreeting = () => {
     const hour = new Date().getHours();
     const name = user?.name || '';
@@ -277,12 +291,7 @@ export default function HomeScreen() {
           icon="cash-outline"
           color="#1D9E75"
           themeStyles={themeStyles}
-          trend={useMemo(() => {
-            const avg = (stats7.revenue - stats.revenue) / 6;
-            if (avg <= 0) return null;
-            const diff = (stats.revenue - avg) / avg;
-            return Math.round(diff * 100);
-          }, [stats.revenue, stats7.revenue])}
+          trend={revenueTrend}
         />
         <StatCard
           label={t('common.profit')}
@@ -291,12 +300,7 @@ export default function HomeScreen() {
           icon="trending-up-outline"
           color="#0C447C"
           themeStyles={themeStyles}
-          trend={useMemo(() => {
-            const avg = (stats7.profit - stats.profit) / 6;
-            if (avg <= 0) return null;
-            const diff = (stats.profit - avg) / avg;
-            return Math.round(diff * 100);
-          }, [stats.profit, stats7.profit])}
+          trend={profitTrend}
         />
       </View>
 

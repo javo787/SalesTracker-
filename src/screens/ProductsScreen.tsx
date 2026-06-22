@@ -52,8 +52,13 @@ export default function ProductsScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
 
   const loadProducts = () => {
-    setProducts(getProducts());
-    setAllCategories(getDistinctCategories());
+    const allProds = getProducts() as any[];
+    setProducts(allProds);
+
+    // Derive distinct categories from products to avoid extra SQL query
+    const cats = Array.from(new Set(allProds.map(p => p.category).filter(Boolean))) as string[];
+    setAllCategories(cats.sort());
+
     if (sellerMode === 'wholesale') {
       setDebtProductIds(new Set(getProductIdsWithDebts()));
     }
@@ -561,11 +566,15 @@ export default function ProductsScreen() {
               <TouchableOpacity
                 style={[styles.actionBtn, styles.actionBtnSell]}
                 onPress={() => {
-                  navigation.navigate('Sale', {
-                    prefillSell: p.sell_price,
-                    prefillBuy: p.buy_price,
-                    prefillProductName: p.name,
-                    prefillProductId: p.id,
+                  // Navigate using RootStack to ensure fresh screen/params
+                  navigation.navigate('Main', {
+                    screen: 'Sale',
+                    params: {
+                      prefillSell: p.sell_price,
+                      prefillBuy: p.buy_price,
+                      prefillProductName: p.name,
+                      prefillProductId: p.id,
+                    }
                   });
                 }}
               >

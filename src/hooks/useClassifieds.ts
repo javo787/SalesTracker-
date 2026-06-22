@@ -38,7 +38,8 @@ export function useClassifieds(city?: string, category?: ClassifiedCategory) {
         }
       }
 
-      const data = await marketService.getClassifieds(city, category, pageNum);
+      const response = await marketService.getClassifieds(city, category, pageNum);
+      const data = (response as any).items || response;
 
       if (pageNum === 1) {
         setClassifieds(data);
