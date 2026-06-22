@@ -82,9 +82,15 @@ export default function ReportScreen() {
   }, [isGuest]);
 
   const checkExtendedUnlock = useCallback(() => {
-    ExtendedReportService.isUnlocked().then(setExtendedUnlocked);
+    ExtendedReportService.isUnlocked().then(unlocked => {
+      setExtendedUnlocked(unlocked);
+      // Auto-reset period if unlock expired
+      if (!unlocked && (period === 60 || period === 90 || period === 365 || period === 'custom')) {
+        setPeriod(30);
+      }
+    });
     ExtendedReportService.getRemainingHours().then(setRemainingHours);
-  }, []);
+  }, [period]);
 
   useFocusEffect(useCallback(() => {
     loadData(period, dateRange || undefined);
@@ -187,13 +193,10 @@ export default function ReportScreen() {
     { label: t('reports.today'), days: 1 },
     { label: t('reports.days7'), days: 7 },
     { label: t('reports.days30'), days: 30 },
+    { label: t('reports.days60'), days: 60, locked: !extendedUnlocked },
+    { label: t('reports.days90'), days: 90, locked: !extendedUnlocked },
+    { label: t('reports.days365'), days: 365, locked: !extendedUnlocked },
   ];
-
-  if (extendedUnlocked) {
-    PERIODS.push({ label: t('reports.days60'), days: 60 });
-    PERIODS.push({ label: t('reports.days90'), days: 90 });
-    PERIODS.push({ label: t('reports.days365'), days: 365 });
-  }
 
   const themeStyles = isDark ? darkStyles : lightStyles;
 
@@ -273,6 +276,7 @@ export default function ReportScreen() {
       });
 
       rewarded.onAdDismissed(() => {
+        rewarded.removeAllListeners();
         if (rewardedEarned) {
           ExtendedReportService.onRewardedWatched().then(() => {
             setExtendedUnlocked(true);
@@ -302,14 +306,27 @@ export default function ReportScreen() {
           {PERIODS.map(p => (
             <TouchableOpacity
               key={p.days}
-              style={[styles.periodBtn, themeStyles.card, period === p.days && styles.periodBtnActive]}
+              style={[
+                styles.periodBtn,
+                themeStyles.card,
+                period === p.days && styles.periodBtnActive,
+                p.locked && styles.periodBtnLocked
+              ]}
               onPress={() => {
+                if (p.locked) {
+                  setShowExtendedModal(true);
+                  return;
+                }
                 setPeriod(p.days);
                 setDateRange(null);
                 setSelectedDates({});
               }}
             >
-              <Text style={[styles.periodText, period === p.days && styles.periodTextActive]}>
+              <Text style={[
+                styles.periodText,
+                period === p.days && styles.periodTextActive,
+                p.locked && styles.periodTextLocked
+              ]}>
                 {p.label}
               </Text>
             </TouchableOpacity>
@@ -634,8 +651,10 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#E0E0E0',
   },
   periodBtnActive: { backgroundColor: '#1D9E75', borderColor: '#1D9E75' },
+  periodBtnLocked: { opacity: 0.7, borderStyle: 'dashed' },
   periodText: { fontSize: 13, fontWeight: '500', color: '#666' },
   periodTextActive: { color: '#fff' },
+  periodTextLocked: { color: '#999' },
   statsGrid: {
     flexDirection: 'row', flexWrap: 'wrap',
     gap: 10, paddingHorizontal: 16, marginBottom: 8,
