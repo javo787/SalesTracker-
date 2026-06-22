@@ -390,7 +390,9 @@ export default function ReportScreen() {
               ))
             )}
           </View>
-          <UniversalBanner />
+          <View style={{ width: '100%' }}>
+            <UniversalBanner />
+          </View>
         </>
       )}
 
