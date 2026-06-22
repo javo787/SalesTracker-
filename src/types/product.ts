@@ -9,6 +9,7 @@ export interface Product {
   has_packages: number;
   package_name: string | null;
   units_per_package: number;
+  category: string | null;
   updated_at: string | null;
   synced: number;
   is_deleted: number;
