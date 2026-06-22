@@ -3,7 +3,7 @@ import {
   View, Text, ScrollView, StyleSheet,
   TouchableOpacity, TextInput, Alert, RefreshControl
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { addProduct, updateProduct, deleteProduct, getProducts } from '../db/database';
@@ -15,6 +15,7 @@ import { ProductAutocomplete } from '../components/sales/ProductAutocomplete';
 
 export default function ProductsScreen() {
   const { t } = useTranslation();
+  const navigation = useNavigation<any>();
   const { resolvedTheme, currency, defaultMinStockAlert, sellerMode } = useAppContext(); const isDark = resolvedTheme === "dark";
   const [products, setProducts] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -405,6 +406,20 @@ export default function ProductsScreen() {
 
             <View style={styles.productActions}>
               <TouchableOpacity
+                style={[styles.actionBtn, styles.actionBtnSell]}
+                onPress={() => {
+                  navigation.navigate('Sale', {
+                    prefillSell: p.sell_price,
+                    prefillBuy: p.buy_price,
+                    prefillProductName: p.name,
+                    prefillProductId: p.id,
+                  });
+                }}
+              >
+                <Ionicons name="cash-outline" size={18} color="#1D9E75" />
+                <Text style={styles.actionBtnText}>Продать</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
                 style={styles.actionBtn}
                 onPress={() => {
                   setSelectedProduct(p);
@@ -580,6 +595,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
+  },
+  actionBtnSell: {
+    borderRightWidth: 1,
+    borderRightColor: 'rgba(0,0,0,0.06)',
   },
   actionBtnText: {
     fontSize: 11,

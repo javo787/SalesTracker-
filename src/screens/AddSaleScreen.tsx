@@ -54,6 +54,26 @@ export default function AddSaleScreen(/* props */) {
     if (route.params?.prefillBuy) setBuyPrice(String(route.params.prefillBuy));
     if (route.params?.prefillQty) setQuantity(String(route.params.prefillQty));
     if (route.params?.prefillPrice) setSellPrice(String(route.params.prefillPrice));
+    if (route.params?.prefillProductName) setProductName(String(route.params.prefillProductName));
+    if (route.params?.prefillProductId) {
+      const products = getProducts() as any[];
+      const found = products.find(p => p.id === route.params.prefillProductId);
+      if (found) {
+        setSelectedProduct({
+          id: String(found.id),
+          name: found.name,
+          source: 'catalog',
+          purchasePrice: found.buy_price,
+          lastSalePrice: found.sell_price,
+          salesCount: 0,
+          lastSoldAt: null,
+          base_unit: found.base_unit,
+          has_packages: found.has_packages,
+          package_name: found.package_name,
+          units_per_package: found.units_per_package,
+        });
+      }
+    }
   }, [route.params]);
 
 
