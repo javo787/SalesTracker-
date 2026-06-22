@@ -87,12 +87,20 @@ class MarketService {
 
   async incrementWholesaleCall(id: string): Promise<void> {
     if (!ADS_API_URL) throw new Error('Ads API URL not configured');
-    await fetch(`${ADS_API_URL}/api/wholesale/${id}/call`, { method: 'POST' });
+    await fetch(`${ADS_API_URL}/api/wholesale/${id}/action`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'call' }),
+    });
   }
 
   async incrementWholesaleTelegram(id: string): Promise<void> {
     if (!ADS_API_URL) throw new Error('Ads API URL not configured');
-    await fetch(`${ADS_API_URL}/api/wholesale/${id}/telegram`, { method: 'POST' });
+    await fetch(`${ADS_API_URL}/api/wholesale/${id}/action`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'telegram' }),
+    });
   }
 
   async trackWholesaleView(id: string): Promise<void> {

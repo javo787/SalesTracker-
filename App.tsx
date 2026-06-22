@@ -347,6 +347,15 @@ function AppContent() {
             headerTintColor: '#fff',
           }}
         />
+        <Stack.Screen
+          name="Sale"
+          component={AddSaleScreen}
+          options={{
+            title: t('addSale.title'),
+            headerStyle: { backgroundColor: '#1D9E75' },
+            headerTintColor: '#fff',
+          }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -29,11 +29,16 @@ export default function StockHistorySheet({ visible, onClose, product }: StockHi
 
   const loadHistory = () => {
     setLoading(true);
-    const data = getStockMovements(product.id);
-    setMovements(data);
-    const lastPurchase = getLastPurchaseInfo(product.id);
-    setLastPurchaseInfo(lastPurchase);
-    setLoading(false);
+    try {
+      const data = getStockMovements(product.id);
+      setMovements(data);
+      const lastPurchase = getLastPurchaseInfo(product.id);
+      setLastPurchaseInfo(lastPurchase);
+    } catch (e) {
+      console.error('Failed to load stock history', e);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const renderItem = ({ item }: { item: any }) => {
