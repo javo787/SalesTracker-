@@ -11,6 +11,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as XLSX from 'xlsx';
 import { getStats, getSalesByPeriod, deleteSale, getExpenseStats } from '../db/database';
 import { useAppContext } from '../context/AppContext';
 import AnnualReport from '../components/reports/AnnualReport';
@@ -18,6 +19,7 @@ import RegistrationPromptModal from '../components/RegistrationPromptModal';
 import UniversalBanner from '../components/ads/UniversalBanner';
 import { useAuth } from '../context/AuthContext';
 import { ExtendedReportService } from '../services/ExtendedReportService';
+import { ExportSummaryService, SummaryPayload } from '../services/ExportSummaryService';
 import { adService } from '../services/adService';
 import { AD_UNIT_IDS } from '../constants/ads';
 import { ForecastService } from '../services/ForecastService';
@@ -33,7 +35,7 @@ try {
 
 export default function ReportScreen() {
   const { t, i18n } = useTranslation();
-  const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
+  const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark"; const themeStyles = isDark ? darkStyles : lightStyles;
   const navigation = useNavigation<any>();
   const [period, setPeriod] = useState<number | 'custom'>(30);
   const [dateRange, setDateRange] = useState<{from: string, to: string} | null>(null);
@@ -49,6 +51,10 @@ export default function ReportScreen() {
   const [isForecastLoading, setIsForecastLoading] = useState(false);
   const [showForecastModal, setShowForecastModal] = useState(false);
 
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [cachedSummary, setCachedSummary] = useState<string | null>(null);
+  const [isExportLoading, setIsExportLoading] = useState(false);
+
   const { isGuest } = useAuth();
   const [showRegPrompt, setShowRegPrompt] = useState(false);
 
@@ -57,6 +63,7 @@ export default function ReportScreen() {
   const [sales, setSales] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [filterText, setFilterText] = useState('');
+
 
   const loadData = useCallback((p: number | 'custom', range?: {from: string, to: string}) => {
     if (p === 'custom' && range) {
@@ -103,12 +110,29 @@ export default function ReportScreen() {
     ForecastService.getCachedForecast().then(setForecastCache);
   }, []);
 
+  const getPeriodLabel = useCallback(() => {
+    if (period === 'custom' && dateRange && dateRange.from) {
+      const from = new Date(dateRange.from).toLocaleDateString(i18n.language === 'tg' ? 'tg-TJ' : i18n.language === 'uz' ? 'uz-UZ' : 'ru-RU');
+      const to = new Date(dateRange.to || dateRange.from).toLocaleDateString(i18n.language === 'tg' ? 'tg-TJ' : i18n.language === 'uz' ? 'uz-UZ' : 'ru-RU');
+      return `${from} — ${to}`;
+    }
+    const p = PERIODS.find(x => x.days === period);
+    return p ? p.label : '';
+  }, [period, dateRange, i18n.language]);
+
+  const checkExportCache = useCallback(async () => {
+    const label = getPeriodLabel();
+    const summary = await ExportSummaryService.getCachedSummary(label, i18n.language);
+    setCachedSummary(summary);
+  }, [getPeriodLabel, i18n.language]);
+
   useFocusEffect(useCallback(() => {
     loadData(period, dateRange || undefined);
     checkRegPrompt();
     checkExtendedUnlock();
     checkForecast();
-  }, [period, dateRange, loadData, checkRegPrompt, checkExtendedUnlock, checkForecast]));
+    checkExportCache();
+  }, [period, dateRange, loadData, checkRegPrompt, checkExtendedUnlock, checkForecast, checkExportCache]));
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -210,7 +234,6 @@ export default function ReportScreen() {
     { label: t('reports.days365'), days: 365, locked: !extendedUnlocked },
   ];
 
-  const themeStyles = isDark ? darkStyles : lightStyles;
 
   const handleDayPress = (day: any) => {
     const dateStr = day.dateString;
@@ -254,6 +277,179 @@ export default function ReportScreen() {
       setDateRange(finalRange);
       setPeriod('custom');
       setShowCalendar(false);
+    }
+  };
+
+  const calculateGrowth = useCallback(() => {
+    if (typeof period !== 'number') return null;
+    const d = new Date();
+    d.setDate(d.getDate() - period);
+    const toDate = d.toISOString().split('T')[0];
+    const d2 = new Date();
+    d2.setDate(d2.getDate() - (2 * period));
+    const fromDate = d2.toISOString().split('T')[0];
+    const prevStats = getStats(0, fromDate, toDate);
+    if (!prevStats || prevStats.revenue === 0) return null;
+    return Math.round(((stats.revenue - prevStats.revenue) / prevStats.revenue) * 100);
+  }, [period, stats.revenue]);
+
+  const handleAIExport = async () => {
+    if (cachedSummary) {
+      generateAIExcel(cachedSummary);
+      setShowExportModal(false);
+      return;
+    }
+
+    if (!RewardedAd) {
+      Alert.alert('', t('exportSummary.noInternet'));
+      return;
+    }
+
+    setShowExportModal(false);
+    setIsExportLoading(true);
+
+    try {
+      const adUnitId = AD_UNIT_IDS.REWARDED;
+      const rewarded = RewardedAd.createForAdUnitId(adUnitId);
+
+      let rewardedEarned = false;
+
+      rewarded.onAdLoaded(() => {
+        rewarded.show();
+      });
+
+      rewarded.onAdFailedToLoad((error: any) => {
+        setIsExportLoading(false);
+        console.error('Export Rewarded ad failed to load:', error);
+        Alert.alert('', t('exportSummary.noInternet'));
+      });
+
+      rewarded.onAdRewarded(() => {
+        rewardedEarned = true;
+      });
+
+      rewarded.onAdDismissed(() => {
+        rewarded.removeAllListeners();
+        if (rewardedEarned) {
+          fetchAndExportAI();
+        } else {
+          setIsExportLoading(false);
+        }
+      });
+
+      rewarded.load();
+    } catch (e) {
+      setIsExportLoading(false);
+      console.error('Error showing export rewarded ad:', e);
+      Alert.alert('', t('exportSummary.noInternet'));
+    }
+  };
+
+  const fetchAndExportAI = async () => {
+    try {
+      // Best and worst day
+      const daySales = sales.reduce((acc: any, s: any) => {
+        const day = new Date(s.created_at).toLocaleDateString(i18n.language === 'ru' ? 'ru-RU' : i18n.language === 'tj' ? 'tg-TJ' : 'uz-UZ', { weekday: 'long' });
+        acc[day] = (acc[day] || 0) + s.sell_price * s.quantity;
+        return acc;
+      }, {});
+      const dayEntries = Object.entries(daySales).sort((a: any, b: any) => b[1] - a[1]);
+      const bestDay = dayEntries.length > 0 ? dayEntries[0][0] : '-';
+      const worstDay = dayEntries.length > 0 ? dayEntries[dayEntries.length - 1][0] : '-';
+
+      const payload: SummaryPayload = {
+        language: i18n.language as 'ru' | 'tj' | 'uz',
+        currency: currency.symbol,
+        periodLabel: getPeriodLabel(),
+        totalRevenue: stats.revenue,
+        totalProfit: stats.profit,
+        totalExpenses: expenseTotal,
+        netProfit: stats.profit - expenseTotal,
+        averageMargin: parseFloat(margin),
+        totalTransactions: stats.count,
+        topProducts: topList.map((p: any) => ({
+          name: p.name,
+          revenue: sales.filter(s => s.product_name === p.name).reduce((acc, s) => acc + s.sell_price * s.quantity, 0),
+          profit: p.profit,
+          margin: Math.round((p.profit / sales.filter(s => s.product_name === p.name).reduce((acc, s) => acc + s.sell_price * s.quantity, 0)) * 100),
+          salesCount: p.count
+        })),
+        salesByDayOfWeek: Object.entries(daySales).map(([label, totalRevenue]) => ({ label, totalRevenue: totalRevenue as number })),
+        bestDay,
+        worstDay,
+        revenueGrowthPercent: calculateGrowth()
+      };
+
+      const summary = await ExportSummaryService.fetchSummary(payload);
+      setCachedSummary(summary);
+      generateAIExcel(summary);
+    } catch (e: any) {
+      console.error('AI Summary fetch error:', e);
+      if (e.message === 'all_providers_failed') {
+        Alert.alert('', t('exportSummary.providerFailed'));
+      } else {
+        Alert.alert('', t('exportSummary.serverError'));
+      }
+    } finally {
+      setIsExportLoading(false);
+    }
+  };
+
+  const generateAIExcel = async (summary: string) => {
+    try {
+      const wb = XLSX.utils.book_new();
+
+      // Sheet 1: AI Summary
+      const summaryData = [
+        ["Отчёт SavdoApp"],
+        [getPeriodLabel()],
+        [],
+        [t('exportSummary.headerRevenue'), `${stats.revenue} ${currency.symbol}`],
+        [t('exportSummary.headerProfit'), `${stats.profit} ${currency.symbol}`],
+        [t('exportSummary.headerExpenses'), `${expenseTotal} ${currency.symbol}`],
+        [t('exportSummary.headerNet'), `${stats.profit - expenseTotal} ${currency.symbol}`],
+        [],
+        [t('exportSummary.headerAnalysis')],
+        [summary]
+      ];
+      const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+
+      // Basic styling via column widths
+      wsSummary['!cols'] = [{ wch: 20 }, { wch: 50 }];
+
+      XLSX.utils.book_append_sheet(wb, wsSummary, t('exportSummary.sheetName'));
+
+      // Sheet 2: Sales Data
+      const salesHeader = ['ID', t('addSale.productName'), t('addSale.quantity'), t('addSale.sellPrice'), t('addSale.buyPrice'), t('common.profit'), t('addSale.note'), 'Дата'];
+      const salesRows = sales.map(s => [
+        s.id,
+        s.product_name,
+        s.quantity,
+        s.sell_price,
+        s.buy_price,
+        s.profit,
+        s.note || '',
+        s.created_at
+      ]);
+      const wsSales = XLSX.utils.aoa_to_sheet([salesHeader, ...salesRows]);
+      XLSX.utils.book_append_sheet(wb, wsSales, t('reports.allSales'));
+
+      const wbout = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+      const fileName = `SavdoApp_AI_${new Date().getTime()}.xlsx`;
+      const filePath = `${FileSystem.cacheDirectory}${fileName}`;
+
+      await FileSystem.writeAsStringAsync(filePath, wbout, { encoding: FileSystem.EncodingType.Base64 });
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(filePath, {
+          mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          dialogTitle: t('exportSummary.fileReady'),
+          UTI: 'com.microsoft.excel.xlsx'
+        });
+      }
+    } catch (e) {
+      console.error('Excel generation error:', e);
+      Alert.alert(t('common.error'), 'Не удалось создать Excel файл');
     }
   };
 
@@ -438,8 +634,8 @@ export default function ReportScreen() {
             </View>
           </TouchableOpacity>
         </View>
-        <TouchableOpacity style={[styles.exportBtn, themeStyles.card]} onPress={exportToCSV}>
-          <Text style={styles.exportBtnText}>📄 CSV</Text>
+        <TouchableOpacity style={[styles.exportBtn, themeStyles.card]} onPress={() => setShowExportModal(true)}>
+          <Text style={styles.exportBtnText}>📤 {t('reports.exportCsv')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -730,6 +926,63 @@ export default function ReportScreen() {
               <Text style={styles.forecastCloseBtnText}>{t('forecast.close')}</Text>
             </TouchableOpacity>
           </View>
+        </View>
+      </View>
+    </Modal>
+
+    {/* Export Choice Modal */}
+    <Modal
+      visible={showExportModal}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setShowExportModal(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={[styles.modalContent, themeStyles.card]}>
+          <Text style={[styles.modalTitle, themeStyles.text, { marginBottom: 20 }]}>
+            Выберите формат экспорта
+          </Text>
+
+          <TouchableOpacity
+            style={[styles.exportOption, themeStyles.input]}
+            onPress={() => {
+              setShowExportModal(false);
+              exportToCSV();
+            }}
+          >
+            <View style={styles.exportOptionLeft}>
+              <Text style={styles.exportOptionEmoji}>📊</Text>
+              <View>
+                <Text style={[styles.exportOptionTitle, themeStyles.text]}>{t('exportSummary.buttonBasic')}</Text>
+                <Text style={styles.exportOptionDesc}>Таблица с данными продаж</Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.exportOption, themeStyles.input, isExportLoading && { opacity: 0.7 }]}
+            onPress={handleAIExport}
+            disabled={isExportLoading}
+          >
+            <View style={styles.exportOptionLeft}>
+              <Text style={styles.exportOptionEmoji}>✨</Text>
+              <View>
+                <Text style={[styles.exportOptionTitle, themeStyles.text]}>{t('exportSummary.buttonAI')}</Text>
+                <Text style={styles.exportOptionDesc}>+ анализ и советы от AI</Text>
+                <Text style={styles.exportOptionAd}>
+                  {cachedSummary ? `[ ✅ ${t('forecast.buttonLabelCached')} ]` : `[ ${t('extendedReport.watchVideo')} ]`}
+                </Text>
+              </View>
+            </View>
+            {isExportLoading && <ActivityIndicator size="small" color="#1D9E75" />}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.modalCancelBtn}
+            onPress={() => setShowExportModal(false)}
+          >
+            <Text style={styles.modalCancelBtnText}>{t('common.cancel')}</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </Modal>
@@ -1100,5 +1353,39 @@ const styles = StyleSheet.create({
   modalCancelBtnText: {
     color: '#888',
     fontSize: 14,
+  },
+  exportOption: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  exportOptionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  exportOptionEmoji: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  exportOptionTitle: {
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  exportOptionDesc: {
+    fontSize: 12,
+    color: '#888',
+    marginTop: 2,
+  },
+  exportOptionAd: {
+    fontSize: 11,
+    color: '#1D9E75',
+    fontWeight: 'bold',
+    marginTop: 4,
   },
 });
