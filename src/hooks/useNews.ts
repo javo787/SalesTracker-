@@ -4,15 +4,16 @@ import { marketService } from '../services/marketService';
 import { NewsFeed } from '../types/ads';
 import { notifyImportantNews } from '../utils/notifications';
 
+const CACHE_KEY = 'news_cache';
+const CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours
+
 export function useNews() {
   const [news, setNews] = useState<NewsFeed | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const mountedRef = useRef(true);
-
-  const CACHE_KEY = 'news_cache';
-  const CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours
+  const isFetchingRef = useRef(false);
 
   useEffect(() => {
     return () => { mountedRef.current = false; };
@@ -41,6 +42,9 @@ export function useNews() {
   };
 
   const fetchNews = useCallback(async (isRefresh = false) => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     setError(null);
@@ -77,12 +81,13 @@ export function useNews() {
         if (mountedRef.current) setNews(data);
       }
     } finally {
+      isFetchingRef.current = false;
       if (mountedRef.current) {
         setLoading(false);
         setRefreshing(false);
       }
     }
-  }, [CACHE_KEY]);
+  }, []);
 
   useEffect(() => {
     fetchNews();
