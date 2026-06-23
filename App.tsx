@@ -123,11 +123,32 @@ function MainTabs() {
   );
 }
 
+function NewsUnreadBadge({ color }: { color: string }) {
+  const { hasUnread } = useNewsUnread();
+  return (
+    <View>
+      <Ionicons name="newspaper-outline" size={22} color={color} />
+      {hasUnread && (
+        <View
+          style={{
+            position: 'absolute',
+            top: -2,
+            right: -2,
+            width: 8,
+            height: 8,
+            borderRadius: 4,
+            backgroundColor: '#FF6B6B',
+          }}
+        />
+      )}
+    </View>
+  );
+}
+
 function DrawerNavigator() {
   const { t } = useTranslation();
   const { resolvedTheme } = useAppContext();
   const isDark = resolvedTheme === 'dark';
-  const { hasUnread } = useNewsUnread();
 
   return (
     <Drawer.Navigator
@@ -221,12 +242,7 @@ function DrawerNavigator() {
         component={NewsScreen}
         options={{
           drawerLabel: t('news.title'),
-          drawerIcon: ({ color }) => (
-            <View>
-              <Ionicons name="newspaper-outline" size={22} color={color} />
-              {hasUnread && <View style={{ position: 'absolute', top: -2, right: -2, width: 8, height: 8, borderRadius: 4, backgroundColor: '#FF6B6B' }} />}
-            </View>
-          ),
+          drawerIcon: ({ color }) => <NewsUnreadBadge color={color} />,
         }}
       />
       <Drawer.Screen
