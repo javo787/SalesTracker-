@@ -2,10 +2,11 @@ import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, Alert, ActivityIndicator, Animated
+  StyleSheet, ScrollView, Alert, ActivityIndicator, Animated, Modal, TouchableWithoutFeedback
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
+import { Ionicons } from '@expo/vector-icons';
 import { addSale, getProducts, upsertClient, addDebt } from '../db/database';
 import { analyticsService } from '../services/analyticsService';
 import { reviewService } from '../services/reviewService';
@@ -52,6 +53,7 @@ export default function AddSaleScreen(/* props */) {
   const [voiceText, setVoiceText] = useState('');
   const [lastSaved, setLastSaved] = useState<{ name: string; profit: string; revenue: string } | null>(null);
   const [activeTab, setActiveTab] = useState<'sales' | 'expenses'>('sales');
+  const [showVoiceBar, setShowVoiceBar] = useState(false);
   const fadeAnim = useMemo(() => new Animated.Value(1), []);
 
   // добавлено: получение параметров из маршрута (от калькулятора)
@@ -282,6 +284,59 @@ FEW-SHOT EXAMPLES:
 
   return (
     <View style={[styles.container, themeStyles.container]}>
+      {/* Voice Floating Button */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => setShowVoiceBar(true)}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="mic" size={28} color="#fff" />
+      </TouchableOpacity>
+
+      {/* Voice Input Modal (Bottom Bar) */}
+      <Modal
+        visible={showVoiceBar}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowVoiceBar(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowVoiceBar(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={[styles.voiceBar, themeStyles.card]}>
+                <View style={styles.voiceBarHeader}>
+                  <Text style={[styles.voiceBarTitle, themeStyles.text]}>{t('addSale.voiceTitle')}</Text>
+                  <TouchableOpacity onPress={() => setShowVoiceBar(false)} style={styles.closeBtn}>
+                    <Ionicons name="close" size={24} color={isDark ? '#eee' : '#333'} />
+                  </TouchableOpacity>
+                </View>
+
+                <VoiceRecorder
+                  onTranscript={(text) => {
+                    handleTranscript(text);
+                    // Мы не закрываем автоматически, чтобы пользователь видел результат AI
+                  }}
+                />
+
+                {voiceText ? (
+                  <View style={[styles.voiceResult, themeStyles.voiceResult]}>
+                    <Text style={styles.voiceResultLabel}>{t('addSale.recognized')}:</Text>
+                    <Text style={[styles.voiceResultText, themeStyles.text]}>"{voiceText}"</Text>
+                  </View>
+                ) : null}
+
+                {processing && (
+                  <View style={styles.processingRow}>
+                    <ActivityIndicator size="small" color="#1D9E75" />
+                    <Text style={styles.processingText}>{t('addSale.aiProcessing')}</Text>
+                  </View>
+                )}
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
       {/* Tab Switcher */}
       <View style={styles.tabContainer}>
         <View style={[styles.segmentedControl, isDark ? styles.segmentedControlDark : styles.segmentedControlLight]}>
@@ -307,27 +362,6 @@ FEW-SHOT EXAMPLES:
       <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
         {activeTab === 'sales' ? (
           <ScrollView keyboardShouldPersistTaps="handled">
-            {/* Голосовой ввод */}
-      <View style={[styles.voiceSection, themeStyles.card]}>
-        <Text style={[styles.sectionTitle, themeStyles.text]}>{t('addSale.voiceTitle')}</Text>
-
-        <VoiceRecorder onTranscript={handleTranscript} />
-
-        {voiceText ? (
-          <View style={[styles.voiceResult, themeStyles.voiceResult]}>
-            <Text style={styles.voiceResultLabel}>{t('addSale.recognized')}:</Text>
-            <Text style={[styles.voiceResultText, themeStyles.text]}>"{voiceText}"</Text>
-          </View>
-        ) : null}
-
-        {processing && (
-          <View style={styles.processingRow}>
-            <ActivityIndicator size="small" color="#1D9E75" />
-            <Text style={styles.processingText}>{t('addSale.aiProcessing')}</Text>
-          </View>
-        )}
-      </View>
-
       {/* Форма */}
       <View style={[styles.form, themeStyles.card]}>
         <Text style={[styles.sectionTitle, themeStyles.text]}>{t('addSale.formTitle')}</Text>
@@ -562,11 +596,51 @@ const styles = StyleSheet.create({
   tabTextActive: {
     color: '#fff',
   },
-  voiceSection: {
-    margin: 16,
-    borderRadius: 12, padding: 16,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05, shadowRadius: 2, elevation: 2,
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#1D9E75',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    zIndex: 999,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  voiceBar: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    paddingBottom: 40,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    elevation: 10,
+  },
+  voiceBarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  voiceBarTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  closeBtn: {
+    padding: 4,
   },
   sectionTitle: { fontSize: 16, fontWeight: '600', marginBottom: 12 },
   voiceResult: { marginTop: 12, padding: 12, borderRadius: 8 },
