@@ -1,3 +1,7 @@
+import 'react-native-get-random-values';
+import { Buffer } from 'buffer';
+global.Buffer = Buffer;
+
 import { registerRootComponent } from 'expo';
 import messaging from '@react-native-firebase/messaging';
 import App from './App';
