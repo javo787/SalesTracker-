@@ -38,6 +38,11 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [isSystemDialogOpen, setIsSystemDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const appState = useRef(AppState.currentState);
+  const isLockEnabledRef = useRef(isLockEnabled);
+
+  useEffect(() => {
+    isLockEnabledRef.current = isLockEnabled;
+  }, [isLockEnabled]);
 
   useEffect(() => {
     loadSettings();
@@ -81,7 +86,7 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
       appState.current.match(/active/) &&
       nextAppState.match(/inactive|background/)
     ) {
-      if (isLockEnabled && !isSystemDialogOpen) {
+      if (isLockEnabledRef.current && !isSystemDialogOpen) {
         // Debounce lock to avoid locking on transient states or system dialogs
         setTimeout(() => {
             if (AppState.currentState !== 'active' && !isSystemDialogOpen) {

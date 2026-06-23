@@ -255,20 +255,28 @@ export function deleteProduct(id: number) {
 }
 
 export function convertAllAmounts(rate: number) {
-  db.runSync('UPDATE products SET buy_price = ROUND(buy_price * ?, 2), sell_price = ROUND(sell_price * ?, 2)', [rate, rate]);
-  db.runSync('UPDATE sales SET sell_price = ROUND(sell_price * ?, 2), buy_price = ROUND(buy_price * ?, 2), profit = ROUND(profit * ?, 2)', [rate, rate, rate]);
-  db.runSync('UPDATE expenses SET amount = ROUND(amount * ?, 2)', [rate]);
+  db.withTransactionSync(() => {
+    db.runSync('UPDATE products SET buy_price = ROUND(buy_price * ?, 2), sell_price = ROUND(sell_price * ?, 2)', [rate, rate]);
+    db.runSync('UPDATE sales SET sell_price = ROUND(sell_price * ?, 2), buy_price = ROUND(buy_price * ?, 2), profit = ROUND(profit * ?, 2)', [rate, rate, rate]);
+    db.runSync('UPDATE expenses SET amount = ROUND(amount * ?, 2)', [rate]);
+  });
 }
 
 export function clearAllData() {
-  db.runSync('DELETE FROM sales');
-  db.runSync('DELETE FROM products');
-  db.runSync('DELETE FROM expenses');
-  try {
-    db.runSync("DELETE FROM sqlite_sequence WHERE name IN ('products','sales','expenses')");
-  } catch (e) {
-    // sqlite_sequence may not exist yet; ignore
-  }
+  db.withTransactionSync(() => {
+    db.runSync('DELETE FROM debt_payments');
+    db.runSync('DELETE FROM debts');
+    db.runSync('DELETE FROM clients');
+    db.runSync('DELETE FROM stock_movements');
+    db.runSync('DELETE FROM sales');
+    db.runSync('DELETE FROM expenses');
+    db.runSync('DELETE FROM products');
+    try {
+      db.runSync("DELETE FROM sqlite_sequence WHERE name IN ('products','sales','expenses','clients','debts','debt_payments','stock_movements')");
+    } catch (e) {
+      // sqlite_sequence may not exist yet; ignore
+    }
+  });
 }
 
 export function getProducts() {
@@ -337,9 +345,17 @@ export function addStockWaste(
   productId: number,
   quantity: number,
   note: string = ''
-): void {
+): { success: boolean; currentStock?: number; message?: string } {
   const product = db.getFirstSync('SELECT name, stock, min_stock_alert FROM products WHERE id = ?', [productId]) as any;
-  if (!product) return;
+  if (!product) return { success: false, message: 'Product not found' };
+
+  if (quantity > product.stock) {
+    return {
+      success: false,
+      currentStock: product.stock,
+      message: `Списываете ${quantity}, а на складе только ${product.stock}`,
+    };
+  }
 
   const movementId = typeof crypto !== 'undefined' && (crypto as any).randomUUID ? (crypto as any).randomUUID() : Math.random().toString(36).substring(2, 15);
   const now = nowLocalISO();
@@ -359,6 +375,7 @@ export function addStockWaste(
   if (newStock <= product.min_stock_alert && product.min_stock_alert > 0) {
     notifyLowStock(product.name, newStock);
   }
+  return { success: true, currentStock: newStock };
 }
 
 // Инвентаризация (сверка с фактом)
@@ -429,11 +446,22 @@ export function addSale(
   const profit = (sellPrice - buyPrice) * quantity;
   const stockUpdated = productId ? 1 : 0;
   try {
-    const result = db.runSync(
-      'INSERT INTO sales (product_id, product_name, quantity, sell_price, buy_price, profit, note, stock_updated, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [productId, productName, quantity, sellPrice, buyPrice, profit, note, stockUpdated, nowLocalISO()]
-    );
-    if (productId) updateStock(productId, quantity);
+    let result: any;
+    db.withTransactionSync(() => {
+      result = db.runSync(
+        'INSERT INTO sales (product_id, product_name, quantity, sell_price, buy_price, profit, note, stock_updated, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [productId, productName, quantity, sellPrice, buyPrice, profit, note, stockUpdated, nowLocalISO()]
+      );
+      if (productId) {
+        db.runSync('UPDATE products SET stock = stock - ? WHERE id = ?', [quantity, productId]);
+      }
+    });
+    if (productId) {
+      const p = db.getFirstSync('SELECT name, stock, min_stock_alert FROM products WHERE id = ?', [productId]) as any;
+      if (p && p.stock <= p.min_stock_alert && p.min_stock_alert > 0) {
+        notifyLowStock(p.name, p.stock);
+      }
+    }
     return result;
   } catch (error) {
     console.error('Error adding sale:', error);
@@ -464,10 +492,21 @@ export function getSalesByPeriod(days: number, fromDate?: string, toDate?: strin
 export function deleteSale(saleId: number) {
   try {
     const sale = db.getFirstSync('SELECT * FROM sales WHERE id = ?', [saleId]) as any;
-    if (sale && sale.product_id && sale.stock_updated === 1) {
-      db.runSync('UPDATE products SET stock = stock + ? WHERE id = ?', [sale.quantity, sale.product_id]);
+    if (!sale) return;
+    let result: any;
+    db.withTransactionSync(() => {
+      if (sale.product_id && sale.stock_updated === 1) {
+        db.runSync('UPDATE products SET stock = stock + ? WHERE id = ?', [sale.quantity, sale.product_id]);
+      }
+      result = db.runSync('DELETE FROM sales WHERE id = ?', [saleId]);
+    });
+    if (sale.product_id && sale.stock_updated === 1) {
+      const p = db.getFirstSync('SELECT name, stock, min_stock_alert FROM products WHERE id = ?', [sale.product_id]) as any;
+      if (p && p.stock <= p.min_stock_alert && p.min_stock_alert > 0) {
+        notifyLowStock(p.name, p.stock);
+      }
     }
-    return db.runSync('DELETE FROM sales WHERE id = ?', [saleId]);
+    return result;
   } catch (error) {
     console.error('Error deleting sale:', error);
     throw error;
@@ -555,17 +594,20 @@ export function getExpenseStats(days: number = 1, fromDate?: string, toDate?: st
 const safeNum = (v: any, def = 0) =>
   isFinite(parseFloat(v)) ? parseFloat(v) : def;
 const safeStr = (v: any, def: any = '') =>
-  typeof v === 'string' ? v.slice(0, 500) : (v === null || v === undefined ? def : String(v).slice(0, 500));
+  typeof v === 'string' ? (v === 'null' ? def : v.slice(0, 500)) : (v === null || v === undefined ? def : String(v).slice(0, 500));
 
 export function importBackupData(data: any) {
   db.withTransactionSync(() => {
     // Clear all existing data
+    db.runSync('DELETE FROM debt_payments');
+    db.runSync('DELETE FROM debts');
+    db.runSync('DELETE FROM clients');
     db.runSync('DELETE FROM sales');
     db.runSync('DELETE FROM products');
     db.runSync('DELETE FROM expenses');
     db.runSync('DELETE FROM stock_movements');
     try {
-      db.runSync("DELETE FROM sqlite_sequence WHERE name IN ('products','sales','expenses')");
+      db.runSync("DELETE FROM sqlite_sequence WHERE name IN ('products','sales','expenses','clients','debts','debt_payments','stock_movements')");
     } catch (e) {}
 
     // Import products
@@ -787,7 +829,9 @@ export function getDebtsByClient(clientId: number) {
 export function recordDebtPayment(debtId: number, amount: number, note: string = '') {
   const debt = db.getFirstSync('SELECT * FROM debts WHERE id = ?', [debtId]) as any;
   if (!debt) return;
-  const newPaid = debt.amount_paid + amount;
+  const remaining = debt.amount_total - debt.amount_paid;
+  const actualAmount = Math.min(amount, remaining);
+  const newPaid = debt.amount_paid + actualAmount;
   const newStatus = newPaid >= debt.amount_total ? 'paid' : 'active';
   const now = nowLocalISO();
   db.withTransactionSync(() => {
@@ -797,9 +841,10 @@ export function recordDebtPayment(debtId: number, amount: number, note: string =
     );
     db.runSync(
       'INSERT INTO debt_payments (debt_id, amount, note, created_at) VALUES (?, ?, ?, ?)',
-      [debtId, amount, note, now]
+      [debtId, actualAmount, note, now]
     );
   });
+  return { actualAmount, overpayment: amount - actualAmount };
 }
 
 export function getDebtPayments(debtId: number) {

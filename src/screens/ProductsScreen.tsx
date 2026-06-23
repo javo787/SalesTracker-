@@ -12,6 +12,7 @@ import { useAppContext } from '../context/AppContext';
 import StockOperationModal from '../components/stock/StockOperationModal';
 import StockHistorySheet from '../components/stock/StockHistorySheet';
 import { ProductAutocomplete } from '../components/sales/ProductAutocomplete';
+import { Colors, LightTheme, DarkTheme, Radius, Shadow } from '../constants/theme';
 
 export default function ProductsScreen() {
   const { t } = useTranslation();
@@ -100,9 +101,12 @@ export default function ProductsScreen() {
     return result;
   }, [products, searchQuery, activeFilter, sortDirection, debtProductIdsList]);
 
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
+    const start = Date.now();
     loadProducts();
+    const elapsed = Date.now() - start;
+    if (elapsed < 300) await new Promise(r => setTimeout(r, 300 - elapsed));
     setRefreshing(false);
   };
 
@@ -558,8 +562,7 @@ export default function ProductsScreen() {
               <View style={styles.productRight}>
                 <Text style={[
                   styles.productStock,
-                  themeStyles.text,
-                  p.stock <= (p.min_stock_alert || 0) && { color: '#E53935' }
+                  { color: p.stock <= 0 ? Colors.danger : p.stock <= (p.min_stock_alert || 0) ? Colors.warning : Colors.primary }
                 ]}>
                   {p.stock} {p.base_unit || t('reports.pcs')}
                 </Text>
@@ -651,18 +654,18 @@ export default function ProductsScreen() {
 }
 
 const lightStyles = StyleSheet.create({
-  container: { backgroundColor: '#F5F5F5' },
-  card: { backgroundColor: '#fff' },
-  text: { color: '#333' },
+  container: { backgroundColor: LightTheme.background },
+  card: { backgroundColor: LightTheme.card },
+  text: { color: LightTheme.text },
   input: { backgroundColor: '#F5F5F5', borderColor: '#E0E0E0' },
   chip: { backgroundColor: '#F0F0F0', borderColor: '#E0E0E0' },
   chipText: { color: '#666' },
 });
 
 const darkStyles = StyleSheet.create({
-  container: { backgroundColor: '#000' },
-  card: { backgroundColor: '#1E1E1E' },
-  text: { color: '#EEE' },
+  container: { backgroundColor: DarkTheme.background },
+  card: { backgroundColor: DarkTheme.card },
+  text: { color: DarkTheme.text },
   input: { backgroundColor: '#2C2C2C', borderColor: '#444', color: '#EEE' },
   chip: { backgroundColor: '#2C2C2C', borderColor: '#444' },
   chipText: { color: '#AAA' },
@@ -678,13 +681,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     paddingLeft: 12,
     paddingRight: 8,
-    borderRadius: 12,
+    borderRadius: Radius.lg,
     height: 48,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
+    ...Shadow.md,
     zIndex: 100,
   },
   searchIcon: {
@@ -704,14 +703,13 @@ const styles = StyleSheet.create({
   },
   addBtn: {
     margin: 16, backgroundColor: '#1D9E75',
-    borderRadius: 12, padding: 14, alignItems: 'center',
+    borderRadius: Radius.lg, padding: 14, alignItems: 'center',
   },
   addBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
   form: {
     marginHorizontal: 16, marginBottom: 8,
-    borderRadius: 12, padding: 16,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05, shadowRadius: 2, elevation: 2,
+    borderRadius: Radius.lg, padding: 16,
+    ...Shadow.md,
   },
   formTitle: { fontSize: 16, fontWeight: '600', marginBottom: 4 },
   label: { fontSize: 13, marginBottom: 6, marginTop: 10 },
@@ -740,9 +738,8 @@ const styles = StyleSheet.create({
   emptyHint: { fontSize: 13, color: '#bbb' },
   productItem: {
     marginHorizontal: 16, marginBottom: 12,
-    borderRadius: 12, overflow: 'hidden',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05, shadowRadius: 2, elevation: 2,
+    borderRadius: Radius.lg, overflow: 'hidden',
+    ...Shadow.md,
   },
   productMain: {
     flexDirection: 'row', justifyContent: 'space-between',
@@ -752,7 +749,7 @@ const styles = StyleSheet.create({
   productName: { fontSize: 15, fontWeight: '500' },
   productPrices: { fontSize: 12, color: '#999', marginTop: 3 },
   productRight: { alignItems: 'flex-end' },
-  productStock: { fontSize: 15, fontWeight: '600' },
+  productStock: { fontSize: 15, fontWeight: '700' },
   productProfit: { fontSize: 13, color: '#1D9E75', marginTop: 3 },
   productActions: {
     flexDirection: 'row',

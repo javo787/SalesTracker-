@@ -17,7 +17,7 @@ class ApiClient {
   private async handleResponse(response: Response) {
     if (response.status === 401) {
       await SecureStore.deleteItemAsync('auth_token');
-      // Potential for logout event dispatch
+      throw new Error('Unauthorized');
     }
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));

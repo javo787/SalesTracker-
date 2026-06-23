@@ -12,24 +12,45 @@ router.post('/push', authMiddleware, async (req: AuthRequest, res) => {
 
   try {
     if (products && Array.isArray(products)) {
-      const productOps = products.map(p => ({
-        updateOne: {
-          filter: { userId, localId: p.id },
-          update: { ...p, userId, localId: p.id },
-          upsert: true,
-        },
-      }));
+      const allowedProductFields = [
+        'name', 'buy_price', 'sell_price', 'stock', 'min_stock_alert',
+        'base_unit', 'has_packages', 'package_name', 'units_per_package',
+        'category', 'updated_at', 'is_deleted',
+      ];
+      const productOps = products.map(p => {
+        const update: Record<string, any> = { userId, localId: p.id };
+        for (const key of allowedProductFields) {
+          if (p[key] !== undefined) update[key] = p[key];
+        }
+        return {
+          updateOne: {
+            filter: { userId, localId: p.id },
+            update,
+            upsert: true,
+          },
+        };
+      });
       if (productOps.length > 0) await Product.bulkWrite(productOps);
     }
 
     if (sales && Array.isArray(sales)) {
-      const saleOps = sales.map(s => ({
-        updateOne: {
-          filter: { userId, localId: s.id },
-          update: { ...s, userId, localId: s.id },
-          upsert: true,
-        },
-      }));
+      const allowedSaleFields = [
+        'product_id', 'product_name', 'quantity', 'sell_price',
+        'buy_price', 'profit', 'note', 'stock_updated', 'created_at',
+      ];
+      const saleOps = sales.map(s => {
+        const update: Record<string, any> = { userId, localId: s.id };
+        for (const key of allowedSaleFields) {
+          if (s[key] !== undefined) update[key] = s[key];
+        }
+        return {
+          updateOne: {
+            filter: { userId, localId: s.id },
+            update,
+            upsert: true,
+          },
+        };
+      });
       if (saleOps.length > 0) await Sale.bulkWrite(saleOps);
     }
 

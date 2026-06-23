@@ -10,9 +10,19 @@ const router = express.Router();
 
 // Temporary storage for Telegram auth polling
 const pendingTelegramAuths = new Map<string, { token: string, user: any }>();
+const MAX_PENDING_AUTHS = 100;
+
+function cleanupPendingAuths() {
+  if (pendingTelegramAuths.size > MAX_PENDING_AUTHS) {
+    const keysToDelete = Array.from(pendingTelegramAuths.keys()).slice(0, pendingTelegramAuths.size - MAX_PENDING_AUTHS);
+    keysToDelete.forEach(k => pendingTelegramAuths.delete(k));
+  }
+}
 
 const generateToken = (userId: string) => {
-  return jwt.sign({ userId }, process.env.JWT_SECRET || 'fallback_secret', { expiresIn: '30d' });
+  const JWT_SECRET = process.env.JWT_SECRET;
+  if (!JWT_SECRET) throw new Error('JWT_SECRET is not configured');
+  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '30d' });
 };
 
 const generateReferralCode = () => {
@@ -37,6 +47,17 @@ router.post('/guest', async (req, res) => {
 
 router.post('/email/register', async (req, res) => {
   const { email, password, name, referralCode } = req.body;
+
+  if (!email || typeof email !== 'string' || !email.includes('@')) {
+    return res.status(400).json({ message: 'Invalid email format' });
+  }
+  if (!password || typeof password !== 'string' || password.length < 6) {
+    return res.status(400).json({ message: 'Password must be at least 6 characters' });
+  }
+  if (!name || typeof name !== 'string' || name.trim().length === 0) {
+    return res.status(400).json({ message: 'Name is required' });
+  }
+
   try {
     const existing = await User.findOne({ email });
     if (existing) return res.status(400).json({ message: 'Email already exists' });
@@ -163,6 +184,7 @@ router.post('/telegram/callback', async (req, res) => {
 
   const token = generateToken((user._id as any).toString());
   pendingTelegramAuths.set(tempToken, { token, user });
+  cleanupPendingAuths();
 
   // Auto-expire after 2 minutes
   setTimeout(() => pendingTelegramAuths.delete(tempToken), 120000);

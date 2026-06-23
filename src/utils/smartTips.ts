@@ -89,16 +89,18 @@ async function generateTip(t: TFunction, currency: string): Promise<string> {
 
     const productsArr = Object.values(productStats);
     const bestSeller = productsArr.reduce((prev, curr) => (curr.qty > prev.qty) ? curr : prev);
-    const bestSellerMargin = bestSeller.profit / bestSeller.revenue;
+    const bestSellerMargin = bestSeller.revenue > 0 ? bestSeller.profit / bestSeller.revenue : 0;
 
     if (bestSellerMargin < 0.1) {
       return t('home.tips.marginLow', { name: bestSeller.name, percent: Math.round(bestSellerMargin * 100) });
     }
 
-    const highMarginProduct = productsArr.reduce((prev, curr) =>
-      (curr.profit / curr.revenue > prev.profit / prev.revenue) ? curr : prev
-    );
-    const highMargin = highMarginProduct.profit / highMarginProduct.revenue;
+    const highMarginProduct = productsArr.reduce((prev, curr) => {
+      const currMargin = curr.revenue > 0 ? curr.profit / curr.revenue : 0;
+      const prevMargin = prev.revenue > 0 ? prev.profit / prev.revenue : 0;
+      return (currMargin > prevMargin) ? curr : prev;
+    });
+    const highMargin = highMarginProduct.revenue > 0 ? highMarginProduct.profit / highMarginProduct.revenue : 0;
     if (highMargin > 0.4) {
        return t('home.tips.marginHigh', { name: highMarginProduct.name, percent: Math.round(highMargin * 100) });
     }
@@ -109,7 +111,10 @@ async function generateTip(t: TFunction, currency: string): Promise<string> {
   const saleDays = new Set(last30DaysSales.map(s => s.created_at.split(' ')[0]));
   let streak = 0;
   const tempDate = new Date();
-  while (saleDays.has(tempDate.toISOString().split('T')[0])) {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const toLocalDateStr = (d: Date) =>
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  while (saleDays.has(toLocalDateStr(tempDate))) {
     streak++;
     tempDate.setDate(tempDate.getDate() - 1);
   }

@@ -76,7 +76,11 @@ export default function StockOperationModal({
   };
 
   const saveWaste = (qty: number) => {
-    addStockWaste(product.id, qty, note);
+    const result = addStockWaste(product.id, qty, note);
+    if (!result.success) {
+      Alert.alert('Ошибка', result.message || 'Недостаточно на складе');
+      return;
+    }
     onSuccess();
     onClose();
   };

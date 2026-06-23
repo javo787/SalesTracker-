@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 
 const CACHE_KEY = 'ai_forecast_cache';
 const BACKEND_URL = (process.env.EXPO_PUBLIC_API_URL || '') + '/api/ai/forecast';
@@ -51,9 +52,13 @@ export const ForecastService = {
   },
 
   async fetchForecast(payload: ForecastPayload): Promise<string> {
+    const token = await SecureStore.getItemAsync('auth_token');
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
     const response = await fetch(BACKEND_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(payload),
     });
 

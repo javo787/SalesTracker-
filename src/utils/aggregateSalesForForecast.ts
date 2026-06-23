@@ -5,17 +5,21 @@ export async function aggregateSalesForForecast(
   language: 'ru' | 'tj' | 'uz',
   currencySymbol: string
 ): Promise<ForecastPayload> {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const toLocalDateStr = (d: Date) =>
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
   const sixtyDaysAgo = new Date();
   sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
-  const sixtyDaysAgoStr = sixtyDaysAgo.toISOString().split('T')[0];
+  const sixtyDaysAgoStr = toLocalDateStr(sixtyDaysAgo);
 
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+  const thirtyDaysAgoStr = toLocalDateStr(thirtyDaysAgo);
 
   const twentyEightDaysAgo = new Date();
   twentyEightDaysAgo.setDate(twentyEightDaysAgo.getDate() - 28);
-  const twentyEightDaysAgoStr = twentyEightDaysAgo.toISOString().split('T')[0];
+  const twentyEightDaysAgoStr = toLocalDateStr(twentyEightDaysAgo);
 
   // 1. salesByDayOfWeek (last 60 days)
   const salesByDayRaw = db.getAllSync(`

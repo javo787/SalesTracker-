@@ -57,23 +57,38 @@ export const AuthService = {
 
     await WebBrowser.openBrowserAsync(url);
 
-    // Polling
     return new Promise((resolve, reject) => {
       let attempts = 0;
+      let settled = false;
       const interval = setInterval(async () => {
+        if (settled) return;
         try {
           const result = await api.get<AuthResult>(`/auth/telegram/check?token=${tempToken}`);
+          if (settled) return;
+          settled = true;
           clearInterval(interval);
           await this.saveAuthData(result);
           resolve(result);
         } catch (e) {
           attempts++;
-          if (attempts > 30) { // 60 seconds
-            clearInterval(interval);
-            reject(new Error('Telegram auth timeout'));
+          if (attempts > 30 || settled) {
+            if (!settled) {
+              settled = true;
+              clearInterval(interval);
+              reject(new Error('Telegram auth timeout'));
+            }
           }
         }
       }, 2000);
+
+      // Safety: clear interval after 70s even if something goes wrong
+      setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          clearInterval(interval);
+          reject(new Error('Telegram auth timeout'));
+        }
+      }, 70000);
     });
   },
 

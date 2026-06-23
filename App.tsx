@@ -22,6 +22,7 @@ import { AppLockProvider, useAppLock } from './src/context/AppLockContext';
 import { useNewsUnread } from './src/hooks/useNewsUnread';
 import { Ionicons } from '@expo/vector-icons';
 import { FEATURES } from './src/config/features';
+import { Colors, DarkTheme as DarkColors, LightTheme as LightColors, Radius, Shadow } from './src/constants/theme';
 
 import HomeScreen from './src/screens/HomeScreen'; 
 import AuthScreen from './src/screens/AuthScreen';
@@ -58,16 +59,17 @@ function MainTabs() {
     <Tab.Navigator
       id="MainTabs"
       screenOptions={({ navigation }) => ({
-        tabBarActiveTintColor: '#1D9E75',
-        tabBarInactiveTintColor: isDark ? '#aaa' : '#888',
+        tabBarActiveTintColor: Colors.primary,
+        tabBarInactiveTintColor: isDark ? DarkColors.textSecondary : LightColors.textSecondary,
         tabBarStyle: {
-          backgroundColor: isDark ? '#121212' : '#fff',
+          backgroundColor: isDark ? DarkColors.tabBarBg : LightColors.tabBarBg,
           borderTopWidth: 0.5,
-          borderTopColor: isDark ? '#333' : '#eee',
+          borderTopColor: isDark ? DarkColors.tabBarBorder : LightColors.tabBarBorder,
           height: 60 + insets.bottom,
           paddingBottom: 8 + insets.bottom,
+          ...Shadow.sm,
         },
-        headerStyle: { backgroundColor: '#1D9E75' },
+        headerStyle: { backgroundColor: isDark ? DarkColors.headerBg : LightColors.headerBg },
         headerTintColor: '#fff',
         headerTitleStyle: { fontWeight: 'bold' },
         headerRight: () => (
@@ -108,26 +110,6 @@ function MainTabs() {
         }}
       />
       <Tab.Screen
-        name="Calculator"
-        component={CalculatorScreen}
-        options={{
-          tabBarLabel: 'Калькул.',
-          title: 'Калькулятор',
-          tabBarIcon: ({ color, size }) => <Ionicons name="calculator-outline" size={size} color={color} />,
-        }}
-      />
-
-      <Tab.Screen
-        name="Currency"
-        component={CurrencyScreen}
-        options={{
-          tabBarLabel: 'Валюта',
-          title: 'Курсы валют',
-          tabBarIcon: ({ color, size }) => <Ionicons name="cash-outline" size={size} color={color} />,
-        }}
-      />
-
-      <Tab.Screen
         name="Reports"
         component={ReportScreen}
         options={{
@@ -156,10 +138,10 @@ function DrawerNavigator() {
         headerShown: false,
         drawerStyle: {
           width: '75%',
-          backgroundColor: isDark ? '#1E1E1E' : '#fff',
+          backgroundColor: isDark ? DarkColors.card : LightColors.card,
         },
-        drawerActiveTintColor: '#1D9E75',
-        drawerInactiveTintColor: isDark ? '#aaa' : '#555',
+        drawerActiveTintColor: Colors.primary,
+        drawerInactiveTintColor: isDark ? DarkColors.textSecondary : '#555',
         drawerLabelStyle: {
           fontSize: 16,
           fontWeight: '500',
@@ -196,6 +178,22 @@ function DrawerNavigator() {
         options={{
           drawerLabel: t('tabs.reports'),
           drawerIcon: ({ color }) => <Ionicons name="stats-chart-outline" size={22} color={color} />,
+        }}
+      />
+      <Drawer.Screen
+        name="Calculator"
+        component={CalculatorScreen}
+        options={{
+          drawerLabel: 'Калькулятор',
+          drawerIcon: ({ color }) => <Ionicons name="calculator-outline" size={22} color={color} />,
+        }}
+      />
+      <Drawer.Screen
+        name="Currency"
+        component={CurrencyScreen}
+        options={{
+          drawerLabel: 'Курсы валют',
+          drawerIcon: ({ color }) => <Ionicons name="cash-outline" size={22} color={color} />,
         }}
       />
       {FEATURES.CLASSIFIEDS_ENABLED && (
@@ -311,39 +309,39 @@ function AppContent() {
         <Stack.Screen
           name="Settings"
           component={SettingsScreen}
-          options={{ title: 'Настройки', headerStyle: { backgroundColor: '#1D9E75' }, headerTintColor: '#fff' }}
+          options={{ title: 'Настройки', headerStyle: { backgroundColor: Colors.primary }, headerTintColor: '#fff' }}
         />
         <Stack.Screen
           name="Profile"
           component={ProfileScreen}
-          options={{ title: t('profile.title'), headerStyle: { backgroundColor: '#1D9E75' }, headerTintColor: '#fff' }}
+          options={{ title: t('profile.title'), headerStyle: { backgroundColor: Colors.primary }, headerTintColor: '#fff' }}
         />
         <Stack.Screen
           name="Expenses"
           component={ExpensesScreen}
-          options={{ title: t('tabs.expenses'), headerStyle: { backgroundColor: '#1D9E75' }, headerTintColor: '#fff' }}
+          options={{ title: t('tabs.expenses'), headerStyle: { backgroundColor: Colors.primary }, headerTintColor: '#fff' }}
         />
         <Stack.Screen
           name="ClassifiedDetail"
           component={ClassifiedDetailScreen}
-          options={{ title: t('classifieds.title'), headerStyle: { backgroundColor: '#1D9E75' }, headerTintColor: '#fff' }}
+          options={{ title: t('classifieds.title'), headerStyle: { backgroundColor: Colors.primary }, headerTintColor: '#fff' }}
         />
         <Stack.Screen
           name="WholesaleDetail"
           component={WholesaleDetailScreen}
-          options={{ title: t('wholesale.title'), headerStyle: { backgroundColor: '#1D9E75' }, headerTintColor: '#fff' }}
+          options={{ title: t('wholesale.title'), headerStyle: { backgroundColor: Colors.primary }, headerTintColor: '#fff' }}
         />
         <Stack.Screen
           name="AppLockSetup"
           component={AppLockSetupScreen}
-          options={{ title: t('appLock.title'), headerStyle: { backgroundColor: '#1D9E75' }, headerTintColor: '#fff' }}
+          options={{ title: t('appLock.title'), headerStyle: { backgroundColor: Colors.primary }, headerTintColor: '#fff' }}
         />
         <Stack.Screen
           name="Debtors"
           component={DebtorsScreen}
           options={{
             title: 'Должники',
-            headerStyle: { backgroundColor: '#1D9E75' },
+            headerStyle: { backgroundColor: Colors.primary },
             headerTintColor: '#fff',
           }}
         />
@@ -352,7 +350,7 @@ function AppContent() {
           component={AddSaleScreen}
           options={{
             title: t('addSale.title'),
-            headerStyle: { backgroundColor: '#1D9E75' },
+            headerStyle: { backgroundColor: Colors.primary },
             headerTintColor: '#fff',
           }}
         />

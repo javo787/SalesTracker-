@@ -100,9 +100,10 @@ class AdService {
     }
 
     if (this.directAds.length > 0) {
-      // Return highest priority active ad
       const activeAds = this.directAds.filter(ad => ad.active);
-      return activeAds.length > 0 ? activeAds[0] : null;
+      if (activeAds.length === 0) return null;
+      activeAds.sort((a, b) => (b.priority || 0) - (a.priority || 0));
+      return activeAds[0];
     }
     return null;
   }

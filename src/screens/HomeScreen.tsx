@@ -3,6 +3,7 @@ import {
   View, Text, ScrollView, StyleSheet,
   TouchableOpacity, RefreshControl, Alert, PanResponder, Animated as RNAnimated
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,6 +15,7 @@ import CurrencyConversionBanner from '../components/CurrencyConversionBanner';
 import WholesalePromoStrip from '../components/market/WholesalePromoStrip';
 import { useNewsUnread } from '../hooks/useNewsUnread';
 import { FEATURES } from '../config/features';
+import { Colors, LightTheme, DarkTheme, Radius, Shadow, FontSize, Spacing } from '../constants/theme';
 
 const SaleListItem = React.memo(({ sale, onDelete, isDark, currency, t, i18n, themeStyles }: any) => {
   const translateX = useRef(new RNAnimated.Value(0)).current;
@@ -92,24 +94,34 @@ const SaleListItem = React.memo(({ sale, onDelete, isDark, currency, t, i18n, th
 });
 
 function StatCard({ label, value, currency, unit, icon, color, themeStyles, trend }: any) {
+  const bgMap: Record<string, string> = {
+    '#1D9E75': Colors.primaryLight,
+    '#0C447C': Colors.infoLight,
+    '#854F0B': Colors.brownLight,
+    '#3B6D11': Colors.greenDarkLight,
+  };
+  const iconBg = bgMap[color] || '#F0F0F0';
+
   return (
-    <View style={[styles.statCard, themeStyles.card]}>
+    <View style={[styles.statCard, themeStyles.card, Shadow.md]}>
       <View style={styles.statHeader}>
-        <Ionicons name={icon} size={16} color={color} />
-        <Text style={styles.statLabel} numberOfLines={1}>{label}</Text>
+        <View style={[styles.statIconBg, { backgroundColor: iconBg }]}>
+          <Ionicons name={icon} size={18} color={color} />
+        </View>
+        <Text style={[styles.statLabel, { color: themeStyles.textSecondary?.color || '#999' }]} numberOfLines={1}>{label}</Text>
       </View>
       <Text style={[styles.statValue, themeStyles.text]}>
         {value.toLocaleString()} {currency || unit}
       </Text>
       {trend !== undefined && trend !== null && (
-        <View style={styles.trendContainer}>
+        <View style={[styles.trendPill, { backgroundColor: trend >= 0 ? Colors.primaryLight : Colors.dangerLight }]}>
           <Ionicons
             name={trend >= 0 ? "trending-up" : "trending-down"}
-            size={12}
-            color={trend >= 0 ? "#1D9E75" : "#FF6B6B"}
+            size={11}
+            color={trend >= 0 ? Colors.primary : Colors.danger}
           />
-          <Text style={[styles.trendText, { color: trend >= 0 ? "#1D9E75" : "#FF6B6B" }]}>
-            {trend > 0 ? `+${trend}` : trend}% {trend === 0 ? '' : 'vs avg'}
+          <Text style={[styles.trendText, { color: trend >= 0 ? Colors.primary : Colors.danger }]}>
+            {trend > 0 ? `+${trend}` : trend}%
           </Text>
         </View>
       )}
@@ -153,10 +165,10 @@ export default function HomeScreen() {
     loadTip();
   }, [t, currency.symbol]));
 
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    loadData();
-    loadTip();
+    await loadData();
+    await loadTip();
     setRefreshing(false);
   };
 
@@ -182,15 +194,15 @@ export default function HomeScreen() {
 
   const revenueTrend = useMemo(() => {
     const avg = (stats7.revenue - stats.revenue) / 6;
-    if (avg <= 0) return null;
-    const diff = (stats.revenue - avg) / avg;
+    if (avg === 0) return null;
+    const diff = (stats.revenue - avg) / Math.abs(avg);
     return Math.round(diff * 100);
   }, [stats.revenue, stats7.revenue]);
 
   const profitTrend = useMemo(() => {
     const avg = (stats7.profit - stats.profit) / 6;
-    if (avg <= 0) return null;
-    const diff = (stats.profit - avg) / avg;
+    if (avg === 0) return null;
+    const diff = (stats.profit - avg) / Math.abs(avg);
     return Math.round(diff * 100);
   }, [stats.profit, stats7.profit]);
 
@@ -208,20 +220,27 @@ export default function HomeScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       {/* Заголовок */}
-      <View style={styles.header}>
+      <LinearGradient
+        colors={[Colors.primary, Colors.primaryDark]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.header}
+      >
         <View style={styles.headerTopRow}>
-          <Text style={styles.headerTitle}>{getGreeting()}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.headerTitle}>{getGreeting()}</Text>
+            <Text style={styles.headerDate}>
+              {new Date().toLocaleDateString(i18n.language === 'tg' ? 'tg-TJ' : i18n.language === 'uz' ? 'uz-UZ' : 'ru-RU', {
+                day: 'numeric', month: 'long', year: 'numeric'
+              })}
+            </Text>
+          </View>
           <TouchableOpacity onPress={() => navigation.navigate('News')} style={styles.newsBtn}>
             <Ionicons name="newspaper-outline" size={22} color="#fff" />
             {hasUnread && <View style={styles.newsBadgeDot} />}
           </TouchableOpacity>
         </View>
-        <Text style={styles.headerDate}>
-          {new Date().toLocaleDateString(i18n.language === 'tg' ? 'tg-TJ' : i18n.language === 'uz' ? 'uz-UZ' : 'ru-RU', {
-            day: 'numeric', month: 'long', year: 'numeric'
-          })}
-        </Text>
-      </View>
+      </LinearGradient>
 
       <CurrencyConversionBanner />
 
@@ -263,25 +282,25 @@ export default function HomeScreen() {
       {/* Quick Actions */}
       <View style={styles.quickActions}>
         <TouchableOpacity
-          style={[styles.actionChip, themeStyles.card]}
+          style={[styles.actionChip, { backgroundColor: Colors.primaryLight }]}
           onPress={() => navigation.navigate('Sale')}
         >
-          <Ionicons name="add-circle-outline" size={18} color="#1D9E75" />
-          <Text style={[styles.actionText, themeStyles.text]}>{t('tabs.sale')}</Text>
+          <Ionicons name="add-circle-outline" size={18} color={Colors.primary} />
+          <Text style={[styles.actionText, { color: Colors.primary }]}>{t('tabs.sale')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.actionChip, themeStyles.card]}
+          style={[styles.actionChip, { backgroundColor: Colors.dangerLight }]}
           onPress={() => navigation.navigate('Expenses')}
         >
-          <Ionicons name="receipt-outline" size={18} color="#FF6B6B" />
-          <Text style={[styles.actionText, themeStyles.text]}>{t('tabs.expenses')}</Text>
+          <Ionicons name="receipt-outline" size={18} color={Colors.danger} />
+          <Text style={[styles.actionText, { color: Colors.danger }]}>{t('tabs.expenses')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.actionChip, themeStyles.card]}
+          style={[styles.actionChip, { backgroundColor: Colors.infoLight }]}
           onPress={() => navigation.navigate('Calculator')}
         >
-          <Ionicons name="calculator-outline" size={18} color="#0C447C" />
-          <Text style={[styles.actionText, themeStyles.text]}>{t('tabs.home') === 'Главная' ? 'Калькулятор' : 'Calc'}</Text>
+          <Ionicons name="calculator-outline" size={18} color={Colors.info} />
+          <Text style={[styles.actionText, { color: Colors.info }]}>{t('tabs.home') === 'Главная' ? 'Калькулятор' : 'Calc'}</Text>
         </TouchableOpacity>
       </View>
 
@@ -361,112 +380,118 @@ export default function HomeScreen() {
 }
 
 const lightStyles = StyleSheet.create({
-  container: { backgroundColor: '#F5F5F5' },
-  card: { backgroundColor: '#fff' },
-  text: { color: '#333' },
+  container: { backgroundColor: LightTheme.background },
+  card: { backgroundColor: LightTheme.card },
+  text: { color: LightTheme.text },
+  textSecondary: { color: LightTheme.textSecondary },
 });
 
 const darkStyles = StyleSheet.create({
-  container: { backgroundColor: '#000' },
-  card: { backgroundColor: '#1E1E1E' },
-  text: { color: '#EEE' },
+  container: { backgroundColor: DarkTheme.background },
+  card: { backgroundColor: DarkTheme.card },
+  text: { color: DarkTheme.text },
+  textSecondary: { color: DarkTheme.textSecondary },
 });
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { padding: 20, backgroundColor: '#1D9E75' },
-  headerTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#fff' },
-  newsBtn: { padding: 4, position: 'relative' },
-  newsBadgeDot: { position: 'absolute', top: 2, right: 2, width: 8, height: 8, borderRadius: 4, backgroundColor: '#FF6B6B' },
-  headerDate: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
+  header: {
+    padding: Spacing.xl, paddingTop: Spacing.xl,
+    borderBottomLeftRadius: Radius.lg, borderBottomRightRadius: Radius.lg,
+    ...Shadow.lg,
+  },
+  headerTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  headerTitle: { fontSize: FontSize.xxl, fontWeight: 'bold', color: '#fff', marginBottom: Spacing.xs },
+  newsBtn: { padding: Spacing.sm, position: 'relative' },
+  newsBadgeDot: { position: 'absolute', top: 6, right: 6, width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.danger },
+  headerDate: { fontSize: FontSize.sm, color: 'rgba(255,255,255,0.8)', marginTop: Spacing.xs },
   tipCard: {
-    margin: 16, marginBottom: 4, padding: 16,
-    borderRadius: 12,
-    borderLeftWidth: 4, borderLeftColor: '#1D9E75',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1, shadowRadius: 2, elevation: 2,
+    margin: Spacing.lg, marginBottom: Spacing.sm, padding: Spacing.lg,
+    borderRadius: Radius.lg,
+    borderLeftWidth: 4, borderLeftColor: Colors.primary,
+    ...Shadow.md,
   },
-  tipHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  tipEmoji: { fontSize: 18, marginRight: 8 },
-  tipTitle: { fontSize: 14, fontWeight: 'bold', color: '#1D9E75' },
-  tipText: { fontSize: 14, lineHeight: 20, fontStyle: 'italic' },
-  statsRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, marginTop: 12 },
+  tipHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.sm },
+  tipEmoji: { fontSize: FontSize.xl, marginRight: Spacing.sm },
+  tipTitle: { fontSize: FontSize.md, fontWeight: 'bold', color: Colors.primary },
+  tipText: { fontSize: FontSize.md, lineHeight: 20, fontStyle: 'italic' },
+  statsRow: { flexDirection: 'row', gap: Spacing.md, paddingHorizontal: Spacing.lg, marginTop: Spacing.md },
   statCard: {
-    flex: 1, borderRadius: 12, padding: 12,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1, shadowRadius: 2, elevation: 2,
+    flex: 1, borderRadius: Radius.lg, padding: Spacing.md,
+    ...Shadow.md,
   },
-  statHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 },
-  statLabel: { fontSize: 11, color: '#999', flex: 1 },
-  statValue: { fontSize: 17, fontWeight: 'bold' },
-  trendContainer: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
-  trendText: { fontSize: 10, fontWeight: '600', marginLeft: 2 },
+  statIconBg: {
+    width: 32, height: 32, borderRadius: Radius.sm,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  statHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.sm, gap: Spacing.sm },
+  statLabel: { fontSize: FontSize.sm, flex: 1 },
+  statValue: { fontSize: FontSize.xl, fontWeight: 'bold' },
+  trendPill: {
+    flexDirection: 'row', alignItems: 'center',
+    marginTop: Spacing.sm,
+    paddingHorizontal: Spacing.sm, paddingVertical: Spacing.xs,
+    borderRadius: Radius.pill, alignSelf: 'flex-start',
+  },
+  trendText: { fontSize: FontSize.xs, fontWeight: '700', marginLeft: 2 },
   sectionTitle: {
-    fontSize: 16, fontWeight: '600',
-    paddingHorizontal: 16, marginTop: 24, marginBottom: 8
+    fontSize: FontSize.lg, fontWeight: '600',
+    paddingHorizontal: Spacing.lg, marginTop: Spacing.xxl, marginBottom: Spacing.sm,
   },
   empty: { alignItems: 'center', padding: 40 },
-  emptyText: { fontSize: 16, color: '#999', marginTop: 12, marginBottom: 6 },
-  emptyHint: { fontSize: 13, color: '#bbb', marginBottom: 20 },
+  emptyText: { fontSize: FontSize.lg, color: '#999', marginTop: Spacing.md, marginBottom: Spacing.sm },
+  emptyHint: { fontSize: FontSize.md, color: '#bbb', marginBottom: Spacing.xl },
   addSaleCta: {
-    backgroundColor: '#1D9E75',
-    paddingHorizontal: 20, paddingVertical: 10,
-    borderRadius: 20,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.xl, paddingVertical: Spacing.md,
+    borderRadius: Radius.pill,
   },
   addSaleCtaText: { color: '#fff', fontWeight: '600' },
   quickActions: {
-    flexDirection: 'row', gap: 10, paddingHorizontal: 16, marginTop: 16,
+    flexDirection: 'row', gap: Spacing.sm, paddingHorizontal: Spacing.lg, marginTop: Spacing.lg,
   },
   actionChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 12, paddingVertical: 8,
-    borderRadius: 20,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05, shadowRadius: 2, elevation: 2,
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2,
+    borderRadius: Radius.xl,
   },
-  actionText: { fontSize: 12, fontWeight: '500' },
+  actionText: { fontSize: FontSize.sm, fontWeight: '600' },
   swipeContainer: {
     position: 'relative',
-    marginBottom: 8,
-    marginHorizontal: 16,
+    marginBottom: Spacing.sm,
+    marginHorizontal: Spacing.lg,
   },
   deleteBackground: {
     position: 'absolute',
-    right: 0,
-    top: 0,
-    bottom: 0,
+    right: 0, top: 0, bottom: 0,
     width: 80,
-    backgroundColor: '#FF6B6B',
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'flex-end',
+    backgroundColor: Colors.danger,
+    borderRadius: Radius.lg,
+    justifyContent: 'center', alignItems: 'flex-end',
     paddingRight: 25,
   },
   saleItem: {
     flexDirection: 'row', justifyContent: 'space-between',
-    borderRadius: 12, padding: 14,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05, shadowRadius: 2, elevation: 2,
+    borderRadius: Radius.lg, padding: Spacing.lg - 2,
+    ...Shadow.sm,
   },
   saleLeft: { flex: 1 },
-  saleName: { fontSize: 15, fontWeight: '500' },
-  saleTime: { fontSize: 12, color: '#999', marginTop: 3 },
+  saleName: { fontSize: FontSize.lg - 1, fontWeight: '500' },
+  saleTime: { fontSize: FontSize.sm, color: '#999', marginTop: Spacing.xs + 1 },
   saleRight: { alignItems: 'flex-end' },
-  saleRevenue: { fontSize: 15, fontWeight: '600' },
-  saleProfit: { fontSize: 13, color: '#1D9E75', marginTop: 3 },
+  saleRevenue: { fontSize: FontSize.lg - 1, fontWeight: '600' },
+  saleProfit: { fontSize: FontSize.md - 1, color: Colors.primary, marginTop: Spacing.xs + 1 },
   debtWidget: {
-    marginHorizontal: 16, marginTop: 12, marginBottom: 0,
-    borderRadius: 12, padding: 14,
+    marginHorizontal: Spacing.lg, marginTop: Spacing.md, marginBottom: 0,
+    borderRadius: Radius.lg, padding: Spacing.lg - 2,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     borderLeftWidth: 4, borderLeftColor: '#E53935',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08, shadowRadius: 2, elevation: 2,
+    ...Shadow.md,
   },
-  debtWidgetLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  debtWidgetLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   debtWidgetIcon: { fontSize: 22 },
-  debtWidgetLabel: { fontSize: 13, color: '#999' },
-  debtWidgetCount: { fontSize: 12, color: '#E53935', fontWeight: '500' },
-  debtWidgetRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  debtWidgetAmount: { fontSize: 18, fontWeight: 'bold' },
+  debtWidgetLabel: { fontSize: FontSize.md - 1, color: '#999' },
+  debtWidgetCount: { fontSize: FontSize.sm, color: '#E53935', fontWeight: '500' },
+  debtWidgetRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  debtWidgetAmount: { fontSize: FontSize.xl, fontWeight: 'bold' },
 });

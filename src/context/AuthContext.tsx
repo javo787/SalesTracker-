@@ -38,14 +38,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           try {
             const freshUser = await api.get<User>('/profile');
             setUser(freshUser);
-            AuthService.saveAuthData({ token: (await AuthService.getStoredToken())!, user: freshUser });
+            const token = await AuthService.getStoredToken();
+            if (token) {
+              AuthService.saveAuthData({ token, user: freshUser });
+            }
           } catch (e) {
             console.warn('Failed to validate session with server');
-            if ((e as any).message === 'API request failed') { // Potential 401
-               // Check if token still exists, if not, it was cleared by api.ts
-               const token = await AuthService.getStoredToken();
-               if (!token) setUser(null);
-            }
+            const token = await AuthService.getStoredToken();
+            if (!token) setUser(null);
           }
         }
       }

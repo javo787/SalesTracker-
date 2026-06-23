@@ -52,14 +52,15 @@ export default function CategoryPicker({ selectedCategory, onSelect }: CategoryP
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 12,
+    marginVertical: 8,
   },
   item: {
     alignItems: 'center',
-    padding: 12,
-    borderRadius: 12,
-    marginRight: 10,
-    width: 90,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    borderRadius: 10,
+    marginRight: 8,
+    width: 72,
     borderWidth: 1,
   },
   itemLight: {
@@ -75,12 +76,13 @@ const styles = StyleSheet.create({
     borderColor: '#1D9E75',
   },
   icon: {
-    fontSize: 24,
-    marginBottom: 4,
+    fontSize: 20,
+    marginBottom: 2,
   },
   label: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '500',
+    textAlign: 'center',
   },
   labelLight: {
     color: '#666',

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { marketService } from '../services/marketService';
 import { NewsFeed } from '../types/ads';
@@ -9,9 +9,14 @@ export function useNews() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
 
   const CACHE_KEY = 'news_cache';
   const CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours
+
+  useEffect(() => {
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const checkAndNotifyImportant = async (newsFeed: NewsFeed | null) => {
     if (!newsFeed) return;
@@ -46,16 +51,16 @@ export function useNews() {
         if (cached) {
           const { data, timestamp } = JSON.parse(cached);
           if (Date.now() - timestamp < CACHE_TTL) {
-            setNews(data);
+            if (mountedRef.current) setNews(data);
             checkAndNotifyImportant(data);
-            setLoading(false);
+            if (mountedRef.current) setLoading(false);
             return;
           }
         }
       }
 
       const data = await marketService.getLatestNews();
-      setNews(data);
+      if (mountedRef.current) setNews(data);
       checkAndNotifyImportant(data);
 
       if (data) {
@@ -65,15 +70,17 @@ export function useNews() {
         }));
       }
     } catch (e: any) {
-      setError(e.message);
+      if (mountedRef.current) setError(e.message);
       const cached = await AsyncStorage.getItem(CACHE_KEY);
       if (cached) {
         const { data } = JSON.parse(cached);
-        setNews(data);
+        if (mountedRef.current) setNews(data);
       }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (mountedRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, [CACHE_KEY]);
 

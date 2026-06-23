@@ -17,6 +17,7 @@ import GeminiApi from '../utils/geminiApi';
 import ExpensesView from '../components/expenses/ExpensesView';
 import { ProductAutocomplete } from '../components/sales/ProductAutocomplete';
 import { AutocompleteResult } from '../types/product';
+import { Colors, LightTheme, DarkTheme, Radius, Shadow, FontSize, Spacing } from '../constants/theme';
 
 const CACHE_TTL = 60 * 60 * 1000; // 1 час в мс
 
@@ -31,7 +32,8 @@ export default function AddSaleScreen(/* props */) {
       process.env.EXPO_PUBLIC_GEMINI_KEY_2,
       process.env.EXPO_PUBLIC_GEMINI_KEY_3,
     ].filter(Boolean) as string[];
-    return new GeminiApi({ geminiKeys: keys.length ? keys : [''] });
+    if (keys.length === 0) return null;
+    return new GeminiApi({ geminiKeys: keys });
   }, []);
 
   const [selectedProduct, setSelectedProduct] = useState<AutocompleteResult | null>(null);
@@ -105,7 +107,7 @@ export default function AddSaleScreen(/* props */) {
   };
 
   const analyzeWithAI = async (text: string) => {
-    if (!process.env.EXPO_PUBLIC_GEMINI_KEY) {
+    if (!gemini) {
       Alert.alert(t('common.error'), 'Ключ Gemini API не настроен. Пожалуйста, проверьте файл .env');
       return;
     }
@@ -184,17 +186,16 @@ FEW-SHOT EXAMPLES:
   };
 
   const applyAIResult = (parsed: { product_name: string; sell_price: number; buy_price: number; quantity: number; revenue: number; profit: number }) => {
-    // Заполняем поля
     if (parsed.product_name) setProductName(parsed.product_name);
     if (parsed.sell_price > 0) setSellPrice(String(parsed.sell_price));
     if (parsed.buy_price > 0) setBuyPrice(String(parsed.buy_price));
     if (parsed.quantity > 0) setQuantity(String(parsed.quantity));
 
-    // Если сказал общую выручку и прибыль — рассчитываем закупочную
     if (parsed.revenue > 0 && parsed.profit > 0 && parsed.sell_price === 0) {
-      const calcBuy = (parsed.revenue - parsed.profit) / (parsed.quantity || 1);
-      setSellPrice(String(parsed.revenue / (parsed.quantity || 1)));
-      setBuyPrice(String(calcBuy));
+      const qty = parsed.quantity > 0.01 ? parsed.quantity : 1;
+      const calcBuy = (parsed.revenue - parsed.profit) / qty;
+      setSellPrice(String(parsed.revenue / qty));
+      setBuyPrice(String(Math.max(0, calcBuy)));
       setProductName(parsed.product_name || 'Продажа дня');
     }
   };
@@ -533,21 +534,21 @@ FEW-SHOT EXAMPLES:
 }
 
 const lightStyles = StyleSheet.create({
-  container: { backgroundColor: '#F5F5F5' },
-  card: { backgroundColor: '#fff' },
-  text: { color: '#333' },
+  container: { backgroundColor: LightTheme.background },
+  card: { backgroundColor: LightTheme.card },
+  text: { color: LightTheme.text },
   voiceResult: { backgroundColor: '#F8F8F8' },
-  input: { backgroundColor: '#F5F5F5', borderColor: '#E0E0E0' },
-  successCard: { backgroundColor: '#F0FBF7' },
-  preview: { backgroundColor: '#F0FBF7' },
+  input: { backgroundColor: LightTheme.inputBg, borderColor: LightTheme.inputBorder },
+  successCard: { backgroundColor: Colors.primaryLight },
+  preview: { backgroundColor: Colors.primaryLight },
 });
 
 const darkStyles = StyleSheet.create({
-  container: { backgroundColor: '#000' },
-  card: { backgroundColor: '#1E1E1E' },
-  text: { color: '#EEE' },
+  container: { backgroundColor: DarkTheme.background },
+  card: { backgroundColor: DarkTheme.card },
+  text: { color: DarkTheme.text },
   voiceResult: { backgroundColor: '#2C2C2C' },
-  input: { backgroundColor: '#2C2C2C', borderColor: '#444', color: '#EEE' },
+  input: { backgroundColor: DarkTheme.inputBg, borderColor: DarkTheme.inputBorder, color: DarkTheme.text },
   successCard: { backgroundColor: '#16332A' },
   preview: { backgroundColor: '#16332A' },
 });
@@ -555,41 +556,37 @@ const darkStyles = StyleSheet.create({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   tabContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
   },
   segmentedControl: {
     flexDirection: 'row',
-    borderRadius: 25,
-    padding: 4,
+    borderRadius: Radius.xl,
+    padding: Spacing.xs,
     height: 46,
   },
   segmentedControlLight: {
-    backgroundColor: '#fff',
+    backgroundColor: LightTheme.card,
     borderWidth: 1,
-    borderColor: '#eee',
+    borderColor: LightTheme.border,
   },
   segmentedControlDark: {
-    backgroundColor: '#000',
+    backgroundColor: DarkTheme.background,
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: DarkTheme.border,
   },
   tabBtn: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 21,
+    borderRadius: Radius.xl,
   },
   tabBtnActive: {
-    backgroundColor: '#1D9E75',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 3,
+    backgroundColor: Colors.primary,
+    ...Shadow.md,
   },
   tabText: {
-    fontSize: 14,
+    fontSize: FontSize.md,
     fontWeight: '600',
     color: '#666',
   },
@@ -598,20 +595,13 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    bottom: 24,
-    right: 24,
-    width: 60,
-    height: 60,
+    bottom: 24, right: 24,
+    width: 60, height: 60,
     borderRadius: 30,
-    backgroundColor: '#1D9E75',
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4.65,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center', alignItems: 'center',
     zIndex: 999,
+    ...Shadow.lg,
   },
   modalOverlay: {
     flex: 1,
@@ -619,94 +609,90 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   voiceBar: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
+    borderTopLeftRadius: Radius.xl,
+    borderTopRightRadius: Radius.xl,
+    padding: Spacing.xl,
     paddingBottom: 40,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 10,
+    ...Shadow.lg,
   },
   voiceBarHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: Spacing.md,
   },
   voiceBarTitle: {
-    fontSize: 16,
+    fontSize: FontSize.lg,
     fontWeight: 'bold',
   },
   closeBtn: {
-    padding: 4,
+    padding: Spacing.xs,
   },
-  sectionTitle: { fontSize: 16, fontWeight: '600', marginBottom: 12 },
-  voiceResult: { marginTop: 12, padding: 12, borderRadius: 8 },
-  voiceResultLabel: { fontSize: 12, color: '#999', marginBottom: 4 },
-  voiceResultText: { fontSize: 14, fontStyle: 'italic' },
-  processingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
-  processingText: { fontSize: 14, color: '#1D9E75' },
+  sectionTitle: { fontSize: FontSize.lg, fontWeight: '600', marginBottom: Spacing.md },
+  voiceResult: { marginTop: Spacing.md, padding: Spacing.md, borderRadius: Radius.sm },
+  voiceResultLabel: { fontSize: FontSize.sm, color: '#999', marginBottom: Spacing.xs },
+  voiceResultText: { fontSize: FontSize.md, fontStyle: 'italic' },
+  processingRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: Spacing.md },
+  processingText: { fontSize: FontSize.md, color: Colors.primary },
   form: {
-    margin: 16, marginTop: 0,
-    borderRadius: 12, padding: 16,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05, shadowRadius: 2, elevation: 2,
+    margin: Spacing.lg, marginTop: 0,
+    borderRadius: Radius.lg, padding: Spacing.lg,
+    ...Shadow.md,
   },
-  label: { fontSize: 13, marginBottom: 6, marginTop: 12 },
+  label: { fontSize: FontSize.md - 1, marginBottom: Spacing.sm, marginTop: Spacing.md },
   input: {
-    borderRadius: 8, padding: 12,
-    fontSize: 15, borderWidth: 1,
+    borderRadius: Radius.sm, padding: Spacing.md,
+    fontSize: FontSize.lg - 1, borderWidth: 1,
   },
   inputMultiline: { height: 80, textAlignVertical: 'top' },
-  row: { flexDirection: 'row', gap: 10 },
+  row: { flexDirection: 'row', gap: Spacing.md },
   halfField: { flex: 1 },
   preview: {
-    marginTop: 16, padding: 14,
-    borderRadius: 10, borderWidth: 1, borderColor: '#1D9E75',
+    marginTop: Spacing.lg, padding: Spacing.lg - 2,
+    borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.primary,
   },
-  previewTitle: { fontSize: 13, fontWeight: '600', color: '#1D9E75', marginBottom: 8 },
-  previewRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
-  previewLabel: { fontSize: 14 },
-  previewValue: { fontSize: 14, fontWeight: '600' },
+  previewTitle: { fontSize: FontSize.md - 1, fontWeight: '600', color: Colors.primary, marginBottom: Spacing.sm },
+  previewRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.xs },
+  previewLabel: { fontSize: FontSize.md },
+  previewValue: { fontSize: FontSize.md, fontWeight: '600' },
   saveBtn: {
-    backgroundColor: '#1D9E75', borderRadius: 12,
-    padding: 16, alignItems: 'center', marginTop: 20,
+    backgroundColor: Colors.primary, borderRadius: Radius.lg,
+    padding: Spacing.lg, alignItems: 'center', marginTop: Spacing.xl,
+    ...Shadow.md,
   },
-  saveBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  saveBtnText: { color: '#fff', fontSize: FontSize.lg, fontWeight: 'bold' },
   autocomplete: {
-    borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 8,
-    marginTop: 4, overflow: 'hidden'
+    borderWidth: 1, borderColor: '#E0E0E0', borderRadius: Radius.sm,
+    marginTop: Spacing.xs, overflow: 'hidden',
   },
   autocompleteItem: {
-    padding: 12, borderBottomWidth: 0.5, borderBottomColor: '#EEE'
+    padding: Spacing.md, borderBottomWidth: 0.5, borderBottomColor: '#EEE',
   },
   successCard: {
-    margin: 16, marginTop: 0,
-    borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#1D9E75',
+    margin: Spacing.lg, marginTop: 0,
+    borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1, borderColor: Colors.primary,
   },
-  successTitle: { fontSize: 16, fontWeight: 'bold', color: '#1D9E75', marginBottom: 8 },
-  successText: { fontSize: 14, marginBottom: 4 },
-  successProfit: { fontSize: 16, fontWeight: 'bold', color: '#1D9E75', marginTop: 4 },
+  successTitle: { fontSize: FontSize.lg, fontWeight: 'bold', color: Colors.primary, marginBottom: Spacing.sm },
+  successText: { fontSize: FontSize.md, marginBottom: Spacing.xs },
+  successProfit: { fontSize: FontSize.lg, fontWeight: 'bold', color: Colors.primary, marginTop: Spacing.xs },
   paymentSection: {
-    marginTop: 12,
+    marginTop: Spacing.md,
   },
   paymentRow: {
     flexDirection: 'row',
-    gap: 8,
-    marginTop: 6,
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
   },
   paymentBtn: {
     flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingVertical: Spacing.md,
+    borderRadius: Radius.sm,
     alignItems: 'center',
     borderWidth: 1,
   },
-  paymentBtnLight: { backgroundColor: '#F5F5F5', borderColor: '#E0E0E0' },
-  paymentBtnDark:  { backgroundColor: '#2C2C2C', borderColor: '#444' },
-  paymentBtnActive: { backgroundColor: '#1D9E75', borderColor: '#1D9E75' },
-  paymentBtnText: { fontSize: 12, fontWeight: '500', color: '#666' },
+  paymentBtnLight: { backgroundColor: LightTheme.background, borderColor: LightTheme.inputBorder },
+  paymentBtnDark:  { backgroundColor: DarkTheme.inputBg, borderColor: DarkTheme.inputBorder },
+  paymentBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  paymentBtnText: { fontSize: FontSize.sm, fontWeight: '500', color: '#666' },
   paymentBtnTextActive: { color: '#fff' },
 });

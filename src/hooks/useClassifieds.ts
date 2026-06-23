@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { marketService } from '../services/marketService';
 import { Classified, ClassifiedCategory } from '../types/ads';
@@ -10,9 +10,14 @@ export function useClassifieds(city?: string, category?: ClassifiedCategory) {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const mountedRef = useRef(true);
 
   const CACHE_KEY = `classifieds_cache_${city || 'all'}_${category || 'all'}`;
   const CACHE_TTL = 15 * 60 * 1000; // 15 minutes
+
+  useEffect(() => {
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const fetchClassifieds = useCallback(async (isRefresh = false, pageNum = 1) => {
     if (isRefresh) {
@@ -24,15 +29,14 @@ export function useClassifieds(city?: string, category?: ClassifiedCategory) {
     setError(null);
 
     try {
-      // Try cache first if not refreshing and page 1
       if (!isRefresh && pageNum === 1) {
         const cached = await AsyncStorage.getItem(CACHE_KEY);
         if (cached) {
           const { data, timestamp } = JSON.parse(cached);
           if (Date.now() - timestamp < CACHE_TTL) {
-            setClassifieds(data);
-            setLoading(false);
-            setHasMore(data.length >= 20);
+            if (mountedRef.current) setClassifieds(data);
+            if (mountedRef.current) setLoading(false);
+            if (mountedRef.current) setHasMore(data.length >= 20);
             return;
           }
         }
@@ -40,6 +44,8 @@ export function useClassifieds(city?: string, category?: ClassifiedCategory) {
 
       const response = await marketService.getClassifieds(city, category, pageNum);
       const data = (response as any).items || response;
+
+      if (!mountedRef.current) return;
 
       if (pageNum === 1) {
         setClassifieds(data);
@@ -53,16 +59,17 @@ export function useClassifieds(city?: string, category?: ClassifiedCategory) {
 
       setHasMore(data.length >= 20);
     } catch (e: any) {
-      setError(e.message);
-      // If error, try to load from cache even if expired
+      if (mountedRef.current) setError(e.message);
       const cached = await AsyncStorage.getItem(CACHE_KEY);
       if (cached) {
         const { data } = JSON.parse(cached);
-        setClassifieds(data);
+        if (mountedRef.current) setClassifieds(data);
       }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (mountedRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, [city, category, CACHE_KEY]);
 

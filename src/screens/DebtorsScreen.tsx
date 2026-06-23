@@ -7,8 +7,9 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '../context/AppContext';
+import { Colors, LightTheme, DarkTheme, Radius, Shadow, FontSize, Spacing } from '../constants/theme';
 import {
-  getDebtsWithClients, recordDebtPayment, getDebtPayments,
+  getDebtsWithClients, recordDebtPayment, getDebtPayments, getDebtSummary,
 } from '../db/database';
 
 export default function DebtorsScreen() {
@@ -17,6 +18,8 @@ export default function DebtorsScreen() {
   const themeStyles = isDark ? darkStyles : lightStyles;
 
   const [debts, setDebts] = useState<any[]>([]);
+  const [debtorCount, setDebtorCount] = useState(0);
+  const [totalAmount, setTotalAmount] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedDebt, setSelectedDebt] = useState<any>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
@@ -25,7 +28,11 @@ export default function DebtorsScreen() {
   const [showModal, setShowModal] = useState(false);
 
   const loadDebts = useCallback(() => {
-    setDebts(getDebtsWithClients() as any[]);
+    const data = getDebtsWithClients() as any[];
+    setDebts(data);
+    const summary = getDebtSummary();
+    setDebtorCount(summary.debtor_count);
+    setTotalAmount(data.reduce((sum: number, d: any) => sum + d.amount_total, 0));
   }, []);
 
   useFocusEffect(useCallback(() => { loadDebts(); }, [loadDebts]));
@@ -66,6 +73,7 @@ export default function DebtorsScreen() {
   const renderItem = ({ item }: { item: any }) => {
     const remaining = item.amount_total - item.amount_paid;
     const pct = Math.round((item.amount_paid / item.amount_total) * 100);
+    const isOverdue = item.due_date && new Date(item.due_date) < new Date();
     return (
       <TouchableOpacity
         style={[styles.card, themeStyles.card]}
@@ -74,7 +82,12 @@ export default function DebtorsScreen() {
       >
         <View style={styles.cardRow}>
           <View style={styles.cardLeft}>
-            <Text style={[styles.clientName, themeStyles.text]}>{item.client_name}</Text>
+            <View style={styles.cardNameRow}>
+              <Text style={[styles.clientName, themeStyles.text]}>{item.client_name}</Text>
+              <View style={[styles.statusPill, isOverdue ? styles.statusOverdue : styles.statusActive]}>
+                <Text style={styles.statusText}>{isOverdue ? 'Просрочен' : 'Активен'}</Text>
+              </View>
+            </View>
             {item.client_phone ? (
               <Text style={styles.clientPhone}>{item.client_phone}</Text>
             ) : null}
@@ -108,7 +121,22 @@ export default function DebtorsScreen() {
         <Text style={[styles.summaryValue, themeStyles.text]}>
           {totalRemaining.toLocaleString()} {currency.symbol}
         </Text>
-        <Text style={styles.summaryCount}>{debts.length} чел.</Text>
+        <Text style={styles.summaryCount}>{debtorCount} чел.</Text>
+        {totalAmount > 0 && (
+          <View style={styles.summaryProgressWrap}>
+            <View style={styles.summaryProgressBg}>
+              <View
+                style={[
+                  styles.summaryProgressFill,
+                  { width: `${Math.round(((totalAmount - totalRemaining) / totalAmount) * 100)}%` as any },
+                ]}
+              />
+            </View>
+            <Text style={styles.summaryProgressLabel}>
+              {Math.round(((totalAmount - totalRemaining) / totalAmount) * 100)}% оплачено
+            </Text>
+          </View>
+        )}
       </View>
 
       <FlatList
@@ -208,30 +236,28 @@ export default function DebtorsScreen() {
 }
 
 const lightStyles = StyleSheet.create({
-  container: { backgroundColor: '#F5F5F5' },
-  card: { backgroundColor: '#fff' },
-  text: { color: '#333' },
+  container: { backgroundColor: LightTheme.background },
+  card: { backgroundColor: LightTheme.card },
+  text: { color: LightTheme.text },
 });
 const darkStyles = StyleSheet.create({
-  container: { backgroundColor: '#000' },
-  card: { backgroundColor: '#1E1E1E' },
-  text: { color: '#EEE' },
+  container: { backgroundColor: DarkTheme.background },
+  card: { backgroundColor: DarkTheme.card },
+  text: { color: DarkTheme.text },
 });
 const styles = StyleSheet.create({
   container: { flex: 1 },
   summary: {
     margin: 16, marginBottom: 8, padding: 16,
-    borderRadius: 12, alignItems: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05, shadowRadius: 2, elevation: 2,
+    borderRadius: Radius.md, alignItems: 'center',
+    ...Shadow.md,
   },
   summaryLabel: { fontSize: 13, color: '#999', marginBottom: 4 },
   summaryValue: { fontSize: 28, fontWeight: 'bold' },
   summaryCount: { fontSize: 13, color: '#1D9E75', marginTop: 2 },
   card: {
-    borderRadius: 12, padding: 14, marginBottom: 10,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05, shadowRadius: 2, elevation: 2,
+    borderRadius: Radius.md, padding: 14, marginBottom: 10,
+    ...Shadow.md,
   },
   cardRow: { flexDirection: 'row', justifyContent: 'space-between' },
   cardLeft: { flex: 1 },
@@ -282,4 +308,19 @@ const styles = StyleSheet.create({
     padding: 16, alignItems: 'center', marginTop: 16,
   },
   payBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  summaryProgressWrap: { width: '100%', marginTop: 12, alignItems: 'center' },
+  summaryProgressBg: {
+    height: 6, width: '100%', backgroundColor: '#E0E0E0',
+    borderRadius: 3, overflow: 'hidden',
+  },
+  summaryProgressFill: { height: 6, backgroundColor: Colors.primary, borderRadius: 3 },
+  summaryProgressLabel: { fontSize: 11, color: '#999', marginTop: 4 },
+  cardNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  statusPill: {
+    paddingHorizontal: 8, paddingVertical: 2,
+    borderRadius: Radius.pill,
+  },
+  statusActive: { backgroundColor: Colors.warningLight },
+  statusOverdue: { backgroundColor: Colors.dangerLight },
+  statusText: { fontSize: 11, fontWeight: '600' },
 });

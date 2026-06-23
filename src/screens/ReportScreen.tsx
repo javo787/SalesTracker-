@@ -23,6 +23,7 @@ import { ExtendedReportService } from '../services/ExtendedReportService';
 import { ExportSummaryService, SummaryPayload } from '../services/ExportSummaryService';
 import { adService } from '../services/adService';
 import { AD_UNIT_IDS } from '../constants/ads';
+import { Colors, LightTheme, DarkTheme, Radius, Shadow, FontSize, Spacing } from '../constants/theme';
 import { ForecastService } from '../services/ForecastService';
 import { aggregateSalesForForecast } from '../utils/aggregateSalesForForecast';
 
@@ -283,12 +284,15 @@ export default function ReportScreen() {
 
   const calculateGrowth = useCallback(() => {
     if (typeof period !== 'number') return null;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const toLocalDateStr = (d: Date) =>
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
     const d = new Date();
     d.setDate(d.getDate() - period);
-    const toDate = d.toISOString().split('T')[0];
+    const toDate = toLocalDateStr(d);
     const d2 = new Date();
     d2.setDate(d2.getDate() - (2 * period));
-    const fromDate = d2.toISOString().split('T')[0];
+    const fromDate = toLocalDateStr(d2);
     const prevStats = getStats(0, fromDate, toDate);
     if (!prevStats || prevStats.revenue === 0) return null;
     const growth = Math.round(((stats.revenue - prevStats.revenue) / prevStats.revenue) * 100);
@@ -1046,17 +1050,17 @@ export default function ReportScreen() {
 }
 
 const lightStyles = StyleSheet.create({
-  container: { backgroundColor: '#F5F5F5' },
-  card: { backgroundColor: '#fff' },
-  text: { color: '#333' },
-  input: { backgroundColor: '#F5F5F5', borderColor: '#E0E0E0' },
+  container: { backgroundColor: LightTheme.background },
+  card: { backgroundColor: LightTheme.card },
+  text: { color: LightTheme.text },
+  input: { backgroundColor: LightTheme.inputBg, borderColor: LightTheme.inputBorder },
 });
 
 const darkStyles = StyleSheet.create({
-  container: { backgroundColor: '#000' },
-  card: { backgroundColor: '#1E1E1E' },
-  text: { color: '#EEE' },
-  input: { backgroundColor: '#2C2C2C', borderColor: '#444', color: '#EEE' },
+  container: { backgroundColor: DarkTheme.background },
+  card: { backgroundColor: DarkTheme.card },
+  text: { color: DarkTheme.text },
+  input: { backgroundColor: DarkTheme.inputBg, borderColor: DarkTheme.inputBorder, color: DarkTheme.text },
 });
 
 const styles = StyleSheet.create({
@@ -1075,34 +1079,32 @@ const styles = StyleSheet.create({
   },
   exportBtnText: { fontSize: 13, fontWeight: '600', color: '#1D9E75' },
   periodBtn: {
-    flex: 1, paddingVertical: 8, borderRadius: 12,
+    flex: 1, paddingVertical: 8, borderRadius: Radius.pill,
     alignItems: 'center',
     borderWidth: 1, borderColor: '#E0E0E0',
   },
-  periodBtnActive: { backgroundColor: '#1D9E75', borderColor: '#1D9E75' },
+  periodBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   periodBtnLocked: { opacity: 0.7, borderStyle: 'dashed' },
-  periodText: { fontSize: 13, fontWeight: '500', color: '#666' },
+  periodText: { fontSize: FontSize.md - 1, fontWeight: '500', color: '#666' },
   periodTextActive: { color: '#fff' },
   periodTextLocked: { color: '#999' },
   statsGrid: {
     flexDirection: 'row', flexWrap: 'wrap',
-    gap: 10, paddingHorizontal: 16, marginBottom: 8,
+    gap: Spacing.md, paddingHorizontal: Spacing.lg, marginBottom: Spacing.sm,
   },
   statCard: {
-    width: '47%', borderRadius: 16, padding: 16,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1, shadowRadius: 8, elevation: 3,
+    width: '47%', borderRadius: Radius.lg, padding: Spacing.lg,
+    ...Shadow.lg,
   },
-  statLabel: { fontSize: 12, color: 'rgba(255,255,255,0.8)', marginBottom: 4 },
-  statValue: { fontSize: 22, fontWeight: 'bold', color: '#fff' },
-  statCurrency: { fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
+  statLabel: { fontSize: FontSize.sm, color: 'rgba(255,255,255,0.8)', marginBottom: Spacing.xs },
+  statValue: { fontSize: FontSize.xxl, fontWeight: 'bold', color: '#fff' },
+  statCurrency: { fontSize: FontSize.xs, color: 'rgba(255,255,255,0.7)', marginTop: Spacing.xs },
   section: {
-    margin: 16, marginTop: 8,
-    borderRadius: 16, padding: 16,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05, shadowRadius: 6, elevation: 2,
+    margin: Spacing.lg, marginTop: Spacing.sm,
+    borderRadius: Radius.lg, padding: Spacing.lg,
+    ...Shadow.md,
   },
-  sectionTitle: { fontSize: 15, fontWeight: '600', marginBottom: 10 },
+  sectionTitle: { fontSize: FontSize.lg - 1, fontWeight: '600', marginBottom: Spacing.md },
   listHeader: {
     flexDirection: 'column',
     alignItems: 'stretch', marginBottom: 12,
