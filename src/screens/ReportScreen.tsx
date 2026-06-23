@@ -11,8 +11,9 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { getStats, getSalesByPeriod, deleteSale, getExpenseStats } from '../db/database';
+import { arrayBufferToBase64 } from '../utils/excelUtils';
 import { useAppContext } from '../context/AppContext';
 import AnnualReport from '../components/reports/AnnualReport';
 import RegistrationPromptModal from '../components/RegistrationPromptModal';
@@ -398,48 +399,53 @@ export default function ReportScreen() {
 
   const generateAIExcel = async (summary: string) => {
     try {
-      const wb = XLSX.utils.book_new();
+      const workbook = new ExcelJS.Workbook();
+      const sheet1 = workbook.addWorksheet(t('exportSummary.sheetName'));
 
       // Sheet 1: AI Summary
-      const summaryData = [
-        ["Отчёт SavdoApp"],
-        [getPeriodLabel()],
-        [],
-        [t('exportSummary.headerRevenue'), `${stats.revenue} ${currency.symbol}`],
-        [t('exportSummary.headerProfit'), `${stats.profit} ${currency.symbol}`],
-        [t('exportSummary.headerExpenses'), `${expenseTotal} ${currency.symbol}`],
-        [t('exportSummary.headerNet'), `${stats.profit - expenseTotal} ${currency.symbol}`],
-        [],
-        [t('exportSummary.headerAnalysis')],
-        [summary]
-      ];
-      const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+      sheet1.addRow(["Отчёт SavdoApp"]);
+      sheet1.addRow([getPeriodLabel()]);
+      sheet1.addRow([]);
+      sheet1.addRow([t('exportSummary.headerRevenue'), `${stats.revenue} ${currency.symbol}`]);
+      sheet1.addRow([t('exportSummary.headerProfit'), `${stats.profit} ${currency.symbol}`]);
+      sheet1.addRow([t('exportSummary.headerExpenses'), `${expenseTotal} ${currency.symbol}`]);
+      sheet1.addRow([t('exportSummary.headerNet'), `${stats.profit - expenseTotal} ${currency.symbol}`]);
+      sheet1.addRow([]);
+      sheet1.addRow([t('exportSummary.headerAnalysis')]);
+      const summaryRow = sheet1.addRow([summary]);
+      summaryRow.getCell(1).alignment = { wrapText: true, vertical: 'top' };
 
-      // Basic styling via column widths
-      wsSummary['!cols'] = [{ wch: 20 }, { wch: 50 }];
-
-      XLSX.utils.book_append_sheet(wb, wsSummary, t('exportSummary.sheetName'));
+      sheet1.getColumn(1).width = 25;
+      sheet1.getColumn(2).width = 80;
 
       // Sheet 2: Sales Data
+      const sheet2 = workbook.addWorksheet(t('reports.allSales'));
       const salesHeader = ['ID', t('addSale.productName'), t('addSale.quantity'), t('addSale.sellPrice'), t('addSale.buyPrice'), t('common.profit'), t('addSale.note'), 'Дата'];
-      const salesRows = sales.map(s => [
-        s.id,
-        s.product_name,
-        s.quantity,
-        s.sell_price,
-        s.buy_price,
-        s.profit,
-        s.note || '',
-        s.created_at
-      ]);
-      const wsSales = XLSX.utils.aoa_to_sheet([salesHeader, ...salesRows]);
-      XLSX.utils.book_append_sheet(wb, wsSales, t('reports.allSales'));
+      sheet2.addRow(salesHeader);
 
-      const wbout = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+      sales.forEach(s => {
+        sheet2.addRow([
+          s.id,
+          s.product_name,
+          s.quantity,
+          s.sell_price,
+          s.buy_price,
+          s.profit,
+          s.note || '',
+          s.created_at
+        ]);
+      });
+
+      sheet2.getColumn(2).width = 30;
+      sheet2.getColumn(7).width = 30;
+      sheet2.getColumn(8).width = 20;
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const base64 = arrayBufferToBase64(buffer);
       const fileName = `SavdoApp_AI_${new Date().getTime()}.xlsx`;
       const filePath = `${FileSystem.cacheDirectory}${fileName}`;
 
-      await FileSystem.writeAsStringAsync(filePath, wbout, { encoding: FileSystem.EncodingType.Base64 });
+      await FileSystem.writeAsStringAsync(filePath, base64, { encoding: FileSystem.EncodingType.Base64 });
 
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(filePath, {
