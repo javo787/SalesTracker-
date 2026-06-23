@@ -249,8 +249,37 @@ export default function SettingsScreen(props: any) {
   return (
     <ScrollView style={[styles.container, themeStyles.container]}>
 
+      {/* Режим продавца */}
+      <View style={[styles.section, themeStyles.section, { marginTop: 16 }]}>
+        <View style={styles.sellerModeHeader}>
+          <Text style={[styles.sectionTitle, themeStyles.text, { marginBottom: 0 }]}>🏪 Режим торговли</Text>
+          <Text style={[styles.sellerModeSub, { color: isDark ? '#AAA' : '#666' }]}>
+            {sellerMode === 'retail' ? 'Розница' : 'Оптовик'}
+          </Text>
+        </View>
+
+        <View style={[styles.segmentedControl, isDark ? styles.segmentedControlDark : styles.segmentedControlLight]}>
+          <TouchableOpacity
+            style={[styles.tabBtn, sellerMode === 'retail' && styles.tabBtnActive]}
+            onPress={() => setSellerMode('retail')}
+          >
+            <Text style={[styles.tabText, sellerMode === 'retail' && styles.tabTextActive]}>
+              🛒 Розница
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tabBtn, sellerMode === 'wholesale' && styles.tabBtnActive]}
+            onPress={() => setSellerMode('wholesale')}
+          >
+            <Text style={[styles.tabText, sellerMode === 'wholesale' && styles.tabTextActive]}>
+              📦 Оптовик
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       {/* Язык */}
-      <View style={[styles.section, themeStyles.section]}>
+      <View style={[styles.section, themeStyles.section, { marginTop: 0 }]}>
         <Text style={[styles.sectionTitle, themeStyles.text]}>🌐 {t('settings.language')}</Text>
         <View style={styles.optionGrid}>
           {LANGUAGES.map(lang => (
@@ -377,48 +406,6 @@ export default function SettingsScreen(props: any) {
         )}
       </View>
 
-      {/* Режим продавца */}
-      <View style={[styles.section, themeStyles.section]}>
-        <Text style={[styles.sectionTitle, themeStyles.text]}>🏪 Режим торговли</Text>
-        <Text style={[{ fontSize: 13, marginBottom: 14 }, { color: isDark ? '#AAA' : '#666' }]}>
-          Влияет на функции в разделе «Товары» и «Продажа»
-        </Text>
-        <View style={styles.optionGrid}>
-          <TouchableOpacity
-            style={[
-              styles.optionCard,
-              themeStyles.optionCard,
-              sellerMode === 'retail' && styles.optionCardActive
-            ]}
-            onPress={() => setSellerMode('retail')}
-          >
-            <Text style={styles.optionFlag}>🛒</Text>
-            <Text style={[
-              styles.optionLabel,
-              themeStyles.optionLabel,
-              sellerMode === 'retail' && styles.optionLabelActive
-            ]}>Розница</Text>
-            {sellerMode === 'retail' && <Text style={styles.checkmark}>✓</Text>}
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.optionCard,
-              themeStyles.optionCard,
-              sellerMode === 'wholesale' && styles.optionCardActive
-            ]}
-            onPress={() => setSellerMode('wholesale')}
-          >
-            <Text style={styles.optionFlag}>📦</Text>
-            <Text style={[
-              styles.optionLabel,
-              themeStyles.optionLabel,
-              sellerMode === 'wholesale' && styles.optionLabelActive
-            ]}>Опт</Text>
-            {sellerMode === 'wholesale' && <Text style={styles.checkmark}>✓</Text>}
-          </TouchableOpacity>
-        </View>
-      </View>
-
       {/* Тема */}
       <View style={[styles.section, themeStyles.section]}>
         <Text style={[styles.sectionTitle, themeStyles.text]}>🎨 {t('settings.theme')}</Text>
@@ -539,6 +526,45 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 15, fontWeight: '600', marginBottom: 14,
+  },
+  sellerModeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  sellerModeSub: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  segmentedControl: {
+    flexDirection: 'row',
+    borderRadius: 12,
+    padding: 4,
+    height: 44,
+  },
+  segmentedControlLight: {
+    backgroundColor: '#F5F5F5',
+  },
+  segmentedControlDark: {
+    backgroundColor: '#2C2C2C',
+  },
+  tabBtn: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  tabBtnActive: {
+    backgroundColor: '#1D9E75',
+  },
+  tabText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#666',
+  },
+  tabTextActive: {
+    color: '#fff',
   },
   optionGrid: { flexDirection: 'row', gap: 10 },
   optionCard: {

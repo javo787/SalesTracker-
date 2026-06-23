@@ -28,6 +28,7 @@ import { useTranslation } from 'react-i18next';
 // ─────────────────────────────────────────────
 interface VoiceRecorderProps {
   onTranscript: (text: string) => void;
+  onClose?: () => void;
 }
 
 // ─────────────────────────────────────────────
@@ -174,7 +175,7 @@ async function safeStopRecorder(
 // ─────────────────────────────────────────────
 // Component
 // ─────────────────────────────────────────────
-export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
+export default function VoiceRecorder({ onTranscript, onClose }: VoiceRecorderProps) {
   const { t } = useTranslation();
   const { resolvedTheme, currency, language } = useAppContext(); const isDark = resolvedTheme === "dark";
   const recorder = useAudioRecorder(recordingOptions);
@@ -489,67 +490,67 @@ export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
 
   // ── Render ───────────────────────────────────
   return (
-    <View style={styles.container}>
-      {/* Language Switcher */}
-      <View style={styles.langWrapper}>
-        <View style={[styles.langSwitcher, isDark ? styles.langSwitcherDark : styles.langSwitcherLight]}>
-          {['ru', 'tg', 'uz'].map((l) => (
-            <TouchableOpacity
-              key={l}
-              onPress={() => changeVoiceLang(l)}
-              style={[
-                styles.langBtn,
-                voiceLang === l && styles.langBtnActive
-              ]}
-            >
-              <Text style={[
-                styles.langBtnText,
-                voiceLang === l && styles.langBtnTextActive,
-                isDark && voiceLang !== l && { color: '#aaa' }
-              ]}>
-                {l.toUpperCase()}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+    <View style={styles.linearContainer}>
+      <View style={[styles.linearLangSwitcher, isDark ? styles.langSwitcherDark : styles.langSwitcherLight]}>
+        {['ru', 'tg', 'uz'].map((l) => (
+          <TouchableOpacity
+            key={l}
+            onPress={() => changeVoiceLang(l)}
+            style={[
+              styles.linearLangBtn,
+              voiceLang === l && styles.langBtnActive
+            ]}
+          >
+            <Text style={[
+              styles.linearLangBtnText,
+              voiceLang === l && styles.langBtnTextActive,
+              isDark && voiceLang !== l && { color: '#aaa' }
+            ]}>
+              {l.toUpperCase()}
+            </Text>
+          </TouchableOpacity>
+        ))}
         <TouchableOpacity
           style={styles.infoBtn}
           onPress={() => setShowInfo(true)}
         >
-          <Ionicons name="information-circle-outline" size={20} color={isDark ? '#aaa' : '#888'} />
+          <Ionicons name="information-circle-outline" size={18} color={isDark ? '#aaa' : '#888'} />
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity
-        onPressIn={startRecording}
-        onPressOut={handleStop}
-        disabled={isProcessing}
-        activeOpacity={0.75}
-        style={styles.touchable}
-      >
-        <Animated.View
-          style={[
-            styles.button,
-            isRecording && styles.buttonRecording,
-            (isProcessing || isStarting) && styles.buttonBusy,
-            { transform: [{ scale: pulseAnim }] },
-          ]}
+      <View style={styles.micWrapper}>
+        <TouchableOpacity
+          onPressIn={startRecording}
+          onPressOut={handleStop}
+          disabled={isProcessing}
+          activeOpacity={0.75}
         >
-          {isProcessing || isStarting ? (
-            <ActivityIndicator color="#fff" size="large" />
-          ) : (
-            <Ionicons
-              name={isRecording ? 'stop' : 'mic'}
-              size={36}
-              color="#fff"
-            />
-          )}
-        </Animated.View>
-      </TouchableOpacity>
+          <Animated.View
+            style={[
+              styles.linearButton,
+              isRecording && styles.buttonRecording,
+              (isProcessing || isStarting) && styles.buttonBusy,
+              { transform: [{ scale: pulseAnim }] },
+            ]}
+          >
+            {isProcessing || isStarting ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Ionicons
+                name={isRecording ? 'stop' : 'mic'}
+                size={24}
+                color="#fff"
+              />
+            )}
+          </Animated.View>
+        </TouchableOpacity>
 
-      <Text style={[styles.hint, isDark ? styles.hintDark : styles.hintLight]}>
-        {hintText}
-      </Text>
+        {isRecording || isProcessing || isStarting ? (
+           <Text style={[styles.linearHint, isDark ? styles.hintDark : styles.hintLight]} numberOfLines={1}>
+             {hintText}
+           </Text>
+        ) : null}
+      </View>
 
       {/* Info Modal */}
       <Modal
@@ -590,22 +591,16 @@ export default function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
 // Styles
 // ─────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-  },
-  langWrapper: {
+  linearContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-    gap: 8,
+    gap: 12,
+    paddingVertical: 8,
   },
-  langSwitcher: {
+  linearLangSwitcher: {
     flexDirection: 'row',
-    borderRadius: 20,
-    padding: 3,
+    borderRadius: 12,
+    padding: 2,
     borderWidth: 1,
   },
   langSwitcherLight: {
@@ -616,15 +611,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#2C2C2C',
     borderColor: '#444',
   },
-  langBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 16,
+  linearLangBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  infoBtn: {
+    paddingHorizontal: 8,
+    justifyContent: 'center',
   },
   langBtnActive: {
     backgroundColor: '#1D9E75',
   },
-  langBtnText: {
+  linearLangBtnText: {
     fontSize: 12,
     fontWeight: 'bold',
     color: '#666',
@@ -632,25 +631,24 @@ const styles = StyleSheet.create({
   langBtnTextActive: {
     color: '#fff',
   },
-  infoBtn: {
-    padding: 4,
+  micWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
-  touchable: {
-    borderRadius: 60,
-    overflow: 'hidden',
-  },
-  button: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
+  linearButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#1D9E75',
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 6,
+    elevation: 3,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
   },
   buttonRecording: {
     backgroundColor: '#E53935',
@@ -659,11 +657,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#aaaaaa',
     opacity: 0.85,
   },
-  hint: {
-    marginTop: 8,
-    fontSize: 13,
+  linearHint: {
+    fontSize: 11,
     fontWeight: '500',
-    textAlign: 'center',
+    flex: 1,
   },
   modalOverlay: {
     flex: 1,

@@ -25,7 +25,7 @@ const { width } = Dimensions.get('window');
 export default function ProfileScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<any>();
-  const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
+  const { resolvedTheme, currency, sellerMode } = useAppContext(); const isDark = resolvedTheme === "dark";
   const { user, logout, isGuest, updateProfile, convertGuestAccount } = useAuth();
   const { setIsSystemDialogOpen } = useAppLock();
 
@@ -249,6 +249,29 @@ export default function ProfileScreen() {
         </View>
       </View>
 
+      {/* Seller Mode Indicator */}
+      <View style={[styles.card, themeStyles.card, styles.modeCard]}>
+        <View style={styles.modeRow}>
+          <View style={styles.modeLeft}>
+            <View style={[styles.modeIconContainer, { backgroundColor: sellerMode === 'retail' ? '#1D9E75' : '#0C447C' }]}>
+              <Ionicons name={sellerMode === 'retail' ? 'cart-outline' : 'business-outline'} size={20} color="#fff" />
+            </View>
+            <View>
+              <Text style={[styles.modeLabel, themeStyles.text]}>Режим торговли</Text>
+              <Text style={[styles.modeValue, { color: sellerMode === 'retail' ? '#1D9E75' : '#0C447C' }]}>
+                {sellerMode === 'retail' ? '🛒 Розница' : '📦 Оптовик'}
+              </Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            style={[styles.modeEditBtn, { backgroundColor: isDark ? '#333' : '#f0f0f0' }]}
+            onPress={() => navigation.navigate('Settings')}
+          >
+            <Text style={[styles.modeEditText, { color: isDark ? '#CCC' : '#666' }]}>ИЗМЕНИТЬ</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       {/* Stats Grid */}
       <View style={styles.statsGrid}>
         <View style={[styles.statItem, themeStyles.card]}>
@@ -422,6 +445,14 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   card: { margin: 16, marginBottom: 0, borderRadius: 16, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 2 },
   headerCard: { flexDirection: 'row', alignItems: 'center', gap: 20 },
+  modeCard: { paddingVertical: 12 },
+  modeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  modeLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  modeIconContainer: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  modeLabel: { fontSize: 12, color: '#888' },
+  modeValue: { fontSize: 15, fontWeight: 'bold', marginTop: 1 },
+  modeEditBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, backgroundColor: '#f0f0f0' },
+  modeEditText: { fontSize: 11, fontWeight: 'bold', color: '#666' },
   avatar: { width: 100, height: 100, borderRadius: 50, borderWidth: 3, borderColor: '#1D9E75' },
   avatarPlaceholder: { backgroundColor: '#1D9E75', justifyContent: 'center', alignItems: 'center' },
   editAvatarBadge: { position: 'absolute', bottom: 2, right: 2, backgroundColor: '#1D9E75', width: 30, height: 30, borderRadius: 15, borderWidth: 3, borderColor: '#fff', justifyContent: 'center', alignItems: 'center' },
