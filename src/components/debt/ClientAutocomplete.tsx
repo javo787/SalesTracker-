@@ -1,17 +1,24 @@
-import React, { useState, useCallback } from 'react';
+import React, { useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, Platform,
+  StyleSheet, ScrollView, Platform, Keyboard,
 } from 'react-native';
 import { useAppContext } from '../../context/AppContext';
 import { searchClients } from '../../db/database';
+import { useAutocomplete } from '../../hooks/useAutocomplete';
+
+interface Client {
+  id: number;
+  name: string;
+  phone: string;
+}
 
 interface Props {
   value: string;
   phone: string;
   onChange: (name: string) => void;
   onChangePhone: (phone: string) => void;
-  onSelect: (client: { id: number; name: string; phone: string }) => void;
+  onSelect: (client: Client) => void;
 }
 
 export default function ClientAutocomplete({
@@ -19,37 +26,14 @@ export default function ClientAutocomplete({
 }: Props) {
   const { resolvedTheme } = useAppContext();
   const isDark = resolvedTheme === 'dark';
-  const [results, setResults] = useState<any[]>([]);
-  const [showDropdown, setShowDropdown] = useState(false);
 
-  const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fetchFn = useCallback((q: string) => searchClients(q) as Client[], []);
+  const fetchTop = useCallback(() => searchClients('') as Client[], []);
+  const { results, isOpen, search, onFocus, onBlur, select } =
+    useAutocomplete<Client>(fetchFn, fetchTop, 300);
 
-  React.useEffect(() => {
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, []);
-
-  const handleChange = useCallback((text: string) => {
-    onChange(text);
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => {
-      const found = searchClients(text) as any[];
-      setResults(found);
-      setShowDropdown(found.length > 0);
-    }, 300);
-  }, [onChange]);
-
-  const handleFocus = useCallback(() => {
-    const found = searchClients(value) as any[];
-    setResults(found);
-    setShowDropdown(found.length > 0);
-  }, [value]);
-
-  const handleSelect = useCallback((client: any) => {
-    onSelect(client);
-    setShowDropdown(false);
-  }, [onSelect]);
+  const handleChange = (text: string) => { onChange(text); search(text); };
+  const handleSelect = (c: Client) => { select(c, onSelect); Keyboard.dismiss(); };
 
   const inputStyle = [
     styles.input,
@@ -64,7 +48,8 @@ export default function ClientAutocomplete({
         placeholderTextColor={isDark ? '#888' : '#aaa'}
         value={value}
         onChangeText={handleChange}
-        onFocus={handleFocus}
+        onFocus={() => onFocus(value)}
+        onBlur={onBlur}
       />
       <TextInput
         style={[inputStyle, { marginTop: 8 }]}
@@ -74,13 +59,13 @@ export default function ClientAutocomplete({
         onChangeText={onChangePhone}
         keyboardType="phone-pad"
       />
-      {showDropdown && (
+      {isOpen && (
         <View style={[
           styles.dropdown,
           isDark ? styles.dropdownDark : styles.dropdownLight,
         ]}>
           <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 180 }}>
-            {results.map((c: any) => (
+            {results.map((c: Client) => (
               <TouchableOpacity
                 key={String(c.id)}
                 style={styles.item}
