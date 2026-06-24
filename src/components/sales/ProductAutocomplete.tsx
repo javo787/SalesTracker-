@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -7,11 +7,13 @@ import {
   StyleSheet,
   ScrollView,
   Platform,
+  Keyboard,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useAppContext } from '../../context/AppContext';
-import { useProductAutocomplete } from '../../hooks/useProductAutocomplete';
+import { useAutocomplete } from '../../hooks/useAutocomplete';
 import { AutocompleteResult } from '../../types/product';
+import { searchProductsForAutocomplete } from '../../db/database';
 import { HighlightedText } from './HighlightedText';
 
 interface Props {
@@ -36,28 +38,14 @@ export function ProductAutocomplete({
   const { resolvedTheme, currency } = useAppContext();
   const isDark = resolvedTheme === 'dark';
   const { t } = useTranslation();
-  const { results, search, getTopProducts } = useProductAutocomplete();
-  const [isVisible, setIsVisible] = useState(false);
 
-  const handleInputChange = (text: string) => {
-    onChange(text);
-    search(text);
-    setIsVisible(true);
-  };
+  const fetchFn = (q: string) => searchProductsForAutocomplete(q) as AutocompleteResult[];
+  const fetchTop = () => searchProductsForAutocomplete('') as AutocompleteResult[];
+  const { results, isOpen, search, onFocus, onBlur, select } =
+    useAutocomplete<AutocompleteResult>(fetchFn, fetchTop, 200);
 
-  const handleFocus = () => {
-    if (!value) {
-      getTopProducts();
-    } else {
-      search(value);
-    }
-    setIsVisible(true);
-  };
-
-  const handleSelect = (product: AutocompleteResult) => {
-    onSelect(product);
-    setIsVisible(false);
-  };
+  const handleInputChange = (text: string) => { onChange(text); search(text); };
+  const handleSelect = (product: AutocompleteResult) => { select(product, onSelect); Keyboard.dismiss(); };
 
   const catalogItems = results.filter((r) => r.source === 'catalog');
   const historyItems = results.filter((r) => r.source === 'history');
@@ -89,12 +77,13 @@ export function ProductAutocomplete({
         style={inputStyle}
         value={value}
         onChangeText={handleInputChange}
-        onFocus={handleFocus}
+        onFocus={() => onFocus(value)}
+        onBlur={onBlur}
         placeholder={placeholder}
         placeholderTextColor={placeholderTextColor}
       />
 
-      {isVisible && results.length > 0 && (
+      {isOpen && results.length > 0 && (
         <View
           style={[
             styles.dropdown,
