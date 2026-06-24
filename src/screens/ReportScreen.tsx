@@ -11,7 +11,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import ExcelJS from 'exceljs';
+import * as XLSX from 'xlsx';
 import { getStats, getSalesByPeriod, deleteSale, getExpenseStats } from '../db/database';
 import { arrayBufferToBase64 } from '../utils/excelUtils';
 import { useAppContext } from '../context/AppContext';
@@ -403,48 +403,35 @@ export default function ReportScreen() {
 
   const generateAIExcel = async (summary: string) => {
     try {
-      const workbook = new ExcelJS.Workbook();
-      const sheet1 = workbook.addWorksheet(t('exportSummary.sheetName'));
-
       // Sheet 1: AI Summary
-      sheet1.addRow(["Отчёт SavdoApp"]);
-      sheet1.addRow([getPeriodLabel()]);
-      sheet1.addRow([]);
-      sheet1.addRow([t('exportSummary.headerRevenue'), `${stats.revenue} ${currency.symbol}`]);
-      sheet1.addRow([t('exportSummary.headerProfit'), `${stats.profit} ${currency.symbol}`]);
-      sheet1.addRow([t('exportSummary.headerExpenses'), `${expenseTotal} ${currency.symbol}`]);
-      sheet1.addRow([t('exportSummary.headerNet'), `${stats.profit - expenseTotal} ${currency.symbol}`]);
-      sheet1.addRow([]);
-      sheet1.addRow([t('exportSummary.headerAnalysis')]);
-      const summaryRow = sheet1.addRow([summary]);
-      summaryRow.getCell(1).alignment = { wrapText: true, vertical: 'top' };
-
-      sheet1.getColumn(1).width = 25;
-      sheet1.getColumn(2).width = 80;
+      const summaryData = [
+        ["Отчёт SavdoApp"],
+        [getPeriodLabel()],
+        [],
+        [t('exportSummary.headerRevenue'), `${stats.revenue} ${currency.symbol}`],
+        [t('exportSummary.headerProfit'), `${stats.profit} ${currency.symbol}`],
+        [t('exportSummary.headerExpenses'), `${expenseTotal} ${currency.symbol}`],
+        [t('exportSummary.headerNet'), `${stats.profit - expenseTotal} ${currency.symbol}`],
+        [],
+        [t('exportSummary.headerAnalysis')],
+        [summary],
+      ];
+      const sheet1 = XLSX.utils.aoa_to_sheet(summaryData);
+      sheet1['!cols'] = [{ wch: 25 }, { wch: 80 }];
 
       // Sheet 2: Sales Data
-      const sheet2 = workbook.addWorksheet(t('reports.allSales'));
       const salesHeader = ['ID', t('addSale.productName'), t('addSale.quantity'), t('addSale.sellPrice'), t('addSale.buyPrice'), t('common.profit'), t('addSale.note'), 'Дата'];
-      sheet2.addRow(salesHeader);
+      const salesRows = sales.map(s => [
+        s.id, s.product_name, s.quantity, s.sell_price, s.buy_price, s.profit, s.note || '', s.created_at
+      ]);
+      const sheet2 = XLSX.utils.aoa_to_sheet([salesHeader, ...salesRows]);
+      sheet2['!cols'] = [{ wch: 8 }, { wch: 30 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 30 }, { wch: 20 }];
 
-      sales.forEach(s => {
-        sheet2.addRow([
-          s.id,
-          s.product_name,
-          s.quantity,
-          s.sell_price,
-          s.buy_price,
-          s.profit,
-          s.note || '',
-          s.created_at
-        ]);
-      });
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, sheet1, t('exportSummary.sheetName'));
+      XLSX.utils.book_append_sheet(workbook, sheet2, t('reports.allSales'));
 
-      sheet2.getColumn(2).width = 30;
-      sheet2.getColumn(7).width = 30;
-      sheet2.getColumn(8).width = 20;
-
-      const buffer = await workbook.xlsx.writeBuffer();
+      const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
       const base64 = arrayBufferToBase64(buffer);
       const fileName = `SavdoApp_AI_${new Date().getTime()}.xlsx`;
       const filePath = `${FileSystem.cacheDirectory}${fileName}`;
@@ -837,7 +824,7 @@ export default function ReportScreen() {
                   </View>
                 </TouchableOpacity>
               ))
-            )}
+            }
           </View>
           <View style={{ width: '100%' }}>
             <UniversalBanner />

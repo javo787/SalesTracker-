@@ -27,3 +27,4 @@ export function useNewsUnread() {
 
   return { hasUnread, markAsRead };
 }
+ 

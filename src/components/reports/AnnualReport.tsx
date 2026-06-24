@@ -6,7 +6,7 @@ import {
 import { BarChart } from 'react-native-gifted-charts';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import ExcelJS from 'exceljs';
+import * as XLSX from 'xlsx';
 import { useTranslation } from 'react-i18next';
 import { arrayBufferToBase64 } from '../../utils/excelUtils';
 import { getAnnualStats } from '../../db/database';
@@ -161,41 +161,38 @@ export default function AnnualReport() {
     }
   };
 
+  // Заменена функция generateAIExcel
   const generateAIExcel = async (summary: string) => {
     try {
-      const workbook = new ExcelJS.Workbook();
-      const sheet1 = workbook.addWorksheet(t('exportSummary.sheetName'));
-
       // Sheet 1: AI Summary
-      sheet1.addRow(["Отчёт SavdoApp (Годовой)"]);
-      sheet1.addRow([getPeriodLabel()]);
-      sheet1.addRow([]);
-      sheet1.addRow([t('exportSummary.headerRevenue'), `${annualData.totals.revenue} ${currency.symbol}`]);
-      sheet1.addRow([t('exportSummary.headerProfit'), `${annualData.totals.profit} ${currency.symbol}`]);
-      sheet1.addRow([t('exportSummary.headerExpenses'), `${annualData.totals.expenses} ${currency.symbol}`]);
-      sheet1.addRow([t('exportSummary.headerNet'), `${annualData.totals.netProfit} ${currency.symbol}`]);
-      sheet1.addRow([]);
-      sheet1.addRow([t('exportSummary.headerAnalysis')]);
-      const summaryRow = sheet1.addRow([summary]);
-      summaryRow.getCell(1).alignment = { wrapText: true, vertical: 'top' };
-
-      sheet1.getColumn(1).width = 25;
-      sheet1.getColumn(2).width = 80;
+      const summaryData = [
+        ["Отчёт SavdoApp (Годовой)"],
+        [getPeriodLabel()],
+        [],
+        [t('exportSummary.headerRevenue'), `${annualData.totals.revenue} ${currency.symbol}`],
+        [t('exportSummary.headerProfit'), `${annualData.totals.profit} ${currency.symbol}`],
+        [t('exportSummary.headerExpenses'), `${annualData.totals.expenses} ${currency.symbol}`],
+        [t('exportSummary.headerNet'), `${annualData.totals.netProfit} ${currency.symbol}`],
+        [],
+        [t('exportSummary.headerAnalysis')],
+        [summary],
+      ];
+      const sheet1 = XLSX.utils.aoa_to_sheet(summaryData);
+      sheet1['!cols'] = [{ wch: 25 }, { wch: 80 }];
 
       // Sheet 2: Monthly Data
-      const sheet2 = workbook.addWorksheet(t('expenses.month'));
       const monthHeader = [t('expenses.month'), t('common.revenue'), t('common.profit'), t('reports.expenses'), t('reports.netProfit'), t('home.salesCount')];
-      sheet2.addRow(monthHeader);
+      const monthRows = annualData.months.map((m: any) => [
+        MONTH_FULL[m.month - 1], m.revenue, m.profit, m.expenses, m.netProfit, m.salesCount
+      ]);
+      const sheet2 = XLSX.utils.aoa_to_sheet([monthHeader, ...monthRows]);
+      sheet2['!cols'] = [{ wch: 20 }];
 
-      annualData.months.forEach((m: any) => {
-        sheet2.addRow([
-          MONTH_FULL[m.month - 1], m.revenue, m.profit, m.expenses, m.netProfit, m.salesCount
-        ]);
-      });
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, sheet1, t('exportSummary.sheetName'));
+      XLSX.utils.book_append_sheet(workbook, sheet2, t('expenses.month'));
 
-      sheet2.getColumn(1).width = 20;
-
-      const buffer = await workbook.xlsx.writeBuffer();
+      const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
       const base64 = arrayBufferToBase64(buffer);
       const fileName = `SavdoApp_Annual_AI_${annualData.year}.xlsx`;
       const filePath = `${FileSystem.cacheDirectory}${fileName}`;
