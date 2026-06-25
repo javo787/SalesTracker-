@@ -4,6 +4,7 @@ import {
   Alert, TextInput, Modal, KeyboardAvoidingView, Platform,
   RefreshControl,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '../context/AppContext';
@@ -41,6 +42,7 @@ export default function DebtorsScreen() {
   const [debtNote, setDebtNote] = useState('');
   const [searchResults, setSearchResults] = useState<ClientSearchResult[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const loadDebts = useCallback(() => {
     const data = getDebtsWithClients() as any[];
@@ -127,9 +129,30 @@ export default function DebtorsScreen() {
     Alert.alert('✅', `Долг добавлен`);
   };
 
+  const handleDueDateChange = (text: string) => {
+    let cleaned = text.replace(/[^0-9]/g, '');
+    if (cleaned.length > 8) cleaned = cleaned.slice(0, 8);
+    let formatted = cleaned;
+    if (cleaned.length > 2) formatted = cleaned.slice(0, 2) + '.' + cleaned.slice(2);
+    if (cleaned.length > 4) formatted = formatted.slice(0, 5) + '.' + formatted.slice(5);
+    setDueDate(formatted);
+  };
+
+  const resetAddModal = () => {
+    setClientName('');
+    setClientPhone('');
+    setDebtAmount('');
+    setDueDate('');
+    setDebtNote('');
+    setSearchResults([]);
+    setSelectedClientId(null);
+    setShowDatePicker(false);
+  };
+
   const totalRemaining = debts.reduce((sum, d) => sum + d.remaining, 0);
 
   const today = new Date().toISOString().split('T')[0];
+
   const filteredDebts = debts.filter(d => {
     if (filter === 'active') return !d.due_date || d.due_date >= today;
     if (filter === 'overdue') return d.due_date && d.due_date < today;
@@ -139,7 +162,7 @@ export default function DebtorsScreen() {
   const renderItem = ({ item }: { item: any }) => {
     const remaining = item.amount_total - item.amount_paid;
     const pct = Math.round((item.amount_paid / item.amount_total) * 100);
-    const isOverdue = item.due_date && new Date(item.due_date) < new Date();
+    const isOverdue = item.due_date && item.due_date < today;
     return (
       <TouchableOpacity
         style={[styles.card, themeStyles.card]}
@@ -157,11 +180,17 @@ export default function DebtorsScreen() {
             {item.client_phone ? (
               <Text style={styles.clientPhone}>{item.client_phone}</Text>
             ) : null}
-            <Text style={styles.debtDate}>
-              {new Date(item.created_at).toLocaleDateString('ru-RU', {
-                day: 'numeric', month: 'short',
-              })}
-            </Text>
+            {item.due_date ? (
+              <Text style={[styles.debtDate, isOverdue && { color: '#E53935' }]}>
+                Срок: {new Date(item.due_date + 'T00:00:00').toLocaleDateString('ru-RU', {
+                  day: 'numeric', month: 'short', year: 'numeric'
+                })}
+              </Text>
+            ) : (
+              <Text style={styles.debtDate}>
+                {new Date(item.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+              </Text>
+            )}
           </View>
           <View style={styles.cardRight}>
             <Text style={styles.remaining}>
@@ -345,13 +374,7 @@ export default function DebtorsScreen() {
       <TouchableOpacity
         style={styles.fab}
         onPress={() => {
-          setClientName('');
-          setClientPhone('');
-          setDebtAmount('');
-          setDueDate('');
-          setDebtNote('');
-          setSearchResults([]);
-          setSelectedClientId(null);
+          resetAddModal();
           setShowAddModal(true);
         }}
       >
@@ -372,12 +395,15 @@ export default function DebtorsScreen() {
           <View style={[styles.modalContent, themeStyles.card]}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, themeStyles.text]}>Новый долг</Text>
-              <TouchableOpacity onPress={() => setShowAddModal(false)}>
+              <TouchableOpacity onPress={() => {
+                setShowAddModal(false);
+                resetAddModal();
+              }}>
                 <Ionicons name="close" size={24} color={isDark ? '#fff' : '#000'} />
               </TouchableOpacity>
             </View>
 
-            <View style={{ marginBottom: 12 }}>
+            <View style={{ marginBottom: 12, zIndex: 999 }}>
               <Text style={[styles.label, themeStyles.text]}>Имя клиента</Text>
               <TextInput
                 style={[styles.input, isDark ? styles.inputDark : styles.inputLight]}
@@ -445,15 +471,27 @@ export default function DebtorsScreen() {
 
             <View style={{ marginBottom: 12 }}>
               <Text style={[styles.label, themeStyles.text]}>Срок оплаты</Text>
-              <TextInput
-                style={[styles.input, isDark ? styles.inputDark : styles.inputLight]}
-                value={dueDate}
-                onChangeText={handleDueDateChange}
-                placeholder="ДД.ММ.ГГГГ"
-                placeholderTextColor={isDark ? '#888' : '#aaa'}
-                keyboardType="numeric"
-                maxLength={10}
-              />
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <TextInput
+                  style={[styles.input, isDark ? styles.inputDark : styles.inputLight, { flex: 1 }]}
+                  value={dueDate}
+                  onChangeText={handleDueDateChange}
+                  placeholder="ДД.ММ.ГГГГ"
+                  placeholderTextColor={isDark ? '#888' : '#aaa'}
+                  keyboardType="numeric"
+                  maxLength={10}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowDatePicker(true)}
+                  style={{
+                    padding: 10,
+                    backgroundColor: isDark ? '#2a2a2a' : '#f0f0f0',
+                    borderRadius: 8,
+                  }}
+                >
+                  <Ionicons name="calendar-outline" size={22} color={Colors.primary} />
+                </TouchableOpacity>
+              </View>
             </View>
 
             <View style={{ marginBottom: 12 }}>
@@ -473,6 +511,26 @@ export default function DebtorsScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {showDatePicker && (
+        <DateTimePicker
+          value={dueDate.length === 10
+            ? new Date(dueDate.split('.').reverse().join('-') + 'T00:00:00')
+            : new Date()
+          }
+          mode="date"
+          display="default"
+          minimumDate={new Date()}
+          onChange={(event: any, selectedDate?: Date) => {
+            setShowDatePicker(false);
+            if (event.type === 'dismissed' || !selectedDate) return;
+            const d = String(selectedDate.getDate()).padStart(2, '0');
+            const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
+            const y = selectedDate.getFullYear();
+            setDueDate(`${d}.${m}.${y}`);
+          }}
+        />
+      )}
     </View>
   );
 }
@@ -619,6 +677,12 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   autocompleteContainer: {
+    zIndex: 999,
+    elevation: 5,
+    position: 'absolute',
+    top: 44,   // высота TextInput
+    left: 0,
+    right: 0,
     marginTop: 4,
     borderRadius: 8,
     borderWidth: 1,
