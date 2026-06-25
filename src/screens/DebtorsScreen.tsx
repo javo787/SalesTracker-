@@ -91,6 +91,20 @@ export default function DebtorsScreen() {
     Alert.alert('✅ Платёж записан', `${amount} ${currency.symbol}`);
   };
 
+  const handleDueDateChange = (text: string) => {
+    // Auto-mask: ДД.ММ.ГГГГ
+    const digits = text.replace(/\D/g, '');
+    let masked = '';
+    if (digits.length <= 2) {
+      masked = digits;
+    } else if (digits.length <= 4) {
+      masked = digits.slice(0, 2) + '.' + digits.slice(2);
+    } else {
+      masked = digits.slice(0, 2) + '.' + digits.slice(2, 4) + '.' + digits.slice(4, 8);
+    }
+    setDueDate(masked);
+  };
+
   const handleAddDebt = () => {
     if (!clientName.trim() || !debtAmount || parseFloat(debtAmount) <= 0) {
       Alert.alert('Ошибка', 'Имя и сумма обязательны');
@@ -434,10 +448,11 @@ export default function DebtorsScreen() {
               <TextInput
                 style={[styles.input, isDark ? styles.inputDark : styles.inputLight]}
                 value={dueDate}
-                onChangeText={setDueDate}
+                onChangeText={handleDueDateChange}
                 placeholder="ДД.ММ.ГГГГ"
                 placeholderTextColor={isDark ? '#888' : '#aaa'}
                 keyboardType="numeric"
+                maxLength={10}
               />
             </View>
 

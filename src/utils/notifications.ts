@@ -73,7 +73,11 @@ export async function scheduleDebtReminder(
       body: `${clientName} должен ${amount.toLocaleString()} ${currencySymbol}`,
       data: { type: 'debt', debtId },
     },
-    trigger: { date: due } as any,
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DATE,
+      date: due,
+      channelId: 'default',
+    },
   });
 
   return identifier;
