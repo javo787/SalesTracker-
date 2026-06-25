@@ -27,15 +27,42 @@ import { Colors, LightTheme, DarkTheme, Radius, Shadow, FontSize, Spacing } from
 import { ForecastService } from '../services/ForecastService';
 import { aggregateSalesForForecast } from '../utils/aggregateSalesForForecast';
 
-let RewardedAd: any = null;
+let RewardedAdLoader: any = null;
 try {
   const yandex = require('yandex-mobile-ads');
-  console.log('Yandex keys:', JSON.stringify(Object.keys(yandex)));
-  RewardedAd = yandex.RewardedAd;
-  console.log('RewardedAd type:', typeof RewardedAd);
+  RewardedAdLoader = yandex.RewardedAdLoader;
 } catch (e) {
-  console.warn('Yandex load error:', e);
+  console.warn('Yandex RewardedAdLoader not available:', e);
 }
+
+const showRewardedAd = async (adUnitId: string): Promise<boolean> => {
+  if (!RewardedAdLoader) return false;
+
+  try {
+    const loader = await RewardedAdLoader.create();
+    const ad = await loader.loadAd({ adUnitId });
+
+    return new Promise((resolve) => {
+      let rewarded = false;
+
+      ad.onRewarded = () => { rewarded = true; };
+      ad.onAdDismissed = () => {
+        ad.delete();
+        resolve(rewarded);
+      };
+      ad.onAdFailedToShow = (error: any) => {
+        console.error('Ad failed to show:', error);
+        ad.delete();
+        resolve(false);
+      };
+
+      ad.show();
+    });
+  } catch (error) {
+    console.error('Rewarded ad load failed:', error);
+    return false;
+  }
+};
 
 export default function ReportScreen() {
   const { t, i18n } = useTranslation();
@@ -308,7 +335,7 @@ export default function ReportScreen() {
       return;
     }
 
-    if (!RewardedAd) {
+    if (!RewardedAdLoader) {
       Alert.alert('', t('exportSummary.noInternet'));
       return;
     }
@@ -316,39 +343,11 @@ export default function ReportScreen() {
     setShowExportModal(false);
     setIsExportLoading(true);
 
-    try {
-      const adUnitId = AD_UNIT_IDS.REWARDED;
-      const rewarded = RewardedAd.createForAdUnitId(adUnitId);
-
-      let rewardedEarned = false;
-
-      rewarded.onAdLoaded(() => {
-        rewarded.show();
-      });
-
-      rewarded.onAdFailedToLoad((error: any) => {
-        setIsExportLoading(false);
-        console.error('Export Rewarded ad failed to load:', error);
-        Alert.alert('', t('exportSummary.noInternet'));
-      });
-
-      rewarded.onAdRewarded(() => {
-        rewardedEarned = true;
-      });
-
-      rewarded.onAdDismissed(() => {
-        rewarded.removeAllListeners();
-        if (rewardedEarned) {
-          fetchAndExportAI();
-        } else {
-          setIsExportLoading(false);
-        }
-      });
-
-      rewarded.load();
-    } catch (e) {
+    const earned = await showRewardedAd(AD_UNIT_IDS.REWARDED);
+    if (earned) {
+      fetchAndExportAI();
+    } else {
       setIsExportLoading(false);
-      console.error('Error showing export rewarded ad:', e);
       Alert.alert('', t('exportSummary.noInternet'));
     }
   };
@@ -454,7 +453,7 @@ export default function ReportScreen() {
   };
 
   const handleWatchExtendedVideo = async () => {
-    if (!RewardedAd) {
+    if (!RewardedAdLoader) {
       Alert.alert('', t('extendedReport.noInternet'));
       return;
     }
@@ -462,42 +461,16 @@ export default function ReportScreen() {
     setShowExtendedModal(false);
     setIsAdLoading(true);
 
-    try {
-      const adUnitId = AD_UNIT_IDS.REWARDED;
-      const rewarded = RewardedAd.createForAdUnitId(adUnitId);
+    const earned = await showRewardedAd(AD_UNIT_IDS.REWARDED);
+    setIsAdLoading(false);
 
-      let rewardedEarned = false;
-
-      rewarded.onAdLoaded(() => {
-        setIsAdLoading(false);
-        rewarded.show();
+    if (earned) {
+      ExtendedReportService.onRewardedWatched().then(() => {
+        setExtendedUnlocked(true);
+        setRemainingHours(24);
+        setPeriod(90);
       });
-
-      rewarded.onAdFailedToLoad((error: any) => {
-        setIsAdLoading(false);
-        console.error('Extended Rewarded ad failed to load:', error);
-        Alert.alert('', t('extendedReport.noInternet'));
-      });
-
-      rewarded.onAdRewarded(() => {
-        rewardedEarned = true;
-      });
-
-      rewarded.onAdDismissed(() => {
-        rewarded.removeAllListeners();
-        if (rewardedEarned) {
-          ExtendedReportService.onRewardedWatched().then(() => {
-            setExtendedUnlocked(true);
-            setRemainingHours(24);
-            setPeriod(90);
-          });
-        }
-      });
-
-      rewarded.load();
-    } catch (e) {
-      setIsAdLoading(false);
-      console.error('Error showing extended rewarded ad:', e);
+    } else {
       Alert.alert('', t('extendedReport.noInternet'));
     }
   };
@@ -508,46 +481,18 @@ export default function ReportScreen() {
       return;
     }
 
-    if (!RewardedAd) {
+    if (!RewardedAdLoader) {
       Alert.alert('', t('forecast.noInternet'));
       return;
     }
 
     setIsForecastLoading(true);
 
-    try {
-      const adUnitId = AD_UNIT_IDS.REWARDED;
-      const rewarded = RewardedAd.createForAdUnitId(adUnitId);
-
-      let rewardedEarned = false;
-
-      rewarded.onAdLoaded(() => {
-        rewarded.show();
-      });
-
-      rewarded.onAdFailedToLoad((error: any) => {
-        setIsForecastLoading(false);
-        console.error('Forecast Rewarded ad failed to load:', error);
-        Alert.alert('', t('forecast.noInternet'));
-      });
-
-      rewarded.onAdRewarded(() => {
-        rewardedEarned = true;
-      });
-
-      rewarded.onAdDismissed(() => {
-        rewarded.removeAllListeners();
-        if (rewardedEarned) {
-          generateForecast();
-        } else {
-          setIsForecastLoading(false);
-        }
-      });
-
-      rewarded.load();
-    } catch (e) {
+    const earned = await showRewardedAd(AD_UNIT_IDS.REWARDED);
+    if (earned) {
+      generateForecast();
+    } else {
       setIsForecastLoading(false);
-      console.error('Error showing forecast rewarded ad:', e);
       Alert.alert('', t('forecast.noInternet'));
     }
   };
@@ -585,79 +530,89 @@ export default function ReportScreen() {
       style={[styles.container, themeStyles.container]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
-      {/* Переключатель периода и экспорт */}
-      <View style={styles.topRow}>
-        <View style={styles.periodRow}>
+      {/* Period + Export header */}
+      <View style={styles.headerControls}>
+        {/* Row 1: title + export button */}
+        <View style={styles.headerRow}>
+          <Text style={[styles.periodTitle, themeStyles.text]}>
+            {getPeriodLabel()}
+          </Text>
+          <TouchableOpacity
+            style={styles.exportBtn}
+            onPress={() => setShowExportModal(true)}
+          >
+            <Ionicons name="download-outline" size={14} color="#1D9E75" />
+            <Text style={styles.exportBtnText}>{t('reports.exportCsv')}</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Row 2: scrollable period chips */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.periodChips}
+        >
           {PERIODS.map(p => (
             <TouchableOpacity
               key={p.days}
               style={[
-                styles.periodBtn,
-                themeStyles.card,
-                period === p.days && styles.periodBtnActive,
-                p.locked && styles.periodBtnLocked
+                styles.chip,
+                period === p.days && styles.chipActive,
+                p.locked && styles.chipLocked,
               ]}
               onPress={() => {
-                if (p.locked) {
-                  setShowExtendedModal(true);
-                  return;
-                }
+                if (p.locked) { setShowExtendedModal(true); return; }
                 setPeriod(p.days);
                 setDateRange(null);
                 setSelectedDates({});
               }}
             >
+              {p.locked && (
+                <Ionicons name="lock-closed" size={10} color="#999" style={{ marginRight: 3 }} />
+              )}
               <Text style={[
-                styles.periodText,
-                period === p.days && styles.periodTextActive,
-                p.locked && styles.periodTextLocked
+                styles.chipText,
+                period === p.days && styles.chipTextActive,
+                p.locked && styles.chipTextLocked,
               ]}>
                 {p.label}
               </Text>
             </TouchableOpacity>
           ))}
+
+          {/* Calendar chip */}
           <TouchableOpacity
-            style={[styles.periodBtn, themeStyles.card, period === 'custom' && styles.periodBtnActive]}
-            onPress={() => {
-              if (extendedUnlocked) {
-                setShowCalendar(true);
-              } else {
-                setShowExtendedModal(true);
-              }
-            }}
+            style={[styles.chip, styles.chipCalendar, period === 'custom' && styles.chipActive]}
+            onPress={() => extendedUnlocked ? setShowCalendar(true) : setShowExtendedModal(true)}
           >
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Ionicons name="calendar-outline" size={18} color={period === 'custom' ? '#fff' : '#1D9E75'} />
-              {!extendedUnlocked && (
-                <Ionicons name="lock-closed" size={10} color={period === 'custom' ? '#fff' : '#1D9E75'} style={{ marginLeft: 2 }} />
-              )}
-            </View>
+            <Ionicons
+              name="calendar-outline"
+              size={14}
+              color={period === 'custom' ? '#fff' : '#1D9E75'}
+            />
+            {!extendedUnlocked && (
+              <Ionicons name="lock-closed" size={9} color="#999" style={{ marginLeft: 2 }} />
+            )}
           </TouchableOpacity>
-        </View>
-        <TouchableOpacity style={[styles.exportBtn, themeStyles.card]} onPress={() => setShowExportModal(true)}>
-          <Text style={styles.exportBtnText}>📤 {t('reports.exportCsv')}</Text>
-        </TouchableOpacity>
+        </ScrollView>
       </View>
 
-      <View style={styles.badgeRow}>
-        {!extendedUnlocked ? (
-          <TouchableOpacity
-            style={styles.lockBadge}
-            onPress={() => setShowExtendedModal(true)}
-          >
-            <Text style={styles.lockBadgeText}>🔒 {t('extendedReport.lockBadge')}</Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.unlockedBadge}>
-            <Text style={styles.unlockedBadgeText}>
-              ✅ {t('extendedReport.unlockedBadge', { count: remainingHours })}
-            </Text>
-          </View>
-        )}
-        {isAdLoading && (
-          <ActivityIndicator size="small" color="#1D9E75" style={{ marginLeft: 10 }} />
-        )}
-      </View>
+      {!extendedUnlocked ? (
+        <TouchableOpacity style={styles.lockStrip} onPress={() => setShowExtendedModal(true)}>
+          <Ionicons name="lock-closed-outline" size={12} color="#999" />
+          <Text style={styles.lockStripText}>{t('extendedReport.lockBadge')}</Text>
+        </TouchableOpacity>
+      ) : (
+        <View style={styles.unlockedStrip}>
+          <Ionicons name="checkmark-circle" size={12} color="#1D9E75" />
+          <Text style={styles.unlockedStripText}>
+            {t('extendedReport.unlockedBadge', { count: remainingHours })}
+          </Text>
+        </View>
+      )}
+      {isAdLoading && (
+        <ActivityIndicator size="small" color="#1D9E75" style={{ marginHorizontal: 16, marginBottom: 8 }} />
+      )}
 
       {period === 'custom' && dateRange && (
         <View style={styles.customRangeInfo}>
@@ -823,10 +778,10 @@ export default function ReportScreen() {
                     <Text style={styles.saleProfit}>
                       +{sale.profit.toLocaleString()} {currency.symbol}
                     </Text>
-                   </View>
+                  </View>
                 </TouchableOpacity>
-              ))
-            )}
+              )))
+            }
           </View>
           <View style={{ width: '100%' }}>
             <UniversalBanner />
@@ -1055,28 +1010,75 @@ const darkStyles = StyleSheet.create({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   flex: { flex: 1 },
-  topRow: {
-    flexDirection: 'row', alignItems: 'center', paddingRight: 16,
+  headerControls: {
+    paddingTop: 12,
+    paddingBottom: 4,
   },
-  periodRow: {
-    flex: 1, flexDirection: 'row', gap: 8, padding: 16, paddingBottom: 8,
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginBottom: 10,
+  },
+  periodTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#999',
+    letterSpacing: 0.3,
   },
   exportBtn: {
-    paddingVertical: 8, paddingHorizontal: 12,
-    borderRadius: 12, borderWidth: 1, borderColor: '#E0E0E0',
-    marginTop: 8,
-  },
-  exportBtnText: { fontSize: 13, fontWeight: '600', color: '#1D9E75' },
-  periodBtn: {
-    flex: 1, paddingVertical: 8, borderRadius: Radius.pill,
+    flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1, borderColor: '#E0E0E0',
+    gap: 5,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#1D9E75',
   },
-  periodBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  periodBtnLocked: { opacity: 0.7, borderStyle: 'dashed' },
-  periodText: { fontSize: FontSize.md - 1, fontWeight: '500', color: '#666' },
-  periodTextActive: { color: '#fff' },
-  periodTextLocked: { color: '#999' },
+  exportBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#1D9E75',
+  },
+  periodChips: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 4,
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#D0D0D0',
+  },
+  chipActive: {
+    backgroundColor: '#1D9E75',
+    borderColor: '#1D9E75',
+  },
+  chipLocked: {
+    borderStyle: 'dashed',
+    borderColor: '#CCC',
+  },
+  chipCalendar: {
+    paddingHorizontal: 12,
+  },
+  chipText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#555',
+  },
+  chipTextActive: {
+    color: '#fff',
+  },
+  chipTextLocked: {
+    color: '#AAA',
+  },
   statsGrid: {
     flexDirection: 'row', flexWrap: 'wrap',
     gap: Spacing.md, paddingHorizontal: Spacing.lg, marginBottom: Spacing.sm,
@@ -1282,34 +1284,26 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
   },
 
-  badgeRow: {
-    paddingHorizontal: 16,
-    marginBottom: 8,
+  lockStrip: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
   },
-  lockBadge: {
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 100,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    backgroundColor: 'transparent',
+  lockStripText: {
+    fontSize: 11,
+    color: '#999',
   },
-  lockBadgeText: {
-    fontSize: 12,
-    color: '#888',
+  unlockedStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
   },
-  unlockedBadge: {
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 100,
-    borderWidth: 1,
-    borderColor: '#1D9E75',
-    backgroundColor: 'transparent',
-  },
-  unlockedBadgeText: {
-    fontSize: 12,
+  unlockedStripText: {
+    fontSize: 11,
     color: '#1D9E75',
     fontWeight: '500',
   },
