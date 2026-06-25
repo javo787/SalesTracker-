@@ -30,9 +30,11 @@ import { aggregateSalesForForecast } from '../utils/aggregateSalesForForecast';
 let RewardedAd: any = null;
 try {
   const yandex = require('yandex-mobile-ads');
+  console.log('Yandex keys:', JSON.stringify(Object.keys(yandex)));
   RewardedAd = yandex.RewardedAd;
+  console.log('RewardedAd type:', typeof RewardedAd);
 } catch (e) {
-  console.warn('Yandex RewardedAd not available:', e);
+  console.warn('Yandex load error:', e);
 }
 
 export default function ReportScreen() {
