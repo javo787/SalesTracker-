@@ -821,10 +821,10 @@ export default function ReportScreen() {
                     <Text style={styles.saleProfit}>
                       +{sale.profit.toLocaleString()} {currency.symbol}
                     </Text>
-                  </View>
+                   </View>
                 </TouchableOpacity>
               ))
-            }
+            )}
           </View>
           <View style={{ width: '100%' }}>
             <UniversalBanner />
