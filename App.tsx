@@ -8,8 +8,8 @@ import { createDrawerNavigator } from '@react-navigation/drawer';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { I18nextProvider, useTranslation } from 'react-i18next';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { initDatabase } from './src/db/database';
-import { requestPermissions, showRemoteNotification } from './src/utils/notifications';
+import { initDatabase, getOverdueDebts } from './src/db/database';
+import { requestPermissions, showRemoteNotification, notifyOverdueDebts } from './src/utils/notifications';
 import i18n from './src/i18n/i18n';
 import messaging from '@react-native-firebase/messaging';
 import * as Notifications from 'expo-notifications';
@@ -270,9 +270,27 @@ function AppContent() {
   const navigationRef = useNavigationContainerRef();
   const routeNameRef = useRef<string>(undefined);
 
+  const { currency } = useAppContext();
+
   useEffect(() => {
     checkOnboarding();
   }, []);
+
+  useEffect(() => {
+    const checkOverdue = async () => {
+      try {
+        const overdue = getOverdueDebts() as any[];
+        if (overdue.length > 0) {
+          await notifyOverdueDebts(overdue, currency.symbol);
+        }
+      } catch (e) {
+        console.warn('Failed to check overdue debts:', e);
+      }
+    };
+    if (isAuthenticated) {
+      checkOverdue();
+    }
+  }, [isAuthenticated, currency.symbol]);
 
   const checkOnboarding = async () => {
     try {

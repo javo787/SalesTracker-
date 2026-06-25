@@ -51,6 +51,61 @@ export async function notifyImportantNews(titleRu: string, articleUrl: string) {
   });
 }
 
+export async function scheduleDebtReminder(
+  debtId: number,
+  clientName: string,
+  amount: number,
+  dueDate: string, // 'YYYY-MM-DD'
+  currencySymbol: string
+): Promise<string | null> {
+  const enabled = await AsyncStorage.getItem('app_notifications_enabled');
+  if (enabled === 'false') return null;
+
+  // Парсим 'YYYY-MM-DD' вручную, чтобы избежать проблем с часовыми поясами
+  const [year, month, day] = dueDate.split('-').map(Number);
+  const due = new Date(year, month - 1, day, 9, 0, 0);
+
+  if (due <= new Date()) return null; // уже просрочен — не планируем
+
+  const identifier = await Notifications.scheduleNotificationAsync({
+    content: {
+      title: '💰 Срок долга сегодня',
+      body: `${clientName} должен ${amount.toLocaleString()} ${currencySymbol}`,
+      data: { type: 'debt', debtId },
+    },
+    trigger: { date: due } as any,
+  });
+
+  return identifier;
+}
+
+export async function cancelDebtReminder(notificationId: string | null) {
+  if (!notificationId) return;
+  try {
+    await Notifications.cancelScheduledNotificationAsync(notificationId);
+  } catch (_) {}
+}
+
+export async function notifyOverdueDebts(
+  overdueDebts: Array<{ client_name: string; remaining: number }>,
+  currencySymbol: string
+) {
+  const enabled = await AsyncStorage.getItem('app_notifications_enabled');
+  if (enabled === 'false') return;
+  if (overdueDebts.length === 0) return;
+
+  const totalRemaining = overdueDebts.reduce((sum, d) => sum + d.remaining, 0);
+
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: `⚠️ ${overdueDebts.length} просроченных долгов`,
+      body: `Итого: ${totalRemaining.toLocaleString()} ${currencySymbol}`,
+      data: { type: 'overdue_debts' },
+    },
+    trigger: null, // сразу
+  });
+}
+
 export async function showRemoteNotification(title: string, body: string, data?: any) {
   const enabled = await AsyncStorage.getItem('app_notifications_enabled');
   if (enabled === 'false') return;

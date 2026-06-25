@@ -10,7 +10,9 @@ import { useAppContext } from '../context/AppContext';
 import { Colors, LightTheme, DarkTheme, Radius, Shadow, FontSize, Spacing } from '../constants/theme';
 import {
   getDebtsWithClients, recordDebtPayment, getDebtPayments, getDebtSummary,
+  updateDebtNotificationId, getDebtById,
 } from '../db/database';
+import { cancelDebtReminder } from '../utils/notifications';
 
 export default function DebtorsScreen() {
   const { resolvedTheme, currency } = useAppContext();
@@ -51,7 +53,7 @@ export default function DebtorsScreen() {
     setShowModal(true);
   };
 
-  const handlePayment = () => {
+  const handlePayment = async () => {
     const amount = parseFloat(paymentAmount);
     if (!amount || amount <= 0) {
       Alert.alert('Ошибка', 'Введите сумму платежа');
@@ -63,6 +65,14 @@ export default function DebtorsScreen() {
       return;
     }
     recordDebtPayment(selectedDebt.id, amount, paymentNote);
+
+    // Если полностью погашен — отменить уведомление
+    const updated = getDebtById(selectedDebt.id) as any;
+    if (updated && updated.status === 'paid' && selectedDebt.notification_id) {
+      await cancelDebtReminder(selectedDebt.notification_id);
+      updateDebtNotificationId(selectedDebt.id, null);
+    }
+
     setShowModal(false);
     loadDebts();
     Alert.alert('✅ Платёж записан', `${amount} ${currency.symbol}`);

@@ -7,7 +7,8 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
-import { addSale, getProducts, upsertClient, addDebt } from '../db/database';
+import { addSale, getProducts, upsertClient, addDebt, updateDebtNotificationId } from '../db/database';
+import { scheduleDebtReminder } from '../utils/notifications';
 import { analyticsService } from '../services/analyticsService';
 import { reviewService } from '../services/reviewService';
 import VoiceRecorder from '../components/VoiceRecorder';
@@ -46,6 +47,7 @@ export default function AddSaleScreen(/* props */) {
 
   const [paymentType, setPaymentType] = useState<'full' | 'partial' | 'debt'>('full');
   const [paidAmount, setPaidAmount] = useState('');
+  const [dueDate, setDueDate] = useState('');
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
   const [clientId, setClientId] = useState<number | null>(null);
@@ -200,7 +202,7 @@ FEW-SHOT EXAMPLES:
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!productName.trim()) {
       Alert.alert(t('common.error'), t('addSale.productPlaceholder'));
       return;
@@ -236,7 +238,20 @@ FEW-SHOT EXAMPLES:
       const resolvedClientId = upsertClient(clientName.trim(), clientPhone.trim());
       const paid = paymentType === 'partial' ? (parseFloat(paidAmount) || 0) : 0;
       const totalDebt = sPrice * qty;
-      addDebt(resolvedClientId, saleId?.lastInsertRowId ?? null, totalDebt, paid);
+      const debtResult = addDebt(resolvedClientId, saleId?.lastInsertRowId ?? null, totalDebt, paid, '', dueDate) as any;
+
+      if (dueDate && debtResult?.lastInsertRowId) {
+        const notifId = await scheduleDebtReminder(
+          debtResult.lastInsertRowId,
+          clientName,
+          totalDebt - paid,
+          dueDate,
+          currency.symbol
+        );
+        if (notifId) {
+          updateDebtNotificationId(debtResult.lastInsertRowId, notifId);
+        }
+      }
     }
 
     const profit = (sPrice - bPrice) * qty;
@@ -259,7 +274,7 @@ FEW-SHOT EXAMPLES:
     setProductName(''); setSellPrice(''); setBuyPrice('');
     setQuantity(''); setNote(''); setVoiceText('');
     setSelectedProduct(null); setSalePricePlaceholder(null);
-    setPaymentType('full'); setPaidAmount('');
+    setPaymentType('full'); setPaidAmount(''); setDueDate('');
     setClientName(''); setClientPhone(''); setClientId(null);
   };
 
@@ -474,7 +489,14 @@ FEW-SHOT EXAMPLES:
         )}
 
         {(paymentType === 'partial' || paymentType === 'debt') && (
-          <View style={{ marginTop: 8 }}>
+          <View style={{ marginTop: 8, gap: 8 }}>
+            <TextInput
+              style={[styles.input, themeStyles.input]}
+              placeholder="Срок оплаты (ГГГГ-ММ-ДД)"
+              placeholderTextColor={isDark ? '#888' : '#aaa'}
+              value={dueDate}
+              onChangeText={setDueDate}
+            />
             <ClientAutocomplete
               value={clientName}
               phone={clientPhone}
