@@ -15,13 +15,42 @@ import { adService } from '../../services/adService';
 import { useAppContext } from '../../context/AppContext';
 import { AD_UNIT_IDS } from '../../constants/ads';
 
-let RewardedAd: any = null;
+let RewardedAdLoader: any = null;
 try {
   const yandex = require('yandex-mobile-ads');
-  RewardedAd = yandex.RewardedAd;
+  RewardedAdLoader = yandex.RewardedAdLoader;
 } catch (e) {
-  console.warn('Yandex RewardedAd not available:', e);
+  console.warn('Yandex RewardedAdLoader not available:', e);
 }
+
+const showRewardedAd = async (adUnitId: string): Promise<boolean> => {
+  if (!RewardedAdLoader) return false;
+
+  try {
+    const loader = await RewardedAdLoader.create();
+    const ad = await loader.loadAd({ adUnitId });
+
+    return new Promise((resolve) => {
+      let rewarded = false;
+
+      ad.onRewarded = () => { rewarded = true; };
+      ad.onAdDismissed = () => {
+        ad.delete();
+        resolve(rewarded);
+      };
+      ad.onAdFailedToShow = (error: any) => {
+        console.error('Ad failed to show:', error);
+        ad.delete();
+        resolve(false);
+      };
+
+      ad.show();
+    });
+  } catch (error) {
+    console.error('Rewarded ad load failed:', error);
+    return false;
+  }
+};
 
 export default function AdFreeButton() {
   const { t } = useTranslation();
@@ -56,7 +85,7 @@ export default function AdFreeButton() {
   }, [loadState]);
 
   const handleWatchVideo = async () => {
-    if (!RewardedAd) {
+    if (!RewardedAdLoader) {
       Alert.alert('', t('adFree.noInternet'));
       return;
     }
@@ -64,38 +93,12 @@ export default function AdFreeButton() {
     setShowModal(false);
     setIsAdLoading(true);
 
-    try {
-      const adUnitId = AD_UNIT_IDS.REWARDED;
-      const rewarded = RewardedAd.createForAdUnitId(adUnitId);
+    const earned = await showRewardedAd(AD_UNIT_IDS.REWARDED);
+    setIsAdLoading(false);
 
-      let rewardedEarned = false;
-
-      rewarded.onAdLoaded(() => {
-        setIsAdLoading(false);
-        rewarded.show();
-      });
-
-      rewarded.onAdFailedToLoad((error: any) => {
-        setIsAdLoading(false);
-        console.error('Rewarded ad failed to load:', error);
-        Alert.alert('', 'Нет подключения. Попробуйте позже.');
-      });
-
-      rewarded.onAdRewarded(() => {
-        rewardedEarned = true;
-      });
-
-      rewarded.onAdDismissed(() => {
-        rewarded.removeAllListeners();
-        if (rewardedEarned) {
-          AdFreeService.onRewardedWatched().then(loadState);
-        }
-      });
-
-      rewarded.load();
-    } catch (e) {
-      setIsAdLoading(false);
-      console.error('Error showing rewarded ad:', e);
+    if (earned) {
+      AdFreeService.onRewardedWatched().then(loadState);
+    } else {
       Alert.alert('', 'Нет подключения. Попробуйте позже.');
     }
   };

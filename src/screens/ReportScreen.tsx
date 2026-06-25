@@ -27,13 +27,42 @@ import { Colors, LightTheme, DarkTheme, Radius, Shadow, FontSize, Spacing } from
 import { ForecastService } from '../services/ForecastService';
 import { aggregateSalesForForecast } from '../utils/aggregateSalesForForecast';
 
-let RewardedAd: any = null;
+let RewardedAdLoader: any = null;
 try {
   const yandex = require('yandex-mobile-ads');
-  RewardedAd = yandex.RewardedAd;
+  RewardedAdLoader = yandex.RewardedAdLoader;
 } catch (e) {
-  console.warn('Yandex RewardedAd not available:', e);
+  console.warn('Yandex RewardedAdLoader not available:', e);
 }
+
+const showRewardedAd = async (adUnitId: string): Promise<boolean> => {
+  if (!RewardedAdLoader) return false;
+
+  try {
+    const loader = await RewardedAdLoader.create();
+    const ad = await loader.loadAd({ adUnitId });
+
+    return new Promise((resolve) => {
+      let rewarded = false;
+
+      ad.onRewarded = () => { rewarded = true; };
+      ad.onAdDismissed = () => {
+        ad.delete();
+        resolve(rewarded);
+      };
+      ad.onAdFailedToShow = (error: any) => {
+        console.error('Ad failed to show:', error);
+        ad.delete();
+        resolve(false);
+      };
+
+      ad.show();
+    });
+  } catch (error) {
+    console.error('Rewarded ad load failed:', error);
+    return false;
+  }
+};
 
 export default function ReportScreen() {
   const { t, i18n } = useTranslation();
@@ -306,7 +335,7 @@ export default function ReportScreen() {
       return;
     }
 
-    if (!RewardedAd) {
+    if (!RewardedAdLoader) {
       Alert.alert('', t('exportSummary.noInternet'));
       return;
     }
@@ -314,39 +343,11 @@ export default function ReportScreen() {
     setShowExportModal(false);
     setIsExportLoading(true);
 
-    try {
-      const adUnitId = AD_UNIT_IDS.REWARDED;
-      const rewarded = RewardedAd.createForAdUnitId(adUnitId);
-
-      let rewardedEarned = false;
-
-      rewarded.onAdLoaded(() => {
-        rewarded.show();
-      });
-
-      rewarded.onAdFailedToLoad((error: any) => {
-        setIsExportLoading(false);
-        console.error('Export Rewarded ad failed to load:', error);
-        Alert.alert('', t('exportSummary.noInternet'));
-      });
-
-      rewarded.onAdRewarded(() => {
-        rewardedEarned = true;
-      });
-
-      rewarded.onAdDismissed(() => {
-        rewarded.removeAllListeners();
-        if (rewardedEarned) {
-          fetchAndExportAI();
-        } else {
-          setIsExportLoading(false);
-        }
-      });
-
-      rewarded.load();
-    } catch (e) {
+    const earned = await showRewardedAd(AD_UNIT_IDS.REWARDED);
+    if (earned) {
+      fetchAndExportAI();
+    } else {
       setIsExportLoading(false);
-      console.error('Error showing export rewarded ad:', e);
       Alert.alert('', t('exportSummary.noInternet'));
     }
   };
@@ -452,7 +453,7 @@ export default function ReportScreen() {
   };
 
   const handleWatchExtendedVideo = async () => {
-    if (!RewardedAd) {
+    if (!RewardedAdLoader) {
       Alert.alert('', t('extendedReport.noInternet'));
       return;
     }
@@ -460,42 +461,16 @@ export default function ReportScreen() {
     setShowExtendedModal(false);
     setIsAdLoading(true);
 
-    try {
-      const adUnitId = AD_UNIT_IDS.REWARDED;
-      const rewarded = RewardedAd.createForAdUnitId(adUnitId);
+    const earned = await showRewardedAd(AD_UNIT_IDS.REWARDED);
+    setIsAdLoading(false);
 
-      let rewardedEarned = false;
-
-      rewarded.onAdLoaded(() => {
-        setIsAdLoading(false);
-        rewarded.show();
+    if (earned) {
+      ExtendedReportService.onRewardedWatched().then(() => {
+        setExtendedUnlocked(true);
+        setRemainingHours(24);
+        setPeriod(90);
       });
-
-      rewarded.onAdFailedToLoad((error: any) => {
-        setIsAdLoading(false);
-        console.error('Extended Rewarded ad failed to load:', error);
-        Alert.alert('', t('extendedReport.noInternet'));
-      });
-
-      rewarded.onAdRewarded(() => {
-        rewardedEarned = true;
-      });
-
-      rewarded.onAdDismissed(() => {
-        rewarded.removeAllListeners();
-        if (rewardedEarned) {
-          ExtendedReportService.onRewardedWatched().then(() => {
-            setExtendedUnlocked(true);
-            setRemainingHours(24);
-            setPeriod(90);
-          });
-        }
-      });
-
-      rewarded.load();
-    } catch (e) {
-      setIsAdLoading(false);
-      console.error('Error showing extended rewarded ad:', e);
+    } else {
       Alert.alert('', t('extendedReport.noInternet'));
     }
   };
@@ -506,46 +481,18 @@ export default function ReportScreen() {
       return;
     }
 
-    if (!RewardedAd) {
+    if (!RewardedAdLoader) {
       Alert.alert('', t('forecast.noInternet'));
       return;
     }
 
     setIsForecastLoading(true);
 
-    try {
-      const adUnitId = AD_UNIT_IDS.REWARDED;
-      const rewarded = RewardedAd.createForAdUnitId(adUnitId);
-
-      let rewardedEarned = false;
-
-      rewarded.onAdLoaded(() => {
-        rewarded.show();
-      });
-
-      rewarded.onAdFailedToLoad((error: any) => {
-        setIsForecastLoading(false);
-        console.error('Forecast Rewarded ad failed to load:', error);
-        Alert.alert('', t('forecast.noInternet'));
-      });
-
-      rewarded.onAdRewarded(() => {
-        rewardedEarned = true;
-      });
-
-      rewarded.onAdDismissed(() => {
-        rewarded.removeAllListeners();
-        if (rewardedEarned) {
-          generateForecast();
-        } else {
-          setIsForecastLoading(false);
-        }
-      });
-
-      rewarded.load();
-    } catch (e) {
+    const earned = await showRewardedAd(AD_UNIT_IDS.REWARDED);
+    if (earned) {
+      generateForecast();
+    } else {
       setIsForecastLoading(false);
-      console.error('Error showing forecast rewarded ad:', e);
       Alert.alert('', t('forecast.noInternet'));
     }
   };
