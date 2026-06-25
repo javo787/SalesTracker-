@@ -1,11 +1,11 @@
 import { AD_UNIT_IDS } from '../constants/ads';
 
-let InterstitialAd: any = null;
+let InterstitialAdLoader: any = null;
 try {
   const yandex = require('yandex-mobile-ads');
-  InterstitialAd = yandex.InterstitialAd;
+  InterstitialAdLoader = yandex.InterstitialAdLoader;
 } catch (e) {
-  console.warn('Yandex InterstitialAd not available:', e);
+  console.warn('Yandex InterstitialAdLoader not available:', e);
 }
 
 /**
@@ -14,48 +14,45 @@ try {
  * do not block navigation or action that triggered it.
  */
 export async function showInterstitialSilently(): Promise<void> {
-  if (!InterstitialAd) {
+  if (!InterstitialAdLoader) {
     return;
   }
 
-  return new Promise((resolve) => {
+  return new Promise(async (resolve) => {
+    let didResolve = false;
+    const safeResolve = () => {
+      if (!didResolve) {
+        didResolve = true;
+        resolve();
+      }
+    };
+
+    // Fallback timeout in case Yandex callbacks don't fire
+    const timeout = setTimeout(safeResolve, 5000);
+
     try {
       const adUnitId = AD_UNIT_IDS.INTERSTITIAL;
-      const interstitial = InterstitialAd.createForAdUnitId(adUnitId);
+      const loader = await InterstitialAdLoader.create();
+      const ad = await loader.loadAd({ adUnitId });
 
-      let didResolve = false;
-
-      const safeResolve = () => {
-        if (!didResolve) {
-          didResolve = true;
-          resolve();
-        }
+      ad.onAdDismissed = () => {
+        clearTimeout(timeout);
+        ad.delete();
+        safeResolve();
       };
 
-      interstitial.onAdLoaded(() => {
-        interstitial.show();
-      });
-
-      interstitial.onAdFailedToLoad((error: any) => {
-        console.error('Interstitial failed to load (silent):', error);
+      ad.onAdFailedToShow = (error: any) => {
+        console.error('Interstitial failed to show (silent):', error);
+        clearTimeout(timeout);
+        ad.delete();
         safeResolve();
-      });
+      };
 
-      interstitial.onAdDismissed(() => {
-        safeResolve();
-      });
-
-      interstitial.onAdShown(() => {
-        // We resolve when dismissed, but we could resolve here if we wanted non-blocking
-      });
-
-      interstitial.load();
-
-      // Fallback timeout in case Yandex callbacks don't fire
-      setTimeout(safeResolve, 5000);
+      await ad.show();
     } catch (e) {
       console.error('Error in showInterstitialSilently:', e);
-      resolve();
+      clearTimeout(timeout);
+      safeResolve();
     }
   });
 }
