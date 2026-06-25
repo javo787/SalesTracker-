@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "WebSearch"
+      "WebSearch",
+      "Bash(.specify/scripts/powershell/setup-plan.ps1 *)",
+      "Bash(.specify/extensions/git/scripts/bash/auto-commit.sh before_plan *)",
+      "Bash(powershell *)"
     ]
   }
 }
