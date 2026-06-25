@@ -13,6 +13,7 @@
     "@benfurkankilic/expo-yandex-mobile-ads": "^1.0.0",
     "@expo/vector-icons": "^15.1.1",
     "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-community/datetimepicker": "^9.1.0",
     "@react-native-firebase/analytics": "^24.1.1",
     "@react-native-firebase/app": "^24.1.1",
     "@react-native-firebase/messaging": "^24.1.1",
