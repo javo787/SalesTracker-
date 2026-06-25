@@ -805,11 +805,13 @@ export function getDebtsWithClients() {
   return db.getAllSync(`
     SELECT
       d.*,
-      c.name  AS client_name,
+      c.name AS client_name,
       c.phone AS client_phone,
-      (d.amount_total - d.amount_paid) AS remaining
+      (d.amount_total - d.amount_paid) AS remaining,
+      s.product_name AS product_name_from_sale
     FROM debts d
     JOIN clients c ON c.id = d.client_id
+    LEFT JOIN sales s ON s.id = d.sale_id
     WHERE d.status != 'paid'
     ORDER BY d.created_at DESC
   `);
@@ -888,6 +890,22 @@ export function getDebtPayments(debtId: number) {
     'SELECT * FROM debt_payments WHERE debt_id = ? ORDER BY created_at DESC',
     [debtId]
   );
+}
+
+export function getClientDebtHistory(clientId: number) {
+  // Все долги клиента (включая погашенные) с инфо о продаже
+  return db.getAllSync(`
+    SELECT
+      d.*,
+      s.product_name,
+      s.quantity,
+      s.sell_price,
+      (d.amount_total - d.amount_paid) AS remaining
+    FROM debts d
+    LEFT JOIN sales s ON s.id = d.sale_id
+    WHERE d.client_id = ?
+    ORDER BY d.created_at DESC
+  `, [clientId]);
 }
 
 export function searchProductsForAutocomplete(query: string) {

@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   Alert, TextInput, Modal, KeyboardAvoidingView, Platform,
-  RefreshControl,
+  RefreshControl, ScrollView,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusEffect } from '@react-navigation/native';
@@ -12,7 +12,7 @@ import { Colors, LightTheme, DarkTheme, Radius, Shadow, FontSize, Spacing } from
 import {
   getDebtsWithClients, recordDebtPayment, getDebtPayments, getDebtSummary,
   updateDebtNotificationId, getDebtById,
-  addDebt, deleteDebt, searchClients, upsertClient,
+  addDebt, deleteDebt, searchClients, upsertClient, getClientDebtHistory,
 } from '../db/database';
 import { cancelDebtReminder } from '../utils/notifications';
 
@@ -32,6 +32,8 @@ export default function DebtorsScreen() {
   const [paymentNote, setPaymentNote] = useState('');
   const [payments, setPayments] = useState<any[]>([]);
   const [showModal, setShowModal] = useState(false);
+  const [clientHistory, setClientHistory] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'info' | 'history'>('info');
 
   const [filter, setFilter] = useState<'all' | 'active' | 'overdue'>('all');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -63,6 +65,8 @@ export default function DebtorsScreen() {
   const openClient = (debt: any) => {
     setSelectedDebt(debt);
     setPayments(getDebtPayments(debt.id) as any[]);
+    setClientHistory(getClientDebtHistory(debt.client_id) as any[]);
+    setActiveTab('info');
     setPaymentAmount('');
     setPaymentNote('');
     setShowModal(true);
@@ -277,88 +281,221 @@ export default function DebtorsScreen() {
         >
           <View style={[styles.modalContent, themeStyles.card]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, themeStyles.text]}>
-                {selectedDebt?.client_name}
-              </Text>
+              <View>
+                <Text style={[styles.modalTitle, themeStyles.text]}>
+                  {selectedDebt?.client_name}
+                </Text>
+                {selectedDebt?.client_phone ? (
+                  <Text style={styles.clientPhoneModal}>{selectedDebt.client_phone}</Text>
+                ) : null}
+              </View>
               <TouchableOpacity onPress={() => setShowModal(false)}>
                 <Ionicons name="close" size={24} color={isDark ? '#fff' : '#000'} />
               </TouchableOpacity>
             </View>
 
-            {selectedDebt && (
-              <View style={styles.debtInfo}>
-                <Text style={styles.debtInfoText}>
-                  Долг: {selectedDebt.amount_total.toLocaleString()} {currency.symbol}
-                </Text>
-                <Text style={styles.debtInfoText}>
-                  Оплачено: {selectedDebt.amount_paid.toLocaleString()} {currency.symbol}
-                </Text>
-                <Text style={[styles.debtInfoRemaining, { color: '#E53935' }]}>
-                  Остаток: {(selectedDebt.amount_total - selectedDebt.amount_paid).toLocaleString()} {currency.symbol}
-                </Text>
-              </View>
-            )}
-
-            {payments.length > 0 && (
-              <View style={styles.paymentHistory}>
-                <Text style={[styles.historyTitle, themeStyles.text]}>История платежей</Text>
-                {payments.map((p: any) => (
-                  <View key={String(p.id)} style={styles.historyItem}>
-                    <Text style={styles.historyDate}>
-                      {new Date(p.created_at).toLocaleDateString('ru-RU', {
-                        day: 'numeric', month: 'short',
-                      })}
-                    </Text>
-                    <Text style={styles.historyAmount}>
-                      +{p.amount.toLocaleString()} {currency.symbol}
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <View style={[styles.progressCard, { backgroundColor: isDark ? '#1a1a1a' : '#f8f8f8' }]}>
+                <View style={styles.progressCardRow}>
+                  <View style={styles.progressCardItem}>
+                    <Text style={styles.progressCardLabel}>Долг</Text>
+                    <Text style={[styles.progressCardValue, themeStyles.text]}>
+                      {selectedDebt?.amount_total.toLocaleString()} {currency.symbol}
                     </Text>
                   </View>
-                ))}
+                  <View style={styles.progressCardItem}>
+                    <Text style={styles.progressCardLabel}>Оплачено</Text>
+                    <Text style={[styles.progressCardValue, { color: '#1D9E75' }]}>
+                      {selectedDebt?.amount_paid.toLocaleString()} {currency.symbol}
+                    </Text>
+                  </View>
+                  <View style={styles.progressCardItem}>
+                    <Text style={styles.progressCardLabel}>Остаток</Text>
+                    <Text style={[styles.progressCardValue, { color: '#E53935' }]}>
+                      {(selectedDebt ? selectedDebt.amount_total - selectedDebt.amount_paid : 0).toLocaleString()} {currency.symbol}
+                    </Text>
+                  </View>
+                </View>
+                {/* Прогресс-бар оплаты */}
+                {selectedDebt && selectedDebt.amount_total > 0 && (
+                  <View style={{ marginTop: 10 }}>
+                    <View style={styles.progressBg}>
+                      <View style={[styles.progressFill, {
+                        width: `${Math.round((selectedDebt.amount_paid / selectedDebt.amount_total) * 100)}%` as any
+                      }]} />
+                    </View>
+                    <Text style={styles.progressPct}>
+                      {Math.round((selectedDebt.amount_paid / selectedDebt.amount_total) * 100)}% оплачено
+                    </Text>
+                  </View>
+                )}
+                {/* Срок */}
+                {selectedDebt?.due_date && (
+                  <Text style={[styles.dueDateModal, {
+                    color: selectedDebt.due_date < today ? '#E53935' : '#999'
+                  }]}>
+                    {selectedDebt.due_date < today ? '⚠️ Просрочен: ' : '📅 Срок: '}
+                    {new Date(selectedDebt.due_date + 'T00:00:00').toLocaleDateString('ru-RU', {
+                      day: 'numeric', month: 'long', year: 'numeric'
+                    })}
+                  </Text>
+                )}
+                {/* Товар из продажи */}
+                {selectedDebt?.product_name_from_sale && (
+                  <Text style={styles.productNameModal}>
+                    🛍️ {selectedDebt.product_name_from_sale}
+                  </Text>
+                )}
+                {/* Заметка */}
+                {selectedDebt?.note ? (
+                  <Text style={styles.debtNoteModal}>💬 {selectedDebt.note}</Text>
+                ) : null}
               </View>
-            )}
 
-            <Text style={[styles.label, themeStyles.text]}>Записать платёж</Text>
-            <TextInput
-              style={[styles.input, isDark ? styles.inputDark : styles.inputLight]}
-              placeholder="Сумма"
-              placeholderTextColor={isDark ? '#888' : '#aaa'}
-              keyboardType="numeric"
-              value={paymentAmount}
-              onChangeText={setPaymentAmount}
-              autoFocus
-            />
-            <TextInput
-              style={[styles.input, isDark ? styles.inputDark : styles.inputLight, { marginTop: 8 }]}
-              placeholder="Заметка (необязательно)"
-              placeholderTextColor={isDark ? '#888' : '#aaa'}
-              value={paymentNote}
-              onChangeText={setPaymentNote}
-            />
-            <TouchableOpacity style={styles.payBtn} onPress={handlePayment}>
-              <Text style={styles.payBtnText}>Сохранить платёж</Text>
-            </TouchableOpacity>
+              <View style={[styles.tabRow, { backgroundColor: isDark ? '#1a1a1a' : '#f0f0f0' }]}>
+                <TouchableOpacity
+                  style={[styles.tab, activeTab === 'info' && styles.tabActive]}
+                  onPress={() => setActiveTab('info')}
+                >
+                  <Text style={[styles.tabText, activeTab === 'info' && styles.tabTextActive]}>
+                    Записать платёж
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.tab, activeTab === 'history' && styles.tabActive]}
+                  onPress={() => setActiveTab('history')}
+                >
+                  <Text style={[styles.tabText, activeTab === 'history' && styles.tabTextActive]}>
+                    История ({clientHistory.length})
+                  </Text>
+                </TouchableOpacity>
+              </View>
 
-            <TouchableOpacity
-              style={styles.deleteBtn}
-              onPress={() => {
-                if (!selectedDebt) return;
-                Alert.alert(
-                  'Удалить долг?',
-                  `${selectedDebt.client_name} — удалить запись безвозвратно?`,
-                  [
-                    { text: 'Отмена', style: 'cancel' },
-                    { text: 'Удалить', style: 'destructive', onPress: () => {
-                        deleteDebt(selectedDebt.id);
-                        setShowModal(false);
-                        loadDebts();
+              {activeTab === 'info' && (
+                <View>
+                  <TextInput
+                    style={[styles.input, isDark ? styles.inputDark : styles.inputLight]}
+                    placeholder="Сумма платежа"
+                    placeholderTextColor={isDark ? '#888' : '#aaa'}
+                    keyboardType="numeric"
+                    value={paymentAmount}
+                    onChangeText={setPaymentAmount}
+                    autoFocus
+                  />
+                  <TextInput
+                    style={[styles.input, isDark ? styles.inputDark : styles.inputLight, { marginTop: 8 }]}
+                    placeholder="Заметка к платежу (необязательно)"
+                    placeholderTextColor={isDark ? '#888' : '#aaa'}
+                    value={paymentNote}
+                    onChangeText={setPaymentNote}
+                  />
+                  <TouchableOpacity style={styles.payBtn} onPress={handlePayment}>
+                    <Text style={styles.payBtnText}>Сохранить платёж</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.deleteBtn}
+                    onPress={() => {
+                      if (!selectedDebt) return;
+                      Alert.alert(
+                        'Удалить долг?',
+                        `${selectedDebt.client_name} — удалить запись безвозвратно?`,
+                        [
+                          { text: 'Отмена', style: 'cancel' },
+                          { text: 'Удалить', style: 'destructive', onPress: () => {
+                              deleteDebt(selectedDebt.id);
+                              setShowModal(false);
+                              loadDebts();
+                          }}
+                        ]
+                      );
                     }}
-                  ]
-                );
-              }}
-            >
-              <Ionicons name="trash-outline" size={16} color="#E53935" />
-              <Text style={styles.deleteBtnText}>Удалить долг</Text>
-            </TouchableOpacity>
+                  >
+                    <Ionicons name="trash-outline" size={16} color="#E53935" />
+                    <Text style={styles.deleteBtnText}>Удалить долг</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {activeTab === 'history' && (
+                <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
+                  {clientHistory.length === 0 ? (
+                    <Text style={{ color: '#999', textAlign: 'center', padding: 20 }}>
+                      История пуста
+                    </Text>
+                  ) : (
+                    clientHistory.map((debt: any) => {
+                      const debtPayments = getDebtPayments(debt.id) as any[];
+                      const isPaid = debt.status === 'paid';
+                      return (
+                        <View key={String(debt.id)} style={[styles.historyDebtCard,
+                          { borderLeftColor: isPaid ? '#1D9E75' : '#E53935' }
+                        ]}>
+                          {/* Дата создания + статус */}
+                          <View style={styles.historyDebtHeader}>
+                            <Text style={styles.historyDebtDate}>
+                              {new Date(debt.created_at).toLocaleDateString('ru-RU', {
+                                day: 'numeric', month: 'short', year: 'numeric'
+                              })}
+                            </Text>
+                            <View style={[styles.statusPill,
+                              isPaid ? styles.statusActive : styles.statusOverdue
+                            ]}>
+                              <Text style={styles.statusText}>
+                                {isPaid ? '✓ Погашен' : 'Активен'}
+                              </Text>
+                            </View>
+                          </View>
+
+                          {/* Товар если есть */}
+                          {debt.product_name && (
+                            <Text style={styles.historyDebtProduct}>
+                              🛍️ {debt.product_name}
+                              {debt.quantity && debt.quantity > 1 ? ` × ${debt.quantity}` : ''}
+                            </Text>
+                          )}
+
+                          {/* Сумма */}
+                          <Text style={styles.historyDebtAmount}>
+                            {debt.amount_total.toLocaleString()} {currency.symbol}
+                            {debt.remaining > 0 && (
+                              ` · остаток ${debt.remaining.toLocaleString()}`
+                            )}
+                          </Text>
+
+                          {/* Заметка */}
+                          {debt.note ? (
+                            <Text style={styles.historyDebtNote}>💬 {debt.note}</Text>
+                          ) : null}
+
+                          {/* Платежи по этому долгу */}
+                          {debtPayments.length > 0 && (
+                            <View style={styles.historyPaymentsList}>
+                              {debtPayments.map((p: any) => (
+                                <View key={String(p.id)} style={styles.historyPaymentItem}>
+                                  <Ionicons name="arrow-up-circle-outline" size={14} color="#1D9E75" />
+                                  <Text style={styles.historyPaymentDate}>
+                                    {new Date(p.created_at).toLocaleDateString('ru-RU', {
+                                      day: 'numeric', month: 'short'
+                                    })}
+                                  </Text>
+                                  <Text style={styles.historyPaymentAmount}>
+                                    +{p.amount.toLocaleString()} {currency.symbol}
+                                  </Text>
+                                  {p.note ? (
+                                    <Text style={styles.historyPaymentNote}>{p.note}</Text>
+                                  ) : null}
+                                </View>
+                              ))}
+                            </View>
+                          )}
+                        </View>
+                      );
+                    })
+                  )}
+                </ScrollView>
+              )}
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -695,4 +832,46 @@ const styles = StyleSheet.create({
     color: '#999',
     marginTop: 2,
   },
+  progressCard: {
+    borderRadius: 12, padding: 14, marginBottom: 12,
+  },
+  progressCardRow: {
+    flexDirection: 'row', justifyContent: 'space-between',
+  },
+  progressCardItem: { alignItems: 'center', flex: 1 },
+  progressCardLabel: { fontSize: 11, color: '#999', marginBottom: 4 },
+  progressCardValue: { fontSize: 16, fontWeight: '700' },
+  progressPct: { fontSize: 11, color: '#999', textAlign: 'right', marginTop: 4 },
+  dueDateModal: { fontSize: 13, marginTop: 8 },
+  productNameModal: { fontSize: 13, color: '#666', marginTop: 4 },
+  debtNoteModal: { fontSize: 13, color: '#888', marginTop: 4, fontStyle: 'italic' },
+  clientPhoneModal: { fontSize: 13, color: '#999', marginTop: 2 },
+  tabRow: {
+    flexDirection: 'row', marginBottom: 12,
+    borderRadius: 10, overflow: 'hidden',
+  },
+  tab: {
+    flex: 1, paddingVertical: 10, alignItems: 'center',
+  },
+  tabActive: { backgroundColor: Colors.primary, borderRadius: 10 },
+  tabText: { fontSize: 14, color: '#888' },
+  tabTextActive: { color: '#fff', fontWeight: '600' },
+  historyDebtCard: {
+    borderLeftWidth: 3, paddingLeft: 12, paddingVertical: 10,
+    marginBottom: 12, borderBottomWidth: 0.5, borderBottomColor: '#F0F0F0',
+  },
+  historyDebtHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4,
+  },
+  historyDebtDate: { fontSize: 13, color: '#999' },
+  historyDebtProduct: { fontSize: 14, fontWeight: '500', color: '#555', marginBottom: 2 },
+  historyDebtAmount: { fontSize: 15, fontWeight: '600', color: '#333' },
+  historyDebtNote: { fontSize: 12, color: '#aaa', fontStyle: 'italic', marginTop: 2 },
+  historyPaymentsList: { marginTop: 8, paddingLeft: 4 },
+  historyPaymentItem: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 3,
+  },
+  historyPaymentDate: { fontSize: 12, color: '#999' },
+  historyPaymentAmount: { fontSize: 13, fontWeight: '600', color: '#1D9E75' },
+  historyPaymentNote: { fontSize: 12, color: '#aaa', flex: 1 },
 });
