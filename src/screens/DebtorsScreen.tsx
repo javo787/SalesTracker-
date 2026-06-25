@@ -124,19 +124,12 @@ export default function DebtorsScreen() {
       }
     }
     addDebt(currentClientId, null, parseFloat(debtAmount), 0, debtNote.trim(), parsedDueDate || '');
+    resetAddModal();
     setShowAddModal(false);
     loadDebts();
     Alert.alert('✅', `Долг добавлен`);
   };
 
-  const handleDueDateChange = (text: string) => {
-    let cleaned = text.replace(/[^0-9]/g, '');
-    if (cleaned.length > 8) cleaned = cleaned.slice(0, 8);
-    let formatted = cleaned;
-    if (cleaned.length > 2) formatted = cleaned.slice(0, 2) + '.' + cleaned.slice(2);
-    if (cleaned.length > 4) formatted = formatted.slice(0, 5) + '.' + formatted.slice(5);
-    setDueDate(formatted);
-  };
 
   const resetAddModal = () => {
     setClientName('');
@@ -687,7 +680,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#E0E0E0',
-    overflow: 'hidden',
   },
   autocompleteItem: {
     padding: 12,
