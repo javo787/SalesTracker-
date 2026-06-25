@@ -858,6 +858,14 @@ export function recordDebtPayment(debtId: number, amount: number, note: string =
   return { actualAmount, overpayment: amount - actualAmount };
 }
 
+export function deleteDebt(debtId: number) {
+  // Используем существующий объект БД (db)
+  db.withTransactionSync(() => {
+    db.runSync('DELETE FROM debt_payments WHERE debt_id = ?', [debtId]);
+    db.runSync('DELETE FROM debts WHERE id = ?', [debtId]);
+  });
+}
+
 export function updateDebtNotificationId(debtId: number, notifId: string | null) {
   db.runSync('UPDATE debts SET notification_id = ? WHERE id = ?', [notifId, debtId]);
 }
