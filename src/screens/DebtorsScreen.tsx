@@ -11,8 +11,11 @@ import { Colors, LightTheme, DarkTheme, Radius, Shadow, FontSize, Spacing } from
 import {
   getDebtsWithClients, recordDebtPayment, getDebtPayments, getDebtSummary,
   updateDebtNotificationId, getDebtById,
+  addDebt, deleteDebt, searchClients, upsertClient,
 } from '../db/database';
 import { cancelDebtReminder } from '../utils/notifications';
+
+interface ClientSearchResult { id: number; name: string; phone?: string; }
 
 export default function DebtorsScreen() {
   const { resolvedTheme, currency } = useAppContext();
@@ -28,6 +31,16 @@ export default function DebtorsScreen() {
   const [paymentNote, setPaymentNote] = useState('');
   const [payments, setPayments] = useState<any[]>([]);
   const [showModal, setShowModal] = useState(false);
+
+  const [filter, setFilter] = useState<'all' | 'active' | 'overdue'>('all');
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [clientName, setClientName] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
+  const [debtAmount, setDebtAmount] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  const [debtNote, setDebtNote] = useState('');
+  const [searchResults, setSearchResults] = useState<ClientSearchResult[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
 
   const loadDebts = useCallback(() => {
     const data = getDebtsWithClients() as any[];
@@ -78,7 +91,36 @@ export default function DebtorsScreen() {
     Alert.alert('✅ Платёж записан', `${amount} ${currency.symbol}`);
   };
 
+  const handleAddDebt = () => {
+    if (!clientName.trim() || !debtAmount || parseFloat(debtAmount) <= 0) {
+      Alert.alert('Ошибка', 'Имя и сумма обязательны');
+      return;
+    }
+    let currentClientId = selectedClientId;
+    if (!currentClientId) {
+      currentClientId = upsertClient(clientName.trim(), clientPhone.trim());
+    }
+    let parsedDueDate: string | null = null;
+    if (dueDate.length === 10) {
+      const parts = dueDate.split('.');
+      if (parts.length === 3 && parts[0].length === 2 && parts[1].length === 2 && parts[2].length === 4) {
+        parsedDueDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+      }
+    }
+    addDebt(currentClientId, null, parseFloat(debtAmount), 0, debtNote.trim(), parsedDueDate || '');
+    setShowAddModal(false);
+    loadDebts();
+    Alert.alert('✅', `Долг добавлен`);
+  };
+
   const totalRemaining = debts.reduce((sum, d) => sum + d.remaining, 0);
+
+  const today = new Date().toISOString().split('T')[0];
+  const filteredDebts = debts.filter(d => {
+    if (filter === 'active') return !d.due_date || d.due_date >= today;
+    if (filter === 'overdue') return d.due_date && d.due_date < today;
+    return true;
+  });
 
   const renderItem = ({ item }: { item: any }) => {
     const remaining = item.amount_total - item.amount_paid;
@@ -149,8 +191,29 @@ export default function DebtorsScreen() {
         )}
       </View>
 
+      <View style={styles.filterContainer}>
+        <TouchableOpacity
+          style={[styles.filterChip, filter === 'all' ? styles.filterChipActive : themeStyles.card]}
+          onPress={() => setFilter('all')}
+        >
+          <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>Все</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.filterChip, filter === 'active' ? styles.filterChipActive : themeStyles.card]}
+          onPress={() => setFilter('active')}
+        >
+          <Text style={[styles.filterText, filter === 'active' && styles.filterTextActive]}>Активные</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.filterChip, filter === 'overdue' ? styles.filterChipActive : themeStyles.card]}
+          onPress={() => setFilter('overdue')}
+        >
+          <Text style={[styles.filterText, filter === 'overdue' && styles.filterTextActive]}>Просрочены</Text>
+        </TouchableOpacity>
+      </View>
+
       <FlatList
-        data={debts}
+        data={filteredDebts}
         keyExtractor={(item) => String(item.id)}
         renderItem={renderItem}
         contentContainerStyle={{ padding: 16, paddingTop: 8 }}
@@ -237,6 +300,160 @@ export default function DebtorsScreen() {
             />
             <TouchableOpacity style={styles.payBtn} onPress={handlePayment}>
               <Text style={styles.payBtnText}>Сохранить платёж</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.deleteBtn}
+              onPress={() => {
+                if (!selectedDebt) return;
+                Alert.alert(
+                  'Удалить долг?',
+                  `${selectedDebt.client_name} — удалить запись безвозвратно?`,
+                  [
+                    { text: 'Отмена', style: 'cancel' },
+                    { text: 'Удалить', style: 'destructive', onPress: () => {
+                        deleteDebt(selectedDebt.id);
+                        setShowModal(false);
+                        loadDebts();
+                    }}
+                  ]
+                );
+              }}
+            >
+              <Ionicons name="trash-outline" size={16} color="#E53935" />
+              <Text style={styles.deleteBtnText}>Удалить долг</Text>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* FAB */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => {
+          setClientName('');
+          setClientPhone('');
+          setDebtAmount('');
+          setDueDate('');
+          setDebtNote('');
+          setSearchResults([]);
+          setSelectedClientId(null);
+          setShowAddModal(true);
+        }}
+      >
+        <Ionicons name="add" size={28} color="#fff" />
+      </TouchableOpacity>
+
+      {/* Add Debt Modal */}
+      <Modal
+        visible={showAddModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowAddModal(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={[styles.modalContent, themeStyles.card]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, themeStyles.text]}>Новый долг</Text>
+              <TouchableOpacity onPress={() => setShowAddModal(false)}>
+                <Ionicons name="close" size={24} color={isDark ? '#fff' : '#000'} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ marginBottom: 12 }}>
+              <Text style={[styles.label, themeStyles.text]}>Имя клиента</Text>
+              <TextInput
+                style={[styles.input, isDark ? styles.inputDark : styles.inputLight]}
+                value={clientName}
+                onChangeText={(text) => {
+                  setClientName(text);
+                  setSelectedClientId(null);
+                  if (text.trim().length > 0) {
+                    setSearchResults(searchClients(text) as ClientSearchResult[]);
+                  } else {
+                    setSearchResults([]);
+                  }
+                }}
+                placeholder="Имя"
+                placeholderTextColor={isDark ? '#888' : '#aaa'}
+              />
+              {searchResults.length > 0 && (
+                <View style={[styles.autocompleteContainer, themeStyles.card]}>
+                  <FlatList
+                    data={searchResults}
+                    keyExtractor={(item) => String(item.id)}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity
+                        style={styles.autocompleteItem}
+                        onPress={() => {
+                          setClientName(item.name);
+                          setSelectedClientId(item.id);
+                          setSearchResults([]);
+                          if (item.phone) setClientPhone(item.phone);
+                        }}
+                      >
+                        <Text style={[styles.autocompleteText, themeStyles.text]}>{item.name}</Text>
+                        {item.phone && <Text style={styles.autocompletePhone}>{item.phone}</Text>}
+                      </TouchableOpacity>
+                    )}
+                    style={{ maxHeight: 120 }}
+                  />
+                </View>
+              )}
+            </View>
+
+            <View style={{ marginBottom: 12 }}>
+              <Text style={[styles.label, themeStyles.text]}>Телефон</Text>
+              <TextInput
+                style={[styles.input, isDark ? styles.inputDark : styles.inputLight]}
+                value={clientPhone}
+                onChangeText={setClientPhone}
+                keyboardType="phone-pad"
+                placeholder="Телефон (необязательно)"
+                placeholderTextColor={isDark ? '#888' : '#aaa'}
+              />
+            </View>
+
+            <View style={{ marginBottom: 12 }}>
+              <Text style={[styles.label, themeStyles.text]}>Сумма долга</Text>
+              <TextInput
+                style={[styles.input, isDark ? styles.inputDark : styles.inputLight]}
+                value={debtAmount}
+                onChangeText={(text) => setDebtAmount(text.replace(/[^0-9.]/g, ''))}
+                keyboardType="numeric"
+                placeholder="Сумма долга"
+                placeholderTextColor={isDark ? '#888' : '#aaa'}
+              />
+            </View>
+
+            <View style={{ marginBottom: 12 }}>
+              <Text style={[styles.label, themeStyles.text]}>Срок оплаты</Text>
+              <TextInput
+                style={[styles.input, isDark ? styles.inputDark : styles.inputLight]}
+                value={dueDate}
+                onChangeText={setDueDate}
+                placeholder="ДД.ММ.ГГГГ"
+                placeholderTextColor={isDark ? '#888' : '#aaa'}
+                keyboardType="numeric"
+              />
+            </View>
+
+            <View style={{ marginBottom: 12 }}>
+              <Text style={[styles.label, themeStyles.text]}>Заметка</Text>
+              <TextInput
+                style={[styles.input, isDark ? styles.inputDark : styles.inputLight]}
+                value={debtNote}
+                onChangeText={setDebtNote}
+                placeholder="Заметка (необязательно)"
+                placeholderTextColor={isDark ? '#888' : '#aaa'}
+              />
+            </View>
+
+            <TouchableOpacity style={styles.payBtn} onPress={handleAddDebt}>
+              <Text style={styles.payBtnText}>Добавить долг</Text>
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -333,4 +550,78 @@ const styles = StyleSheet.create({
   statusActive: { backgroundColor: Colors.warningLight },
   statusOverdue: { backgroundColor: Colors.dangerLight },
   statusText: { fontSize: 11, fontWeight: '600' },
+  filterContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+    paddingHorizontal: 16,
+  },
+  filterChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  filterChipActive: {
+    backgroundColor: Colors.primary,
+  },
+  filterText: {
+    color: '#888',
+    fontSize: 14,
+  },
+  filterTextActive: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  deleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 16,
+    padding: 12,
+  },
+  deleteBtnText: {
+    color: '#E53935',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 20,
+    zIndex: 5,
+    backgroundColor: Colors.primary,
+    borderRadius: 28,
+    width: 56,
+    height: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+  },
+  autocompleteContainer: {
+    marginTop: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    overflow: 'hidden',
+  },
+  autocompleteItem: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  autocompleteText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  autocompletePhone: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 2,
+  },
 });
