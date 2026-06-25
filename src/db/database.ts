@@ -160,6 +160,13 @@ export function initDatabase() {
     db.execSync('ALTER TABLE products ADD COLUMN category TEXT');
   }
 
+  // Migration: add notification_id to debts
+  const debtCols = db.getAllSync("PRAGMA table_info(debts)") as any[];
+  const hasNotifId = debtCols.some(c => c.name === 'notification_id');
+  if (!hasNotifId) {
+    db.runSync("ALTER TABLE debts ADD COLUMN notification_id TEXT");
+  }
+
   // Migration: timezone shift + one-time migration check
   db.execSync('CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT)');
   const migrationDone = db.getFirstSync("SELECT value FROM app_meta WHERE key = 'tz_migration_v1'") as { value: string } | null;
@@ -826,6 +833,10 @@ export function getDebtsByClient(clientId: number) {
   );
 }
 
+export function getDebtById(id: number) {
+  return db.getFirstSync('SELECT * FROM debts WHERE id = ?', [id]);
+}
+
 export function recordDebtPayment(debtId: number, amount: number, note: string = '') {
   const debt = db.getFirstSync('SELECT * FROM debts WHERE id = ?', [debtId]) as any;
   if (!debt) return;
@@ -845,6 +856,23 @@ export function recordDebtPayment(debtId: number, amount: number, note: string =
     );
   });
   return { actualAmount, overpayment: amount - actualAmount };
+}
+
+export function updateDebtNotificationId(debtId: number, notifId: string | null) {
+  db.runSync('UPDATE debts SET notification_id = ? WHERE id = ?', [notifId, debtId]);
+}
+
+export function getOverdueDebts() {
+  const today = todayLocalDate();
+  return db.getAllSync(`
+    SELECT d.*, c.name AS client_name, c.phone AS client_phone, (d.amount_total - d.amount_paid) AS remaining
+    FROM debts d
+    JOIN clients c ON c.id = d.client_id
+    WHERE d.status != 'paid'
+      AND d.due_date IS NOT NULL
+      AND d.due_date < ?
+    ORDER BY d.due_date ASC
+  `, [today]);
 }
 
 export function getDebtPayments(debtId: number) {
@@ -935,4 +963,5 @@ export function searchProductsForAutocomplete(query: string) {
   `, [query, query]);
 }
 
+export { db };
 export default db;
