@@ -35,6 +35,7 @@ import ReportScreen from './src/screens/ReportScreen';
 import CalculatorScreen from './src/screens/CalculatorScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
+import ShopSetupScreen from './src/screens/ShopSetupScreen';
 import CurrencyScreen from './src/screens/CurrencyScreen';
 import ExpensesScreen from './src/screens/ExpensesScreen';
 import ClassifiedsScreen from './src/screens/ClassifiedsScreen';
@@ -358,8 +359,12 @@ function AppContent() {
     return <AuthScreen />;
   }
 
-  if (showOnboarding || !hasShop) {
+  if (showOnboarding) {
     return <OnboardingScreen onFinish={() => setShowOnboarding(false)} />;
+  }
+
+  if (!hasShop) {
+    return <ShopSetupScreen />;
   }
 
   if (isLockEnabled && isLocked) {

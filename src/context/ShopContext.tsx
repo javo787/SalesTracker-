@@ -65,15 +65,24 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const result = await api.post<{
       shopId: string; shopName: string; role: ShopRole; inviteCode: string;
     }>('/shop/create', { shopName: name });
-    persistSession({ ...result, sellerName: result.shopName });
+
+    // Fix Bug 1: Use actual user name from storage
+    const storedUser = await AsyncStorage.getItem('auth_user');
+    const userName = storedUser ? JSON.parse(storedUser).name : result.shopName;
+
+    persistSession({ ...result, sellerName: userName });
   };
 
   const joinShop = async (code: string) => {
     const result = await api.post<{
       shopId: string; shopName: string; role: ShopRole;
     }>('/shop/join', { inviteCode: code });
-    const user = await AsyncStorage.getItem('user_name') || 'Продавец';
-    persistSession({ ...result, sellerName: user });
+
+    // Fix Bug 4: Use actual user name from storage
+    const storedUser = await AsyncStorage.getItem('auth_user');
+    const userName = storedUser ? JSON.parse(storedUser).name : 'Продавец';
+
+    persistSession({ ...result, sellerName: userName });
   };
 
   const refreshShopInfo = async () => {
