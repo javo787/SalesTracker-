@@ -4,6 +4,7 @@ import ShopMember from '../models/ShopMember';
 
 export interface AuthRequest extends Request {
   userId?: string;
+  user?: any;
   shopId?: string;
   role?: 'owner' | 'seller';
   sellerName?: string;
