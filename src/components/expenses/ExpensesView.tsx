@@ -117,19 +117,19 @@ export default function ExpensesView() {
         {/* Summary Cards */}
         <View style={styles.summaryRow}>
           <View style={[styles.summaryCard, isDark ? styles.cardDark : styles.cardLight]}>
-            <Text style={styles.summaryLabel}>{t('expenses.operational')}</Text>
+            <Text style={[styles.summaryLabel, isDark && { color: '#BBB' }]}>{t('expenses.operational')}</Text>
             <Text style={[styles.summaryValue, { color: '#FF6B6B' }]}>
               {totals.operational.toLocaleString()}
             </Text>
           </View>
           <View style={[styles.summaryCard, isDark ? styles.cardDark : styles.cardLight]}>
-            <Text style={styles.summaryLabel}>{t('expenses.inventory')}</Text>
+            <Text style={[styles.summaryLabel, isDark && { color: '#BBB' }]}>{t('expenses.inventory')}</Text>
             <Text style={[styles.summaryValue, { color: '#4ECDC4' }]}>
               {totals.inventory.toLocaleString()}
             </Text>
           </View>
           <View style={[styles.summaryCard, isDark ? styles.cardDark : styles.cardLight]}>
-            <Text style={styles.summaryLabel}>{t('expenses.total')}</Text>
+            <Text style={[styles.summaryLabel, isDark && { color: '#BBB' }]}>{t('expenses.total')}</Text>
             <Text style={[styles.summaryValue, isDark ? styles.textDark : styles.textLight]}>
               {totals.total.toLocaleString()}
             </Text>

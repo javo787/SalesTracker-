@@ -12,6 +12,7 @@ import {
 } from '../db/database';
 import { analyticsService } from '../services/analyticsService';
 import { useAppContext } from '../context/AppContext';
+import { useExpenses } from '../hooks/useExpenses';
 import StockOperationModal from '../components/stock/StockOperationModal';
 import StockHistorySheet from '../components/stock/StockHistorySheet';
 import { ProductAutocomplete } from '../components/sales/ProductAutocomplete';
@@ -21,6 +22,7 @@ export default function ProductsScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const { resolvedTheme, currency, defaultMinStockAlert, sellerMode } = useAppContext(); const isDark = resolvedTheme === "dark";
+  const { addExpense } = useExpenses();
   const [products, setProducts] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -151,6 +153,34 @@ export default function ProductsScreen() {
     } else {
       const result = addProduct(name.trim(), bPrice, sPrice, st, alert, baseUnit, hasPackages ? 1 : 0, packageName, uPerPkg, cat);
       analyticsService.logEvent('product_added', { product_id: result.lastInsertRowId });
+
+      // Suggest adding expense for purchase cost
+      const totalPurchaseCost = bPrice * st;
+      if (totalPurchaseCost > 0) {
+        Alert.alert(
+          t('expenses.addProductExpensePrompt'),
+          t('expenses.addProductExpenseDesc', {
+            amount: totalPurchaseCost.toLocaleString(),
+            symbol: currency.symbol
+          }),
+          [
+            { text: t('common.cancel'), style: 'cancel' },
+            {
+              text: t('common.yes') || 'Да',
+              onPress: async () => {
+                await addExpense({
+                  type: 'inventory',
+                  category: 'inventory',
+                  amount: totalPurchaseCost,
+                  description: name.trim(),
+                  linkedProductId: result?.lastInsertRowId || undefined,
+                });
+                Alert.alert('✅', t('expenses.expenseSaved'));
+              }
+            }
+          ]
+        );
+      }
     }
 
     resetForm();
