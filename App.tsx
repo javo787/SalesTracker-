@@ -1,6 +1,7 @@
 import 'react-native-gesture-handler';
 import { useEffect, useState, useRef } from 'react';
-import { View, ActivityIndicator, TouchableOpacity, Platform, Text } from 'react-native';
+import { View, ActivityIndicator, TouchableOpacity, Platform, Text, AppState } from 'react-native';
+import * as NavigationBar from 'expo-navigation-bar';
 import { NavigationContainer, DrawerActions, useNavigationContainerRef } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -262,6 +263,20 @@ async function setupPushNotifications() {
   await messaging().subscribeToTopic('app_announcements');
 }
 
+const enableImmersiveMode = async () => {
+  if (Platform.OS !== 'android') return;
+  try {
+    await NavigationBar.setVisibilityAsync('hidden');
+    if ('setBehaviorAsync' in NavigationBar) {
+      await (NavigationBar as any).setBehaviorAsync('overlay-swipe');
+    }
+    // overlay-swipe = Sticky Immersive:
+    // свайп снизу временно показывает панель, она сама прячется обратно
+  } catch (e) {
+    console.warn('[ImmersiveMode] error:', e);
+  }
+};
+
 function AppContent() {
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
   const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
@@ -271,6 +286,20 @@ function AppContent() {
   const routeNameRef = useRef<string>(undefined);
 
   const { currency } = useAppContext();
+
+  useEffect(() => {
+    enableImmersiveMode();
+
+    // Android при сворачивании/разворачивании сбрасывает режим —
+    // восстанавливаем при каждом возврате в приложение
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        enableImmersiveMode();
+      }
+    });
+
+    return () => subscription.remove();
+  }, []);
 
   useEffect(() => {
     checkOnboarding();
