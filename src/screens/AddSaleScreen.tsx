@@ -2,11 +2,12 @@ import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, Alert, ActivityIndicator, Animated, Modal, TouchableWithoutFeedback
+  StyleSheet, ScrollView, Alert, ActivityIndicator, Animated, Modal, TouchableWithoutFeedback, Easing
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { addSale, getProducts, upsertClient, addDebt, updateDebtNotificationId } from '../db/database';
 import { scheduleDebtReminder } from '../utils/notifications';
 import { analyticsService } from '../services/analyticsService';
@@ -60,6 +61,55 @@ export default function AddSaleScreen(/* props */) {
   const [showVoiceBar, setShowVoiceBar] = useState(false);
   const fadeAnim = useMemo(() => new Animated.Value(1), []);
 
+  const [isSaved, setIsSaved] = useState(false);
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const opacityAnim = useRef(new Animated.Value(1)).current;
+
+  const triggerSaveAnimation = () => {
+    // Вибрация
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    // Последовательность: сжатие → отскок → возврат
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(scaleAnim, {
+          toValue: 0.96,
+          duration: 80,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 0.85,
+          duration: 80,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.parallel([
+        Animated.spring(scaleAnim, {
+          toValue: 1.02,
+          friction: 4,
+          tension: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 1,
+          duration: 120,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 6,
+        tension: 150,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Показать состояние "Сохранено!"
+    setIsSaved(true);
+    setTimeout(() => setIsSaved(false), 1800);
+  };
+
   // добавлено: получение параметров из маршрута (от калькулятора)
   const route = useRoute<any>(); // useRoute in @react-navigation/native is notoriously hard to type without complex generic
 
@@ -110,7 +160,7 @@ export default function AddSaleScreen(/* props */) {
 
   const analyzeWithAI = async (text: string) => {
     if (!gemini) {
-      Alert.alert(t('common.error'), 'Ключ Gemini API не настроен. Пожалуйста, проверьте файл .env');
+      Alert.alert(t('common.error'), t('addSale.errorGemini'));
       return;
     }
 
@@ -181,7 +231,7 @@ FEW-SHOT EXAMPLES:
 
       applyAIResult(parsed);
     } catch (e) {
-      Alert.alert(t('common.error'), 'Не удалось обработать. Введите вручную.');
+      Alert.alert(t('common.error'), t('addSale.errorAI'));
     } finally {
       setProcessing(false);
     }
@@ -198,7 +248,7 @@ FEW-SHOT EXAMPLES:
       const calcBuy = (parsed.revenue - parsed.profit) / qty;
       setSellPrice(String(parsed.revenue / qty));
       setBuyPrice(String(Math.max(0, calcBuy)));
-      setProductName(parsed.product_name || 'Продажа дня');
+      setProductName(parsed.product_name || t('addSale.defaultProductName'));
     }
   };
 
@@ -211,7 +261,7 @@ FEW-SHOT EXAMPLES:
     const finalSellPrice = sellPrice || (salePricePlaceholder ? String(salePricePlaceholder) : '');
 
     if (!finalSellPrice || !buyPrice) {
-      Alert.alert(t('common.error'), 'Введите цену продажи и закупки');
+      Alert.alert(t('common.error'), t('addSale.errorPrices'));
       return;
     }
 
@@ -220,7 +270,7 @@ FEW-SHOT EXAMPLES:
     const qty = parseFloat(quantity) || 1;
 
     if (sellerMode === 'wholesale' && paymentType !== 'full' && !clientName.trim()) {
-      Alert.alert(t('common.error'), 'Введите имя клиента для записи долга');
+      Alert.alert(t('common.error'), t('addSale.errorClientName'));
       return;
     }
 
@@ -276,6 +326,8 @@ FEW-SHOT EXAMPLES:
     setSelectedProduct(null); setSalePricePlaceholder(null);
     setPaymentType('full'); setPaidAmount(''); setDueDate('');
     setClientName(''); setClientPhone(''); setClientId(null);
+
+    triggerSaveAnimation();
   };
 
   const themeStyles = isDark ? darkStyles : lightStyles;
@@ -299,7 +351,11 @@ FEW-SHOT EXAMPLES:
   };
 
   return (
-    <View style={[styles.container, themeStyles.container]}>
+    <Animated.View style={[
+      styles.container,
+      themeStyles.container,
+      { transform: [{ scale: scaleAnim }], opacity: opacityAnim }
+    ]}>
       {/* Voice Floating Button */}
       <TouchableOpacity
         style={styles.fab}
@@ -452,10 +508,14 @@ FEW-SHOT EXAMPLES:
     {/* Payment type selector — shown only in wholesale mode */}
     {sellerMode === 'wholesale' && (
       <View style={styles.paymentSection}>
-        <Text style={[styles.label, themeStyles.text]}>Оплата</Text>
+        <Text style={[styles.label, themeStyles.text]}>{t('addSale.paymentLabel')}</Text>
         <View style={styles.paymentRow}>
           {(['full', 'partial', 'debt'] as const).map((type) => {
-            const labels = { full: '✅ Полностью', partial: '💰 Частично', debt: '📋 В долг' };
+            const labels = {
+              full: t('addSale.paymentFull'),
+              partial: t('addSale.paymentPartial'),
+              debt: t('addSale.paymentDebt')
+            };
             return (
               <TouchableOpacity
                 key={type}
@@ -480,7 +540,7 @@ FEW-SHOT EXAMPLES:
         {paymentType === 'partial' && (
           <TextInput
             style={[styles.input, themeStyles.input, { marginTop: 8 }]}
-            placeholder="Внесено сейчас"
+            placeholder={t('addSale.paidNowPlaceholder')}
             placeholderTextColor={isDark ? '#888' : '#aaa'}
             keyboardType="numeric"
             value={paidAmount}
@@ -492,7 +552,7 @@ FEW-SHOT EXAMPLES:
           <View style={{ marginTop: 8, gap: 8 }}>
             <TextInput
               style={[styles.input, themeStyles.input]}
-              placeholder="Срок оплаты (ГГГГ-ММ-ДД)"
+              placeholder={t('addSale.dueDatePlaceholder')}
               placeholderTextColor={isDark ? '#888' : '#aaa'}
               value={dueDate}
               onChangeText={setDueDate}
@@ -532,8 +592,20 @@ FEW-SHOT EXAMPLES:
           </View>
         ) : null}
 
-        <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-          <Text style={styles.saveBtnText}>{t('addSale.saveBtn')}</Text>
+        <TouchableOpacity
+          style={[styles.saveBtn, isSaved && { backgroundColor: '#1D9E75' }]}
+          onPress={handleSave}
+          activeOpacity={0.8}
+        >
+          <Ionicons
+            name={isSaved ? 'checkmark-circle' : 'checkmark'}
+            size={20}
+            color="#fff"
+            style={{ marginRight: 8 }}
+          />
+          <Text style={styles.saveBtnText}>
+            {isSaved ? t('common.saved') : t('addSale.saveBtn')}
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -551,7 +623,7 @@ FEW-SHOT EXAMPLES:
           <ExpensesView />
         )}
       </Animated.View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -681,6 +753,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary, borderRadius: Radius.lg,
     padding: Spacing.lg, alignItems: 'center', marginTop: Spacing.xl,
     ...Shadow.md,
+    flexDirection: 'row',
+    justifyContent: 'center',
   },
   saveBtnText: { color: '#fff', fontSize: FontSize.lg, fontWeight: 'bold' },
   autocomplete: {

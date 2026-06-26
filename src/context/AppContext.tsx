@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, useContext, useMemo, useCallback } from 'react';
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import i18n from '../i18n/i18n';
 
 type Theme = 'light' | 'dark' | 'system';
 
@@ -102,8 +103,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const setLanguage = useCallback(async (lang: string) => {
     setLanguageState(lang);
     await AsyncStorage.setItem('app_language', lang);
-    const i18n = (await import('../i18n/i18n')).default;
-    i18n.changeLanguage(lang);
+    await i18n.changeLanguage(lang);
   }, []);
 
   const setNotificationsEnabled = useCallback(async (enabled: boolean) => {

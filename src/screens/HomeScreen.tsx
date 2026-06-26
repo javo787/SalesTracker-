@@ -253,9 +253,9 @@ export default function HomeScreen() {
       <View style={styles.debtWidgetLeft}>
         <Text style={styles.debtWidgetIcon}>📋</Text>
         <View>
-          <Text style={styles.debtWidgetLabel}>Вам должны</Text>
+          <Text style={styles.debtWidgetLabel}>{t('debtors.totalOwed')}</Text>
           <Text style={styles.debtWidgetCount}>
-            {debtSummary.debtor_count} чел.
+            {t('debtors.debtorCount', { count: debtSummary.debtor_count })}
           </Text>
         </View>
       </View>
@@ -300,7 +300,7 @@ export default function HomeScreen() {
           onPress={() => navigation.navigate('Calculator')}
         >
           <Ionicons name="calculator-outline" size={18} color={Colors.info} />
-          <Text style={[styles.actionText, { color: Colors.info }]}>{t('tabs.home') === 'Главная' ? 'Калькулятор' : 'Calc'}</Text>
+          <Text style={[styles.actionText, { color: Colors.info }]}>{t('tabs.calculator')}</Text>
         </TouchableOpacity>
       </View>
 

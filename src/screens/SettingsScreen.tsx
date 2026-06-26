@@ -150,7 +150,7 @@ export default function SettingsScreen(props: any) {
               if (keysToRemove.length > 0) await AsyncStorage.multiRemove(keysToRemove);
               Alert.alert(t('settings.clearDataSuccess'), '');
             } catch (e) {
-              Alert.alert(t('common.error'), 'Failed to clear data');
+              Alert.alert(t('common.error'), t('common.error'));
             }
           },
         },
@@ -184,11 +184,11 @@ export default function SettingsScreen(props: any) {
         setLastBackupAt(now);
         setTimeout(() => setIsSystemDialogOpen(false), 1000);
       } else {
-        Alert.alert(t('common.error'), 'Sharing not available on this device');
+        Alert.alert(t('common.error'), t('common.sharingNotAvailable'));
       }
     } catch (e) {
       console.error('Backup export failed', e);
-      Alert.alert(t('common.error'), 'Failed to export backup');
+      Alert.alert(t('common.error'), t('common.backupExportFailed'));
     }
   };
 
@@ -225,7 +225,7 @@ export default function SettingsScreen(props: any) {
               Alert.alert(t('common.success'), t('settings.backupImportSuccess'));
             } catch (e) {
               console.error('Backup import failed', e);
-              Alert.alert(t('common.error'), t('settings.backupImportError'));
+              Alert.alert(t('common.error'), t('common.backupImportFailed'));
             }
           }
         }
@@ -252,9 +252,9 @@ export default function SettingsScreen(props: any) {
       {/* Режим продавца */}
       <View style={[styles.section, themeStyles.section, { marginTop: 16 }]}>
         <View style={styles.sellerModeHeader}>
-          <Text style={[styles.sectionTitle, themeStyles.text, { marginBottom: 0 }]}>🏪 Режим торговли</Text>
+          <Text style={[styles.sectionTitle, themeStyles.text, { marginBottom: 0 }]}>🏪 {t('common.sellerMode')}</Text>
           <Text style={[styles.sellerModeSub, { color: isDark ? '#AAA' : '#666' }]}>
-            {sellerMode === 'retail' ? 'Розница' : 'Оптовик'}
+            {sellerMode === 'retail' ? t('common.retail') : t('common.wholesale')}
           </Text>
         </View>
 
@@ -264,7 +264,7 @@ export default function SettingsScreen(props: any) {
             onPress={() => setSellerMode('retail')}
           >
             <Text style={[styles.tabText, sellerMode === 'retail' && styles.tabTextActive]}>
-              🛒 Розница
+              🛒 {t('common.retail')}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -272,7 +272,7 @@ export default function SettingsScreen(props: any) {
             onPress={() => setSellerMode('wholesale')}
           >
             <Text style={[styles.tabText, sellerMode === 'wholesale' && styles.tabTextActive]}>
-              📦 Оптовик
+              📦 {t('common.wholesale')}
             </Text>
           </TouchableOpacity>
         </View>

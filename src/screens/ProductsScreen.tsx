@@ -112,7 +112,7 @@ export default function ProductsScreen() {
 
   const handleSave = () => {
     if (!name.trim() || !buyPrice || !sellPrice) {
-      Alert.alert(t('common.error'), 'Заполните название, цену закупки и продажи');
+      Alert.alert(t('common.error'), t('products.errorRequired'));
       return;
     }
 
@@ -149,11 +149,11 @@ export default function ProductsScreen() {
   const handleLongPress = (p: any) => {
     Alert.alert(
       p.name,
-      'Выберите действие',
+      t('common.edit'),
       [
         { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Редактировать',
+          text: t('common.edit'),
           onPress: () => {
             setEditingId(p.id);
             setName(p.name);
@@ -176,8 +176,8 @@ export default function ProductsScreen() {
           style: 'destructive',
           onPress: () => {
             Alert.alert(
-              'Удалить товар?',
-              `Вы уверены, что хотите удалить "${p.name}"?`,
+              t('products.deleteConfirmTitle'),
+              t('products.deleteConfirmMsg', { name: p.name }),
               [
                 { text: t('common.cancel'), style: 'cancel' },
                 {
@@ -232,14 +232,14 @@ export default function ProductsScreen() {
             style={[styles.chip, themeStyles.chip, activeFilter === 'all' && styles.chipActive]}
             onPress={() => setActiveFilter('all')}
           >
-            <Text style={[styles.chipText, themeStyles.chipText, activeFilter === 'all' && styles.chipTextActive]}>Все</Text>
+            <Text style={[styles.chipText, themeStyles.chipText, activeFilter === 'all' && styles.chipTextActive]}>{t('debtors.filterAll')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.chip, themeStyles.chip, activeFilter === 'low_stock' && styles.chipActive]}
             onPress={() => setActiveFilter('low_stock')}
           >
-            <Text style={[styles.chipText, themeStyles.chipText, activeFilter === 'low_stock' && styles.chipTextActive]}>🔴 Мало</Text>
+            <Text style={[styles.chipText, themeStyles.chipText, activeFilter === 'low_stock' && styles.chipTextActive]}>🔴 {t('products.lowStockFilter')}</Text>
           </TouchableOpacity>
 
           {sellerMode === 'wholesale' && (
@@ -247,7 +247,7 @@ export default function ProductsScreen() {
               style={[styles.chip, themeStyles.chip, activeFilter === 'debts' && styles.chipActive]}
               onPress={() => setActiveFilter('debts')}
             >
-              <Text style={[styles.chipText, themeStyles.chipText, activeFilter === 'debts' && styles.chipTextActive]}>📋 Долги</Text>
+              <Text style={[styles.chipText, themeStyles.chipText, activeFilter === 'debts' && styles.chipTextActive]}>📋 {t('products.debtsFilter')}</Text>
             </TouchableOpacity>
           )}
 
@@ -291,13 +291,13 @@ export default function ProductsScreen() {
         }}
       >
         <Text style={styles.addBtnText}>
-          {showForm ? '✕ ' + t('common.cancel') : (editingId ? '✎ Редактировать' : '+ ' + t('products.addProduct'))}
+          {showForm ? '✕ ' + t('common.cancel') : (editingId ? '✎ ' + t('common.edit') : '+ ' + t('products.addProduct'))}
         </Text>
       </TouchableOpacity>
 
       {showForm && (
         <View style={[styles.form, themeStyles.card]}>
-          <Text style={[styles.formTitle, themeStyles.text]}>{editingId ? 'Редактировать товар' : 'Новый товар'}</Text>
+          <Text style={[styles.formTitle, themeStyles.text]}>{editingId ? t('products.editProduct') : t('products.newProduct')}</Text>
 
           <Text style={[styles.label, themeStyles.text]}>{t('addSale.productName')} *</Text>
           <ProductAutocomplete
@@ -333,11 +333,11 @@ export default function ProductsScreen() {
 
           <View style={styles.row}>
             <View style={styles.half}>
-              <Text style={[styles.label, themeStyles.text]}>Категория</Text>
+              <Text style={[styles.label, themeStyles.text]}>{t('products.category')}</Text>
               <View style={{ zIndex: 2000 }}>
                 <TextInput
                   style={[styles.input, themeStyles.input]}
-                  placeholder="Напр. Напитки"
+                  placeholder={t('products.categoryPlaceholder')}
                   placeholderTextColor={isDark ? '#888' : '#aaa'}
                   value={category}
                   onChangeText={(text) => {
@@ -369,12 +369,12 @@ export default function ProductsScreen() {
                           style={styles.categoryItem}
                           onPress={() => setShowCategoryDropdown(false)}
                         >
-                          <Text style={{ color: '#1D9E75', fontWeight: 'bold' }}>+ Новая: {category}</Text>
+                          <Text style={{ color: '#1D9E75', fontWeight: 'bold' }}>+ {t('products.newCategory')}: {category}</Text>
                         </TouchableOpacity>
                       )}
                       {allCategories.length === 0 && category === '' && (
                         <View style={styles.categoryItem}>
-                          <Text style={{ color: '#999', fontStyle: 'italic' }}>Нет категорий</Text>
+                          <Text style={{ color: '#999', fontStyle: 'italic' }}>{t('products.noCategories')}</Text>
                         </View>
                       )}
                     </ScrollView>
@@ -447,7 +447,7 @@ export default function ProductsScreen() {
               <Text style={[styles.label, themeStyles.text]}>{t('products.baseUnit')}</Text>
               <TextInput
                 style={[styles.input, themeStyles.input]}
-                placeholder="шт, кг, л..."
+                placeholder={t('products.unitPlaceholder')}
                 placeholderTextColor={isDark ? '#888' : '#aaa'}
                 value={baseUnit}
                 onChangeText={setBaseUnit}
@@ -500,7 +500,7 @@ export default function ProductsScreen() {
 
           <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
             <Text style={styles.saveBtnText}>
-              {editingId ? 'Сохранить изменения' : t('common.save')}
+              {editingId ? t('products.saveChanges') : t('common.save')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -509,7 +509,7 @@ export default function ProductsScreen() {
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 8 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <Text style={[styles.sectionTitle, themeStyles.text, { paddingHorizontal: 0, marginBottom: 0 }]}>
-            {searchQuery ? `Найдено: ${filteredProducts.length}` : `Все товары (${products.length})`}
+            {searchQuery ? `${t('products.found')}: ${filteredProducts.length}` : `${t('products.allProducts')} (${products.length})`}
           </Text>
           <View style={{
             paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12,
@@ -521,7 +521,7 @@ export default function ProductsScreen() {
               fontSize: 11, fontWeight: '600',
               color: sellerMode === 'wholesale' ? '#E65100' : '#1D9E75',
             }}>
-              {sellerMode === 'wholesale' ? '📦 Опт' : '🛒 Розница'}
+              {sellerMode === 'wholesale' ? '📦 ' + t('common.wholesale') : '🛒 ' + t('common.retail')}
             </Text>
           </View>
         </View>
@@ -531,15 +531,15 @@ export default function ProductsScreen() {
           onPress={() => setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
         >
           <Text style={[styles.sortBtnText, themeStyles.text]}>
-            Сток {sortDirection === 'asc' ? '↑' : '↓'}
+            {t('products.stock')} {sortDirection === 'asc' ? '↑' : '↓'}
           </Text>
         </TouchableOpacity>
       </View>
 
       {filteredProducts.length === 0 ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyText}>{searchQuery ? 'Ничего не найдено' : 'Товаров пока нет'}</Text>
-          <Text style={styles.emptyHint}>{searchQuery ? 'Попробуй другой запрос' : 'Добавь первый товар выше'}</Text>
+          <Text style={styles.emptyText}>{searchQuery ? t('reports.nothingFound') : t('products.noProducts') || 'No products'}</Text>
+          <Text style={styles.emptyHint}>{searchQuery ? t('products.tryAnotherQuery') || 'Try another query' : t('products.addFirstProduct') || 'Add your first product'}</Text>
         </View>
       ) : (
         filteredProducts.map((p: any) => (
@@ -589,7 +589,7 @@ export default function ProductsScreen() {
                 }}
               >
                 <Ionicons name="cash-outline" size={18} color="#1D9E75" />
-                <Text style={styles.actionBtnText}>Продать</Text>
+                <Text style={styles.actionBtnText}>{t('products.sellBtn')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.actionBtn}
