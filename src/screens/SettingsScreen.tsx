@@ -13,6 +13,7 @@ import Constants from 'expo-constants';
 import { Ionicons } from '@expo/vector-icons';
 import { analyticsService } from '../services/analyticsService';
 import { useAppContext } from '../context/AppContext';
+import { useShop } from '../context/ShopContext';
 import { useAppLock } from '../context/AppLockContext';
 import { getConversionRate } from '../utils/currencyRates';
 import { reviewService } from '../services/reviewService';
@@ -119,6 +120,7 @@ const groupStyles = StyleSheet.create({
 
 export default function SettingsScreen(props: any) {
   const { t, i18n } = useTranslation();
+  const { isOwner } = useShop();
   const {
     theme, currency, language, setTheme, setCurrency, setLanguage,
     notificationsEnabled, setNotificationsEnabled,
@@ -424,11 +426,11 @@ export default function SettingsScreen(props: any) {
             sublabel={`${curr.label} · ${curr.symbol}`}
             isDark={isDark}
             isLast={i === CURRENCIES.length - 1}
-            onPress={() => handleCurrencyChange(curr)}
+            onPress={isOwner ? () => handleCurrencyChange(curr) : undefined}
             right={
               currency.code === curr.code ? (
                 <Ionicons name="checkmark" size={18} color="#1D9E75" style={{ marginRight: 4 }} />
-              ) : loadingRate ? (
+              ) : (loadingRate && isOwner) ? (
                 <ActivityIndicator size="small" color="#1D9E75" />
               ) : null
             }
@@ -524,25 +526,29 @@ export default function SettingsScreen(props: any) {
       </SettingGroup>
 
       {/* ── ДАННЫЕ И РЕЗЕРВНОЕ КОПИРОВАНИЕ ── */}
-      <SectionLabel label={t('settings.backup')} isDark={isDark} />
-      <SettingGroup isDark={isDark}>
-        <SettingRow
-          icon="cloud-upload-outline"
-          iconColor="#007AFF"
-          label={t('settings.backupExport')}
-          sublabel={renderLastBackupStatus()}
-          isDark={isDark}
-          onPress={handleExportBackup}
-        />
-        <SettingRow
-          icon="cloud-download-outline"
-          iconColor="#007AFF"
-          label={t('settings.backupImport')}
-          isDark={isDark}
-          isLast
-          onPress={handleImportBackup}
-        />
-      </SettingGroup>
+      {isOwner && (
+        <>
+          <SectionLabel label={t('settings.backup')} isDark={isDark} />
+          <SettingGroup isDark={isDark}>
+            <SettingRow
+              icon="cloud-upload-outline"
+              iconColor="#007AFF"
+              label={t('settings.backupExport')}
+              sublabel={renderLastBackupStatus()}
+              isDark={isDark}
+              onPress={handleExportBackup}
+            />
+            <SettingRow
+              icon="cloud-download-outline"
+              iconColor="#007AFF"
+              label={t('settings.backupImport')}
+              isDark={isDark}
+              isLast
+              onPress={handleImportBackup}
+            />
+          </SettingGroup>
+        </>
+      )}
 
       {/* ── О ПРИЛОЖЕНИИ ── */}
       <SectionLabel label={t('settings.about')} isDark={isDark} />
@@ -594,17 +600,21 @@ export default function SettingsScreen(props: any) {
       </SettingGroup>
 
       {/* ── ОПАСНАЯ ЗОНА ── */}
-      <SectionLabel label={t('settings.dangerZone')} isDark={isDark} />
-      <SettingGroup isDark={isDark}>
-        <SettingRow
-          icon="trash-outline"
-          iconColor="#FF3B30"
-          label={t('settings.clearData')}
-          isDark={isDark}
-          isLast
-          onPress={handleClearDataAlert}
-        />
-      </SettingGroup>
+      {isOwner && (
+        <>
+          <SectionLabel label={t('settings.dangerZone')} isDark={isDark} />
+          <SettingGroup isDark={isDark}>
+            <SettingRow
+              icon="trash-outline"
+              iconColor="#FF3B30"
+              label={t('settings.clearData')}
+              isDark={isDark}
+              isLast
+              onPress={handleClearDataAlert}
+            />
+          </SettingGroup>
+        </>
+      )}
 
       <View style={{ height: 48 }} />
     </ScrollView>

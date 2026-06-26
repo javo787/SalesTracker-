@@ -12,9 +12,10 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as XLSX from 'xlsx';
-import { getStats, getSalesByPeriod, deleteSale, getExpenseStats } from '../db/database';
+import { getStats, getSalesByPeriod, deleteSale, getExpenseStats, getMyStats } from '../db/database';
 import { arrayBufferToBase64 } from '../utils/excelUtils';
 import { useAppContext } from '../context/AppContext';
+import { useShop } from '../context/ShopContext';
 import AnnualReport from '../components/reports/AnnualReport';
 import RegistrationPromptModal from '../components/RegistrationPromptModal';
 import UniversalBanner from '../components/ads/UniversalBanner';
@@ -67,6 +68,8 @@ const showRewardedAd = async (adUnitId: string): Promise<boolean> => {
 export default function ReportScreen() {
   const { t, i18n } = useTranslation();
   const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark"; const themeStyles = isDark ? darkStyles : lightStyles;
+  const { isOwner, role } = useShop();
+  const { user, isGuest } = useAuth();
   const navigation = useNavigation<any>();
   const [period, setPeriod] = useState<number | 'custom'>(30);
   const [dateRange, setDateRange] = useState<{from: string, to: string} | null>(null);
@@ -86,7 +89,6 @@ export default function ReportScreen() {
   const [cachedSummary, setCachedSummary] = useState<string | null>(null);
   const [isExportLoading, setIsExportLoading] = useState(false);
 
-  const { isGuest } = useAuth();
   const [showRegPrompt, setShowRegPrompt] = useState(false);
 
   const [stats, setStats] = useState({ revenue: 0, profit: 0, count: 0 });
@@ -97,19 +99,21 @@ export default function ReportScreen() {
 
 
   const loadData = useCallback((p: number | 'custom', range?: {from: string, to: string}) => {
+    const userId = isGuest ? 'guest' : (user as any)?._id;
+
     if (p === 'custom' && range) {
-      setStats(getStats(0, range.from, range.to));
-      setSales(getSalesByPeriod(0, range.from, range.to));
+      setStats(isOwner ? getStats(0, range.from, range.to) : getMyStats(userId, 3650)); // Fallback to a year for custom range for sellers as getMyStats doesn't support custom range yet
+      setSales(getSalesByPeriod(0, range.from, range.to).filter((s: any) => isOwner || s.seller_id === userId));
       const expStats = getExpenseStats(0, range.from, range.to);
-      setExpenseTotal(expStats.total);
+      setExpenseTotal(isOwner ? expStats.total : 0);
     } else {
       const days = typeof p === 'number' ? p : 1;
-      setStats(getStats(days));
-      setSales(getSalesByPeriod(days));
+      setStats(isOwner ? getStats(days) : getMyStats(userId, days));
+      setSales(getSalesByPeriod(days).filter((s: any) => isOwner || s.seller_id === userId));
       const expStats = getExpenseStats(days);
-      setExpenseTotal(expStats.total);
+      setExpenseTotal(isOwner ? expStats.total : 0);
     }
-  }, []);
+  }, [isOwner, user, isGuest]);
 
   const checkRegPrompt = useCallback(async () => {
     if (!isGuest) return;
@@ -537,13 +541,15 @@ export default function ReportScreen() {
           <Text style={[styles.periodTitle, themeStyles.text]}>
             {getPeriodLabel()}
           </Text>
-          <TouchableOpacity
-            style={styles.exportBtn}
-            onPress={() => setShowExportModal(true)}
-          >
-            <Ionicons name="download-outline" size={14} color="#1D9E75" />
-            <Text style={styles.exportBtnText}>{t('reports.exportCsv')}</Text>
-          </TouchableOpacity>
+          {isOwner && (
+            <TouchableOpacity
+              style={styles.exportBtn}
+              onPress={() => setShowExportModal(true)}
+            >
+              <Ionicons name="download-outline" size={14} color="#1D9E75" />
+              <Text style={styles.exportBtnText}>{t('reports.exportCsv')}</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Row 2: scrollable period chips */}
@@ -656,7 +662,7 @@ export default function ReportScreen() {
         )}
       </View>
 
-      {period === 365 ? (
+      {period === 365 && isOwner ? (
         <AnnualReport />
       ) : (
         <>
@@ -682,28 +688,32 @@ export default function ReportScreen() {
 
           {/* Главные цифры */}
           <View style={styles.statsGrid}>
-            <View style={[styles.statCard, { backgroundColor: '#1D9E75' }]}>
+            <View style={[styles.statCard, { backgroundColor: '#1D9E75', width: isOwner ? '47%' : '100%' }]}>
               <Text style={styles.statLabel}>{t('common.revenue')}</Text>
               <Text style={styles.statValue}>{stats.revenue.toLocaleString()}</Text>
               <Text style={styles.statCurrency}>{currency.symbol}</Text>
             </View>
-            <TouchableOpacity
-              style={[styles.statCard, { backgroundColor: '#0C447C' }]}
-              onPress={() => navigation.navigate('Expenses')}
-            >
-              <Text style={styles.statLabel}>{t('reports.netProfit')}</Text>
-              <Text style={styles.statValue}>{(stats.profit - expenseTotal).toLocaleString()}</Text>
-              <Text style={styles.statCurrency}>{currency.symbol}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.statCard, { backgroundColor: '#FF6B6B' }]}
-              onPress={() => navigation.navigate('Expenses')}
-            >
-              <Text style={styles.statLabel}>{t('reports.expenses')}</Text>
-              <Text style={styles.statValue}>{expenseTotal.toLocaleString()}</Text>
-              <Text style={styles.statCurrency}>{currency.symbol}</Text>
-            </TouchableOpacity>
-            <View style={[styles.statCard, { backgroundColor: '#854F0B' }]}>
+            {isOwner && (
+              <>
+                <TouchableOpacity
+                  style={[styles.statCard, { backgroundColor: '#0C447C' }]}
+                  onPress={() => navigation.navigate('Expenses')}
+                >
+                  <Text style={styles.statLabel}>{t('reports.netProfit')}</Text>
+                  <Text style={styles.statValue}>{(stats.profit - expenseTotal).toLocaleString()}</Text>
+                  <Text style={styles.statCurrency}>{currency.symbol}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.statCard, { backgroundColor: '#FF6B6B' }]}
+                  onPress={() => navigation.navigate('Expenses')}
+                >
+                  <Text style={styles.statLabel}>{t('reports.expenses')}</Text>
+                  <Text style={styles.statValue}>{expenseTotal.toLocaleString()}</Text>
+                  <Text style={styles.statCurrency}>{currency.symbol}</Text>
+                </TouchableOpacity>
+              </>
+            )}
+            <View style={[styles.statCard, { backgroundColor: '#854F0B', width: isOwner ? '47%' : '100%' }]}>
               <Text style={styles.statLabel}>{t('home.salesCount')}</Text>
               <Text style={styles.statValue}>{stats.count}</Text>
               <Text style={styles.statCurrency}>{t('reports.pcs')}</Text>
@@ -775,9 +785,11 @@ export default function ReportScreen() {
                     <Text style={[styles.saleRevenue, themeStyles.text]}>
                       {(sale.sell_price * sale.quantity).toLocaleString()} {currency.symbol}
                     </Text>
-                    <Text style={styles.saleProfit}>
-                      +{sale.profit.toLocaleString()} {currency.symbol}
-                    </Text>
+                    {isOwner && (
+                      <Text style={styles.saleProfit}>
+                        +{sale.profit.toLocaleString()} {currency.symbol}
+                      </Text>
+                    )}
                   </View>
                 </TouchableOpacity>
               )))

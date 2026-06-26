@@ -9,6 +9,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '../context/AppContext';
+import { useShop } from '../context/ShopContext';
 import { Colors, LightTheme, DarkTheme, Radius, Shadow, FontSize, Spacing } from '../constants/theme';
 import {
   getDebtsWithClients, recordDebtPayment, getDebtPayments, getDebtSummary,
@@ -21,6 +22,7 @@ interface ClientSearchResult { id: number; name: string; phone?: string; }
 
 export default function DebtorsScreen() {
   const { t } = useTranslation();
+  const { isOwner } = useShop();
   const { resolvedTheme, currency } = useAppContext();
   const isDark = resolvedTheme === 'dark';
   const themeStyles = isDark ? darkStyles : lightStyles;
@@ -395,6 +397,7 @@ export default function DebtorsScreen() {
                     <Text style={styles.payBtnText}>{t('debtors.savePayment')}</Text>
                   </TouchableOpacity>
 
+                  {isOwner && (
                   <TouchableOpacity
                     style={styles.deleteBtn}
                     onPress={() => {
@@ -416,6 +419,7 @@ export default function DebtorsScreen() {
                     <Ionicons name="trash-outline" size={16} color="#E53935" />
                     <Text style={styles.deleteBtnText}>{t('debtors.deleteDebt')}</Text>
                   </TouchableOpacity>
+                  )}
                 </View>
               )}
 

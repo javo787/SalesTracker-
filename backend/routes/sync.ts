@@ -2,30 +2,39 @@ import express from 'express';
 import Sale from '../models/Sale';
 import Product from '../models/Product';
 import User from '../models/User';
-import { authMiddleware, AuthRequest } from '../middleware/authMiddleware';
+import { authMiddleware, requireShop, AuthRequest } from '../middleware/authMiddleware';
+import mongoose from 'mongoose';
 
 const router = express.Router();
 
-router.post('/push', authMiddleware, async (req: AuthRequest, res) => {
+// POST /sync/push
+router.post('/push', authMiddleware, requireShop, async (req: AuthRequest, res) => {
   const { sales, products } = req.body;
-  const userId = req.userId;
+  const shopObjectId = new mongoose.Types.ObjectId(req.shopId!);
+  const sellerObjectId = new mongoose.Types.ObjectId(req.userId!);
 
   try {
-    if (products && Array.isArray(products)) {
+    // PRODUCTS: only owner can push
+    if (products && Array.isArray(products) && req.role === 'owner') {
       const allowedProductFields = [
         'name', 'buy_price', 'sell_price', 'stock', 'min_stock_alert',
         'base_unit', 'has_packages', 'package_name', 'units_per_package',
         'category', 'updated_at', 'is_deleted',
       ];
-      const productOps = products.map(p => {
-        const update: Record<string, any> = { userId, localId: p.id };
+
+      const productOps = products.map((p: any) => {
+        const update: Record<string, any> = {
+          shopId: shopObjectId,
+          userId: sellerObjectId,
+          localId: p.id,
+        };
         for (const key of allowedProductFields) {
           if (p[key] !== undefined) update[key] = p[key];
         }
         return {
           updateOne: {
-            filter: { userId, localId: p.id },
-            update,
+            filter: { shopId: shopObjectId, localId: p.id },
+            update: { $set: update },
             upsert: true,
           },
         };
@@ -33,42 +42,99 @@ router.post('/push', authMiddleware, async (req: AuthRequest, res) => {
       if (productOps.length > 0) await Product.bulkWrite(productOps);
     }
 
+    // SALES: owners and sellers
     if (sales && Array.isArray(sales)) {
       const allowedSaleFields = [
         'product_id', 'product_name', 'quantity', 'sell_price',
         'buy_price', 'profit', 'note', 'stock_updated', 'created_at',
       ];
-      const saleOps = sales.map(s => {
-        const update: Record<string, any> = { userId, localId: s.id };
+
+      const saleOps = sales.map((s: any) => {
+        const update: Record<string, any> = {
+          shopId: shopObjectId,
+          sellerId: sellerObjectId,
+          userId: sellerObjectId,
+          sellerName: req.sellerName || 'Unknown',
+          localId: s.id,
+        };
+
         for (const key of allowedSaleFields) {
-          if (s[key] !== undefined) update[key] = s[key];
+          if (s[key] !== undefined) {
+            // SECURITY: seller cannot push buy_price / profit
+            if (req.role === 'seller' && (key === 'buy_price' || key === 'profit')) continue;
+            update[key] = s[key];
+          }
         }
+
         return {
           updateOne: {
-            filter: { userId, localId: s.id },
-            update,
+            filter: { shopId: shopObjectId, sellerId: sellerObjectId, localId: s.id },
+            update: { $set: update },
             upsert: true,
           },
         };
       });
+
       if (saleOps.length > 0) await Sale.bulkWrite(saleOps);
+
+      // Update stock on server based on new sales
+      if (req.role === 'seller') {
+        for (const s of sales) {
+          if (s.product_id && s.quantity && s.stock_updated === 1) {
+            // Allow negative stock as per spec 2.3
+            await Product.findOneAndUpdate(
+              { shopId: shopObjectId, localId: s.product_id },
+              { $inc: { stock: -s.quantity } }
+            );
+          }
+        }
+      }
     }
 
-    await User.findByIdAndUpdate(userId, { lastSyncAt: new Date() });
-    res.json({ syncedAt: new Date().toISOString() });
+    await User.findByIdAndUpdate(req.userId, { lastSyncAt: new Date() });
+    res.json({ syncedAt: new Date().toISOString(), role: req.role });
   } catch (error) {
     console.error('Push error:', error);
     res.status(500).json({ message: 'Error during push sync' });
   }
 });
 
-router.get('/pull', authMiddleware, async (req: AuthRequest, res) => {
-  const userId = req.userId;
+// GET /sync/pull
+router.get('/pull', authMiddleware, requireShop, async (req: AuthRequest, res) => {
+  const shopObjectId = new mongoose.Types.ObjectId(req.shopId!);
+  const isOwner = req.role === 'owner';
+
   try {
-    const products = await Product.find({ userId });
-    const sales = await Sale.find({ userId });
-    res.json({ products, sales });
+    // Products: everyone gets them, but buy_price is owner only
+    const productsRaw = await Product.find({ shopId: shopObjectId }).lean();
+
+    const products = productsRaw.map((p: any) => {
+      if (!isOwner) {
+        return { ...p, buy_price: null };
+      }
+      return p;
+    });
+
+    // Sales:
+    // - owner gets all shop sales
+    // - seller gets only their own
+    const salesQuery: any = { shopId: shopObjectId };
+    if (!isOwner) {
+      salesQuery.sellerId = new mongoose.Types.ObjectId(req.userId!);
+    }
+
+    const salesRaw = await Sale.find(salesQuery).lean();
+
+    const sales = salesRaw.map((s: any) => {
+      if (!isOwner) {
+        return { ...s, buy_price: null, profit: null };
+      }
+      return s;
+    });
+
+    res.json({ products, sales, role: req.role, shopId: req.shopId });
   } catch (error) {
+    console.error('Pull error:', error);
     res.status(500).json({ message: 'Error during pull sync' });
   }
 });
