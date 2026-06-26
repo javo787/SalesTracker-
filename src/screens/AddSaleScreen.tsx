@@ -2,11 +2,12 @@ import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, Alert, ActivityIndicator, Animated, Modal, TouchableWithoutFeedback
+  StyleSheet, ScrollView, Alert, ActivityIndicator, Animated, Modal, TouchableWithoutFeedback, Easing
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { addSale, getProducts, upsertClient, addDebt, updateDebtNotificationId } from '../db/database';
 import { scheduleDebtReminder } from '../utils/notifications';
 import { analyticsService } from '../services/analyticsService';
@@ -59,6 +60,55 @@ export default function AddSaleScreen(/* props */) {
   const [activeTab, setActiveTab] = useState<'sales' | 'expenses'>('sales');
   const [showVoiceBar, setShowVoiceBar] = useState(false);
   const fadeAnim = useMemo(() => new Animated.Value(1), []);
+
+  const [isSaved, setIsSaved] = useState(false);
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const opacityAnim = useRef(new Animated.Value(1)).current;
+
+  const triggerSaveAnimation = () => {
+    // Вибрация
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    // Последовательность: сжатие → отскок → возврат
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(scaleAnim, {
+          toValue: 0.96,
+          duration: 80,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 0.85,
+          duration: 80,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.parallel([
+        Animated.spring(scaleAnim, {
+          toValue: 1.02,
+          friction: 4,
+          tension: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 1,
+          duration: 120,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 6,
+        tension: 150,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Показать состояние "Сохранено!"
+    setIsSaved(true);
+    setTimeout(() => setIsSaved(false), 1800);
+  };
 
   // добавлено: получение параметров из маршрута (от калькулятора)
   const route = useRoute<any>(); // useRoute in @react-navigation/native is notoriously hard to type without complex generic
@@ -276,6 +326,8 @@ FEW-SHOT EXAMPLES:
     setSelectedProduct(null); setSalePricePlaceholder(null);
     setPaymentType('full'); setPaidAmount(''); setDueDate('');
     setClientName(''); setClientPhone(''); setClientId(null);
+
+    triggerSaveAnimation();
   };
 
   const themeStyles = isDark ? darkStyles : lightStyles;
@@ -299,7 +351,11 @@ FEW-SHOT EXAMPLES:
   };
 
   return (
-    <View style={[styles.container, themeStyles.container]}>
+    <Animated.View style={[
+      styles.container,
+      themeStyles.container,
+      { transform: [{ scale: scaleAnim }], opacity: opacityAnim }
+    ]}>
       {/* Voice Floating Button */}
       <TouchableOpacity
         style={styles.fab}
@@ -532,8 +588,20 @@ FEW-SHOT EXAMPLES:
           </View>
         ) : null}
 
-        <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-          <Text style={styles.saveBtnText}>{t('addSale.saveBtn')}</Text>
+        <TouchableOpacity
+          style={[styles.saveBtn, isSaved && { backgroundColor: '#1D9E75' }]}
+          onPress={handleSave}
+          activeOpacity={0.8}
+        >
+          <Ionicons
+            name={isSaved ? 'checkmark-circle' : 'checkmark'}
+            size={20}
+            color="#fff"
+            style={{ marginRight: 8 }}
+          />
+          <Text style={styles.saveBtnText}>
+            {isSaved ? t('common.saved') : t('addSale.saveBtn')}
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -551,7 +619,7 @@ FEW-SHOT EXAMPLES:
           <ExpensesView />
         )}
       </Animated.View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -681,6 +749,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary, borderRadius: Radius.lg,
     padding: Spacing.lg, alignItems: 'center', marginTop: Spacing.xl,
     ...Shadow.md,
+    flexDirection: 'row',
+    justifyContent: 'center',
   },
   saveBtnText: { color: '#fff', fontSize: FontSize.lg, fontWeight: 'bold' },
   autocomplete: {

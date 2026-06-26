@@ -1301,7 +1301,7 @@ const initI18n = async () => {
     savedLanguage = 'ru';
   }
 
-  i18n
+  await i18n
     .use(initReactI18next)
     .init({
       resources,
@@ -1309,6 +1309,10 @@ const initI18n = async () => {
       fallbackLng: 'ru',
       interpolation: {
         escapeValue: false,
+      },
+      returnNull: false,
+      react: {
+        useSuspense: false,
       },
     });
 };
