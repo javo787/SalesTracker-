@@ -14,6 +14,7 @@ export interface ISale extends Document {
   profit: number;
   note?: string;
   stock_updated: number;
+  stock_warning?: boolean;
   created_at: string;
 }
 
@@ -31,6 +32,7 @@ const SaleSchema: Schema = new Schema({
   profit: { type: Number, required: true },
   note: { type: String },
   stock_updated: { type: Number, default: 0 },
+  stock_warning: { type: Boolean, default: false },
   created_at: { type: String },
 });
 

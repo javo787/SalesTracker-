@@ -47,6 +47,7 @@ router.post('/push', authMiddleware, requireShop, async (req: AuthRequest, res) 
       const allowedSaleFields = [
         'product_id', 'product_name', 'quantity', 'sell_price',
         'buy_price', 'profit', 'note', 'stock_updated', 'created_at',
+        'stock_warning',
       ];
 
       const saleOps = sales.map((s: any) => {
@@ -81,7 +82,19 @@ router.post('/push', authMiddleware, requireShop, async (req: AuthRequest, res) 
       if (req.role === 'seller') {
         for (const s of sales) {
           if (s.product_id && s.quantity && s.stock_updated === 1) {
-            // Allow negative stock as per spec 2.3
+            // Check if stock is sufficient
+            const product = await Product.findOne({ shopId: shopObjectId, localId: s.product_id });
+            const hasSufficientStock = product && product.stock >= s.quantity;
+
+            if (!hasSufficientStock) {
+              // Set warning if not enough stock, but still record sale (last-write-wins on stock decrement)
+              await Sale.findOneAndUpdate(
+                { shopId: shopObjectId, sellerId: sellerObjectId, localId: s.id },
+                { $set: { stock_warning: true } }
+              );
+            }
+
+            // Still decrement stock (it might go negative)
             await Product.findOneAndUpdate(
               { shopId: shopObjectId, localId: s.product_id },
               { $inc: { stock: -s.quantity } }
@@ -106,11 +119,15 @@ router.get('/pull', authMiddleware, requireShop, async (req: AuthRequest, res) =
 
   try {
     // Products: everyone gets them, but buy_price is owner only
+    // Products: everyone gets them, but buy_price is owner only
+    // Include all products including deleted ones for sync purposes
     const productsRaw = await Product.find({ shopId: shopObjectId }).lean();
 
     const products = productsRaw.map((p: any) => {
       if (!isOwner) {
-        return { ...p, buy_price: null };
+        // Seller MUST NOT get buy_price
+        const { buy_price, ...rest } = p;
+        return { ...rest, buy_price: null };
       }
       return p;
     });
@@ -127,7 +144,9 @@ router.get('/pull', authMiddleware, requireShop, async (req: AuthRequest, res) =
 
     const sales = salesRaw.map((s: any) => {
       if (!isOwner) {
-        return { ...s, buy_price: null, profit: null };
+        // Seller MUST NOT get buy_price and profit
+        const { buy_price, profit, ...rest } = s;
+        return { ...rest, buy_price: null, profit: null };
       }
       return s;
     });

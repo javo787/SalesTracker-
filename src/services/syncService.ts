@@ -49,7 +49,14 @@ export const SyncService = {
 
       // Products sync
       for (const p of data.products) {
+        // Use localId for mapping, NOT autoincrement id
         const existing = db.getFirstSync('SELECT id FROM products WHERE id = ?', [p.localId]);
+
+        if (p.is_deleted) {
+           db.runSync('DELETE FROM products WHERE id = ?', [p.localId]);
+           continue;
+        }
+
         if (!existing) {
           db.runSync(
             `INSERT INTO products (
@@ -70,7 +77,7 @@ export const SyncService = {
           db.runSync(
             `UPDATE products SET
               name = ?,
-              ${isOwner ? 'buy_price = ?,' : ''}
+              ${isOwner ? 'buy_price = ?,' : 'buy_price = NULL,'}
               sell_price = ?, stock = ?, min_stock_alert = ?,
               base_unit = ?, category = ?, synced = 1, is_deleted = ?, updated_at = ?
             WHERE id = ?`,
@@ -88,15 +95,16 @@ export const SyncService = {
           db.runSync(
             `INSERT INTO sales (
               id, product_id, product_name, quantity, sell_price, buy_price, profit,
-              note, stock_updated, created_at, seller_id, seller_name
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              note, stock_updated, created_at, seller_id, seller_name, stock_warning
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               s.localId, s.product_id, s.product_name, s.quantity,
               s.sell_price,
               isOwner ? s.buy_price : null,
               isOwner ? s.profit : null,
               s.note, s.stock_updated, s.created_at,
-              s.sellerId, s.sellerName
+              s.sellerId, s.sellerName,
+              s.stock_warning ? 1 : 0
             ]
           );
         }

@@ -175,6 +175,15 @@ export function initDatabase() {
   if (!salesColsNew.some(c => c.name === 'seller_name')) {
     db.execSync("ALTER TABLE sales ADD COLUMN seller_name TEXT");
   }
+  if (!salesColsNew.some(c => c.name === 'stock_warning')) {
+    db.execSync("ALTER TABLE sales ADD COLUMN stock_warning INTEGER DEFAULT 0");
+  }
+  if (!salesColsNew.some(c => c.name === 'remote_id')) {
+    db.execSync("ALTER TABLE sales ADD COLUMN remote_id TEXT");
+  }
+  if (!tableInfo.some(c => c.name === 'remote_id')) {
+    db.execSync("ALTER TABLE products ADD COLUMN remote_id TEXT");
+  }
 
   // Migration: shop_session table
   db.execSync(`
