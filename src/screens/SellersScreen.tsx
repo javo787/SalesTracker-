@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Alert, RefreshControl, ActivityIndicator, Image, Clipboard
+  Alert, RefreshControl, ActivityIndicator, Image
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { useShop } from '../context/ShopContext';
@@ -91,9 +92,9 @@ export default function SellersScreen() {
     );
   };
 
-  const copyToClipboard = () => {
+  const copyToClipboard = async () => {
     if (inviteCode) {
-      Clipboard.setString(inviteCode);
+      await Clipboard.setStringAsync(inviteCode);
       Alert.alert(t('common.success'), t('sellers.codeCopied') || 'Code copied to clipboard');
     }
   };
