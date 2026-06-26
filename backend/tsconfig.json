@@ -10,7 +10,8 @@
     "forceConsistentCasingInFileNames": true,
     "moduleResolution": "node",
     "ignoreDeprecations": "6.0",
-    "sourceMap": true
+    "sourceMap": true,
+    "types": ["node"]
   },
   "include": ["**/*.ts"],
   "exclude": ["node_modules"]
