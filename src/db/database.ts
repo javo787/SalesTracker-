@@ -892,6 +892,41 @@ export function getDebtPayments(debtId: number) {
   );
 }
 
+export function getProductSalesStats(productId: number) {
+  return db.getFirstSync(`
+    SELECT
+      COALESCE(SUM(quantity), 0) as total_sold,
+      COALESCE(SUM(sell_price * quantity), 0) as total_revenue,
+      COALESCE(SUM(profit), 0) as total_profit
+    FROM sales
+    WHERE product_id = ?
+  `, [productId]) as { total_sold: number; total_revenue: number; total_profit: number };
+}
+
+export function getProductSalesHistory(productId: number, limit: number = 20) {
+  return db.getAllSync(
+    'SELECT * FROM sales WHERE product_id = ? ORDER BY created_at DESC LIMIT ?',
+    [productId, limit]
+  );
+}
+
+export function getUnregisteredProductsFromHistory() {
+  return db.getAllSync(`
+    SELECT
+      product_name as name,
+      COUNT(*) as sales_count,
+      AVG(sell_price) as avg_sell_price,
+      AVG(buy_price) as avg_buy_price,
+      MAX(sell_price) as last_sell_price,
+      MAX(buy_price) as last_buy_price
+    FROM sales
+    WHERE product_id IS NULL
+      AND product_name NOT IN (SELECT name FROM products WHERE is_deleted = 0)
+    GROUP BY product_name
+    ORDER BY sales_count DESC
+  `);
+}
+
 export function getClientDebtHistory(clientId: number) {
   // Все долги клиента (включая погашенные) с инфо о продаже
   return db.getAllSync(`

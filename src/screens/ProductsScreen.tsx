@@ -1,12 +1,15 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
-  TouchableOpacity, TextInput, Alert, RefreshControl
+  TouchableOpacity, TextInput, Alert, RefreshControl, Modal
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
-import { addProduct, updateProduct, deleteProduct, getProducts, getDistinctCategories, getProductIdsWithDebts } from '../db/database';
+import {
+  addProduct, updateProduct, deleteProduct, getProducts, getDistinctCategories, getProductIdsWithDebts,
+  getProductSalesStats, getProductSalesHistory, getUnregisteredProductsFromHistory
+} from '../db/database';
 import { analyticsService } from '../services/analyticsService';
 import { useAppContext } from '../context/AppContext';
 import StockOperationModal from '../components/stock/StockOperationModal';
@@ -43,6 +46,20 @@ export default function ProductsScreen() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [debtProductIdsList, setDebtProductIdsList] = useState<number[]>([]);
 
+  // Accordion & Stats
+  const [expandedProductId, setExpandedProductId] = useState<number | null>(null);
+  const [productStats, setProductStats] = useState<Record<number, any>>({});
+
+  // Sales History Modal
+  const [productSalesHistory, setProductSalesHistory] = useState<any[]>([]);
+  const [showSalesHistory, setShowSalesHistory] = useState(false);
+  const [historyProductName, setHistoryProductName] = useState('');
+
+  // Unregistered Products
+  const [unregistered, setUnregistered] = useState<any[]>([]);
+  const [showUnregisteredModal, setShowUnregisteredModal] = useState(false);
+  const [dismissedUnregistered, setDismissedUnregistered] = useState(false);
+
   // Modal states
   const [opModalVisible, setOpModalVisible] = useState(false);
   const [opType, setOpType] = useState<'stock_in' | 'waste' | 'correction'>('stock_in');
@@ -55,6 +72,10 @@ export default function ProductsScreen() {
   const loadProducts = () => {
     const allProds = getProducts() as any[];
     setProducts(allProds);
+
+    // Load unregistered products
+    const unreg = getUnregisteredProductsFromHistory() as any[];
+    setUnregistered(unreg);
 
     // Derive distinct categories from products to avoid extra SQL query
     const cats = Array.from(new Set(allProds.map(p => p.category).filter(Boolean))) as string[];
@@ -200,6 +221,38 @@ export default function ProductsScreen() {
 
   return (
     <View style={[styles.container, themeStyles.container]}>
+      {/* Unregistered Products Banner */}
+      {!dismissedUnregistered && unregistered.length > 0 && (
+        <TouchableOpacity
+          style={styles.unregisteredBanner}
+          onPress={() => setShowUnregisteredModal(true)}
+        >
+          <View style={styles.unregisteredIcon}>
+            <Ionicons name="alert-circle" size={24} color="#FF9800" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.unregisteredTitle}>
+              {t('products.unregisteredBannerTitle', { count: unregistered.length })}
+            </Text>
+            <Text style={styles.unregisteredSub}>
+              {t('products.unregisteredBannerSub')}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.unregisteredAction}
+            onPress={() => setShowUnregisteredModal(true)}
+          >
+            <Text style={styles.unregisteredActionText}>{t('products.unregisteredBannerAction')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.unregisteredClose}
+            onPress={() => setDismissedUnregistered(true)}
+          >
+            <Ionicons name="close" size={20} color="#999" />
+          </TouchableOpacity>
+        </TouchableOpacity>
+      )}
+
       {/* Search Bar with Autocomplete Suggestions */}
       <View style={[styles.searchContainer, themeStyles.card]}>
         <Ionicons name="search-outline" size={20} color={isDark ? '#888' : '#aaa'} style={styles.searchIcon} />
@@ -542,91 +595,145 @@ export default function ProductsScreen() {
           <Text style={styles.emptyHint}>{searchQuery ? t('products.tryAnotherQuery') || 'Try another query' : t('products.addFirstProduct') || 'Add your first product'}</Text>
         </View>
       ) : (
-        filteredProducts.map((p: any) => (
-          <View key={String(p.id)} style={[styles.productItem, themeStyles.card]}>
-            <TouchableOpacity
-              style={styles.productMain}
-              onPress={() => {
-                setSelectedProduct(p);
-                setHistoryVisible(true);
-              }}
-              onLongPress={() => handleLongPress(p)}
-              delayLongPress={500}
-            >
-              <View style={styles.productLeft}>
-                <Text style={[styles.productName, themeStyles.text]}>{p.name}</Text>
-                <Text style={styles.productPrices}>
-                  {t('addSale.buyPrice')}: {p.buy_price} {currency.symbol} · {t('addSale.sellPrice')}: {p.sell_price} {currency.symbol}
-                </Text>
-              </View>
-              <View style={styles.productRight}>
-                <Text style={[
-                  styles.productStock,
-                  { color: p.stock <= 0 ? Colors.danger : p.stock <= (p.min_stock_alert || 0) ? Colors.warning : Colors.primary }
-                ]}>
-                  {p.stock} {p.base_unit || t('reports.pcs')}
-                </Text>
-                <Text style={styles.productProfit}>
-                  +{(p.sell_price - p.buy_price).toFixed(0)} {currency.symbol}
-                </Text>
-              </View>
-            </TouchableOpacity>
+        filteredProducts.map((p: any) => {
+          const isExpanded = expandedProductId === p.id;
+          const stats = productStats[p.id];
 
-            <View style={styles.productActions}>
+          return (
+            <View key={String(p.id)} style={[styles.productItem, themeStyles.card]}>
               <TouchableOpacity
-                style={[styles.actionBtn, styles.actionBtnSell]}
+                style={styles.productMain}
                 onPress={() => {
-                  // Navigate using RootStack to ensure fresh screen/params
-                  navigation.navigate('Main', {
-                    screen: 'Sale',
-                    params: {
-                      prefillSell: p.sell_price,
-                      prefillBuy: p.buy_price,
-                      prefillProductName: p.name,
-                      prefillProductId: p.id,
-                    }
-                  });
+                  const newId = isExpanded ? null : p.id;
+                  setExpandedProductId(newId);
+                  if (newId && !productStats[newId]) {
+                    const stats = getProductSalesStats(p.id);
+                    setProductStats(prev => ({ ...prev, [p.id]: stats }));
+                  }
                 }}
+                onLongPress={() => handleLongPress(p)}
+                delayLongPress={500}
               >
-                <Ionicons name="cash-outline" size={18} color="#1D9E75" />
-                <Text style={styles.actionBtnText}>{t('products.sellBtn')}</Text>
+                <View style={styles.productLeft}>
+                  <Text style={[styles.productName, themeStyles.text]}>{p.name}</Text>
+                  <Text style={styles.productPrices}>
+                    {t('addSale.buyPrice')}: {p.buy_price} {currency.symbol} · {t('addSale.sellPrice')}: {p.sell_price} {currency.symbol}
+                  </Text>
+                </View>
+                <View style={styles.productRight}>
+                  <Text style={[
+                    styles.productStock,
+                    { color: p.stock <= 0 ? Colors.danger : p.stock <= (p.min_stock_alert || 0) ? Colors.warning : Colors.primary }
+                  ]}>
+                    {p.stock} {p.base_unit || t('reports.pcs')}
+                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Text style={styles.productProfit}>
+                      +{(p.sell_price - p.buy_price).toFixed(0)} {currency.symbol}
+                    </Text>
+                    <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={14} color="#aaa" />
+                  </View>
+                </View>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.actionBtn}
-                onPress={() => {
-                  setSelectedProduct(p);
-                  setOpType('stock_in');
-                  setOpModalVisible(true);
-                }}
-              >
-                <Ionicons name="add-circle-outline" size={18} color="#1D9E75" />
-                <Text style={styles.actionBtnText}>{t('warehouse.stockIn')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.actionBtn}
-                onPress={() => {
-                  setSelectedProduct(p);
-                  setOpType('waste');
-                  setOpModalVisible(true);
-                }}
-              >
-                <Ionicons name="trash-outline" size={18} color="#FF5252" />
-                <Text style={[styles.actionBtnText, { color: '#FF5252' }]}>{t('warehouse.waste')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.actionBtn}
-                onPress={() => {
-                  setSelectedProduct(p);
-                  setOpType('correction');
-                  setOpModalVisible(true);
-                }}
-              >
-                <Ionicons name="git-compare-outline" size={18} color="#FF9800" />
-                <Text style={[styles.actionBtnText, { color: '#FF9800' }]}>{t('warehouse.correction')}</Text>
-              </TouchableOpacity>
+
+              {isExpanded && (
+                <View style={[styles.expandedContent, { borderTopWidth: 1, borderTopColor: isDark ? '#333' : '#eee' }]}>
+                  {/* Stats Row */}
+                  <View style={styles.statsRow}>
+                    <View style={styles.statBox}>
+                      <Text style={styles.statLabel}>{t('products.totalSold')}</Text>
+                      <Text style={[styles.statValue, themeStyles.text]}>{stats?.total_sold || 0}</Text>
+                    </View>
+                    <View style={styles.statBox}>
+                      <Text style={styles.statLabel}>{t('products.totalRevenue')}</Text>
+                      <Text style={[styles.statValue, themeStyles.text]}>{stats?.total_revenue?.toFixed(0) || 0} {currency.symbol}</Text>
+                    </View>
+                    <View style={styles.statBox}>
+                      <Text style={styles.statLabel}>{t('products.totalProfit')}</Text>
+                      <Text style={[styles.statValue, { color: Colors.primary }]}>{stats?.total_profit?.toFixed(0) || 0} {currency.symbol}</Text>
+                    </View>
+                  </View>
+
+                  <View style={[styles.infoRow, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
+                    <Text style={styles.infoText}>
+                      {t('products.addedDate')}: {p.created_at ? new Date(p.created_at.replace(' ', 'T')).toLocaleDateString('ru-RU') : '—'}
+                    </Text>
+
+                    {(stats?.total_sold || 0) > 0 && (
+                      <TouchableOpacity
+                        onPress={() => {
+                          setHistoryProductName(p.name);
+                          setProductSalesHistory(getProductSalesHistory(p.id));
+                          setShowSalesHistory(true);
+                        }}
+                      >
+                        <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: '600' }}>
+                          {t('products.salesHistory')} →
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  <View style={styles.productActions}>
+                    <TouchableOpacity
+                      style={[styles.actionBtn, styles.actionBtnSell]}
+                      onPress={() => {
+                        navigation.navigate('Main', {
+                          screen: 'Tabs',
+                          params: {
+                            screen: 'Sale',
+                            params: {
+                              prefillSell: p.sell_price,
+                              prefillBuy: p.buy_price,
+                              prefillProductName: p.name,
+                              prefillProductId: p.id,
+                            }
+                          }
+                        });
+                      }}
+                    >
+                      <Ionicons name="cash-outline" size={18} color="#1D9E75" />
+                      <Text style={styles.actionBtnText}>{t('products.sellBtn')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.actionBtn}
+                      onPress={() => {
+                        setSelectedProduct(p);
+                        setOpType('stock_in');
+                        setOpModalVisible(true);
+                      }}
+                    >
+                      <Ionicons name="add-circle-outline" size={18} color="#1D9E75" />
+                      <Text style={styles.actionBtnText}>{t('warehouse.stockIn')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.actionBtn}
+                      onPress={() => {
+                        setSelectedProduct(p);
+                        setOpType('waste');
+                        setOpModalVisible(true);
+                      }}
+                    >
+                      <Ionicons name="trash-outline" size={18} color="#FF5252" />
+                      <Text style={[styles.actionBtnText, { color: '#FF5252' }]}>{t('warehouse.waste')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.actionBtn}
+                      onPress={() => {
+                        setSelectedProduct(p);
+                        setOpType('correction');
+                        setOpModalVisible(true);
+                      }}
+                    >
+                      <Ionicons name="git-compare-outline" size={18} color="#FF9800" />
+                      <Text style={[styles.actionBtnText, { color: '#FF9800' }]}>{t('warehouse.correction')}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
             </View>
-          </View>
-        ))
+          );
+        })
       )}
     </ScrollView>
 
@@ -649,6 +756,130 @@ export default function ProductsScreen() {
           />
         </>
       )}
+
+      {/* Sales History Modal */}
+      <Modal
+        visible={showSalesHistory}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowSalesHistory(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, themeStyles.card]}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={[styles.modalTitle, themeStyles.text]}>{t('products.salesHistory')}</Text>
+                <Text style={styles.modalSubtitle}>{historyProductName}</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowSalesHistory(false)} style={styles.closeBtn}>
+                <Ionicons name="close" size={24} color={isDark ? '#fff' : '#000'} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody}>
+              {productSalesHistory.length === 0 ? (
+                <View style={styles.emptyHistory}>
+                  <Text style={styles.emptyHistoryText}>{t('products.noSalesYet')}</Text>
+                </View>
+              ) : (
+                productSalesHistory.map((s, idx) => (
+                  <View key={idx} style={[styles.historyItem, { borderBottomColor: isDark ? '#333' : '#eee' }]}>
+                    <View style={styles.historyRow}>
+                      <Text style={[styles.historyDate, themeStyles.text]}>
+                        {new Date(s.created_at.replace(' ', 'T')).toLocaleDateString('ru-RU')} {new Date(s.created_at.replace(' ', 'T')).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                      </Text>
+                      <Text style={[styles.historyQty, themeStyles.text]}>{s.quantity} {t('reports.pcs')}</Text>
+                    </View>
+                    <View style={styles.historyRow}>
+                      <Text style={styles.historyPrices}>
+                        {t('common.revenue')}: {s.sell_price * s.quantity} {currency.symbol}
+                      </Text>
+                      <Text style={[styles.historyProfit, { color: Colors.primary }]}>
+                        {t('common.profit')}: +{s.profit.toFixed(0)} {currency.symbol}
+                      </Text>
+                    </View>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Unregistered Products Quick Add Modal */}
+      <Modal
+        visible={showUnregisteredModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowUnregisteredModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, themeStyles.card, { height: '80%' }]}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={[styles.modalTitle, themeStyles.text]}>{t('products.quickAddTitle')}</Text>
+                <Text style={styles.modalSubtitle}>{t('products.quickAddFromHistory')}</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowUnregisteredModal(false)} style={styles.closeBtn}>
+                <Ionicons name="close" size={24} color={isDark ? '#fff' : '#000'} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody}>
+              {unregistered.length === 0 ? (
+                <View style={styles.emptyHistory}>
+                  <Text style={styles.emptyHistoryText}>{t('products.allRegistered')}</Text>
+                </View>
+              ) : (
+                unregistered.map((item, idx) => (
+                  <View key={idx} style={[styles.unregItem, { borderBottomColor: isDark ? '#333' : '#eee' }]}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.unregName, themeStyles.text]}>{item.name}</Text>
+                      <Text style={styles.unregStats}>
+                        {t('common.revenue')}: {item.last_sell_price?.toFixed(0)} {currency.symbol} · {t('common.quantity')}: {item.sales_count}
+                      </Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <TouchableOpacity
+                        style={styles.unregLaterBtn}
+                        onPress={() => {
+                          const newList = unregistered.filter((_, i) => i !== idx);
+                          setUnregistered(newList);
+                          if (newList.length === 0) setShowUnregisteredModal(false);
+                        }}
+                      >
+                        <Text style={styles.unregLaterText}>{t('products.laterBtn')}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.unregAddBtn}
+                        onPress={() => {
+                          try {
+                            addProduct(
+                              item.name,
+                              item.last_buy_price || 0,
+                              item.last_sell_price || 0,
+                              0
+                            );
+                            Alert.alert(t('common.saved'), t('products.quickAdded'));
+                            const newList = unregistered.filter((_, i) => i !== idx);
+                            setUnregistered(newList);
+                            loadProducts();
+                            if (newList.length === 0) setShowUnregisteredModal(false);
+                          } catch (e) {
+                            Alert.alert(t('common.error'), String(e));
+                          }
+                        }}
+                      >
+                        <Text style={styles.unregAddText}>{t('common.addNew')}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -750,12 +981,42 @@ const styles = StyleSheet.create({
   productPrices: { fontSize: 12, color: '#999', marginTop: 3 },
   productRight: { alignItems: 'flex-end' },
   productStock: { fontSize: 15, fontWeight: '700' },
-  productProfit: { fontSize: 13, color: '#1D9E75', marginTop: 3 },
+  productProfit: { fontSize: 13, color: '#1D9E75' },
+  expandedContent: {
+    backgroundColor: 'rgba(0,0,0,0.01)',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    padding: 12,
+    justifyContent: 'space-between',
+  },
+  statBox: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statLabel: {
+    fontSize: 10,
+    color: '#999',
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  statValue: {
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  infoRow: {
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+  },
+  infoText: {
+    fontSize: 12,
+    color: '#999',
+  },
   productActions: {
     flexDirection: 'row',
     borderTopWidth: 1,
     borderTopColor: 'rgba(0,0,0,0.05)',
-    paddingVertical: 8,
+    paddingVertical: 12,
     paddingHorizontal: 4,
     backgroundColor: 'rgba(0,0,0,0.02)',
   },
@@ -853,5 +1114,147 @@ const styles = StyleSheet.create({
   },
   checkboxLabel: {
     fontSize: 14,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: Radius.xl,
+    borderTopRightRadius: Radius.xl,
+    height: '70%',
+    padding: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 2,
+  },
+  closeBtn: {
+    padding: 4,
+  },
+  modalBody: {
+    flex: 1,
+  },
+  emptyHistory: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  emptyHistoryText: {
+    color: '#999',
+    fontSize: 15,
+  },
+  historyItem: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  historyRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  historyDate: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  historyQty: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  historyPrices: {
+    fontSize: 12,
+    color: '#999',
+  },
+  historyProfit: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  unregisteredBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF8E1',
+    padding: 12,
+    marginHorizontal: 16,
+    marginTop: 8,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: '#FFE082',
+  },
+  unregisteredIcon: {
+    marginRight: 10,
+  },
+  unregisteredTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#E65100',
+  },
+  unregisteredSub: {
+    fontSize: 12,
+    color: '#FF9800',
+  },
+  unregisteredAction: {
+    backgroundColor: '#FF9800',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginLeft: 8,
+  },
+  unregisteredActionText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  unregisteredClose: {
+    padding: 4,
+    marginLeft: 4,
+  },
+  unregItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+  },
+  unregName: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  unregStats: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 2,
+  },
+  unregLaterBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#f5f5f5',
+  },
+  unregLaterText: {
+    fontSize: 13,
+    color: '#666',
+    fontWeight: '500',
+  },
+  unregAddBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#1D9E75',
+  },
+  unregAddText: {
+    fontSize: 13,
+    color: '#fff',
+    fontWeight: 'bold',
   },
 });
