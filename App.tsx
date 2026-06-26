@@ -205,7 +205,7 @@ function DrawerNavigator() {
         name="Calculator"
         component={CalculatorScreen}
         options={{
-          drawerLabel: 'Калькулятор',
+          drawerLabel: t('tabs.calculator'),
           drawerIcon: ({ color }) => <Ionicons name="calculator-outline" size={22} color={color} />,
         }}
       />
@@ -213,7 +213,7 @@ function DrawerNavigator() {
         name="Currency"
         component={CurrencyScreen}
         options={{
-          drawerLabel: 'Курсы валют',
+          drawerLabel: t('tabs.currency'),
           drawerIcon: ({ color }) => <Ionicons name="cash-outline" size={22} color={color} />,
         }}
       />

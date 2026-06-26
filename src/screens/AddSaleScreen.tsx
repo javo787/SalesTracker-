@@ -160,7 +160,7 @@ export default function AddSaleScreen(/* props */) {
 
   const analyzeWithAI = async (text: string) => {
     if (!gemini) {
-      Alert.alert(t('common.error'), 'Ключ Gemini API не настроен. Пожалуйста, проверьте файл .env');
+      Alert.alert(t('common.error'), t('addSale.errorGemini'));
       return;
     }
 
@@ -231,7 +231,7 @@ FEW-SHOT EXAMPLES:
 
       applyAIResult(parsed);
     } catch (e) {
-      Alert.alert(t('common.error'), 'Не удалось обработать. Введите вручную.');
+      Alert.alert(t('common.error'), t('addSale.errorAI'));
     } finally {
       setProcessing(false);
     }
@@ -248,7 +248,7 @@ FEW-SHOT EXAMPLES:
       const calcBuy = (parsed.revenue - parsed.profit) / qty;
       setSellPrice(String(parsed.revenue / qty));
       setBuyPrice(String(Math.max(0, calcBuy)));
-      setProductName(parsed.product_name || 'Продажа дня');
+      setProductName(parsed.product_name || t('addSale.defaultProductName'));
     }
   };
 
@@ -261,7 +261,7 @@ FEW-SHOT EXAMPLES:
     const finalSellPrice = sellPrice || (salePricePlaceholder ? String(salePricePlaceholder) : '');
 
     if (!finalSellPrice || !buyPrice) {
-      Alert.alert(t('common.error'), 'Введите цену продажи и закупки');
+      Alert.alert(t('common.error'), t('addSale.errorPrices'));
       return;
     }
 
@@ -270,7 +270,7 @@ FEW-SHOT EXAMPLES:
     const qty = parseFloat(quantity) || 1;
 
     if (sellerMode === 'wholesale' && paymentType !== 'full' && !clientName.trim()) {
-      Alert.alert(t('common.error'), 'Введите имя клиента для записи долга');
+      Alert.alert(t('common.error'), t('addSale.errorClientName'));
       return;
     }
 
@@ -508,10 +508,14 @@ FEW-SHOT EXAMPLES:
     {/* Payment type selector — shown only in wholesale mode */}
     {sellerMode === 'wholesale' && (
       <View style={styles.paymentSection}>
-        <Text style={[styles.label, themeStyles.text]}>Оплата</Text>
+        <Text style={[styles.label, themeStyles.text]}>{t('addSale.paymentLabel')}</Text>
         <View style={styles.paymentRow}>
           {(['full', 'partial', 'debt'] as const).map((type) => {
-            const labels = { full: '✅ Полностью', partial: '💰 Частично', debt: '📋 В долг' };
+            const labels = {
+              full: t('addSale.paymentFull'),
+              partial: t('addSale.paymentPartial'),
+              debt: t('addSale.paymentDebt')
+            };
             return (
               <TouchableOpacity
                 key={type}
@@ -536,7 +540,7 @@ FEW-SHOT EXAMPLES:
         {paymentType === 'partial' && (
           <TextInput
             style={[styles.input, themeStyles.input, { marginTop: 8 }]}
-            placeholder="Внесено сейчас"
+            placeholder={t('addSale.paidNowPlaceholder')}
             placeholderTextColor={isDark ? '#888' : '#aaa'}
             keyboardType="numeric"
             value={paidAmount}
@@ -548,7 +552,7 @@ FEW-SHOT EXAMPLES:
           <View style={{ marginTop: 8, gap: 8 }}>
             <TextInput
               style={[styles.input, themeStyles.input]}
-              placeholder="Срок оплаты (ГГГГ-ММ-ДД)"
+              placeholder={t('addSale.dueDatePlaceholder')}
               placeholderTextColor={isDark ? '#888' : '#aaa'}
               value={dueDate}
               onChangeText={setDueDate}

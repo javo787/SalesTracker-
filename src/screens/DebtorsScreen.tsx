@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '../context/AppContext';
 import { Colors, LightTheme, DarkTheme, Radius, Shadow, FontSize, Spacing } from '../constants/theme';
@@ -19,6 +20,7 @@ import { cancelDebtReminder } from '../utils/notifications';
 interface ClientSearchResult { id: number; name: string; phone?: string; }
 
 export default function DebtorsScreen() {
+  const { t } = useTranslation();
   const { resolvedTheme, currency } = useAppContext();
   const isDark = resolvedTheme === 'dark';
   const themeStyles = isDark ? darkStyles : lightStyles;
@@ -75,12 +77,12 @@ export default function DebtorsScreen() {
   const handlePayment = async () => {
     const amount = parseFloat(paymentAmount);
     if (!amount || amount <= 0) {
-      Alert.alert('Ошибка', 'Введите сумму платежа');
+      Alert.alert(t('common.error'), t('debtors.paymentAmount'));
       return;
     }
     const remaining = selectedDebt.amount_total - selectedDebt.amount_paid;
     if (amount > remaining) {
-      Alert.alert('Ошибка', `Максимальная сумма: ${remaining.toFixed(0)} ${currency.symbol}`);
+      Alert.alert(t('common.error'), `${t('calculator.labels.sellPrice')}: ${remaining.toFixed(0)} ${currency.symbol}`);
       return;
     }
     recordDebtPayment(selectedDebt.id, amount, paymentNote);
@@ -94,7 +96,7 @@ export default function DebtorsScreen() {
 
     setShowModal(false);
     loadDebts();
-    Alert.alert('✅ Платёж записан', `${amount} ${currency.symbol}`);
+    Alert.alert('✅ ' + t('debtors.paymentSuccess'), `${amount} ${currency.symbol}`);
   };
 
   const handleDueDateChange = (text: string) => {
@@ -113,7 +115,7 @@ export default function DebtorsScreen() {
 
   const handleAddDebt = () => {
     if (!clientName.trim() || !debtAmount || parseFloat(debtAmount) <= 0) {
-      Alert.alert('Ошибка', 'Имя и сумма обязательны');
+      Alert.alert(t('common.error'), t('debtors.errorRequired'));
       return;
     }
     let currentClientId = selectedClientId;
@@ -131,7 +133,7 @@ export default function DebtorsScreen() {
     resetAddModal();
     setShowAddModal(false);
     loadDebts();
-    Alert.alert('✅', `Долг добавлен`);
+    Alert.alert('✅', t('debtors.saveSuccess'));
   };
 
 
@@ -171,7 +173,7 @@ export default function DebtorsScreen() {
             <View style={styles.cardNameRow}>
               <Text style={[styles.clientName, themeStyles.text]}>{item.client_name}</Text>
               <View style={[styles.statusPill, isOverdue ? styles.statusOverdue : styles.statusActive]}>
-                <Text style={styles.statusText}>{isOverdue ? 'Просрочен' : 'Активен'}</Text>
+                <Text style={styles.statusText}>{isOverdue ? t('debtors.statusOverdue') : t('debtors.statusActive')}</Text>
               </View>
             </View>
             {item.client_phone ? (
@@ -179,7 +181,7 @@ export default function DebtorsScreen() {
             ) : null}
             {item.due_date ? (
               <Text style={[styles.debtDate, isOverdue && { color: '#E53935' }]}>
-                Срок: {new Date(item.due_date + 'T00:00:00').toLocaleDateString('ru-RU', {
+                {t('debtors.term')}: {new Date(item.due_date + 'T00:00:00').toLocaleDateString(t('tabs.home') === 'Главная' ? 'ru-RU' : t('tabs.home') === 'Асосӣ' ? 'tg-TJ' : 'uz-UZ', {
                   day: 'numeric', month: 'short', year: 'numeric'
                 })}
               </Text>
@@ -194,7 +196,7 @@ export default function DebtorsScreen() {
               {remaining.toLocaleString()} {currency.symbol}
             </Text>
             <Text style={styles.totalSmall}>
-              из {item.amount_total.toLocaleString()}
+              {t('debtors.fromTotal', { total: item.amount_total.toLocaleString() })}
             </Text>
           </View>
         </View>
@@ -209,11 +211,11 @@ export default function DebtorsScreen() {
     <View style={[styles.container, themeStyles.container]}>
       {/* Summary header */}
       <View style={[styles.summary, themeStyles.card]}>
-        <Text style={styles.summaryLabel}>Итого должны</Text>
+        <Text style={styles.summaryLabel}>{t('debtors.totalOwed')}</Text>
         <Text style={[styles.summaryValue, themeStyles.text]}>
           {totalRemaining.toLocaleString()} {currency.symbol}
         </Text>
-        <Text style={styles.summaryCount}>{debtorCount} чел.</Text>
+        <Text style={styles.summaryCount}>{t('debtors.debtorCount', { count: debtorCount })}</Text>
         {totalAmount > 0 && (
           <View style={styles.summaryProgressWrap}>
             <View style={styles.summaryProgressBg}>
@@ -225,7 +227,7 @@ export default function DebtorsScreen() {
               />
             </View>
             <Text style={styles.summaryProgressLabel}>
-              {Math.round(((totalAmount - totalRemaining) / totalAmount) * 100)}% оплачено
+              {Math.round(((totalAmount - totalRemaining) / totalAmount) * 100)}% {t('debtors.paidStatus')}
             </Text>
           </View>
         )}
@@ -236,19 +238,19 @@ export default function DebtorsScreen() {
           style={[styles.filterChip, filter === 'all' ? styles.filterChipActive : themeStyles.card]}
           onPress={() => setFilter('all')}
         >
-          <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>Все</Text>
+          <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>{t('debtors.filterAll')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.filterChip, filter === 'active' ? styles.filterChipActive : themeStyles.card]}
           onPress={() => setFilter('active')}
         >
-          <Text style={[styles.filterText, filter === 'active' && styles.filterTextActive]}>Активные</Text>
+          <Text style={[styles.filterText, filter === 'active' && styles.filterTextActive]}>{t('debtors.filterActive')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.filterChip, filter === 'overdue' ? styles.filterChipActive : themeStyles.card]}
           onPress={() => setFilter('overdue')}
         >
-          <Text style={[styles.filterText, filter === 'overdue' && styles.filterTextActive]}>Просрочены</Text>
+          <Text style={[styles.filterText, filter === 'overdue' && styles.filterTextActive]}>{t('debtors.filterOverdue')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -263,7 +265,7 @@ export default function DebtorsScreen() {
         ListEmptyComponent={
           <View style={styles.empty}>
             <Ionicons name="checkmark-circle-outline" size={64} color="#1D9E75" />
-            <Text style={styles.emptyText}>Долгов нет</Text>
+            <Text style={styles.emptyText}>{t('debtors.emptyList')}</Text>
           </View>
         }
       />
@@ -298,19 +300,19 @@ export default function DebtorsScreen() {
               <View style={[styles.progressCard, { backgroundColor: isDark ? '#1a1a1a' : '#f8f8f8' }]}>
                 <View style={styles.progressCardRow}>
                   <View style={styles.progressCardItem}>
-                    <Text style={styles.progressCardLabel}>Долг</Text>
+                    <Text style={styles.progressCardLabel}>{t('debtors.debtLabel')}</Text>
                     <Text style={[styles.progressCardValue, themeStyles.text]}>
                       {selectedDebt?.amount_total.toLocaleString()} {currency.symbol}
                     </Text>
                   </View>
                   <View style={styles.progressCardItem}>
-                    <Text style={styles.progressCardLabel}>Оплачено</Text>
+                    <Text style={styles.progressCardLabel}>{t('debtors.paidLabel')}</Text>
                     <Text style={[styles.progressCardValue, { color: '#1D9E75' }]}>
                       {selectedDebt?.amount_paid.toLocaleString()} {currency.symbol}
                     </Text>
                   </View>
                   <View style={styles.progressCardItem}>
-                    <Text style={styles.progressCardLabel}>Остаток</Text>
+                    <Text style={styles.progressCardLabel}>{t('debtors.remainingLabel')}</Text>
                     <Text style={[styles.progressCardValue, { color: '#E53935' }]}>
                       {(selectedDebt ? selectedDebt.amount_total - selectedDebt.amount_paid : 0).toLocaleString()} {currency.symbol}
                     </Text>
@@ -325,7 +327,7 @@ export default function DebtorsScreen() {
                       }]} />
                     </View>
                     <Text style={styles.progressPct}>
-                      {Math.round((selectedDebt.amount_paid / selectedDebt.amount_total) * 100)}% оплачено
+                      {Math.round((selectedDebt.amount_paid / selectedDebt.amount_total) * 100)}% {t('debtors.paidStatus')}
                     </Text>
                   </View>
                 )}
@@ -334,8 +336,8 @@ export default function DebtorsScreen() {
                   <Text style={[styles.dueDateModal, {
                     color: selectedDebt.due_date < today ? '#E53935' : '#999'
                   }]}>
-                    {selectedDebt.due_date < today ? '⚠️ Просрочен: ' : '📅 Срок: '}
-                    {new Date(selectedDebt.due_date + 'T00:00:00').toLocaleDateString('ru-RU', {
+                    {selectedDebt.due_date < today ? '⚠️ ' + t('debtors.statusOverdue') + ': ' : '📅 ' + t('debtors.term') + ': '}
+                    {new Date(selectedDebt.due_date + 'T00:00:00').toLocaleDateString(t('tabs.home') === 'Главная' ? 'ru-RU' : t('tabs.home') === 'Асосӣ' ? 'tg-TJ' : 'uz-UZ', {
                       day: 'numeric', month: 'long', year: 'numeric'
                     })}
                   </Text>
@@ -358,7 +360,7 @@ export default function DebtorsScreen() {
                   onPress={() => setActiveTab('info')}
                 >
                   <Text style={[styles.tabText, activeTab === 'info' && styles.tabTextActive]}>
-                    Записать платёж
+                    {t('debtors.recordPayment')}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -366,7 +368,7 @@ export default function DebtorsScreen() {
                   onPress={() => setActiveTab('history')}
                 >
                   <Text style={[styles.tabText, activeTab === 'history' && styles.tabTextActive]}>
-                    История ({clientHistory.length})
+                    {t('debtors.history')} ({clientHistory.length})
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -375,7 +377,7 @@ export default function DebtorsScreen() {
                 <View>
                   <TextInput
                     style={[styles.input, isDark ? styles.inputDark : styles.inputLight]}
-                    placeholder="Сумма платежа"
+                    placeholder={t('debtors.paymentAmount')}
                     placeholderTextColor={isDark ? '#888' : '#aaa'}
                     keyboardType="numeric"
                     value={paymentAmount}
@@ -384,13 +386,13 @@ export default function DebtorsScreen() {
                   />
                   <TextInput
                     style={[styles.input, isDark ? styles.inputDark : styles.inputLight, { marginTop: 8 }]}
-                    placeholder="Заметка к платежу (необязательно)"
+                    placeholder={t('debtors.paymentNote')}
                     placeholderTextColor={isDark ? '#888' : '#aaa'}
                     value={paymentNote}
                     onChangeText={setPaymentNote}
                   />
                   <TouchableOpacity style={styles.payBtn} onPress={handlePayment}>
-                    <Text style={styles.payBtnText}>Сохранить платёж</Text>
+                    <Text style={styles.payBtnText}>{t('debtors.savePayment')}</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
@@ -398,11 +400,11 @@ export default function DebtorsScreen() {
                     onPress={() => {
                       if (!selectedDebt) return;
                       Alert.alert(
-                        'Удалить долг?',
-                        `${selectedDebt.client_name} — удалить запись безвозвратно?`,
+                        t('debtors.deleteConfirmTitle'),
+                        t('debtors.deleteConfirmMsg', { name: selectedDebt.client_name }),
                         [
-                          { text: 'Отмена', style: 'cancel' },
-                          { text: 'Удалить', style: 'destructive', onPress: () => {
+                          { text: t('common.cancel'), style: 'cancel' },
+                          { text: t('common.delete'), style: 'destructive', onPress: () => {
                               deleteDebt(selectedDebt.id);
                               setShowModal(false);
                               loadDebts();
@@ -412,7 +414,7 @@ export default function DebtorsScreen() {
                     }}
                   >
                     <Ionicons name="trash-outline" size={16} color="#E53935" />
-                    <Text style={styles.deleteBtnText}>Удалить долг</Text>
+                    <Text style={styles.deleteBtnText}>{t('debtors.deleteDebt')}</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -421,7 +423,7 @@ export default function DebtorsScreen() {
                 <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
                   {clientHistory.length === 0 ? (
                     <Text style={{ color: '#999', textAlign: 'center', padding: 20 }}>
-                      История пуста
+                      {t('debtors.historyEmpty')}
                     </Text>
                   ) : (
                     clientHistory.map((debt: any) => {
@@ -434,7 +436,7 @@ export default function DebtorsScreen() {
                           {/* Дата создания + статус */}
                           <View style={styles.historyDebtHeader}>
                             <Text style={styles.historyDebtDate}>
-                              {new Date(debt.created_at).toLocaleDateString('ru-RU', {
+                              {new Date(debt.created_at).toLocaleDateString(t('tabs.home') === 'Главная' ? 'ru-RU' : t('tabs.home') === 'Асосӣ' ? 'tg-TJ' : 'uz-UZ', {
                                 day: 'numeric', month: 'short', year: 'numeric'
                               })}
                             </Text>
@@ -442,7 +444,7 @@ export default function DebtorsScreen() {
                               isPaid ? styles.statusActive : styles.statusOverdue
                             ]}>
                               <Text style={styles.statusText}>
-                                {isPaid ? '✓ Погашен' : 'Активен'}
+                                {isPaid ? '✓ ' + t('debtors.paidLabel') : t('debtors.statusActive')}
                               </Text>
                             </View>
                           </View>
@@ -459,7 +461,7 @@ export default function DebtorsScreen() {
                           <Text style={styles.historyDebtAmount}>
                             {debt.amount_total.toLocaleString()} {currency.symbol}
                             {debt.remaining > 0 && (
-                              ` · остаток ${debt.remaining.toLocaleString()}`
+                              ` · ${t('debtors.remainingLabel')} ${debt.remaining.toLocaleString()}`
                             )}
                           </Text>
 
@@ -475,7 +477,7 @@ export default function DebtorsScreen() {
                                 <View key={String(p.id)} style={styles.historyPaymentItem}>
                                   <Ionicons name="arrow-up-circle-outline" size={14} color="#1D9E75" />
                                   <Text style={styles.historyPaymentDate}>
-                                    {new Date(p.created_at).toLocaleDateString('ru-RU', {
+                                    {new Date(p.created_at).toLocaleDateString(t('tabs.home') === 'Главная' ? 'ru-RU' : t('tabs.home') === 'Асосӣ' ? 'tg-TJ' : 'uz-UZ', {
                                       day: 'numeric', month: 'short'
                                     })}
                                   </Text>
@@ -524,7 +526,7 @@ export default function DebtorsScreen() {
         >
           <View style={[styles.modalContent, themeStyles.card]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, themeStyles.text]}>Новый долг</Text>
+              <Text style={[styles.modalTitle, themeStyles.text]}>{t('debtors.modalNewDebt')}</Text>
               <TouchableOpacity onPress={() => {
                 setShowAddModal(false);
                 resetAddModal();
@@ -534,7 +536,7 @@ export default function DebtorsScreen() {
             </View>
 
             <View style={{ marginBottom: 12, zIndex: 999 }}>
-              <Text style={[styles.label, themeStyles.text]}>Имя клиента</Text>
+              <Text style={[styles.label, themeStyles.text]}>{t('debtors.clientName')}</Text>
               <TextInput
                 style={[styles.input, isDark ? styles.inputDark : styles.inputLight]}
                 value={clientName}
@@ -547,7 +549,7 @@ export default function DebtorsScreen() {
                     setSearchResults([]);
                   }
                 }}
-                placeholder="Имя"
+                placeholder={t('debtors.clientName')}
                 placeholderTextColor={isDark ? '#888' : '#aaa'}
               />
               {searchResults.length > 0 && (
@@ -576,31 +578,31 @@ export default function DebtorsScreen() {
             </View>
 
             <View style={{ marginBottom: 12 }}>
-              <Text style={[styles.label, themeStyles.text]}>Телефон</Text>
+              <Text style={[styles.label, themeStyles.text]}>{t('debtors.phone')}</Text>
               <TextInput
                 style={[styles.input, isDark ? styles.inputDark : styles.inputLight]}
                 value={clientPhone}
                 onChangeText={setClientPhone}
                 keyboardType="phone-pad"
-                placeholder="Телефон (необязательно)"
+                placeholder={t('debtors.phone')}
                 placeholderTextColor={isDark ? '#888' : '#aaa'}
               />
             </View>
 
             <View style={{ marginBottom: 12 }}>
-              <Text style={[styles.label, themeStyles.text]}>Сумма долга</Text>
+              <Text style={[styles.label, themeStyles.text]}>{t('debtors.amount')}</Text>
               <TextInput
                 style={[styles.input, isDark ? styles.inputDark : styles.inputLight]}
                 value={debtAmount}
                 onChangeText={(text) => setDebtAmount(text.replace(/[^0-9.]/g, ''))}
                 keyboardType="numeric"
-                placeholder="Сумма долга"
+                placeholder={t('debtors.amount')}
                 placeholderTextColor={isDark ? '#888' : '#aaa'}
               />
             </View>
 
             <View style={{ marginBottom: 12 }}>
-              <Text style={[styles.label, themeStyles.text]}>Срок оплаты</Text>
+              <Text style={[styles.label, themeStyles.text]}>{t('debtors.dueDate')}</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <TextInput
                   style={[styles.input, isDark ? styles.inputDark : styles.inputLight, { flex: 1 }]}
@@ -625,18 +627,18 @@ export default function DebtorsScreen() {
             </View>
 
             <View style={{ marginBottom: 12 }}>
-              <Text style={[styles.label, themeStyles.text]}>Заметка</Text>
+              <Text style={[styles.label, themeStyles.text]}>{t('debtors.note')}</Text>
               <TextInput
                 style={[styles.input, isDark ? styles.inputDark : styles.inputLight]}
                 value={debtNote}
                 onChangeText={setDebtNote}
-                placeholder="Заметка (необязательно)"
+                placeholder={t('debtors.note')}
                 placeholderTextColor={isDark ? '#888' : '#aaa'}
               />
             </View>
 
             <TouchableOpacity style={styles.payBtn} onPress={handleAddDebt}>
-              <Text style={styles.payBtnText}>Добавить долг</Text>
+              <Text style={styles.payBtnText}>{t('debtors.addBtn')}</Text>
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
