@@ -167,6 +167,32 @@ export function initDatabase() {
     db.runSync("ALTER TABLE debts ADD COLUMN notification_id TEXT");
   }
 
+  // Migration: add seller_id and seller_name in sales
+  const salesColsNew = db.getAllSync("PRAGMA table_info(sales)") as any[];
+  if (!salesColsNew.some(c => c.name === 'seller_id')) {
+    db.execSync("ALTER TABLE sales ADD COLUMN seller_id TEXT");
+  }
+  if (!salesColsNew.some(c => c.name === 'seller_name')) {
+    db.execSync("ALTER TABLE sales ADD COLUMN seller_name TEXT");
+  }
+  if (!salesColsNew.some(c => c.name === 'stock_warning')) {
+    db.execSync("ALTER TABLE sales ADD COLUMN stock_warning INTEGER DEFAULT 0");
+  }
+  if (!salesColsNew.some(c => c.name === 'remote_id')) {
+    db.execSync("ALTER TABLE sales ADD COLUMN remote_id TEXT");
+  }
+  if (!tableInfo.some(c => c.name === 'remote_id')) {
+    db.execSync("ALTER TABLE products ADD COLUMN remote_id TEXT");
+  }
+
+  // Migration: shop_session table
+  db.execSync(`
+    CREATE TABLE IF NOT EXISTS shop_session (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    )
+  `);
+
   // Migration: timezone shift + one-time migration check
   db.execSync('CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT)');
   const migrationDone = db.getFirstSync("SELECT value FROM app_meta WHERE key = 'tz_migration_v1'") as { value: string } | null;
@@ -1022,6 +1048,110 @@ export function searchProductsForAutocomplete(query: string) {
       lastSoldAt DESC
     LIMIT 8
   `, [query, query]);
+}
+
+// ── Shop Session ────────────────────────────────────
+export function saveShopSession(data: {
+  shopId: string;
+  shopName: string;
+  role: 'owner' | 'seller';
+  sellerName: string;
+  inviteCode?: string;
+}) {
+  db.withTransactionSync(() => {
+    Object.entries(data).forEach(([key, value]) => {
+      if (value !== undefined) {
+        db.runSync(
+          "INSERT OR REPLACE INTO shop_session (key, value) VALUES (?, ?)",
+          [key, String(value)]
+        );
+      }
+    });
+  });
+}
+
+export function getShopSession(): {
+  shopId: string | null;
+  shopName: string | null;
+  role: 'owner' | 'seller' | null;
+  sellerName: string | null;
+  inviteCode: string | null;
+} {
+  const rows = db.getAllSync("SELECT key, value FROM shop_session") as { key: string; value: string }[];
+  const map: Record<string, string> = {};
+  rows.forEach(r => { map[r.key] = r.value; });
+  return {
+    shopId: map.shopId || null,
+    shopName: map.shopName || null,
+    role: (map.role as 'owner' | 'seller') || null,
+    sellerName: map.sellerName || null,
+    inviteCode: map.inviteCode || null,
+  };
+}
+
+export function clearShopSession() {
+  db.runSync("DELETE FROM shop_session");
+}
+
+// Обновлённая addSale — принимает seller_id и seller_name
+export function addSaleWithSeller(
+  productId: number | null,
+  productName: string,
+  quantity: number,
+  sellPrice: number,
+  buyPrice: number,
+  note: string = '',
+  sellerId: string,
+  sellerName: string,
+  role: 'owner' | 'seller'
+) {
+  // Продавец не может знать прибыль — ставим null
+  const profit = role === 'owner' ? (sellPrice - buyPrice) * quantity : null;
+  const actualBuyPrice = role === 'owner' ? buyPrice : null;
+  const stockUpdated = productId ? 1 : 0;
+
+  let result: any;
+  db.withTransactionSync(() => {
+    result = db.runSync(
+      `INSERT INTO sales (
+        product_id, product_name, quantity, sell_price, buy_price,
+        profit, note, stock_updated, created_at, seller_id, seller_name
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        productId, productName, quantity, sellPrice, actualBuyPrice,
+        profit, note, stockUpdated, nowLocalISO(), sellerId, sellerName
+      ]
+    );
+    if (productId) {
+      db.runSync('UPDATE products SET stock = stock - ? WHERE id = ?', [quantity, productId]);
+    }
+  });
+  if (productId) {
+    const p = db.getFirstSync('SELECT name, stock, min_stock_alert FROM products WHERE id = ?', [productId]) as any;
+    if (p && p.stock <= p.min_stock_alert && p.min_stock_alert > 0) {
+      notifyLowStock(p.name, p.stock);
+    }
+  }
+  return result;
+}
+
+// Статистика для продавца (только его продажи, без buy_price)
+export function getMyStats(sellerId: string, days: number = 1) {
+  const result = db.getFirstSync(`
+    SELECT
+      COALESCE(SUM(sell_price * quantity), 0) as revenue,
+      COALESCE(COUNT(*), 0) as count
+    FROM sales
+    WHERE seller_id = ? AND created_at >= ?
+  `, [sellerId, daysAgoLocalISO(days)]) as any;
+  return result;
+}
+
+export function getMySalesToday(sellerId: string) {
+  return db.getAllSync(
+    `SELECT * FROM sales WHERE seller_id = ? AND date(created_at) = ? ORDER BY created_at DESC`,
+    [sellerId, todayLocalDate()]
+  );
 }
 
 export { db };

@@ -10,6 +10,7 @@ import {
   addProduct, updateProduct, deleteProduct, getProducts, getDistinctCategories, getProductIdsWithDebts,
   getProductSalesStats, getProductSalesHistory, getUnregisteredProductsFromHistory
 } from '../db/database';
+import { useShop } from '../context/ShopContext';
 import { analyticsService } from '../services/analyticsService';
 import { useAppContext } from '../context/AppContext';
 import StockOperationModal from '../components/stock/StockOperationModal';
@@ -21,6 +22,7 @@ export default function ProductsScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const { resolvedTheme, currency, defaultMinStockAlert, sellerMode } = useAppContext(); const isDark = resolvedTheme === "dark";
+  const { isOwner } = useShop();
   const [products, setProducts] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -332,21 +334,23 @@ export default function ProductsScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       keyboardShouldPersistTaps="handled"
     >
-      <TouchableOpacity
-        style={[styles.addBtn, editingId ? { backgroundColor: '#FF9800' } : null]}
-        onPress={() => {
-          if (showForm) {
-            setShowForm(false);
-            resetForm();
-          } else {
-            setShowForm(true);
-          }
-        }}
-      >
-        <Text style={styles.addBtnText}>
-          {showForm ? '✕ ' + t('common.cancel') : (editingId ? '✎ ' + t('common.edit') : '+ ' + t('products.addProduct'))}
-        </Text>
-      </TouchableOpacity>
+      {isOwner && (
+        <TouchableOpacity
+          style={[styles.addBtn, editingId ? { backgroundColor: '#FF9800' } : null]}
+          onPress={() => {
+            if (showForm) {
+              setShowForm(false);
+              resetForm();
+            } else {
+              setShowForm(true);
+            }
+          }}
+        >
+          <Text style={styles.addBtnText}>
+            {showForm ? '✕ ' + t('common.cancel') : (editingId ? '✎ ' + t('common.edit') : '+ ' + t('products.addProduct'))}
+          </Text>
+        </TouchableOpacity>
+      )}
 
       {showForm && (
         <View style={[styles.form, themeStyles.card]}>
@@ -617,7 +621,7 @@ export default function ProductsScreen() {
                 <View style={styles.productLeft}>
                   <Text style={[styles.productName, themeStyles.text]}>{p.name}</Text>
                   <Text style={styles.productPrices}>
-                    {t('addSale.buyPrice')}: {p.buy_price} {currency.symbol} · {t('addSale.sellPrice')}: {p.sell_price} {currency.symbol}
+                    {isOwner && `${t('addSale.buyPrice')}: ${p.buy_price} ${currency.symbol} · `}{t('addSale.sellPrice')}: {p.sell_price} {currency.symbol}
                   </Text>
                 </View>
                 <View style={styles.productRight}>
@@ -628,9 +632,11 @@ export default function ProductsScreen() {
                     {p.stock} {p.base_unit || t('reports.pcs')}
                   </Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <Text style={styles.productProfit}>
-                      +{(p.sell_price - p.buy_price).toFixed(0)} {currency.symbol}
-                    </Text>
+                    {isOwner && (
+                      <Text style={styles.productProfit}>
+                        +{(p.sell_price - p.buy_price).toFixed(0)} {currency.symbol}
+                      </Text>
+                    )}
                     <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={14} color="#aaa" />
                   </View>
                 </View>
@@ -648,10 +654,12 @@ export default function ProductsScreen() {
                       <Text style={styles.statLabel}>{t('products.totalRevenue')}</Text>
                       <Text style={[styles.statValue, themeStyles.text]}>{stats?.total_revenue?.toFixed(0) || 0} {currency.symbol}</Text>
                     </View>
-                    <View style={styles.statBox}>
-                      <Text style={styles.statLabel}>{t('products.totalProfit')}</Text>
-                      <Text style={[styles.statValue, { color: Colors.primary }]}>{stats?.total_profit?.toFixed(0) || 0} {currency.symbol}</Text>
-                    </View>
+                    {isOwner && (
+                      <View style={styles.statBox}>
+                        <Text style={styles.statLabel}>{t('products.totalProfit')}</Text>
+                        <Text style={[styles.statValue, { color: Colors.primary }]}>{stats?.total_profit?.toFixed(0) || 0} {currency.symbol}</Text>
+                      </View>
+                    )}
                   </View>
 
                   <View style={[styles.infoRow, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
@@ -676,7 +684,7 @@ export default function ProductsScreen() {
 
                   <View style={styles.productActions}>
                     <TouchableOpacity
-                      style={[styles.actionBtn, styles.actionBtnSell]}
+                      style={[styles.actionBtn, isOwner && styles.actionBtnSell]}
                       onPress={() => {
                         navigation.navigate('Main', {
                           screen: 'Tabs',
@@ -695,39 +703,43 @@ export default function ProductsScreen() {
                       <Ionicons name="cash-outline" size={18} color="#1D9E75" />
                       <Text style={styles.actionBtnText}>{t('products.sellBtn')}</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.actionBtn}
-                      onPress={() => {
-                        setSelectedProduct(p);
-                        setOpType('stock_in');
-                        setOpModalVisible(true);
-                      }}
-                    >
-                      <Ionicons name="add-circle-outline" size={18} color="#1D9E75" />
-                      <Text style={styles.actionBtnText}>{t('warehouse.stockIn')}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.actionBtn}
-                      onPress={() => {
-                        setSelectedProduct(p);
-                        setOpType('waste');
-                        setOpModalVisible(true);
-                      }}
-                    >
-                      <Ionicons name="trash-outline" size={18} color="#FF5252" />
-                      <Text style={[styles.actionBtnText, { color: '#FF5252' }]}>{t('warehouse.waste')}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.actionBtn}
-                      onPress={() => {
-                        setSelectedProduct(p);
-                        setOpType('correction');
-                        setOpModalVisible(true);
-                      }}
-                    >
-                      <Ionicons name="git-compare-outline" size={18} color="#FF9800" />
-                      <Text style={[styles.actionBtnText, { color: '#FF9800' }]}>{t('warehouse.correction')}</Text>
-                    </TouchableOpacity>
+                    {isOwner && (
+                      <>
+                        <TouchableOpacity
+                          style={styles.actionBtn}
+                          onPress={() => {
+                            setSelectedProduct(p);
+                            setOpType('stock_in');
+                            setOpModalVisible(true);
+                          }}
+                        >
+                          <Ionicons name="add-circle-outline" size={18} color="#1D9E75" />
+                          <Text style={styles.actionBtnText}>{t('warehouse.stockIn')}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.actionBtn}
+                          onPress={() => {
+                            setSelectedProduct(p);
+                            setOpType('waste');
+                            setOpModalVisible(true);
+                          }}
+                        >
+                          <Ionicons name="trash-outline" size={18} color="#FF5252" />
+                          <Text style={[styles.actionBtnText, { color: '#FF5252' }]}>{t('warehouse.waste')}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.actionBtn}
+                          onPress={() => {
+                            setSelectedProduct(p);
+                            setOpType('correction');
+                            setOpModalVisible(true);
+                          }}
+                        >
+                          <Ionicons name="git-compare-outline" size={18} color="#FF9800" />
+                          <Text style={[styles.actionBtnText, { color: '#FF9800' }]}>{t('warehouse.correction')}</Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
                   </View>
                 </View>
               )}
@@ -794,9 +806,11 @@ export default function ProductsScreen() {
                       <Text style={styles.historyPrices}>
                         {t('common.revenue')}: {s.sell_price * s.quantity} {currency.symbol}
                       </Text>
-                      <Text style={[styles.historyProfit, { color: Colors.primary }]}>
-                        {t('common.profit')}: +{s.profit.toFixed(0)} {currency.symbol}
-                      </Text>
+                      {isOwner && (
+                        <Text style={[styles.historyProfit, { color: Colors.primary }]}>
+                          {t('common.profit')}: +{s.profit.toFixed(0)} {currency.symbol}
+                        </Text>
+                      )}
                     </View>
                   </View>
                 ))

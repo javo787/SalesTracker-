@@ -1,4 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
+import { clearShopSession } from '../db/database';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
@@ -18,6 +19,11 @@ class ApiClient {
     if (response.status === 401) {
       await SecureStore.deleteItemAsync('auth_token');
       throw new Error('Unauthorized');
+    }
+    if (response.status === 403) {
+      // Shop access revoked or logic error
+      clearShopSession();
+      throw new Error('SHOP_ACCESS_REVOKED');
     }
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
@@ -54,6 +60,16 @@ class ApiClient {
       method: 'PATCH',
       headers,
       body: JSON.stringify(body),
+    });
+    return this.handleResponse(response);
+  }
+
+  async delete<T>(path: string): Promise<T> {
+    if (!API_URL) throw new Error('API URL not configured');
+    const headers = await this.getHeaders();
+    const response = await fetch(`${API_URL}${path}`, {
+      method: 'DELETE',
+      headers,
     });
     return this.handleResponse(response);
   }

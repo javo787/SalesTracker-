@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  Dimensions, SafeAreaView
+  Dimensions, SafeAreaView, TextInput, ActivityIndicator
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppContext } from '../context/AppContext';
+import { useShop } from '../context/ShopContext';
 
 const { width } = Dimensions.get('window');
 
@@ -29,6 +30,13 @@ const STEPS = [
     isSellerModeStep: true,
   },
   {
+    title: 'Как вы используете приложение?',
+    description: 'Это определит ваши права доступа.',
+    icon: '🏪',
+    color: '#534AB7',
+    isRoleStep: true,
+  },
+  {
     title: 'Смотрите прибыль',
     description: 'Анализируйте доход за день, неделю или месяц. Управляйте бизнесом мудро.',
     icon: '📈',
@@ -42,8 +50,15 @@ interface OnboardingScreenProps {
 
 export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
   const { setSellerMode } = useAppContext();
+  const { createShop, joinShop } = useShop();
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedMode, setSelectedMode] = useState<'retail' | 'wholesale' | null>(null);
+
+  const [selectedRole, setSelectedRole] = useState<'owner' | 'seller' | null>(null);
+  const [shopNameInput, setShopNameInput] = useState('');
+  const [inviteCodeInput, setInviteCodeInput] = useState('');
+  const [roleLoading, setRoleLoading] = useState(false);
+  const [roleError, setRoleError] = useState('');
 
   const step = STEPS[currentStep];
 
@@ -52,6 +67,27 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
       if (!selectedMode) return;
       await setSellerMode(selectedMode);
     }
+
+    if (step.isRoleStep) {
+      if (!selectedRole) { setRoleError('Выберите роль'); return; }
+      setRoleLoading(true);
+      setRoleError('');
+      try {
+        if (selectedRole === 'owner') {
+          if (!shopNameInput.trim()) { setRoleError('Введите название магазина'); setRoleLoading(false); return; }
+          await createShop(shopNameInput.trim());
+        } else {
+          if (inviteCodeInput.length < 6) { setRoleError('Введите код из 6 символов'); setRoleLoading(false); return; }
+          await joinShop(inviteCodeInput.trim().toUpperCase());
+        }
+      } catch (e: any) {
+        setRoleError(e.message || 'Ошибка. Проверьте код или соединение.');
+        setRoleLoading(false);
+        return;
+      }
+      setRoleLoading(false);
+    }
+
     if (currentStep < STEPS.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
@@ -88,6 +124,56 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
               <Text style={selectionStyles.cardDesc}>Ткань, стройматериалы, техника, одежда партиями</Text>
             </TouchableOpacity>
           </View>
+        ) : step.isRoleStep ? (
+          <View style={roleStyles.container}>
+            <View style={roleStyles.roleRow}>
+              <TouchableOpacity
+                style={[roleStyles.roleBtn, selectedRole === 'owner' && roleStyles.roleBtnActive]}
+                onPress={() => { setSelectedRole('owner'); setRoleError(''); }}
+              >
+                <Text style={roleStyles.roleEmoji}>👑</Text>
+                <Text style={[roleStyles.roleText, selectedRole === 'owner' && roleStyles.roleTextActive]}>Я владелец</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[roleStyles.roleBtn, selectedRole === 'seller' && roleStyles.roleBtnActive]}
+                onPress={() => { setSelectedRole('seller'); setRoleError(''); }}
+              >
+                <Text style={roleStyles.roleEmoji}>🧑‍💼</Text>
+                <Text style={[roleStyles.roleText, selectedRole === 'seller' && roleStyles.roleTextActive]}>Я продавец</Text>
+              </TouchableOpacity>
+            </View>
+
+            {selectedRole === 'owner' && (
+              <View style={roleStyles.inputGroup}>
+                <Text style={roleStyles.label}>Название магазина</Text>
+                <TextInput
+                  style={roleStyles.input}
+                  placeholder="Напр. Мой Магазин"
+                  value={shopNameInput}
+                  onChangeText={setShopNameInput}
+                  autoFocus
+                />
+              </View>
+            )}
+
+            {selectedRole === 'seller' && (
+              <View style={roleStyles.inputGroup}>
+                <Text style={roleStyles.label}>Код приглашения (6 символов)</Text>
+                <TextInput
+                  style={roleStyles.input}
+                  placeholder="SAVDO7"
+                  value={inviteCodeInput}
+                  onChangeText={setInviteCodeInput}
+                  autoCapitalize="characters"
+                  maxLength={6}
+                  autoFocus
+                />
+              </View>
+            )}
+
+            {roleError ? <Text style={roleStyles.errorText}>{roleError}</Text> : null}
+            {roleLoading && <ActivityIndicator color="#534AB7" style={{ marginTop: 10 }} />}
+          </View>
         ) : (
           <View style={[styles.iconContainer, { backgroundColor: step.color }]}>
             <Text style={styles.icon}>{step.icon}</Text>
@@ -95,7 +181,7 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
         )}
 
         <Text style={styles.title}>{step.title}</Text>
-        {!step.isSellerModeStep && (
+        {!step.isSellerModeStep && !step.isRoleStep && (
           <Text style={styles.description}>{step.description}</Text>
         )}
 
@@ -117,10 +203,10 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
         style={[
           styles.button,
           { backgroundColor: step.color },
-          (step.isSellerModeStep && !selectedMode) && { opacity: 0.5 }
+          ((step.isSellerModeStep && !selectedMode) || (step.isRoleStep && !selectedRole) || roleLoading) && { opacity: 0.5 }
         ]}
         onPress={handleNext}
-        disabled={step.isSellerModeStep && !selectedMode}
+        disabled={(step.isSellerModeStep && !selectedMode) || (step.isRoleStep && !selectedRole) || roleLoading}
       >
         <Text style={styles.buttonText}>
           {currentStep === STEPS.length - 1 ? 'Начать работу' : 'Далее'}
@@ -216,4 +302,24 @@ const selectionStyles = StyleSheet.create({
   cardIcon: { fontSize: 40, marginBottom: 10 },
   cardTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 6 },
   cardDesc: { fontSize: 13, color: '#777', textAlign: 'center', lineHeight: 18 },
+});
+
+const roleStyles = StyleSheet.create({
+  container: { width: '100%', paddingHorizontal: 20, marginBottom: 20 },
+  roleRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
+  roleBtn: {
+    flex: 1, padding: 16, borderRadius: 16, borderWidth: 2, borderColor: '#E0E0E0',
+    alignItems: 'center', backgroundColor: '#FFF'
+  },
+  roleBtnActive: { borderColor: '#534AB7', backgroundColor: '#F5F4FF' },
+  roleEmoji: { fontSize: 32, marginBottom: 8 },
+  roleText: { fontSize: 14, fontWeight: '600', color: '#666' },
+  roleTextActive: { color: '#534AB7' },
+  inputGroup: { width: '100%' },
+  label: { fontSize: 14, color: '#666', marginBottom: 8, fontWeight: '500' },
+  input: {
+    width: '100%', height: 50, borderRadius: 12, borderWidth: 1, borderColor: '#E0E0E0',
+    paddingHorizontal: 16, fontSize: 16, backgroundColor: '#FAFAFA'
+  },
+  errorText: { color: '#FF3B30', fontSize: 13, marginTop: 8, textAlign: 'center' }
 });

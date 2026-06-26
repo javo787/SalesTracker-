@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { useAppContext } from '../context/AppContext';
+import { useShop } from '../context/ShopContext';
 import AdFreeButton from './ads/AdFreeButton';
 
 function Divider() {
@@ -37,6 +38,7 @@ export default function CustomDrawerContent(props: DrawerContentComponentProps) 
   const { t } = useTranslation();
   const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
   const { user, logout, isGuest } = useAuth();
+  const { role, shopName, sellerName, isOwner } = useShop();
 
   const themeStyles = isDark ? darkStyles : lightStyles;
 
@@ -58,14 +60,24 @@ export default function CustomDrawerContent(props: DrawerContentComponentProps) 
             )}
             <View style={styles.userInfo}>
               <Text style={[styles.userName, themeStyles.text]} numberOfLines={1}>
-                {user?.name || t('auth.guestBtn')}
+                {sellerName || user?.name || t('auth.guestBtn')}
               </Text>
-              <View style={[styles.providerBadge, { backgroundColor: isGuest ? '#888' : '#1D9E75' }]}>
-                <Text style={styles.providerText}>
-                  {user?.authProvider === 'google' ? 'Google' :
-                   user?.authProvider === 'telegram' ? 'Telegram' :
-                   user?.authProvider === 'email' ? 'Email' : t('auth.guestBtn')}
-                </Text>
+              <Text style={[styles.shopName, themeStyles.textSecondary]} numberOfLines={1}>
+                {shopName || ''}
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 4 }}>
+                <View style={[styles.roleBadge, { backgroundColor: isOwner ? '#5856D6' : '#34C759' }]}>
+                  <Text style={styles.badgeText}>
+                    {isOwner ? 'Владелец' : 'Продавец'}
+                  </Text>
+                </View>
+                <View style={[styles.providerBadge, { backgroundColor: isGuest ? '#888' : '#1D9E75' }]}>
+                  <Text style={styles.providerText}>
+                    {user?.authProvider === 'google' ? 'Google' :
+                    user?.authProvider === 'telegram' ? 'Telegram' :
+                    user?.authProvider === 'email' ? 'Email' : t('auth.guestBtn')}
+                  </Text>
+                </View>
               </View>
             </View>
           </TouchableOpacity>
@@ -95,12 +107,14 @@ export default function CustomDrawerContent(props: DrawerContentComponentProps) 
 const lightStyles = StyleSheet.create({
   header: { backgroundColor: '#F8F9FA', borderBottomColor: '#EEE' },
   text: { color: '#333' },
+  textSecondary: { color: '#777' },
   footer: { borderTopColor: '#EEE' },
 });
 
 const darkStyles = StyleSheet.create({
   header: { backgroundColor: '#1E1E1E', borderBottomColor: '#333' },
   text: { color: '#EEE' },
+  textSecondary: { color: '#999' },
   footer: { borderTopColor: '#333' },
 });
 
@@ -143,6 +157,21 @@ const styles = StyleSheet.create({
   },
   userName: {
     fontSize: 18,
+    fontWeight: 'bold',
+  },
+  shopName: {
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  roleBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 10,
     fontWeight: 'bold',
   },
   providerBadge: {
