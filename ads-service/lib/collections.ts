@@ -34,40 +34,47 @@ export async function getNewsCollection() {
  * - other collections (wholesale, ads, news): Use standard MongoDB ObjectIds.
  */
 
-/**
- * Create all required indexes on first run.
- * Call this once from an init script or the first API request.
- */
-export async function ensureIndexes() {
-  const db = await getDb();
+// Singleton guard — ensureIndexes runs at most once per serverless instance.
+// Without this, every GET /api/news call triggers dropIndex + createIndexes,
+// causing write lock contention and intermittent 500 errors on reads.
+let _indexesEnsured = false;
+let _indexesPromise: Promise<void> | null = null;
 
-  // Cleanup old indexes if necessary
-  try {
-    await db.collection('news_feed').dropIndex('ttl_news');
-  } catch (e) {
-    // Index might not exist, ignore
-  }
+export async function ensureIndexes(): Promise<void> {
+  if (_indexesEnsured) return;
+  if (_indexesPromise) return _indexesPromise;
 
-  // Classifieds: TTL 30 days + compound query index
-  await db.collection('classifieds').createIndexes([
-    { key: { expiresAt: 1 }, expireAfterSeconds: 0, name: 'ttl_classifieds' },
-    { key: { city: 1, category: 1, isActive: 1, moderationStatus: 1 }, name: 'query_classifieds' },
-    { key: { userId: 1, isActive: 1 }, name: 'user_classifieds' },
-  ]);
+  _indexesPromise = (async () => {
+    const db = await getDb();
 
-  // Wholesale: simple active query
-  await db.collection('wholesale_ads').createIndexes([
-    { key: { isActive: 1, isPaid: 1, paidUntil: 1, tierOrder: -1, priority: -1 }, name: 'query_wholesale_v3' },
-  ]);
+    // Remove legacy TTL index if it exists (one-time migration)
+    try {
+      await db.collection('news_feed').dropIndex('ttl_news');
+    } catch {
+      // Index does not exist — ignore
+    }
 
-  // Wholesale requests
-  await db.collection('wholesale_requests').createIndexes([
-    { key: { createdAt: -1 }, name: 'requests_time' },
-  ]);
+    await db.collection('classifieds').createIndexes([
+      { key: { expiresAt: 1 }, expireAfterSeconds: 0, name: 'ttl_classifieds' },
+      { key: { city: 1, category: 1, isActive: 1, moderationStatus: 1 }, name: 'query_classifieds' },
+      { key: { userId: 1, isActive: 1 }, name: 'user_classifieds' },
+    ]);
 
-  // News: TTL 14 days (increased from 7 to buffer cron failures)
-  await db.collection('news_feed').createIndexes([
-    { key: { generatedAt: 1 }, expireAfterSeconds: 1209600, name: 'ttl_news_v2' },
-    { key: { date: -1 }, unique: true, name: 'date_news_unique' },
-  ]);
+    await db.collection('wholesale_ads').createIndexes([
+      { key: { isActive: 1, isPaid: 1, paidUntil: 1, tierOrder: -1, priority: -1 }, name: 'query_wholesale_v3' },
+    ]);
+
+    await db.collection('wholesale_requests').createIndexes([
+      { key: { createdAt: -1 }, name: 'requests_time' },
+    ]);
+
+    await db.collection('news_feed').createIndexes([
+      { key: { generatedAt: 1 }, expireAfterSeconds: 1209600, name: 'ttl_news_v2' },
+      { key: { date: -1 }, unique: true, name: 'date_news_unique' },
+    ]);
+
+    _indexesEnsured = true;
+  })();
+
+  return _indexesPromise;
 }
