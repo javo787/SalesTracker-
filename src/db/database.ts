@@ -122,6 +122,7 @@ export function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_sales_product_id ON sales(product_id);
     CREATE INDEX IF NOT EXISTS idx_sales_product_name ON sales(product_name);
     CREATE INDEX IF NOT EXISTS idx_sales_created_at ON sales(created_at);
+    CREATE INDEX IF NOT EXISTS idx_stock_movements_product_id ON stock_movements(product_id);
   `);
 
   // Migration: add min_stock_alert to products if it doesn't exist
@@ -1152,6 +1153,43 @@ export function getMySalesToday(sellerId: string) {
     `SELECT * FROM sales WHERE seller_id = ? AND date(created_at) = ? ORDER BY created_at DESC`,
     [sellerId, todayLocalDate()]
   );
+}
+
+export function getProductSalesByDay(productId: number, days: number = 14): any[] {
+  return db.getAllSync(
+    `SELECT substr(created_at,1,10) as day,
+            SUM(quantity) as qty,
+            SUM(sell_price * quantity) as revenue
+     FROM sales
+     WHERE product_id = ?
+       AND created_at >= datetime('now', '-' || ? || ' days')
+     GROUP BY day
+     ORDER BY day ASC`,
+    [productId, days]
+  );
+}
+
+export function getDebtsByProductId(productId: number): any[] {
+  return db.getAllSync(
+    `SELECT d.*, c.name as client_name, c.phone as client_phone,
+            (d.amount_total - d.amount_paid) AS remaining
+     FROM debts d
+     JOIN clients c ON d.client_id = c.id
+     JOIN sales s ON d.sale_id = s.id
+     WHERE s.product_id = ? AND d.status = 'active'
+     ORDER BY d.created_at DESC`,
+    [productId]
+  );
+}
+
+export function getProductExpenses(productId: number): { total: number; count: number } {
+  const result = db.getFirstSync(
+    `SELECT COALESCE(SUM(amount), 0) as total, COUNT(*) as count
+     FROM expenses
+     WHERE linked_product_id = ?`,
+    [productId]
+  ) as any;
+  return result || { total: 0, count: 0 };
 }
 
 export { db };

@@ -649,7 +649,18 @@ export default function ProductsScreen() {
                 delayLongPress={500}
               >
                 <View style={styles.productLeft}>
-                  <Text style={[styles.productName, themeStyles.text]}>{p.name}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={[styles.productName, themeStyles.text]}>{p.name}</Text>
+                    <TouchableOpacity
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        navigation.navigate('ProductDetail', { product: p });
+                      }}
+                      style={{ padding: 4 }}
+                    >
+                      <Ionicons name="information-circle-outline" size={18} color={Colors.primary} />
+                    </TouchableOpacity>
+                  </View>
                   <Text style={styles.productPrices}>
                     {isOwner && `${t('addSale.buyPrice')}: ${p.buy_price} ${currency.symbol} · `}{t('addSale.sellPrice')}: {p.sell_price} {currency.symbol}
                   </Text>

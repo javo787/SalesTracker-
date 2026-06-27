@@ -48,6 +48,7 @@ import LockScreen from './src/screens/LockScreen';
 import AppLockSetupScreen from './src/screens/AppLockSetupScreen';
 import DebtorsScreen from './src/screens/DebtorsScreen';
 import SellersScreen from './src/screens/SellersScreen';
+import ProductDetailScreen from './src/screens/ProductDetailScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -458,6 +459,11 @@ function AppContent() {
             headerStyle: { backgroundColor: Colors.primary },
             headerTintColor: '#fff',
           }}
+        />
+        <Stack.Screen
+          name="ProductDetail"
+          component={ProductDetailScreen}
+          options={{ headerShown: false }}
         />
       </Stack.Navigator>
     </NavigationContainer>
