@@ -8,12 +8,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { addSale, getProducts, upsertClient, addDebt, updateDebtNotificationId } from '../db/database';
+import { addSale, addSaleWithSeller, getProducts, upsertClient, addDebt, updateDebtNotificationId } from '../db/database';
 import { scheduleDebtReminder } from '../utils/notifications';
 import { analyticsService } from '../services/analyticsService';
 import { reviewService } from '../services/reviewService';
 import VoiceRecorder from '../components/VoiceRecorder';
 import { useAppContext } from '../context/AppContext';
+import { useShop } from '../context/ShopContext';
+import { useAuth } from '../context/AuthContext';
 import ClientAutocomplete from '../components/debt/ClientAutocomplete';
 import GeminiApi from '../utils/geminiApi';
 import ExpensesView from '../components/expenses/ExpensesView';
@@ -26,7 +28,10 @@ const CACHE_TTL = 60 * 60 * 1000; // 1 час в мс
 export default function AddSaleScreen(/* props */) {
   const { t } = useTranslation();
   const navigation = useNavigation<any>();
-  const { resolvedTheme, currency, language, sellerMode } = useAppContext(); const isDark = resolvedTheme === "dark";
+  const { resolvedTheme, currency, language, sellerMode: contextSellerMode } = useAppContext(); const isDark = resolvedTheme === "dark";
+  const { isOwner, isSeller, sellerName, role } = useShop();
+  const { user } = useAuth();
+  const userId = user?._id || 'guest';
 
   const gemini = useMemo(() => {
     const keys = [
@@ -269,18 +274,21 @@ FEW-SHOT EXAMPLES:
     const bPrice = parseFloat(buyPrice);
     const qty = parseFloat(quantity) || 1;
 
-    if (sellerMode === 'wholesale' && paymentType !== 'full' && !clientName.trim()) {
+    if (contextSellerMode === 'wholesale' && paymentType !== 'full' && !clientName.trim()) {
       Alert.alert(t('common.error'), t('addSale.errorClientName'));
       return;
     }
 
-    const saleId = addSale(
+    const saleId = addSaleWithSeller(
       selectedProduct?.id ? parseInt(selectedProduct.id) : null,
       productName.trim(),
       qty,
       sPrice,
       bPrice,
-      note
+      note,
+      userId,
+      sellerName || user?.name || 'Продавец',
+      role || 'owner'
     ) as any;
 
     // Handle debt
@@ -471,17 +479,19 @@ FEW-SHOT EXAMPLES:
               onChangeText={setSellPrice}
             />
           </View>
-          <View style={styles.halfField}>
-            <Text style={[styles.label, themeStyles.text]}>{t('addSale.buyPrice')} *</Text>
-            <TextInput
-              style={[styles.input, themeStyles.input]}
-              placeholder="0"
-              placeholderTextColor={isDark ? '#888' : '#aaa'}
-              keyboardType="numeric"
-              value={buyPrice}
-              onChangeText={setBuyPrice}
-            />
-          </View>
+          {isOwner && (
+            <View style={styles.halfField}>
+              <Text style={[styles.label, themeStyles.text]}>{t('addSale.buyPrice')} *</Text>
+              <TextInput
+                style={[styles.input, themeStyles.input]}
+                placeholder="0"
+                placeholderTextColor={isDark ? '#888' : '#aaa'}
+                keyboardType="numeric"
+                value={buyPrice}
+                onChangeText={setBuyPrice}
+              />
+            </View>
+          )}
         </View>
 
         <Text style={[styles.label, themeStyles.text]}>{t('addSale.quantity')}</Text>
@@ -506,7 +516,7 @@ FEW-SHOT EXAMPLES:
         />
 
     {/* Payment type selector — shown only in wholesale mode */}
-    {sellerMode === 'wholesale' && (
+    {contextSellerMode === 'wholesale' && (
       <View style={styles.paymentSection}>
         <Text style={[styles.label, themeStyles.text]}>{t('addSale.paymentLabel')}</Text>
         <View style={styles.paymentRow}>
@@ -574,7 +584,7 @@ FEW-SHOT EXAMPLES:
     )}
 
         {/* Предварительный расчёт */}
-        {(sellPrice || salePricePlaceholder) && buyPrice ? (
+        {(sellPrice || salePricePlaceholder) && (buyPrice || isSeller) ? (
           <View style={[styles.preview, themeStyles.preview]}>
             <Text style={styles.previewTitle}>{t('addSale.previewTitle')}</Text>
             <View style={styles.previewRow}>
@@ -583,12 +593,14 @@ FEW-SHOT EXAMPLES:
                 {(parseFloat(sellPrice || String(salePricePlaceholder)) * (parseFloat(quantity) || 1)).toLocaleString()} {currency.symbol}
               </Text>
             </View>
-            <View style={styles.previewRow}>
-              <Text style={[styles.previewLabel, themeStyles.text]}>{t('common.profit')}:</Text>
-              <Text style={[styles.previewValue, { color: '#1D9E75' }]}>
-                {((parseFloat(sellPrice || String(salePricePlaceholder)) - parseFloat(buyPrice)) * (parseFloat(quantity) || 1)).toLocaleString()} {currency.symbol}
-              </Text>
-            </View>
+            {isOwner && (
+              <View style={styles.previewRow}>
+                <Text style={[styles.previewLabel, themeStyles.text]}>{t('common.profit')}:</Text>
+                <Text style={[styles.previewValue, { color: '#1D9E75' }]}>
+                  {((parseFloat(sellPrice || String(salePricePlaceholder)) - parseFloat(buyPrice)) * (parseFloat(quantity) || 1)).toLocaleString()} {currency.symbol}
+                </Text>
+              </View>
+            )}
           </View>
         ) : null}
 
@@ -615,7 +627,7 @@ FEW-SHOT EXAMPLES:
                 <Text style={styles.successTitle}>✅ {t('common.saved')}</Text>
                 <Text style={[styles.successText, themeStyles.text]}>{lastSaved.name}</Text>
                 <Text style={[styles.successText, themeStyles.text]}>{t('common.revenue')}: {lastSaved.revenue} {currency.symbol}</Text>
-                <Text style={styles.successProfit}>{t('common.profit')}: +{lastSaved.profit} {currency.symbol}</Text>
+                {isOwner && <Text style={styles.successProfit}>{t('common.profit')}: +{lastSaved.profit} {currency.symbol}</Text>}
               </View>
             )}
           </ScrollView>

@@ -7,9 +7,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
-import { getStats, getSalesToday, deleteSale, getDebtSummary } from '../db/database';
+import { getStats, getSalesToday, deleteSale, getDebtSummary, getMyStats, getMySalesToday } from '../db/database';
 import { useAppContext } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
+import { useShop } from '../context/ShopContext';
 import { getSmartTip } from '../utils/smartTips';
 import CurrencyConversionBanner from '../components/CurrencyConversionBanner';
 import WholesalePromoStrip from '../components/market/WholesalePromoStrip';
@@ -84,9 +85,11 @@ const SaleListItem = React.memo(({ sale, onDelete, isDark, currency, t, i18n, th
           <Text style={[styles.saleRevenue, themeStyles.text]}>
             {(sale.sell_price * sale.quantity).toLocaleString()} {currency.symbol}
           </Text>
-          <Text style={styles.saleProfit}>
-            +{sale.profit.toLocaleString()} {currency.symbol}
-          </Text>
+          {sale.profit !== null && sale.profit !== undefined && (
+            <Text style={styles.saleProfit}>
+              +{sale.profit.toLocaleString()} {currency.symbol}
+            </Text>
+          )}
         </View>
       </RNAnimated.View>
     </View>
@@ -131,8 +134,9 @@ function StatCard({ label, value, currency, unit, icon, color, themeStyles, tren
 
 export default function HomeScreen() {
   const { t, i18n } = useTranslation();
-  const { resolvedTheme, currency, sellerMode } = useAppContext(); const isDark = resolvedTheme === "dark";
+  const { resolvedTheme, currency, sellerMode: contextSellerMode } = useAppContext(); const isDark = resolvedTheme === "dark";
   const { user } = useAuth();
+  const { isOwner, isSeller, sellerName, shopId } = useShop();
   const navigation = useNavigation<any>();
   const { hasUnread } = useNewsUnread();
 
@@ -144,13 +148,14 @@ export default function HomeScreen() {
   const [debtSummary, setDebtSummary] = useState({ total_remaining: 0, debtor_count: 0 });
 
   const loadData = () => {
-    const s = getStats(1);
+    const userId = user?._id || 'guest';
+    const s = isOwner ? getStats(1) : getMyStats(userId, 1);
     setStats(s);
-    const s7 = getStats(7);
+    const s7 = isOwner ? getStats(7) : getMyStats(userId, 7);
     setStats7(s7);
-    const sales = getSalesToday();
+    const sales = isOwner ? getSalesToday() : getMySalesToday(userId);
     setTodaySales(sales);
-    if (sellerMode === 'wholesale') {
+    if (contextSellerMode === 'wholesale') {
       setDebtSummary(getDebtSummary());
     }
   };
@@ -208,7 +213,7 @@ export default function HomeScreen() {
 
   const getGreeting = () => {
     const hour = new Date().getHours();
-    const name = user?.name || '';
+    const name = isSeller ? (sellerName || user?.name || '') : (user?.name || '');
     if (hour < 12) return t('home.greetingMorning', { name });
     if (hour < 18) return t('home.greetingAfternoon', { name });
     return t('home.greetingEvening', { name });
@@ -244,7 +249,7 @@ export default function HomeScreen() {
 
       <CurrencyConversionBanner />
 
-  {sellerMode === 'wholesale' && debtSummary.total_remaining > 0 && (
+  {contextSellerMode === 'wholesale' && debtSummary.total_remaining > 0 && (
     <TouchableOpacity
       style={[styles.debtWidget, themeStyles.card]}
       onPress={() => navigation.navigate('Debtors')}
@@ -288,13 +293,15 @@ export default function HomeScreen() {
           <Ionicons name="add-circle-outline" size={18} color={Colors.primary} />
           <Text style={[styles.actionText, { color: Colors.primary }]}>{t('tabs.sale')}</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.actionChip, { backgroundColor: Colors.dangerLight }]}
-          onPress={() => navigation.navigate('Expenses')}
-        >
-          <Ionicons name="receipt-outline" size={18} color={Colors.danger} />
-          <Text style={[styles.actionText, { color: Colors.danger }]}>{t('tabs.expenses')}</Text>
-        </TouchableOpacity>
+        {isOwner && (
+          <TouchableOpacity
+            style={[styles.actionChip, { backgroundColor: Colors.dangerLight }]}
+            onPress={() => navigation.navigate('Expenses')}
+          >
+            <Ionicons name="receipt-outline" size={18} color={Colors.danger} />
+            <Text style={[styles.actionText, { color: Colors.danger }]}>{t('tabs.expenses')}</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
           style={[styles.actionChip, { backgroundColor: Colors.infoLight }]}
           onPress={() => navigation.navigate('Calculator')}
@@ -314,15 +321,17 @@ export default function HomeScreen() {
           themeStyles={themeStyles}
           trend={revenueTrend}
         />
-        <StatCard
-          label={t('common.profit')}
-          value={stats.profit}
-          currency={currency.symbol}
-          icon="trending-up-outline"
-          color="#0C447C"
-          themeStyles={themeStyles}
-          trend={profitTrend}
-        />
+        {isOwner && (
+          <StatCard
+            label={t('common.profit')}
+            value={stats.profit}
+            currency={currency.symbol}
+            icon="trending-up-outline"
+            color="#0C447C"
+            themeStyles={themeStyles}
+            trend={profitTrend}
+          />
+        )}
       </View>
 
       <View style={styles.statsRow}>
@@ -344,7 +353,7 @@ export default function HomeScreen() {
         />
       </View>
 
-      {FEATURES.WHOLESALE_ENABLED && <WholesalePromoStrip />}
+      {FEATURES.WHOLESALE_ENABLED && contextSellerMode === 'retail' && <WholesalePromoStrip />}
 
       {/* Последние продажи */}
       <Text style={[styles.sectionTitle, themeStyles.text]}>{t('home.recentSales')}</Text>

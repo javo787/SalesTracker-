@@ -1,6 +1,7 @@
 import 'react-native-gesture-handler';
 import { useEffect, useState, useRef } from 'react';
-import { View, ActivityIndicator, TouchableOpacity, Platform, Text } from 'react-native';
+import { View, ActivityIndicator, TouchableOpacity, Platform, Text, AppState } from 'react-native';
+import * as NavigationBar from 'expo-navigation-bar';
 import { NavigationContainer, DrawerActions, useNavigationContainerRef } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -18,6 +19,7 @@ import { adService } from './src/services/adService';
 import { analyticsService } from './src/services/analyticsService';
 import { AppContextProvider, useAppContext } from './src/context/AppContext';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { ShopProvider, useShop } from './src/context/ShopContext';
 import { AppLockProvider, useAppLock } from './src/context/AppLockContext';
 import { useNewsUnread } from './src/hooks/useNewsUnread';
 import { Ionicons } from '@expo/vector-icons';
@@ -33,6 +35,7 @@ import ReportScreen from './src/screens/ReportScreen';
 import CalculatorScreen from './src/screens/CalculatorScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
+import ShopSetupScreen from './src/screens/ShopSetupScreen';
 import CurrencyScreen from './src/screens/CurrencyScreen';
 import ExpensesScreen from './src/screens/ExpensesScreen';
 import ClassifiedsScreen from './src/screens/ClassifiedsScreen';
@@ -44,6 +47,7 @@ import CustomDrawerContent from './src/components/CustomDrawerContent';
 import LockScreen from './src/screens/LockScreen';
 import AppLockSetupScreen from './src/screens/AppLockSetupScreen';
 import DebtorsScreen from './src/screens/DebtorsScreen';
+import SellersScreen from './src/screens/SellersScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -149,6 +153,7 @@ function DrawerNavigator() {
   const { t } = useTranslation();
   const { resolvedTheme } = useAppContext();
   const isDark = resolvedTheme === 'dark';
+  const { isOwner } = useShop();
 
   return (
     <Drawer.Navigator
@@ -185,14 +190,16 @@ function DrawerNavigator() {
           drawerIcon: ({ color }) => <Ionicons name="person-outline" size={22} color={color} />,
         }}
       />
-      <Drawer.Screen
-        name="Expenses"
-        component={ExpensesScreen}
-        options={{
-          drawerLabel: t('tabs.expenses'),
-          drawerIcon: ({ color }) => <Ionicons name="receipt-outline" size={22} color={color} />,
-        }}
-      />
+      {isOwner && (
+        <Drawer.Screen
+          name="Expenses"
+          component={ExpensesScreen}
+          options={{
+            drawerLabel: t('tabs.expenses'),
+            drawerIcon: ({ color }) => <Ionicons name="receipt-outline" size={22} color={color} />,
+          }}
+        />
+      )}
       <Drawer.Screen
         name="ReportsDrawer"
         component={ReportScreen}
@@ -224,6 +231,16 @@ function DrawerNavigator() {
           options={{
             drawerLabel: t('classifieds.title'),
             drawerIcon: ({ color }) => <Ionicons name="storefront-outline" size={22} color={color} />,
+          }}
+        />
+      )}
+      {isOwner && (
+        <Drawer.Screen
+          name="Sellers"
+          component={SellersScreen}
+          options={{
+            drawerLabel: t('sellers.teamTitle') || 'Команда',
+            drawerIcon: ({ color }) => <Ionicons name="people-outline" size={22} color={color} />,
           }}
         />
       )}
@@ -262,6 +279,20 @@ async function setupPushNotifications() {
   await messaging().subscribeToTopic('app_announcements');
 }
 
+const enableImmersiveMode = async () => {
+  if (Platform.OS !== 'android') return;
+  try {
+    await NavigationBar.setVisibilityAsync('hidden');
+    if ('setBehaviorAsync' in NavigationBar) {
+      await (NavigationBar as any).setBehaviorAsync('overlay-swipe');
+    }
+    // overlay-swipe = Sticky Immersive:
+    // свайп снизу временно показывает панель, она сама прячется обратно
+  } catch (e) {
+    console.warn('[ImmersiveMode] error:', e);
+  }
+};
+
 function AppContent() {
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
   const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
@@ -271,6 +302,21 @@ function AppContent() {
   const routeNameRef = useRef<string>(undefined);
 
   const { currency } = useAppContext();
+  const { hasShop, isLoading: isShopLoading } = useShop();
+
+  useEffect(() => {
+    enableImmersiveMode();
+
+    // Android при сворачивании/разворачивании сбрасывает режим —
+    // восстанавливаем при каждом возврате в приложение
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        enableImmersiveMode();
+      }
+    });
+
+    return () => subscription.remove();
+  }, []);
 
   useEffect(() => {
     checkOnboarding();
@@ -301,7 +347,7 @@ function AppContent() {
     }
   };
 
-  if (showOnboarding === null || isAuthLoading || isAppLockLoading) {
+  if (showOnboarding === null || isAuthLoading || isAppLockLoading || isShopLoading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color="#1D9E75" />
@@ -315,6 +361,10 @@ function AppContent() {
 
   if (showOnboarding) {
     return <OnboardingScreen onFinish={() => setShowOnboarding(false)} />;
+  }
+
+  if (!hasShop) {
+    return <ShopSetupScreen />;
   }
 
   if (isLockEnabled && isLocked) {
@@ -375,6 +425,15 @@ function AppContent() {
           component={DebtorsScreen}
           options={{
             title: 'Должники',
+            headerStyle: { backgroundColor: Colors.primary },
+            headerTintColor: '#fff',
+          }}
+        />
+        <Stack.Screen
+          name="Sellers"
+          component={SellersScreen}
+          options={{
+            title: t('sellers.teamTitle') || 'Команда',
             headerStyle: { backgroundColor: Colors.primary },
             headerTintColor: '#fff',
           }}
@@ -464,11 +523,13 @@ export default function App() {
   return (
     <AppContextProvider>
       <AuthProvider>
-        <AppLockProvider>
-          <I18nextProvider i18n={i18n}>
-            <AppContent />
-          </I18nextProvider>
-        </AppLockProvider>
+        <ShopProvider>
+          <AppLockProvider>
+            <I18nextProvider i18n={i18n}>
+              <AppContent />
+            </I18nextProvider>
+          </AppLockProvider>
+        </ShopProvider>
       </AuthProvider>
     </AppContextProvider>
   );

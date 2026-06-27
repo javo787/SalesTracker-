@@ -10,8 +10,10 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import Constants from 'expo-constants';
+import { Ionicons } from '@expo/vector-icons';
 import { analyticsService } from '../services/analyticsService';
 import { useAppContext } from '../context/AppContext';
+import { useShop } from '../context/ShopContext';
 import { useAppLock } from '../context/AppLockContext';
 import { getConversionRate } from '../utils/currencyRates';
 import { reviewService } from '../services/reviewService';
@@ -30,22 +32,100 @@ const CURRENCIES = [
   { code: 'KGS', label: 'Сом', symbol: 'с', country: '🇰🇬 Кыргызстан' },
 ];
 
-const THEMES = [
-  { code: 'light', label: 'Светлая', icon: '☀️' },
-  { code: 'dark', label: 'Тёмная', icon: '🌙' },
-  { code: 'system', label: 'Как в системе', icon: '⚙️' },
-];
+const PRIVACY_POLICY_URL = 'https://duxtur.org/privacy';
+const SUPPORT_TELEGRAM_URL = 'https://t.me/savdoapp';
 
-const PRIVACY_POLICY_URL = 'https://duxtur.org/privacy'; // TODO: replace with the actual hosted privacy policy URL before publishing to Google Play
-const SUPPORT_TELEGRAM_URL = 'https://t.me/savdoapp'; // TODO: verify this is the correct/active support channel
+// Иконка в цветном кружке
+function SettingIcon({ name, color }: { name: any; color: string }) {
+  return (
+    <View style={[iconStyles.wrap, { backgroundColor: color }]}>
+      <Ionicons name={name} size={16} color="#fff" />
+    </View>
+  );
+}
+
+// Строка настройки с иконкой, заголовком и правой частью
+function SettingRow({
+  icon, iconColor, label, sublabel, right, onPress, isDark, isLast = false,
+}: {
+  icon: any; iconColor: string; label: string;
+  sublabel?: string; right?: React.ReactNode;
+  onPress?: () => void; isDark: boolean; isLast?: boolean;
+}) {
+  const Wrapper = onPress ? TouchableOpacity : View;
+  return (
+    <Wrapper
+      onPress={onPress}
+      activeOpacity={0.7}
+      style={[rowStyles.row, !isLast && rowStyles.rowBorder,
+        { borderBottomColor: isDark ? '#2A2A2A' : '#F0F0F0' }
+      ]}
+    >
+      <SettingIcon name={icon} color={iconColor} />
+      <View style={rowStyles.rowContent}>
+        <Text style={[rowStyles.rowLabel, { color: isDark ? '#EEE' : '#111' }]}>
+          {label}
+        </Text>
+        {sublabel ? (
+          <Text style={[rowStyles.rowSublabel, { color: isDark ? '#777' : '#999' }]}>
+            {sublabel}
+          </Text>
+        ) : null}
+      </View>
+      {right}
+      {onPress && !right && (
+        <Ionicons name="chevron-forward" size={16} color={isDark ? '#555' : '#CCC'} />
+      )}
+    </Wrapper>
+  );
+}
+
+// Заголовок группы секций
+function SectionLabel({ label, isDark }: { label: string; isDark: boolean }) {
+  return (
+    <Text style={[sectionLabelStyles.text, { color: isDark ? '#777' : '#999' }]}>
+      {label.toUpperCase()}
+    </Text>
+  );
+}
+
+// Карточка-обёртка группы
+function SettingGroup({ children, isDark }: { children: React.ReactNode; isDark: boolean }) {
+  return (
+    <View style={[groupStyles.card, {
+      backgroundColor: isDark ? '#1E1E1E' : '#fff',
+      shadowColor: '#000',
+    }]}>
+      {children}
+    </View>
+  );
+}
+
+const iconStyles = StyleSheet.create({
+  wrap: { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+});
+const rowStyles = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 16 },
+  rowBorder: { borderBottomWidth: StyleSheet.hairlineWidth },
+  rowContent: { flex: 1 },
+  rowLabel: { fontSize: 15, fontWeight: '500' },
+  rowSublabel: { fontSize: 12, marginTop: 1 },
+});
+const sectionLabelStyles = StyleSheet.create({
+  text: { fontSize: 12, fontWeight: '600', letterSpacing: 0.5, marginLeft: 16, marginBottom: 6, marginTop: 20 },
+});
+const groupStyles = StyleSheet.create({
+  card: { borderRadius: 14, marginHorizontal: 16, overflow: 'hidden', elevation: 1, shadowOpacity: 0.04, shadowOffset: { width: 0, height: 1 }, shadowRadius: 2 },
+});
 
 export default function SettingsScreen(props: any) {
   const { t, i18n } = useTranslation();
+  const { isOwner } = useShop();
   const {
     theme, currency, language, setTheme, setCurrency, setLanguage,
     notificationsEnabled, setNotificationsEnabled,
     defaultMinStockAlert, setDefaultMinStockAlert,
-    sellerMode, setSellerMode
+    sellerMode, setSellerMode, resolvedTheme
   } = useAppContext();
   const { isLockEnabled, setIsSystemDialogOpen } = useAppLock();
 
@@ -233,9 +313,7 @@ export default function SettingsScreen(props: any) {
     );
   };
 
-  const { resolvedTheme } = useAppContext();
   const isDark = resolvedTheme === 'dark';
-  const themeStyles = isDark ? darkStyles : lightStyles;
 
   const renderLastBackupStatus = () => {
     if (!lastBackupAt) return t('settings.noBackupYet');
@@ -247,406 +325,326 @@ export default function SettingsScreen(props: any) {
   };
 
   return (
-    <ScrollView style={[styles.container, themeStyles.container]}>
+    <ScrollView
+      style={[newStyles.container, { backgroundColor: isDark ? '#000' : '#F2F2F7' }]}
+      showsVerticalScrollIndicator={false}
+    >
+      <View style={{ height: 16 }} />
 
-      {/* Режим продавца */}
-      <View style={[styles.section, themeStyles.section, { marginTop: 16 }]}>
-        <View style={styles.sellerModeHeader}>
-          <Text style={[styles.sectionTitle, themeStyles.text, { marginBottom: 0 }]}>🏪 {t('common.sellerMode')}</Text>
-          <Text style={[styles.sellerModeSub, { color: isDark ? '#AAA' : '#666' }]}>
-            {sellerMode === 'retail' ? t('common.retail') : t('common.wholesale')}
-          </Text>
-        </View>
-
-        <View style={[styles.segmentedControl, isDark ? styles.segmentedControlDark : styles.segmentedControlLight]}>
-          <TouchableOpacity
-            style={[styles.tabBtn, sellerMode === 'retail' && styles.tabBtnActive]}
-            onPress={() => setSellerMode('retail')}
-          >
-            <Text style={[styles.tabText, sellerMode === 'retail' && styles.tabTextActive]}>
-              🛒 {t('common.retail')}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tabBtn, sellerMode === 'wholesale' && styles.tabBtnActive]}
-            onPress={() => setSellerMode('wholesale')}
-          >
-            <Text style={[styles.tabText, sellerMode === 'wholesale' && styles.tabTextActive]}>
-              📦 {t('common.wholesale')}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Язык */}
-      <View style={[styles.section, themeStyles.section, { marginTop: 0 }]}>
-        <Text style={[styles.sectionTitle, themeStyles.text]}>🌐 {t('settings.language')}</Text>
-        <View style={styles.optionGrid}>
-          {LANGUAGES.map(lang => (
+      {/* ── ПРОФИЛЬ / РЕЖИМ ── */}
+      <SectionLabel label={t('common.sellerMode')} isDark={isDark} />
+      <SettingGroup isDark={isDark}>
+        {/* Segmented control режима продавца */}
+        <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
+          <View style={[newStyles.segmented, { backgroundColor: isDark ? '#2C2C2C' : '#F0F0F0' }]}>
             <TouchableOpacity
-              key={lang.code}
-              style={[
-                styles.optionCard,
-                themeStyles.optionCard,
-                language === lang.code && styles.optionCardActive
-              ]}
-              onPress={() => setLanguage(lang.code)}
+              style={[newStyles.segBtn, sellerMode === 'retail' && newStyles.segBtnActive]}
+              onPress={() => setSellerMode('retail')}
             >
-              <Text style={styles.optionFlag}>{lang.flag}</Text>
-              <Text style={[
-                styles.optionLabel,
-                themeStyles.optionLabel,
-                language === lang.code && styles.optionLabelActive
+              <Ionicons name="storefront-outline" size={14}
+                color={sellerMode === 'retail' ? '#fff' : (isDark ? '#AAA' : '#666')} />
+              <Text style={[newStyles.segText,
+                { color: sellerMode === 'retail' ? '#fff' : (isDark ? '#AAA' : '#666') }
               ]}>
-                {lang.label}
+                {t('common.retail')}
               </Text>
-              {language === lang.code && (
-                <Text style={styles.checkmark}>✓</Text>
-              )}
             </TouchableOpacity>
+            <TouchableOpacity
+              style={[newStyles.segBtn, sellerMode === 'wholesale' && newStyles.segBtnActive]}
+              onPress={() => setSellerMode('wholesale')}
+            >
+              <Ionicons name="cube-outline" size={14}
+                color={sellerMode === 'wholesale' ? '#fff' : (isDark ? '#AAA' : '#666')} />
+              <Text style={[newStyles.segText,
+                { color: sellerMode === 'wholesale' ? '#fff' : (isDark ? '#AAA' : '#666') }
+              ]}>
+                {t('common.wholesale')}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </SettingGroup>
+
+      {/* ── ВНЕШНИЙ ВИД ── */}
+      <SectionLabel label={t('settings.theme')} isDark={isDark} />
+      <SettingGroup isDark={isDark}>
+        <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
+          <View style={[newStyles.segmented, { backgroundColor: isDark ? '#2C2C2C' : '#F0F0F0' }]}>
+            {[
+              { code: 'light', icon: 'sunny-outline', label: t('settings.light') },
+              { code: 'dark', icon: 'moon-outline', label: t('settings.dark') },
+              { code: 'system', icon: 'phone-portrait-outline', label: t('settings.system') },
+            ].map(opt => (
+              <TouchableOpacity
+                key={opt.code}
+                style={[newStyles.segBtn, theme === opt.code && newStyles.segBtnActive]}
+                onPress={() => setTheme(opt.code as any)}
+              >
+                <Ionicons name={opt.icon as any} size={14}
+                  color={theme === opt.code ? '#fff' : (isDark ? '#AAA' : '#666')} />
+                <Text style={[newStyles.segText,
+                  { color: theme === opt.code ? '#fff' : (isDark ? '#AAA' : '#666') }
+                ]}>
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </SettingGroup>
+
+      {/* ── ЯЗЫК ── */}
+      <SectionLabel label={t('settings.language')} isDark={isDark} />
+      <SettingGroup isDark={isDark}>
+        {LANGUAGES.map((lang, i) => (
+          <SettingRow
+            key={lang.code}
+            icon="language-outline"
+            iconColor="#5856D6"
+            label={`${lang.flag}  ${lang.label}`}
+            isDark={isDark}
+            isLast={i === LANGUAGES.length - 1}
+            onPress={() => setLanguage(lang.code)}
+            right={
+              language === lang.code ? (
+                <Ionicons name="checkmark" size={18} color="#1D9E75" />
+              ) : null
+            }
+          />
+        ))}
+      </SettingGroup>
+
+      {/* ── ВАЛЮТА ── */}
+      <SectionLabel label={t('settings.currency')} isDark={isDark} />
+      <SettingGroup isDark={isDark}>
+        {CURRENCIES.map((curr, i) => (
+          <SettingRow
+            key={curr.code}
+            icon="cash-outline"
+            iconColor="#34C759"
+            label={curr.country}
+            sublabel={`${curr.label} · ${curr.symbol}`}
+            isDark={isDark}
+            isLast={i === CURRENCIES.length - 1}
+            onPress={isOwner ? () => handleCurrencyChange(curr) : undefined}
+            right={
+              currency.code === curr.code ? (
+                <Ionicons name="checkmark" size={18} color="#1D9E75" style={{ marginRight: 4 }} />
+              ) : (loadingRate && isOwner) ? (
+                <ActivityIndicator size="small" color="#1D9E75" />
+              ) : null
+            }
+          />
+        ))}
+      </SettingGroup>
+
+      {/* История конвертаций — компактно под валютой */}
+      {conversionHistory.length > 0 && (
+        <View style={{ marginHorizontal: 16, marginTop: 6 }}>
+          {conversionHistory.slice(0, 3).map((item, index) => (
+            <Text key={index} style={{ fontSize: 11, color: isDark ? '#555' : '#BBB', marginBottom: 2 }}>
+              {t('settings.currencyHistoryItem', {
+                from: item.from, to: item.to, rate: item.rate,
+                date: new Date(item.date).toLocaleDateString(
+                  i18n.language === 'tg' ? 'tg-TJ' : i18n.language === 'uz' ? 'uz-UZ' : 'ru-RU'
+                )
+              })}
+            </Text>
           ))}
         </View>
-      </View>
+      )}
 
-      {/* Валюта */}
-      <View style={[styles.section, themeStyles.section]}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <Text style={[styles.sectionTitle, themeStyles.text, { marginBottom: 0 }]}>💰 {t('settings.currency')}</Text>
-          {loadingRate && <ActivityIndicator size="small" color="#1D9E75" />}
-        </View>
-        {CURRENCIES.map(curr => (
-          <TouchableOpacity
-            key={curr.code}
-            style={[
-              styles.currencyRow,
-              themeStyles.currencyRow,
-              currency.code === curr.code && styles.currencyRowActive
-            ]}
-            onPress={() => handleCurrencyChange(curr)}
-            disabled={loadingRate}
-          >
-            <View style={styles.currencyLeft}>
-              <Text style={[styles.currencyCountry, themeStyles.text]}>{curr.country}</Text>
-              <Text style={styles.currencyName}>{curr.label} ({curr.symbol})</Text>
-            </View>
-            <View style={[
-              styles.radio,
-              currency.code === curr.code && styles.radioActive
-            ]}>
-              {currency.code === curr.code && <View style={styles.radioDot} />}
-            </View>
-          </TouchableOpacity>
-        ))}
-
-        {/* История конвертаций */}
-        <Text style={[styles.historyTitle, themeStyles.text]}>{t('settings.currencyHistory')}</Text>
-        {conversionHistory.length === 0 ? (
-          <Text style={styles.historyEmpty}>{t('settings.currencyHistoryEmpty')}</Text>
-        ) : (
-          conversionHistory.map((item, index) => (
-            <View key={index} style={styles.historyRow}>
-              <Text style={styles.historyText}>
-                {t('settings.currencyHistoryItem', {
-                  from: item.from,
-                  to: item.to,
-                  rate: item.rate,
-                  date: new Date(item.date).toLocaleDateString(i18n.language === 'tg' ? 'tg-TJ' : i18n.language === 'uz' ? 'uz-UZ' : 'ru-RU')
-                })}
-              </Text>
-            </View>
-          ))
-        )}
-      </View>
-
-      {/* Уведомления и настройки по умолчанию */}
-      <View style={[styles.section, themeStyles.section]}>
-        <Text style={[styles.sectionTitle, themeStyles.text]}>🔔 {t('settings.notifications')}</Text>
-
-        <View style={styles.switchRow}>
-          <Text style={[styles.switchLabel, themeStyles.text]}>{t('settings.lowStockNotif')}</Text>
-          <Switch
-            value={notificationsEnabled}
-            onValueChange={setNotificationsEnabled}
-            trackColor={{ false: '#767577', true: '#1D9E75' }}
-            thumbColor={notificationsEnabled ? '#fff' : '#f4f3f4'}
-          />
-        </View>
-
-        <View style={styles.inputRow}>
-          <Text style={[styles.inputLabel, themeStyles.text]}>{t('settings.defaultMinStock')}</Text>
+      {/* ── УВЕДОМЛЕНИЯ ── */}
+      <SectionLabel label={t('settings.notifications')} isDark={isDark} />
+      <SettingGroup isDark={isDark}>
+        <SettingRow
+          icon="notifications-outline"
+          iconColor="#FF9500"
+          label={t('settings.lowStockNotif')}
+          isDark={isDark}
+          right={
+            <Switch
+              value={notificationsEnabled}
+              onValueChange={setNotificationsEnabled}
+              trackColor={{ false: '#767577', true: '#1D9E75' }}
+              thumbColor="#fff"
+            />
+          }
+        />
+        <View style={[rowStyles.row, { borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: isDark ? '#2A2A2A' : '#F0F0F0' }]}>
+          <SettingIcon name="alert-circle-outline" color="#FF9500" />
+          <View style={rowStyles.rowContent}>
+            <Text style={[rowStyles.rowLabel, { color: isDark ? '#EEE' : '#111' }]}>
+              {t('settings.defaultMinStock')}
+            </Text>
+          </View>
           <TextInput
-            style={[styles.numericInput, themeStyles.input]}
+            style={[newStyles.numInput, {
+              backgroundColor: isDark ? '#2C2C2C' : '#F5F5F5',
+              color: isDark ? '#EEE' : '#333',
+              borderColor: isDark ? '#444' : '#E0E0E0',
+            }]}
             value={String(defaultMinStockAlert)}
             onChangeText={(text) => setDefaultMinStockAlert(parseInt(text) || 0)}
             keyboardType="numeric"
             placeholder="0"
+            placeholderTextColor="#999"
           />
         </View>
-      </View>
+      </SettingGroup>
 
-      {/* Безопасность */}
-      <View style={[styles.section, themeStyles.section]}>
-        <Text style={[styles.sectionTitle, themeStyles.text]}>🛡️ {t('appLock.securitySettings')}</Text>
-        <View style={styles.switchRow}>
-          <Text style={[styles.switchLabel, themeStyles.text]}>{t('appLock.enableLock')}</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              {isLockEnabled && <Text style={{ color: '#1D9E75', fontSize: 12, fontWeight: 'bold' }}>ON</Text>}
-              <Switch
-                value={isLockEnabled}
-                onValueChange={() => props.navigation.navigate('AppLockSetup')}
-                trackColor={{ false: '#767577', true: '#1D9E75' }}
-                thumbColor={isLockEnabled ? '#fff' : '#f4f3f4'}
-              />
-          </View>
-        </View>
+      {/* ── БЕЗОПАСНОСТЬ ── */}
+      <SectionLabel label={t('appLock.securitySettings')} isDark={isDark} />
+      <SettingGroup isDark={isDark}>
+        <SettingRow
+          icon="lock-closed-outline"
+          iconColor="#FF3B30"
+          label={t('appLock.enableLock')}
+          sublabel={isLockEnabled ? 'ON' : undefined}
+          isDark={isDark}
+          isLast={!isLockEnabled}
+          right={
+            <Switch
+              value={isLockEnabled}
+              onValueChange={() => props.navigation.navigate('AppLockSetup')}
+              trackColor={{ false: '#767577', true: '#1D9E75' }}
+              thumbColor="#fff"
+            />
+          }
+        />
         {isLockEnabled && (
-            <TouchableOpacity style={styles.linkRow} onPress={() => props.navigation.navigate('AppLockSetup')}>
-                <Text style={styles.linkText}>🔑 {t('appLock.changeMethod')}</Text>
-            </TouchableOpacity>
+          <SettingRow
+            icon="key-outline"
+            iconColor="#FF3B30"
+            label={t('appLock.changeMethod')}
+            isDark={isDark}
+            isLast
+            onPress={() => props.navigation.navigate('AppLockSetup')}
+          />
         )}
-      </View>
+      </SettingGroup>
 
-      {/* Тема */}
-      <View style={[styles.section, themeStyles.section]}>
-        <Text style={[styles.sectionTitle, themeStyles.text]}>🎨 {t('settings.theme')}</Text>
-        <View style={styles.themeRow}>
-          {THEMES.map(tOption => (
-            <TouchableOpacity
-              key={tOption.code}
-              style={[
-                styles.themeBtn,
-                themeStyles.themeBtn,
-                theme === tOption.code && styles.themeBtnActive
-              ]}
-              onPress={() => setTheme(tOption.code as 'light' | 'dark' | 'system')}
-            >
-              <Text style={styles.themeIcon}>{tOption.icon}</Text>
-              <Text style={[
-                styles.themeLabel,
-                themeStyles.themeLabel,
-                theme === tOption.code && styles.themeLabelActive
-              ]}>
-                {tOption.code === 'light' ? t('settings.light') : tOption.code === 'dark' ? t('settings.dark') : t('settings.system')}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
+      {/* ── ДАННЫЕ И РЕЗЕРВНОЕ КОПИРОВАНИЕ ── */}
+      {isOwner && (
+        <>
+          <SectionLabel label={t('settings.backup')} isDark={isDark} />
+          <SettingGroup isDark={isDark}>
+            <SettingRow
+              icon="cloud-upload-outline"
+              iconColor="#007AFF"
+              label={t('settings.backupExport')}
+              sublabel={renderLastBackupStatus()}
+              isDark={isDark}
+              onPress={handleExportBackup}
+            />
+            <SettingRow
+              icon="cloud-download-outline"
+              iconColor="#007AFF"
+              label={t('settings.backupImport')}
+              isDark={isDark}
+              isLast
+              onPress={handleImportBackup}
+            />
+          </SettingGroup>
+        </>
+      )}
 
-      {/* О приложении */}
-      <View style={[styles.section, themeStyles.section]}>
-        <Text style={[styles.sectionTitle, themeStyles.text]}>ℹ️ {t('settings.about')}</Text>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>{t('settings.version')}</Text>
-          <Text style={[styles.infoValue, themeStyles.text]}>{Constants.expoConfig?.version ?? '—'}</Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>{t('settings.build')}</Text>
-          <Text style={[styles.infoValue, themeStyles.text]}>{String(Constants.expoConfig?.android?.versionCode ?? '—')}</Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>{t('settings.developer')}</Text>
-          <Text style={[styles.infoValue, themeStyles.text]}>SavdoApp Team</Text>
-        </View>
-        <TouchableOpacity
-          style={styles.linkRow}
+      {/* ── О ПРИЛОЖЕНИИ ── */}
+      <SectionLabel label={t('settings.about')} isDark={isDark} />
+      <SettingGroup isDark={isDark}>
+        <SettingRow
+          icon="information-circle-outline"
+          iconColor="#8E8E93"
+          label={t('settings.version')}
+          isDark={isDark}
+          right={
+            <Text style={{ fontSize: 14, color: isDark ? '#777' : '#999' }}>
+              {Constants.expoConfig?.version ?? '—'}
+            </Text>
+          }
+        />
+        <SettingRow
+          icon="hammer-outline"
+          iconColor="#8E8E93"
+          label={t('settings.build')}
+          isDark={isDark}
+          right={
+            <Text style={{ fontSize: 14, color: isDark ? '#777' : '#999' }}>
+              {String(Constants.expoConfig?.android?.versionCode ?? '—')}
+            </Text>
+          }
+        />
+        <SettingRow
+          icon="logo-telegram"
+          iconColor="#0088CC"
+          label={t('settings.support')}
+          isDark={isDark}
           onPress={() => Linking.openURL(SUPPORT_TELEGRAM_URL)}
-        >
-          <Text style={styles.linkText}>📱 {t('settings.support')}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.linkRow} onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}>
-          <Text style={styles.linkText}>📄 {t('settings.privacyPolicy')}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.linkRow} onPress={() => reviewService.openStoreListing()}>
-          <Text style={styles.linkText}>⭐ {t('settings.rateApp')}</Text>
-        </TouchableOpacity>
-      </View>
+        />
+        <SettingRow
+          icon="document-text-outline"
+          iconColor="#8E8E93"
+          label={t('settings.privacyPolicy')}
+          isDark={isDark}
+          onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
+        />
+        <SettingRow
+          icon="star-outline"
+          iconColor="#FF9500"
+          label={t('settings.rateApp')}
+          isDark={isDark}
+          isLast
+          onPress={() => reviewService.openStoreListing()}
+        />
+      </SettingGroup>
 
-      {/* Резервное копирование */}
-      <View style={[styles.section, themeStyles.section]}>
-        <Text style={[styles.sectionTitle, themeStyles.text]}>💾 {t('settings.backup')}</Text>
-        <Text style={[styles.backupDesc, { color: isDark ? '#AAA' : '#666' }]}>{t('settings.backupDesc')}</Text>
-        <Text style={[styles.backupStatus, { color: isDark ? '#1D9E75' : '#1D9E75' }]}>
-          {renderLastBackupStatus()}
-        </Text>
-        <View style={{ gap: 10 }}>
-          <TouchableOpacity style={styles.backupBtn} onPress={handleExportBackup}>
-            <Text style={styles.backupBtnText}>{t('settings.backupExport')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.backupBtn, { backgroundColor: 'transparent' }]} onPress={handleImportBackup}>
-            <Text style={styles.backupBtnText}>{t('settings.backupImport')}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      {/* ── ОПАСНАЯ ЗОНА ── */}
+      {isOwner && (
+        <>
+          <SectionLabel label={t('settings.dangerZone')} isDark={isDark} />
+          <SettingGroup isDark={isDark}>
+            <SettingRow
+              icon="trash-outline"
+              iconColor="#FF3B30"
+              label={t('settings.clearData')}
+              isDark={isDark}
+              isLast
+              onPress={handleClearDataAlert}
+            />
+          </SettingGroup>
+        </>
+      )}
 
-      {/* Опасная зона */}
-      <View style={[styles.section, themeStyles.section, styles.dangerSection]}>
-        <Text style={[styles.sectionTitle, { color: '#E53935' }]}>⚠️ {t('settings.dangerZone')}</Text>
-        <TouchableOpacity style={styles.dangerBtn} onPress={handleClearDataAlert}>
-          <Text style={styles.dangerBtnText}>{t('settings.clearData')}</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={{ height: 40 }} />
+      <View style={{ height: 48 }} />
     </ScrollView>
   );
 }
 
-const lightStyles = StyleSheet.create({
-  container: { backgroundColor: '#F5F5F5' },
-  section: { backgroundColor: '#fff' },
-  text: { color: '#333' },
-  input: { backgroundColor: '#F5F5F5', borderColor: '#E0E0E0' },
-  optionCard: { backgroundColor: '#F9F9F9' },
-  optionLabel: { color: '#666' },
-  currencyRow: { backgroundColor: '#F9F9F9' },
-  themeBtn: { backgroundColor: '#F9F9F9' },
-  themeLabel: { color: '#666' },
-});
-
-const darkStyles = StyleSheet.create({
-  container: { backgroundColor: '#000' },
-  section: { backgroundColor: '#1E1E1E' },
-  text: { color: '#EEE' },
-  input: { backgroundColor: '#2C2C2C', borderColor: '#444', color: '#EEE' },
-  optionCard: { backgroundColor: '#2C2C2C', borderColor: '#444' },
-  optionLabel: { color: '#AAA' },
-  currencyRow: { backgroundColor: '#2C2C2C', borderColor: '#444' },
-  themeBtn: { backgroundColor: '#2C2C2C', borderColor: '#444' },
-  themeLabel: { color: '#AAA' },
-});
-
-const styles = StyleSheet.create({
+const newStyles = StyleSheet.create({
   container: { flex: 1 },
-  section: {
-    margin: 16, marginBottom: 0,
-    borderRadius: 12, padding: 16,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05, shadowRadius: 2, elevation: 2,
-  },
-  sectionTitle: {
-    fontSize: 15, fontWeight: '600', marginBottom: 14,
-  },
-  sellerModeHeader: {
+  segmented: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
+    borderRadius: 10,
+    padding: 3,
   },
-  sellerModeSub: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  segmentedControl: {
-    flexDirection: 'row',
-    borderRadius: 12,
-    padding: 4,
-    height: 44,
-  },
-  segmentedControlLight: {
-    backgroundColor: '#F5F5F5',
-  },
-  segmentedControlDark: {
-    backgroundColor: '#2C2C2C',
-  },
-  tabBtn: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 8,
-  },
-  tabBtnActive: {
-    backgroundColor: '#1D9E75',
-  },
-  tabText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#666',
-  },
-  tabTextActive: {
-    color: '#fff',
-  },
-  optionGrid: { flexDirection: 'row', gap: 10 },
-  optionCard: {
-    flex: 1, alignItems: 'center', padding: 12,
-    borderRadius: 10, borderWidth: 1.5, borderColor: '#E0E0E0',
-  },
-  optionCardActive: {
-    borderColor: '#1D9E75', backgroundColor: '#F0FBF7',
-  },
-  optionFlag: { fontSize: 24, marginBottom: 6 },
-  optionLabel: { fontSize: 12, fontWeight: '500', textAlign: 'center' },
-  optionLabelActive: { color: '#1D9E75' },
-  checkmark: { fontSize: 12, color: '#1D9E75', marginTop: 4, fontWeight: 'bold' },
-  currencyRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: 12, paddingHorizontal: 12, borderRadius: 10,
-    borderWidth: 1, borderColor: '#E0E0E0', marginBottom: 8,
-  },
-  currencyRowActive: {
-    borderColor: '#1D9E75', backgroundColor: '#F0FBF7',
-  },
-  currencyLeft: {},
-  currencyCountry: { fontSize: 13, fontWeight: '500' },
-  currencyName: { fontSize: 12, color: '#999', marginTop: 2 },
-  radio: {
-    width: 20, height: 20, borderRadius: 10,
-    borderWidth: 2, borderColor: '#CCC',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  radioActive: { borderColor: '#1D9E75' },
-  radioDot: {
-    width: 10, height: 10, borderRadius: 5, backgroundColor: '#1D9E75',
-  },
-  historyTitle: { fontSize: 13, fontWeight: '600', marginTop: 16, marginBottom: 8 },
-  historyEmpty: { fontSize: 12, color: '#999', fontStyle: 'italic' },
-  historyRow: { paddingVertical: 6, borderBottomWidth: 0.5, borderBottomColor: '#F0F0F0' },
-  historyText: { fontSize: 12, color: '#666' },
-  themeRow: { flexDirection: 'row', gap: 10 },
-  themeBtn: {
+  segBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'center', gap: 8, padding: 12,
-    borderRadius: 10, borderWidth: 1.5, borderColor: '#E0E0E0',
+    justifyContent: 'center', gap: 5,
+    paddingVertical: 8, borderRadius: 8,
   },
-  themeBtnActive: { borderColor: '#1D9E75', backgroundColor: '#F0FBF7' },
-  themeIcon: { fontSize: 18 },
-  themeLabel: { fontSize: 14, fontWeight: '500' },
-  themeLabelActive: { color: '#1D9E75' },
-  switchRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingVertical: 10,
+  segBtnActive: {
+    backgroundColor: '#1D9E75',
+    shadowColor: '#1D9E75',
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 3,
   },
-  switchLabel: { fontSize: 14, flex: 1 },
-  inputRow: {
-    marginTop: 12, borderTopWidth: 0.5, borderTopColor: '#F0F0F0',
-    paddingTop: 12,
-  },
-  inputLabel: { fontSize: 13, color: '#666', marginBottom: 8 },
-  numericInput: {
-    borderRadius: 8, padding: 10,
+  segText: { fontSize: 13, fontWeight: '600' },
+  numInput: {
+    width: 60, textAlign: 'center',
+    borderRadius: 8, padding: 8,
     fontSize: 15, borderWidth: 1,
   },
-  backupDesc: { fontSize: 13, marginBottom: 8, lineHeight: 18 },
-  backupStatus: { fontSize: 12, fontWeight: '600', marginBottom: 16 },
-  backupBtn: {
-    backgroundColor: '#F0FBF7', borderRadius: 10,
-    padding: 12, alignItems: 'center',
-    borderWidth: 1, borderColor: '#1D9E75',
-  },
-  backupBtnText: { color: '#1D9E75', fontSize: 14, fontWeight: '600' },
-  infoRow: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: '#F0F0F0',
-  },
-  infoLabel: { fontSize: 14, color: '#666' },
-  infoValue: { fontSize: 14, fontWeight: '500' },
-  linkRow: { paddingVertical: 12 },
-  linkText: { fontSize: 14, color: '#1D9E75', fontWeight: '500' },
-  dangerSection: { borderWidth: 1, borderColor: '#FFCDD2' },
-  dangerBtn: {
-    backgroundColor: '#FFEBEE', borderRadius: 10,
-    padding: 14, alignItems: 'center',
-    borderWidth: 1, borderColor: '#FFCDD2',
-  },
-  dangerBtnText: { color: '#E53935', fontSize: 15, fontWeight: '600' },
 });

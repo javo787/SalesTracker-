@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import authRoutes from './routes/auth';
 import syncRoutes from './routes/sync';
 import profileRoutes from './routes/profile';
+import shopRoutes from './routes/shop';
 
 dotenv.config();
 
@@ -24,6 +25,7 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/savdo')
 app.use('/auth', authRoutes);
 app.use('/sync', syncRoutes);
 app.use('/profile', profileRoutes);
+app.use('/shop', shopRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

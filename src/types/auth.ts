@@ -33,3 +33,31 @@ export interface TelegramAuthData {
   auth_date: number;
   hash: string;
 }
+
+export interface ShopInfo {
+  shopId: string;
+  shopName: string;
+  role: 'owner' | 'seller';
+  inviteCode?: string;
+}
+
+export interface SellerStats {
+  _id: string;
+  sellerName: string;
+  revenue: number;
+  salesCount: number;
+  profit: number;
+  todayRevenue?: number;
+  todaySalesCount?: number;
+}
+
+export interface ShopMember {
+  userId: string;
+  displayName: string;
+  role: 'owner' | 'seller';
+  isActive: boolean;
+  joinedAt: string;
+  lastActiveAt: string;
+  todayRevenue?: number;
+  todaySalesCount?: number;
+}

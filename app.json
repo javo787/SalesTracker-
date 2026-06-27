@@ -15,11 +15,12 @@
     ],
     "scheme": "savdo",
     "android": {
-      "package": "com.savdo.app",
+      "package": "savdo.app",
       "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.RECORD_AUDIO"
-      ]
+      ],
+      "softwareKeyboardLayoutMode": "pan"
     },
     "updates": {
       "url": "https://u.expo.dev/617f1baa-d4b4-4221-b3f6-f9b321325ec0"
@@ -47,6 +48,12 @@
         "expo-local-authentication",
         {
           "faceIDPermission": "Используйте Face ID для быстрой и безопасной разблокировки SavdoApp"
+        }
+      ],
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "androidClientId": "265164441201-u27ifvp09fl36976hauoh9qv8jeulsv5.apps.googleusercontent.com"
         }
       ],
       "@benfurkankilic/expo-yandex-mobile-ads",
