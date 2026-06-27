@@ -48,6 +48,14 @@ export default function AddExpenseModal({ visible, onClose, onSuccess }: AddExpe
     }
   }, [visible]);
 
+  useEffect(() => {
+    if (type === 'inventory') {
+      setCategory('inventory');
+    } else {
+      setCategory('other');
+    }
+  }, [type]);
+
   const extractAmountFromText = (text: string): number | null => {
     const match = text.match(/(\d[\d\s]*)\s*(сомон|сом|tjs)?/i);
     if (match) return parseInt(match[1].replace(/\s/g, ''));
@@ -107,7 +115,7 @@ export default function AddExpenseModal({ visible, onClose, onSuccess }: AddExpe
 
           <ScrollView style={styles.form} keyboardShouldPersistTaps="handled">
             {/* Type Switcher */}
-            <View style={styles.typeSwitcher}>
+            <View style={[styles.typeSwitcher, { backgroundColor: isDark ? '#2A2A2A' : '#F5F5F5' }]}>
               <TouchableOpacity
                 style={[
                   styles.typeBtn,
@@ -134,8 +142,21 @@ export default function AddExpenseModal({ visible, onClose, onSuccess }: AddExpe
               </TouchableOpacity>
             </View>
 
-            <Text style={[styles.label, isDark ? styles.textDark : styles.textLight]}>{t('expenses.category')}</Text>
-            <CategoryPicker selectedCategory={category} onSelect={setCategory} />
+            {type === 'operational' && (
+              <>
+                <Text style={[styles.label, isDark ? styles.textDark : styles.textLight]}>{t('expenses.category')}</Text>
+                <CategoryPicker selectedCategory={category} onSelect={setCategory} isDark={isDark} />
+              </>
+            )}
+
+            {type === 'inventory' && (
+              <View style={[styles.inventoryHint, { backgroundColor: isDark ? '#1A2A1A' : '#F0FBF7' }]}>
+                <Ionicons name="information-circle-outline" size={16} color="#1D9E75" />
+                <Text style={styles.inventoryHintText}>
+                  {t('expenses.inventoryHint')}
+                </Text>
+              </View>
+            )}
 
             <Text style={[styles.label, isDark ? styles.textDark : styles.textLight]}>{t('expenses.amount')} ({currency.symbol})</Text>
             <TextInput
@@ -234,10 +255,25 @@ const styles = StyleSheet.create({
   },
   typeSwitcher: {
     flexDirection: 'row',
-    backgroundColor: '#F5F5F5',
     borderRadius: 12,
     padding: 4,
     marginBottom: 10,
+  },
+  inventoryHint: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    padding: 12,
+    borderRadius: 10,
+    marginVertical: 8,
+    borderWidth: 1,
+    borderColor: '#1D9E75',
+  },
+  inventoryHintText: {
+    fontSize: 13,
+    color: '#1D9E75',
+    flex: 1,
+    lineHeight: 18,
   },
   typeBtn: {
     flex: 1,
