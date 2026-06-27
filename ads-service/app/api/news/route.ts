@@ -14,6 +14,7 @@ export async function GET() {
     }
     return NextResponse.json(latest);
   } catch (e) {
+    console.error('[GET /api/news] Error:', e);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
