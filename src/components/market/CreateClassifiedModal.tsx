@@ -126,7 +126,7 @@ export default function CreateClassifiedModal({ visible, onClose, onSuccess }: P
     <Modal visible={visible} animationType="slide" transparent>
       <View style={styles.modalOverlay}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior="padding"
           style={[styles.modalContent, isDark ? styles.darkBg : styles.lightBg]}
         >
           <View style={styles.header}>

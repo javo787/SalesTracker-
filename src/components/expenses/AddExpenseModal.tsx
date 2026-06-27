@@ -100,7 +100,7 @@ export default function AddExpenseModal({ visible, onClose, onSuccess }: AddExpe
       onRequestClose={onClose}
     >
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior="padding"
         style={styles.centeredView}
       >
         <View style={[styles.modalView, isDark ? styles.modalDark : styles.modalLight]}>
