@@ -8,6 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { addSale, addSaleWithSeller, getProducts, upsertClient, addDebt, updateDebtNotificationId } from '../db/database';
 import { scheduleDebtReminder } from '../utils/notifications';
 import { analyticsService } from '../services/analyticsService';
@@ -58,8 +59,24 @@ export default function AddSaleScreen(/* props */) {
   const [clientPhone, setClientPhone] = useState('');
   const [clientId, setClientId] = useState<number | null>(null);
 
+  const sellPriceRef = useRef<TextInput>(null);
+  const buyPriceRef = useRef<TextInput>(null);
+  const noteRef = useRef<TextInput>(null);
   const quantityInputRef = useRef<TextInput>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [processing, setProcessing] = useState(false);
+
+  const handleDueDateChange = (text: string) => {
+    // Remove all non-digits
+    const digits = text.replace(/\D/g, '');
+    let formatted = digits;
+    if (digits.length >= 3 && digits.length <= 4) {
+      formatted = digits.slice(0, 2) + '.' + digits.slice(2);
+    } else if (digits.length >= 5) {
+      formatted = digits.slice(0, 2) + '.' + digits.slice(2, 4) + '.' + digits.slice(4, 8);
+    }
+    setDueDate(formatted);
+  };
   const [voiceText, setVoiceText] = useState('');
   const [lastSaved, setLastSaved] = useState<{ name: string; profit: string; revenue: string } | null>(null);
   const [activeTab, setActiveTab] = useState<'sales' | 'expenses'>('sales');
@@ -471,24 +488,32 @@ FEW-SHOT EXAMPLES:
           <View style={styles.halfField}>
             <Text style={[styles.label, themeStyles.text]}>{t('addSale.sellPrice')} *</Text>
             <TextInput
+              ref={sellPriceRef}
               style={[styles.input, themeStyles.input]}
               placeholder={salePricePlaceholder ? `${salePricePlaceholder.toLocaleString()} ${currency.symbol}` : '0'}
               placeholderTextColor={isDark ? '#888' : '#aaa'}
               keyboardType="numeric"
               value={sellPrice}
               onChangeText={setSellPrice}
+              returnKeyType="next"
+              onSubmitEditing={() => isOwner ? buyPriceRef.current?.focus() : quantityInputRef.current?.focus()}
+              blurOnSubmit={false}
             />
           </View>
           {isOwner && (
             <View style={styles.halfField}>
               <Text style={[styles.label, themeStyles.text]}>{t('addSale.buyPrice')} *</Text>
               <TextInput
+                ref={buyPriceRef}
                 style={[styles.input, themeStyles.input]}
                 placeholder="0"
                 placeholderTextColor={isDark ? '#888' : '#aaa'}
                 keyboardType="numeric"
                 value={buyPrice}
                 onChangeText={setBuyPrice}
+                returnKeyType="next"
+                onSubmitEditing={() => quantityInputRef.current?.focus()}
+                blurOnSubmit={false}
               />
             </View>
           )}
@@ -503,16 +528,22 @@ FEW-SHOT EXAMPLES:
           keyboardType="numeric"
           value={quantity}
           onChangeText={setQuantity}
+          returnKeyType="next"
+          onSubmitEditing={() => noteRef.current?.focus()}
+          blurOnSubmit={false}
         />
 
         <Text style={[styles.label, themeStyles.text]}>{t('addSale.note')}</Text>
         <TextInput
+          ref={noteRef}
           style={[styles.input, styles.inputMultiline, themeStyles.input]}
           placeholder={t('addSale.notePlaceholder')}
           placeholderTextColor={isDark ? '#888' : '#aaa'}
           value={note}
           onChangeText={setNote}
           multiline
+          returnKeyType="done"
+          blurOnSubmit={true}
         />
 
     {/* Payment type selector — shown only in wholesale mode */}
@@ -560,13 +591,49 @@ FEW-SHOT EXAMPLES:
 
         {(paymentType === 'partial' || paymentType === 'debt') && (
           <View style={{ marginTop: 8, gap: 8 }}>
-            <TextInput
-              style={[styles.input, themeStyles.input]}
-              placeholder={t('addSale.dueDatePlaceholder')}
-              placeholderTextColor={isDark ? '#888' : '#aaa'}
-              value={dueDate}
-              onChangeText={setDueDate}
-            />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <TextInput
+                style={[styles.input, themeStyles.input, { flex: 1 }]}
+                placeholder="ДД.ММ.ГГГГ"
+                placeholderTextColor={isDark ? '#888' : '#aaa'}
+                keyboardType="numeric"
+                value={dueDate}
+                onChangeText={handleDueDateChange}
+                maxLength={10}
+              />
+              <TouchableOpacity
+                onPress={() => setShowDatePicker(true)}
+                style={{ padding: 10, backgroundColor: isDark ? '#2C2C2E' : '#F2F2F7', borderRadius: 10 }}
+              >
+                <Ionicons name="calendar-outline" size={22} color={isDark ? '#fff' : '#333'} />
+              </TouchableOpacity>
+            </View>
+
+            {showDatePicker && (
+              <DateTimePicker
+                value={(() => {
+                  if (!dueDate) return new Date();
+                  const [d, m, y] = dueDate.split('.').map(Number);
+                  if (d && m && y && y > 1000) {
+                    return new Date(y, m - 1, d);
+                  }
+                  return new Date();
+                })()}
+                mode="date"
+                display="default"
+                minimumDate={new Date()}
+                onChange={(event, selectedDate) => {
+                  setShowDatePicker(false);
+                  if (selectedDate) {
+                    const d = selectedDate.getDate().toString().padStart(2, '0');
+                    const m = (selectedDate.getMonth() + 1).toString().padStart(2, '0');
+                    const y = selectedDate.getFullYear();
+                    setDueDate(`${d}.${m}.${y}`);
+                  }
+                }}
+              />
+            )}
+
             <ClientAutocomplete
               value={clientName}
               phone={clientPhone}
