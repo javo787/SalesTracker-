@@ -1,6 +1,8 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import messaging from '@react-native-firebase/messaging';
+import { api } from '../services/api';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -48,6 +50,45 @@ export async function notifyImportantNews(titleRu: string, articleUrl: string) {
       data: { url: articleUrl, type: 'news' },
     },
     trigger: null,
+  });
+}
+
+export async function registerFCMToken(): Promise<void> {
+  try {
+    const authStatus = await messaging().requestPermission();
+    const enabled =
+      authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+      authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+    if (!enabled) return;
+
+    const fcmToken = await messaging().getToken();
+    if (fcmToken) {
+      await api.post('/notifications/register-token', { fcmToken });
+    }
+
+    messaging().onTokenRefresh(async (newToken) => {
+      await api.post('/notifications/register-token', { fcmToken: newToken });
+    });
+  } catch (err) {
+    console.warn('FCM registration failed:', err);
+  }
+}
+
+export function setupPushHandlers(navigation: any): void {
+  // App is open — show local notification
+  messaging().onMessage(async (remoteMessage) => {
+    const { title, body } = remoteMessage.notification || {};
+    if (title && body) {
+      await showRemoteNotification(title, body, remoteMessage.data);
+    }
+  });
+
+  // App was closed — user tapped notification
+  messaging().onNotificationOpenedApp((remoteMessage) => {
+    const type = remoteMessage.data?.type;
+    if (type === 'sales_reminder' || type === 'seller_inactive') {
+      navigation.navigate('Sale');
+    }
   });
 }
 

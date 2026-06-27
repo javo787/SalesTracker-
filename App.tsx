@@ -10,7 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { I18nextProvider, useTranslation } from 'react-i18next';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initDatabase, getOverdueDebts } from './src/db/database';
-import { requestPermissions, showRemoteNotification, notifyOverdueDebts } from './src/utils/notifications';
+import { requestPermissions, showRemoteNotification, notifyOverdueDebts, registerFCMToken, setupPushHandlers } from './src/utils/notifications';
 import i18n from './src/i18n/i18n';
 import messaging from '@react-native-firebase/messaging';
 import * as Notifications from 'expo-notifications';
@@ -303,6 +303,18 @@ function AppContent() {
 
   const { currency } = useAppContext();
   const { hasShop, isLoading: isShopLoading } = useShop();
+
+  useEffect(() => {
+    if (isAuthenticated && hasShop) {
+      registerFCMToken();
+    }
+  }, [isAuthenticated, hasShop]);
+
+  useEffect(() => {
+    if (isAuthenticated && hasShop && navigationRef.current) {
+      setupPushHandlers(navigationRef.current);
+    }
+  }, [isAuthenticated, hasShop]);
 
   useEffect(() => {
     enableImmersiveMode();

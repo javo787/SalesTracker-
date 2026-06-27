@@ -6,6 +6,7 @@ import authRoutes from './routes/auth';
 import syncRoutes from './routes/sync';
 import profileRoutes from './routes/profile';
 import shopRoutes from './routes/shop';
+import notificationRoutes from './routes/notifications';
 
 dotenv.config();
 
@@ -26,6 +27,7 @@ app.use('/auth', authRoutes);
 app.use('/sync', syncRoutes);
 app.use('/profile', profileRoutes);
 app.use('/shop', shopRoutes);
+app.use('/notifications', notificationRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

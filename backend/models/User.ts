@@ -12,6 +12,9 @@ export interface IUser extends Document {
   referralCode: string;
   referredBy?: mongoose.Types.ObjectId;
   referralCount: number;
+  fcmToken?: string;
+  fcmTokenUpdatedAt?: Date;
+  notificationsEnabled: boolean;
   createdAt: Date;
   lastSyncAt: Date;
 }
@@ -28,6 +31,9 @@ const UserSchema: Schema = new Schema({
   referralCode: { type: String, unique: true, required: true },
   referredBy: { type: Schema.Types.ObjectId, ref: 'User' },
   referralCount: { type: Number, default: 0 },
+  fcmToken: { type: String, default: null },
+  fcmTokenUpdatedAt: { type: Date, default: null },
+  notificationsEnabled: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now },
   lastSyncAt: { type: Date, default: Date.now },
 });
