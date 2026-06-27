@@ -280,7 +280,7 @@ export default function DebtorsScreen() {
         onRequestClose={() => setShowModal(false)}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior="padding"
           style={styles.modalOverlay}
         >
           <View style={[styles.modalContent, themeStyles.card]}>
@@ -525,7 +525,7 @@ export default function DebtorsScreen() {
         onRequestClose={() => setShowAddModal(false)}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior="padding"
           style={styles.modalOverlay}
         >
           <View style={[styles.modalContent, themeStyles.card]}>

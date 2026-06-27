@@ -113,7 +113,7 @@ export default function StockOperationModal({
   return (
     <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior="padding"
         style={styles.centeredView}
       >
         <View style={[styles.modalView, isDark ? styles.modalDark : styles.modalLight]}>
