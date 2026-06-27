@@ -53,7 +53,8 @@
       [
         "@react-native-google-signin/google-signin",
         {
-          "androidClientId": "265164441201-u27ifvp09fl36976hauoh9qv8jeulsv5.apps.googleusercontent.com"
+          "androidClientId": "265164441201-u27ifvp09fl36976hauoh9qv8jeulsv5.apps.googleusercontent.com",
+          "iosUrlScheme": "com.googleusercontent.apps.265164441201-tqpvcafomc06ekphquf1dk198vrpblha"
         }
       ],
       "@benfurkankilic/expo-yandex-mobile-ads",

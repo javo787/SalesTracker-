@@ -7,12 +7,17 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:265164441201:android:76b568ad1b775ba9127dd0",
+        "mobilesdk_app_id": "1:265164441201:android:68227e80a0d78865127dd0",
         "android_client_info": {
-          "package_name": "com.savdo.app"
+          "package_name": "savdo.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "265164441201-tqpvcafomc06ekphquf1dk198vrpblha.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCr_W7ML7duDysYF_2Dxz79JnInuPvDXmM"
@@ -20,7 +25,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "265164441201-tqpvcafomc06ekphquf1dk198vrpblha.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
