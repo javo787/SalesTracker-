@@ -32,8 +32,8 @@ const CURRENCIES = [
   { code: 'KGS', label: 'Сом', symbol: 'с', country: '🇰🇬 Кыргызстан' },
 ];
 
-const PRIVACY_POLICY_URL = 'https://duxtur.org/privacy';
-const SUPPORT_TELEGRAM_URL = 'https://t.me/savdoapp';
+const PRIVACY_POLICY_URL = 'https://savdo-tan.vercel.app/privacy';
+const SUPPORT_URL = 'https://savdo-tan.vercel.app/support';
 
 // Иконка в цветном кружке
 function SettingIcon({ name, color }: { name: any; color: string }) {
@@ -576,18 +576,31 @@ export default function SettingsScreen(props: any) {
           }
         />
         <SettingRow
-          icon="logo-telegram"
-          iconColor="#0088CC"
+          icon="help-circle-outline"
+          iconColor="#1D9E75"
           label={t('settings.support')}
+          sublabel={t('settings.supportSublabel')}
           isDark={isDark}
-          onPress={() => Linking.openURL(SUPPORT_TELEGRAM_URL)}
+          onPress={() => {
+            const lang = i18n.language === 'tg' ? 'tg'
+              : i18n.language === 'uz' ? 'uz'
+              : i18n.language === 'ru' ? 'ru'
+              : 'en';
+            Linking.openURL(`${SUPPORT_URL}?lang=${lang}`);
+          }}
         />
         <SettingRow
           icon="document-text-outline"
           iconColor="#8E8E93"
           label={t('settings.privacyPolicy')}
           isDark={isDark}
-          onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
+          onPress={() => {
+            const lang = i18n.language === 'tg' ? 'tg'
+              : i18n.language === 'uz' ? 'uz'
+              : i18n.language === 'ru' ? 'ru'
+              : 'en';
+            Linking.openURL(`${PRIVACY_POLICY_URL}?lang=${lang}`);
+          }}
         />
         <SettingRow
           icon="star-outline"
