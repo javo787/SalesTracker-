@@ -809,6 +809,44 @@ export function upsertClient(name: string, phone: string = '', note: string = ''
   return result.lastInsertRowId;
 }
 
+export function getAllClientsWithStats(): any[] {
+  return db.getAllSync(`
+    SELECT
+      c.id, c.name, c.phone, c.note, c.created_at, c.updated_at,
+      COALESCE((
+        SELECT SUM(amount_total - amount_paid)
+        FROM debts WHERE client_id = c.id AND status = 'active'
+      ), 0) AS active_debt,
+      (
+        SELECT COUNT(*) FROM debts WHERE client_id = c.id AND status = 'active'
+      ) AS active_debt_count,
+      (
+        SELECT MAX(created_at) FROM debts WHERE client_id = c.id
+      ) AS last_activity
+    FROM clients c
+    ORDER BY last_activity DESC
+  `);
+}
+
+export function updateClient(
+  id: number, name: string, phone: string, note: string = ''
+): void {
+  db.runSync(
+    'UPDATE clients SET name = ?, phone = ?, note = ?, updated_at = ? WHERE id = ?',
+    [name.trim(), phone.trim(), note.trim(), nowLocalISO(), id]
+  );
+}
+
+export function deleteClientIfSafe(id: number): boolean {
+  const hasDebts = db.getFirstSync(
+    'SELECT id FROM debts WHERE client_id = ? AND status = "active" LIMIT 1',
+    [id]
+  );
+  if (hasDebts) return false;
+  db.runSync('DELETE FROM clients WHERE id = ?', [id]);
+  return true;
+}
+
 // ── Debts ─────────────────────────────────────────────
 
 export function addDebt(

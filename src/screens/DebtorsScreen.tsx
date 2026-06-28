@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   Alert, TextInput, Modal, KeyboardAvoidingView, Platform,
-  RefreshControl, ScrollView,
+  RefreshControl, ScrollView, Linking,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusEffect } from '@react-navigation/native';
@@ -15,6 +15,7 @@ import {
   getDebtsWithClients, recordDebtPayment, getDebtPayments, getDebtSummary,
   updateDebtNotificationId, getDebtById,
   addDebt, deleteDebt, searchClients, upsertClient, getClientDebtHistory,
+  getAllClientsWithStats, updateClient, deleteClientIfSafe,
 } from '../db/database';
 import { cancelDebtReminder } from '../utils/notifications';
 
@@ -50,6 +51,23 @@ export default function DebtorsScreen() {
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
 
+  // Screen-level tab: 'debts' | 'clients'
+  const [screenTab, setScreenTab] = useState<'debts' | 'clients'>('debts');
+
+  // Clients tab state
+  const [clients, setClients] = useState<any[]>([]);
+  const [clientSearch, setClientSearch] = useState('');
+  const [showAddClientModal, setShowAddClientModal] = useState(false);
+  const [showEditClientModal, setShowEditClientModal] = useState(false);
+  const [selectedClient, setSelectedClient] = useState<any>(null);
+  const [newClientName, setNewClientName] = useState('');
+  const [newClientPhone, setNewClientPhone] = useState('');
+  const [newClientNote, setNewClientNote] = useState('');
+  const [editClientName, setEditClientName] = useState('');
+  const [editClientPhone, setEditClientPhone] = useState('');
+  const [editClientNote, setEditClientNote] = useState('');
+  const [showClientDetailModal, setShowClientDetailModal] = useState(false);
+
   const loadDebts = useCallback(() => {
     const data = getDebtsWithClients() as any[];
     setDebts(data);
@@ -58,13 +76,92 @@ export default function DebtorsScreen() {
     setTotalAmount(data.reduce((sum: number, d: any) => sum + d.amount_total, 0));
   }, []);
 
-  useFocusEffect(useCallback(() => { loadDebts(); }, [loadDebts]));
+  const loadClients = useCallback(() => {
+    const data = getAllClientsWithStats() as any[];
+    setClients(data);
+  }, []);
+
+  useFocusEffect(useCallback(() => {
+    loadDebts();
+    loadClients();
+  }, [loadDebts, loadClients]));
 
   const onRefresh = () => {
     setRefreshing(true);
     loadDebts();
+    loadClients();
     setRefreshing(false);
   };
+
+  const handleAddClient = () => {
+    const name = newClientName.trim();
+    if (!name) {
+      Alert.alert('Ошибка', 'Введите имя клиента');
+      return;
+    }
+    upsertClient(name, newClientPhone.trim(), newClientNote.trim());
+    setNewClientName('');
+    setNewClientPhone('');
+    setNewClientNote('');
+    setShowAddClientModal(false);
+    loadClients();
+  };
+
+  const handleEditClient = () => {
+    if (!selectedClient) return;
+    const name = editClientName.trim();
+    if (!name) {
+      Alert.alert('Ошибка', 'Имя не может быть пустым');
+      return;
+    }
+    updateClient(selectedClient.id, name, editClientPhone.trim(), editClientNote.trim());
+    setShowEditClientModal(false);
+    setSelectedClient(null);
+    loadClients();
+  };
+
+  const handleDeleteClient = (client: any) => {
+    Alert.alert(
+      'Удалить клиента',
+      `Удалить "${client.name}"? Это действие нельзя отменить.`,
+      [
+        { text: 'Отмена', style: 'cancel' },
+        {
+          text: 'Удалить',
+          style: 'destructive',
+          onPress: () => {
+            const success = deleteClientIfSafe(client.id);
+            if (success) {
+              loadClients();
+            } else {
+              Alert.alert(
+                'Нельзя удалить',
+                'У клиента есть активные долги. Сначала закройте все долги.'
+              );
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const openClientDetail = (client: any) => {
+    setSelectedClient(client);
+    setShowClientDetailModal(true);
+  };
+
+  const openEditClient = (client: any) => {
+    setSelectedClient(client);
+    setEditClientName(client.name);
+    setEditClientPhone(client.phone || '');
+    setEditClientNote(client.note || '');
+    setShowEditClientModal(true);
+  };
+
+  const filteredClients = clients.filter(c =>
+    c.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
+    (c.phone && c.phone.includes(clientSearch))
+  );
 
   const openClient = (debt: any) => {
     setSelectedDebt(debt);
@@ -211,7 +308,41 @@ export default function DebtorsScreen() {
 
   return (
     <View style={[styles.container, themeStyles.container]}>
-      {/* Summary header */}
+      {/* Screen tab switcher */}
+      <View style={clientStyles.screenTabRow}>
+        <TouchableOpacity
+          style={[
+            clientStyles.screenTab,
+            screenTab === 'debts' && clientStyles.screenTabActive,
+          ]}
+          onPress={() => setScreenTab('debts')}
+        >
+          <Text style={[
+            clientStyles.screenTabText,
+            screenTab === 'debts' && clientStyles.screenTabTextActive,
+          ]}>
+            Долги
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            clientStyles.screenTab,
+            screenTab === 'clients' && clientStyles.screenTabActive,
+          ]}
+          onPress={() => setScreenTab('clients')}
+        >
+          <Text style={[
+            clientStyles.screenTabText,
+            screenTab === 'clients' && clientStyles.screenTabTextActive,
+          ]}>
+            Клиенты
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {screenTab === 'debts' && (
+        <>
+          {/* Summary header */}
       <View style={[styles.summary, themeStyles.card]}>
         <Text style={styles.summaryLabel}>{t('debtors.totalOwed')}</Text>
         <Text style={[styles.summaryValue, themeStyles.text]}>
@@ -256,21 +387,126 @@ export default function DebtorsScreen() {
         </TouchableOpacity>
       </View>
 
-      <FlatList
-        data={filteredDebts}
-        keyExtractor={(item) => String(item.id)}
-        renderItem={renderItem}
-        contentContainerStyle={{ padding: 16, paddingTop: 8 }}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Ionicons name="checkmark-circle-outline" size={64} color="#1D9E75" />
-            <Text style={styles.emptyText}>{t('debtors.emptyList')}</Text>
+          <FlatList
+            data={filteredDebts}
+            keyExtractor={(item) => String(item.id)}
+            renderItem={renderItem}
+            contentContainerStyle={{ padding: 16, paddingTop: 8 }}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            }
+            ListEmptyComponent={
+              <View style={styles.empty}>
+                <Ionicons name="checkmark-circle-outline" size={64} color="#1D9E75" />
+                <Text style={styles.emptyText}>{t('debtors.emptyList')}</Text>
+              </View>
+            }
+          />
+        </>
+      )}
+
+      {screenTab === 'clients' && (
+        <View style={{ flex: 1 }}>
+          {/* Search bar */}
+          <View style={clientStyles.searchRow}>
+            <View style={[clientStyles.searchWrap, isDark ? clientStyles.searchWrapDark : clientStyles.searchWrapLight]}>
+              <Ionicons name="search" size={16} color="#999" style={{ marginRight: 6 }} />
+              <TextInput
+                style={[clientStyles.searchInput, { color: isDark ? '#EEE' : '#222' }]}
+                placeholder="Поиск по имени или номеру..."
+                placeholderTextColor="#999"
+                value={clientSearch}
+                onChangeText={setClientSearch}
+              />
+              {clientSearch.length > 0 && (
+                <TouchableOpacity onPress={() => setClientSearch('')}>
+                  <Ionicons name="close-circle" size={16} color="#999" />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
-        }
-      />
+
+          {/* Clients list */}
+          <FlatList
+            data={filteredClients}
+            keyExtractor={(item) => String(item.id)}
+            contentContainerStyle={{ padding: 16, paddingTop: 8 }}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadClients(); setRefreshing(false); }} />}
+            ListEmptyComponent={
+              <View style={styles.empty}>
+                <Ionicons name="people-outline" size={64} color="#ccc" />
+                <Text style={styles.emptyText}>
+                  {clientSearch ? 'Клиент не найден' : 'Клиентов пока нет'}
+                </Text>
+              </View>
+            }
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={[clientStyles.clientCard, isDark ? clientStyles.clientCardDark : clientStyles.clientCardLight]}
+                onPress={() => openClientDetail(item)}
+                activeOpacity={0.75}
+              >
+                {/* Left: avatar circle */}
+                <View style={[clientStyles.avatar, { backgroundColor: item.active_debt > 0 ? '#FDECEA' : '#E8F5E9' }]}>
+                  <Text style={[clientStyles.avatarText, { color: item.active_debt > 0 ? '#E53935' : '#1D9E75' }]}>
+                    {item.name.charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+
+                {/* Center: name + meta */}
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={[clientStyles.clientName, { color: isDark ? '#EEE' : '#222' }]} numberOfLines={1}>
+                    {item.name}
+                  </Text>
+                  {item.phone ? (
+                    <Text style={clientStyles.clientPhone} numberOfLines={1}>{item.phone}</Text>
+                  ) : (
+                    <Text style={clientStyles.clientPhoneEmpty}>Нет номера</Text>
+                  )}
+                  {item.last_activity ? (
+                    <Text style={clientStyles.clientMeta}>
+                      Последняя операция: {new Date(item.last_activity).toLocaleDateString('ru-RU')}
+                    </Text>
+                  ) : null}
+                </View>
+
+                {/* Right: debt badge + call button */}
+                <View style={clientStyles.clientRight}>
+                  {item.active_debt > 0 && (
+                    <View style={clientStyles.debtBadge}>
+                      <Text style={clientStyles.debtBadgeText}>
+                        {item.active_debt.toLocaleString()} {currency.symbol}
+                      </Text>
+                    </View>
+                  )}
+                  {item.phone ? (
+                    <TouchableOpacity
+                      style={clientStyles.callBtn}
+                      onPress={() => Linking.openURL(`tel:${item.phone}`)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons name="call" size={18} color="#1D9E75" />
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              </TouchableOpacity>
+            )}
+          />
+
+          {/* FAB: add client manually */}
+          <TouchableOpacity
+            style={styles.fab}
+            onPress={() => {
+              setNewClientName('');
+              setNewClientPhone('');
+              setNewClientNote('');
+              setShowAddClientModal(true);
+            }}
+          >
+            <Ionicons name="person-add" size={24} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Payment modal */}
       <Modal
@@ -507,15 +743,17 @@ export default function DebtorsScreen() {
       </Modal>
 
       {/* FAB */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => {
-          resetAddModal();
-          setShowAddModal(true);
-        }}
-      >
-        <Ionicons name="add" size={28} color="#fff" />
-      </TouchableOpacity>
+      {screenTab === 'debts' && (
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => {
+            resetAddModal();
+            setShowAddModal(true);
+          }}
+        >
+          <Ionicons name="add" size={28} color="#fff" />
+        </TouchableOpacity>
+      )}
 
       {/* Add Debt Modal */}
       <Modal
@@ -667,6 +905,221 @@ export default function DebtorsScreen() {
           }}
         />
       )}
+
+      {/* Add Client Modal */}
+      <Modal
+        visible={showAddClientModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowAddClientModal(false)}
+      >
+        <KeyboardAvoidingView behavior="padding" style={styles.modalOverlay}>
+          <View style={[styles.modalContent, themeStyles.card]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, themeStyles.text]}>Новый клиент</Text>
+              <TouchableOpacity onPress={() => setShowAddClientModal(false)}>
+                <Ionicons name="close" size={24} color={isDark ? '#fff' : '#000'} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={[styles.label, themeStyles.text]}>Имя клиента *</Text>
+            <TextInput
+              style={[styles.input, isDark ? styles.inputDark : styles.inputLight]}
+              placeholder="Например: Алишер"
+              placeholderTextColor={isDark ? '#888' : '#aaa'}
+              value={newClientName}
+              onChangeText={setNewClientName}
+              autoFocus
+              returnKeyType="next"
+            />
+
+            <Text style={[styles.label, themeStyles.text, { marginTop: 12 }]}>Телефон</Text>
+            <TextInput
+              style={[styles.input, isDark ? styles.inputDark : styles.inputLight]}
+              placeholder="+992 XX XXX XX XX"
+              placeholderTextColor={isDark ? '#888' : '#aaa'}
+              value={newClientPhone}
+              onChangeText={setNewClientPhone}
+              keyboardType="phone-pad"
+              returnKeyType="next"
+            />
+
+            <Text style={[styles.label, themeStyles.text, { marginTop: 12 }]}>Заметка (необязательно)</Text>
+            <TextInput
+              style={[styles.input, isDark ? styles.inputDark : styles.inputLight]}
+              placeholder="Любая пометка..."
+              placeholderTextColor={isDark ? '#888' : '#aaa'}
+              value={newClientNote}
+              onChangeText={setNewClientNote}
+              returnKeyType="done"
+            />
+
+            <TouchableOpacity
+              style={[styles.payBtn, { marginTop: 20 }]}
+              onPress={handleAddClient}
+            >
+              <Text style={styles.payBtnText}>Добавить клиента</Text>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Edit Client Modal */}
+      <Modal
+        visible={showEditClientModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowEditClientModal(false)}
+      >
+        <KeyboardAvoidingView behavior="padding" style={styles.modalOverlay}>
+          <View style={[styles.modalContent, themeStyles.card]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, themeStyles.text]}>Редактировать</Text>
+              <TouchableOpacity onPress={() => setShowEditClientModal(false)}>
+                <Ionicons name="close" size={24} color={isDark ? '#fff' : '#000'} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={[styles.label, themeStyles.text]}>Имя *</Text>
+            <TextInput
+              style={[styles.input, isDark ? styles.inputDark : styles.inputLight]}
+              value={editClientName}
+              onChangeText={setEditClientName}
+              autoFocus
+              returnKeyType="next"
+            />
+
+            <Text style={[styles.label, themeStyles.text, { marginTop: 12 }]}>Телефон</Text>
+            <TextInput
+              style={[styles.input, isDark ? styles.inputDark : styles.inputLight]}
+              value={editClientPhone}
+              onChangeText={setEditClientPhone}
+              keyboardType="phone-pad"
+              returnKeyType="next"
+            />
+
+            <Text style={[styles.label, themeStyles.text, { marginTop: 12 }]}>Заметка</Text>
+            <TextInput
+              style={[styles.input, isDark ? styles.inputDark : styles.inputLight]}
+              value={editClientNote}
+              onChangeText={setEditClientNote}
+              returnKeyType="done"
+            />
+
+            <TouchableOpacity
+              style={[styles.payBtn, { marginTop: 20 }]}
+              onPress={handleEditClient}
+            >
+              <Text style={styles.payBtnText}>Сохранить</Text>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Client Detail Modal */}
+      <Modal
+        visible={showClientDetailModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowClientDetailModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowClientDetailModal(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={[clientStyles.detailSheet, themeStyles.card]}
+          >
+            {/* Header */}
+            <View style={clientStyles.detailHeader}>
+              <View style={[clientStyles.avatar, { width: 48, height: 48, borderRadius: 24 }]}>
+                <Text style={[clientStyles.avatarText, { fontSize: 20 }]}>
+                  {selectedClient?.name?.charAt(0)?.toUpperCase()}
+                </Text>
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={[clientStyles.clientName, { color: isDark ? '#EEE' : '#222', fontSize: 18 }]}>
+                  {selectedClient?.name}
+                </Text>
+                {selectedClient?.phone ? (
+                  <TouchableOpacity
+                    style={clientStyles.phoneRow}
+                    onPress={() => Linking.openURL(`tel:${selectedClient.phone}`)}
+                  >
+                    <Ionicons name="call" size={14} color="#1D9E75" />
+                    <Text style={clientStyles.phoneLink}>{selectedClient.phone}</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <Text style={clientStyles.clientPhoneEmpty}>Нет номера телефона</Text>
+                )}
+              </View>
+              <TouchableOpacity onPress={() => setShowClientDetailModal(false)}>
+                <Ionicons name="close" size={24} color={isDark ? '#fff' : '#666'} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Stats row */}
+            <View style={clientStyles.statsRow}>
+              <View style={clientStyles.statItem}>
+                <Text style={clientStyles.statLabel}>Активных долгов</Text>
+                <Text style={[clientStyles.statValue, { color: selectedClient?.active_debt > 0 ? '#E53935' : '#1D9E75' }]}>
+                  {selectedClient?.active_debt_count || 0}
+                </Text>
+              </View>
+              <View style={clientStyles.statDivider} />
+              <View style={clientStyles.statItem}>
+                <Text style={clientStyles.statLabel}>Сумма долга</Text>
+                <Text style={[clientStyles.statValue, { color: selectedClient?.active_debt > 0 ? '#E53935' : '#1D9E75' }]}>
+                  {(selectedClient?.active_debt || 0).toLocaleString()} {currency.symbol}
+                </Text>
+              </View>
+            </View>
+
+            {selectedClient?.note ? (
+              <Text style={clientStyles.noteText}>📝 {selectedClient.note}</Text>
+            ) : null}
+
+            {/* Actions */}
+            <View style={clientStyles.actionRow}>
+              {selectedClient?.phone ? (
+                <TouchableOpacity
+                  style={[clientStyles.actionBtn, clientStyles.actionBtnGreen]}
+                  onPress={() => Linking.openURL(`tel:${selectedClient.phone}`)}
+                >
+                  <Ionicons name="call" size={18} color="#fff" />
+                  <Text style={clientStyles.actionBtnText}>Позвонить</Text>
+                </TouchableOpacity>
+              ) : null}
+
+              <TouchableOpacity
+                style={[clientStyles.actionBtn, clientStyles.actionBtnGray]}
+                onPress={() => {
+                  setShowClientDetailModal(false);
+                  setTimeout(() => openEditClient(selectedClient), 300);
+                }}
+              >
+                <Ionicons name="pencil" size={18} color="#fff" />
+                <Text style={clientStyles.actionBtnText}>Изменить</Text>
+              </TouchableOpacity>
+
+              {isOwner && (
+                <TouchableOpacity
+                  style={[clientStyles.actionBtn, clientStyles.actionBtnRed]}
+                  onPress={() => {
+                    setShowClientDetailModal(false);
+                    setTimeout(() => handleDeleteClient(selectedClient), 300);
+                  }}
+                >
+                  <Ionicons name="trash" size={18} color="#fff" />
+                  <Text style={clientStyles.actionBtnText}>Удалить</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -880,4 +1333,109 @@ const styles = StyleSheet.create({
   historyPaymentDate: { fontSize: 12, color: '#999' },
   historyPaymentAmount: { fontSize: 13, fontWeight: '600', color: '#1D9E75' },
   historyPaymentNote: { fontSize: 12, color: '#aaa', flex: 1 },
+});
+
+const clientStyles = StyleSheet.create({
+  screenTabRow: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
+    backgroundColor: '#F0F0F0',
+    borderRadius: 10,
+    padding: 3,
+  },
+  screenTab: {
+    flex: 1,
+    paddingVertical: 9,
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  screenTabActive: {
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  screenTabText: { fontSize: 14, fontWeight: '500', color: '#888' },
+  screenTabTextActive: { color: '#222', fontWeight: '600' },
+
+  searchRow: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
+  searchWrap: {
+    flexDirection: 'row', alignItems: 'center',
+    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9,
+    borderWidth: 1,
+  },
+  searchWrapLight: { backgroundColor: '#F5F5F5', borderColor: '#E5E5E5' },
+  searchWrapDark:  { backgroundColor: '#2C2C2C', borderColor: '#444' },
+  searchInput: { flex: 1, fontSize: 14, padding: 0 },
+
+  clientCard: {
+    flexDirection: 'row', alignItems: 'center',
+    borderRadius: 12, padding: 14, marginBottom: 10,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06, shadowRadius: 4, elevation: 2,
+  },
+  clientCardLight: { backgroundColor: '#fff' },
+  clientCardDark:  { backgroundColor: '#2C2C2C' },
+
+  avatar: {
+    width: 42, height: 42, borderRadius: 21,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  avatarText: { fontSize: 18, fontWeight: '700' },
+
+  clientName:  { fontSize: 15, fontWeight: '600', marginBottom: 2 },
+  clientPhone: { fontSize: 13, color: '#777' },
+  clientPhoneEmpty: { fontSize: 13, color: '#bbb', fontStyle: 'italic' },
+  clientMeta:  { fontSize: 11, color: '#bbb', marginTop: 2 },
+
+  clientRight: { alignItems: 'flex-end', gap: 6 },
+  debtBadge: {
+    backgroundColor: '#FDECEA', borderRadius: 8,
+    paddingHorizontal: 8, paddingVertical: 3,
+  },
+  debtBadgeText: { fontSize: 12, fontWeight: '600', color: '#E53935' },
+  callBtn: {
+    width: 34, height: 34, borderRadius: 17,
+    backgroundColor: '#E8F5E9',
+    alignItems: 'center', justifyContent: 'center',
+  },
+
+  detailSheet: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    padding: 20, paddingBottom: 36,
+  },
+  detailHeader: {
+    flexDirection: 'row', alignItems: 'center', marginBottom: 16,
+  },
+  phoneRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3,
+  },
+  phoneLink: { fontSize: 14, color: '#1D9E75', fontWeight: '500' },
+
+  statsRow: {
+    flexDirection: 'row',
+    backgroundColor: '#F8F8F8',
+    borderRadius: 12, padding: 14, marginBottom: 14,
+  },
+  statItem: { flex: 1, alignItems: 'center' },
+  statLabel: { fontSize: 11, color: '#999', marginBottom: 4 },
+  statValue: { fontSize: 20, fontWeight: '700' },
+  statDivider: { width: 1, backgroundColor: '#E0E0E0', marginHorizontal: 8 },
+
+  noteText: { fontSize: 13, color: '#777', marginBottom: 14, fontStyle: 'italic' },
+
+  actionRow: { flexDirection: 'row', gap: 10 },
+  actionBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingVertical: 13, borderRadius: 12,
+  },
+  actionBtnGreen: { backgroundColor: '#1D9E75' },
+  actionBtnGray:  { backgroundColor: '#757575' },
+  actionBtnRed:   { backgroundColor: '#E53935' },
+  actionBtnText:  { color: '#fff', fontWeight: '600', fontSize: 14 },
 });
