@@ -646,7 +646,7 @@ export default function ReportScreen() {
               style={[styles.forecastBtn, styles.forecastBtnCached]}
               onPress={handleForecastPress}
             >
-              <Text style={styles.forecastBtnTextActive}>🔮 {t('forecast.buttonLabelCached')}</Text>
+              <Text style={styles.forecastBtnTextActive}>{t('forecast.buttonLabelCached')}</Text>
             </TouchableOpacity>
             <Text style={styles.forecastRefreshText}>
               {t('forecast.refreshesIn', { count: forecastRefreshesIn })}
@@ -657,7 +657,7 @@ export default function ReportScreen() {
             style={[styles.forecastBtn, styles.forecastBtnDefault, themeStyles.card]}
             onPress={handleForecastPress}
           >
-            <Text style={styles.forecastBtnTextDefault}>🔮 {t('forecast.buttonLabel')}</Text>
+            <Text style={styles.forecastBtnTextDefault}>{t('forecast.buttonLabel')}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -932,13 +932,10 @@ export default function ReportScreen() {
             disabled={isExportLoading}
           >
             <View style={styles.exportOptionLeft}>
-              <Text style={styles.exportOptionEmoji}>✨</Text>
+              <Text style={styles.exportOptionEmoji}>🤖</Text>
               <View>
                 <Text style={[styles.exportOptionTitle, themeStyles.text]}>{t('exportSummary.buttonAI')}</Text>
                 <Text style={styles.exportOptionDesc}>+ анализ и советы от AI</Text>
-                <Text style={styles.exportOptionAd}>
-                  {cachedSummary ? `[ ✅ ${t('forecast.buttonLabelCached')} ]` : `[ ${t('extendedReport.watchVideo')} ]`}
-                </Text>
               </View>
             </View>
             {isExportLoading && <ActivityIndicator size="small" color="#1D9E75" />}

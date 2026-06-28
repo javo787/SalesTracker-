@@ -68,7 +68,7 @@ export default function CustomDrawerContent(props: DrawerContentComponentProps) 
               <View style={{ flexDirection: 'row', gap: 4 }}>
                 <View style={[styles.roleBadge, { backgroundColor: isOwner ? '#5856D6' : '#34C759' }]}>
                   <Text style={styles.badgeText}>
-                    {isOwner ? 'Владелец' : 'Продавец'}
+                    {isOwner ? t('common.owner') : t('common.seller')}
                   </Text>
                 </View>
                 <View style={[styles.providerBadge, { backgroundColor: isGuest ? '#888' : '#1D9E75' }]}>
