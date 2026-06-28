@@ -123,67 +123,62 @@ export function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_sales_product_name ON sales(product_name);
     CREATE INDEX IF NOT EXISTS idx_sales_created_at ON sales(created_at);
     CREATE INDEX IF NOT EXISTS idx_stock_movements_product_id ON stock_movements(product_id);
+    CREATE INDEX IF NOT EXISTS idx_clients_name ON clients(name);
   `);
 
-  // Migration: add min_stock_alert to products if it doesn't exist
-  const tableInfo = db.getAllSync("PRAGMA table_info(products)") as any[];
-  const hasMinStockAlert = tableInfo.some(col => col.name === 'min_stock_alert');
-  if (!hasMinStockAlert) {
-    db.execSync('ALTER TABLE products ADD COLUMN min_stock_alert INTEGER DEFAULT 0');
-  }
+  // One-time schema migrations (skipped on subsequent launches)
+  db.execSync('CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT)');
 
-  // Migration: add stock_updated to sales if it doesn't exist
-  const salesTableInfo = db.getAllSync("PRAGMA table_info(sales)") as any[];
-  const hasStockUpdated = salesTableInfo.some(col => col.name === 'stock_updated');
-  if (!hasStockUpdated) {
-    db.execSync('ALTER TABLE sales ADD COLUMN stock_updated INTEGER DEFAULT 0');
-  }
+  const schemaMigrationDone = db.getFirstSync(
+    "SELECT value FROM app_meta WHERE key = 'schema_v2'"
+  ) as { value: string } | null;
 
-  // Migration: add new warehouse columns to products
-  const warehouseCols = [
-    { name: 'base_unit', type: 'TEXT DEFAULT \'шт\'' },
-    { name: 'has_packages', type: 'INTEGER DEFAULT 0' },
-    { name: 'package_name', type: 'TEXT' },
-    { name: 'units_per_package', type: 'REAL DEFAULT 1' },
-    { name: 'updated_at', type: 'TEXT' },
-    { name: 'synced', type: 'INTEGER DEFAULT 0' },
-    { name: 'is_deleted', type: 'INTEGER DEFAULT 0' }
-  ];
+  if (!schemaMigrationDone) {
+    db.withTransactionSync(() => {
+      const tableInfo = db.getAllSync("PRAGMA table_info(products)") as any[];
+      const salesTableInfo = db.getAllSync("PRAGMA table_info(sales)") as any[];
+      const debtCols = db.getAllSync("PRAGMA table_info(debts)") as any[];
 
-  warehouseCols.forEach(col => {
-    if (!tableInfo.some(c => c.name === col.name)) {
-      db.execSync(`ALTER TABLE products ADD COLUMN ${col.name} ${col.type}`);
-    }
-  });
+      // products columns
+      const productsCols = [
+        { name: 'min_stock_alert', type: 'INTEGER DEFAULT 0' },
+        { name: 'base_unit', type: "TEXT DEFAULT 'шт'" },
+        { name: 'has_packages', type: 'INTEGER DEFAULT 0' },
+        { name: 'package_name', type: 'TEXT' },
+        { name: 'units_per_package', type: 'REAL DEFAULT 1' },
+        { name: 'updated_at', type: 'TEXT' },
+        { name: 'synced', type: 'INTEGER DEFAULT 0' },
+        { name: 'is_deleted', type: 'INTEGER DEFAULT 0' },
+        { name: 'category', type: 'TEXT' },
+        { name: 'remote_id', type: 'TEXT' },
+      ];
+      productsCols.forEach(col => {
+        if (!tableInfo.some(c => c.name === col.name)) {
+          db.execSync(`ALTER TABLE products ADD COLUMN ${col.name} ${col.type}`);
+        }
+      });
 
-  // Migration: add category to products
-  if (!tableInfo.some(col => col.name === 'category')) {
-    db.execSync('ALTER TABLE products ADD COLUMN category TEXT');
-  }
+      // sales columns
+      const salesCols = [
+        { name: 'stock_updated', type: 'INTEGER DEFAULT 0' },
+        { name: 'seller_id', type: 'TEXT' },
+        { name: 'seller_name', type: 'TEXT' },
+        { name: 'stock_warning', type: 'INTEGER DEFAULT 0' },
+        { name: 'remote_id', type: 'TEXT' },
+      ];
+      salesCols.forEach(col => {
+        if (!salesTableInfo.some(c => c.name === col.name)) {
+          db.execSync(`ALTER TABLE sales ADD COLUMN ${col.name} ${col.type}`);
+        }
+      });
 
-  // Migration: add notification_id to debts
-  const debtCols = db.getAllSync("PRAGMA table_info(debts)") as any[];
-  const hasNotifId = debtCols.some(c => c.name === 'notification_id');
-  if (!hasNotifId) {
-    db.runSync("ALTER TABLE debts ADD COLUMN notification_id TEXT");
-  }
+      // debts columns
+      if (!debtCols.some(c => c.name === 'notification_id')) {
+        db.runSync("ALTER TABLE debts ADD COLUMN notification_id TEXT");
+      }
 
-  // Migration: add seller_id and seller_name in sales
-  const salesColsNew = db.getAllSync("PRAGMA table_info(sales)") as any[];
-  if (!salesColsNew.some(c => c.name === 'seller_id')) {
-    db.execSync("ALTER TABLE sales ADD COLUMN seller_id TEXT");
-  }
-  if (!salesColsNew.some(c => c.name === 'seller_name')) {
-    db.execSync("ALTER TABLE sales ADD COLUMN seller_name TEXT");
-  }
-  if (!salesColsNew.some(c => c.name === 'stock_warning')) {
-    db.execSync("ALTER TABLE sales ADD COLUMN stock_warning INTEGER DEFAULT 0");
-  }
-  if (!salesColsNew.some(c => c.name === 'remote_id')) {
-    db.execSync("ALTER TABLE sales ADD COLUMN remote_id TEXT");
-  }
-  if (!tableInfo.some(c => c.name === 'remote_id')) {
-    db.execSync("ALTER TABLE products ADD COLUMN remote_id TEXT");
+      db.runSync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_v2', 'done')");
+    });
   }
 
   // Migration: shop_session table
@@ -195,7 +190,6 @@ export function initDatabase() {
   `);
 
   // Migration: timezone shift + one-time migration check
-  db.execSync('CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT)');
   const migrationDone = db.getFirstSync("SELECT value FROM app_meta WHERE key = 'tz_migration_v1'") as { value: string } | null;
 
   if (!migrationDone) {
@@ -813,17 +807,12 @@ export function getAllClientsWithStats(): any[] {
   return db.getAllSync(`
     SELECT
       c.id, c.name, c.phone, c.note, c.created_at, c.updated_at,
-      COALESCE((
-        SELECT SUM(amount_total - amount_paid)
-        FROM debts WHERE client_id = c.id AND status = 'active'
-      ), 0) AS active_debt,
-      (
-        SELECT COUNT(*) FROM debts WHERE client_id = c.id AND status = 'active'
-      ) AS active_debt_count,
-      (
-        SELECT MAX(created_at) FROM debts WHERE client_id = c.id
-      ) AS last_activity
+      COALESCE(SUM(CASE WHEN d.status = 'active' THEN d.amount_total - d.amount_paid ELSE 0 END), 0) AS active_debt,
+      COUNT(CASE WHEN d.status = 'active' THEN 1 END) AS active_debt_count,
+      MAX(d.created_at) AS last_activity
     FROM clients c
+    LEFT JOIN debts d ON d.client_id = c.id
+    GROUP BY c.id, c.name, c.phone, c.note, c.created_at, c.updated_at
     ORDER BY last_activity DESC
   `);
 }

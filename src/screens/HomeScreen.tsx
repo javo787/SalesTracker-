@@ -147,6 +147,9 @@ export default function HomeScreen() {
   const [dailyTip, setDailyTip] = useState<string | null>(null);
   const [debtSummary, setDebtSummary] = useState({ total_remaining: 0, debtor_count: 0 });
 
+  const lastLoadRef = useRef<number>(0);
+  const lastTipRef = useRef<number>(0);
+
   const loadData = () => {
     const userId = user?._id || 'guest';
     const s = isOwner ? getStats(1) : getMyStats(userId, 1);
@@ -166,12 +169,21 @@ export default function HomeScreen() {
   };
 
   useFocusEffect(useCallback(() => {
-    loadData();
-    loadTip();
+    const now = Date.now();
+    if (now - lastLoadRef.current > 30_000) {
+      loadData();
+      lastLoadRef.current = now;
+    }
+    if (now - lastTipRef.current > 300_000) {
+      loadTip();
+      lastTipRef.current = now;
+    }
   }, [t, currency.symbol]));
 
   const onRefresh = async () => {
     setRefreshing(true);
+    lastLoadRef.current = 0;
+    lastTipRef.current = 0;
     await loadData();
     await loadTip();
     setRefreshing(false);
