@@ -1,7 +1,8 @@
 import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
-  TouchableOpacity, RefreshControl, Alert, PanResponder, Animated as RNAnimated
+  TouchableOpacity, RefreshControl, Alert, PanResponder, Animated as RNAnimated,
+  Dimensions
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -134,6 +135,16 @@ function StatCard({ label, value, currency, unit, icon, color, themeStyles, tren
 
 export default function HomeScreen() {
   const { t, i18n } = useTranslation();
+  const { width: SCREEN_W } = Dimensions.get('window');
+  // 3 chips, horizontal padding 16*2=32, gaps 8*2=16 → available = SCREEN_W - 48
+  // On wide screens (≥390px) use normal sizes, scale down proportionally below that
+  const chipScale = Math.min(1, (SCREEN_W - 48) / 342); // 342 = natural width of 3 chips
+  const chipFontSize = Math.max(11, Math.round(14 * chipScale));
+  const chipPaddingH = Math.max(8, Math.round(12 * chipScale));
+  const chipPaddingV = Math.max(6, Math.round(10 * chipScale));
+  const chipGap = Math.max(4, Math.round(8 * chipScale));
+  const chipIconSize = Math.max(14, Math.round(18 * chipScale));
+
   const { resolvedTheme, currency, sellerMode: contextSellerMode } = useAppContext(); const isDark = resolvedTheme === "dark";
   const { user } = useAuth();
   const { isOwner, isSeller, sellerName, shopId } = useShop();
@@ -210,17 +221,17 @@ export default function HomeScreen() {
   const themeStyles = isDark ? darkStyles : lightStyles;
 
   const revenueTrend = useMemo(() => {
-    const avg = (stats7.revenue - stats.revenue) / 6;
-    if (avg === 0) return null;
-    const diff = (stats.revenue - avg) / Math.abs(avg);
-    return Math.round(diff * 100);
+    const prev6avg = (stats7.revenue - stats.revenue) / 6;
+    if (prev6avg === 0) return null;
+    const change = Math.round(((stats.revenue - prev6avg) / Math.abs(prev6avg)) * 100);
+    return Math.max(-999, Math.min(999, change));
   }, [stats.revenue, stats7.revenue]);
 
   const profitTrend = useMemo(() => {
-    const avg = (stats7.profit - stats.profit) / 6;
-    if (avg === 0) return null;
-    const diff = (stats.profit - avg) / Math.abs(avg);
-    return Math.round(diff * 100);
+    const prev6avg = (stats7.profit - stats.profit) / 6;
+    if (prev6avg === 0) return null;
+    const change = Math.round(((stats.profit - prev6avg) / Math.abs(prev6avg)) * 100);
+    return Math.max(-999, Math.min(999, change));
   }, [stats.profit, stats7.profit]);
 
   const getGreeting = () => {
@@ -297,29 +308,29 @@ export default function HomeScreen() {
       ) : null}
 
       {/* Quick Actions */}
-      <View style={styles.quickActions}>
+      <View style={[styles.quickActions, { gap: chipGap }]}>
         <TouchableOpacity
-          style={[styles.actionChip, { backgroundColor: Colors.primaryLight }]}
+          style={[styles.actionChip, { backgroundColor: Colors.primaryLight, flex: 1, paddingHorizontal: chipPaddingH, paddingVertical: chipPaddingV }]}
           onPress={() => navigation.navigate('Sale')}
         >
-          <Ionicons name="add-circle-outline" size={18} color={Colors.primary} />
-          <Text style={[styles.actionText, { color: Colors.primary }]}>{t('tabs.sale')}</Text>
+          <Ionicons name="add-circle-outline" size={chipIconSize} color={Colors.primary} />
+          <Text style={[styles.actionText, { color: Colors.primary, fontSize: chipFontSize }]}>{t('tabs.sale')}</Text>
         </TouchableOpacity>
         {isOwner && (
           <TouchableOpacity
-            style={[styles.actionChip, { backgroundColor: Colors.dangerLight }]}
+            style={[styles.actionChip, { backgroundColor: Colors.dangerLight, flex: 1, paddingHorizontal: chipPaddingH, paddingVertical: chipPaddingV }]}
             onPress={() => navigation.navigate('Expenses')}
           >
-            <Ionicons name="receipt-outline" size={18} color={Colors.danger} />
-            <Text style={[styles.actionText, { color: Colors.danger }]}>{t('tabs.expenses')}</Text>
+            <Ionicons name="receipt-outline" size={chipIconSize} color={Colors.danger} />
+            <Text style={[styles.actionText, { color: Colors.danger, fontSize: chipFontSize }]}>{t('tabs.expenses')}</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity
-          style={[styles.actionChip, { backgroundColor: Colors.infoLight }]}
+          style={[styles.actionChip, { backgroundColor: Colors.infoLight, flex: 1, paddingHorizontal: chipPaddingH, paddingVertical: chipPaddingV }]}
           onPress={() => navigation.navigate('Calculator')}
         >
-          <Ionicons name="calculator-outline" size={18} color={Colors.info} />
-          <Text style={[styles.actionText, { color: Colors.info }]}>{t('tabs.calculator')}</Text>
+          <Ionicons name="calculator-outline" size={chipIconSize} color={Colors.info} />
+          <Text style={[styles.actionText, { color: Colors.info, fontSize: chipFontSize }]}>{t('tabs.calculator')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -469,11 +480,15 @@ const styles = StyleSheet.create({
   },
   addSaleCtaText: { color: '#fff', fontWeight: '600' },
   quickActions: {
-    flexDirection: 'row', gap: Spacing.sm, paddingHorizontal: Spacing.lg, marginTop: Spacing.lg,
+    flexDirection: 'row',
+    paddingHorizontal: Spacing.lg,
+    marginTop: Spacing.lg,
   },
   actionChip: {
-    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
-    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
     borderRadius: Radius.xl,
   },
   actionText: { fontSize: FontSize.sm, fontWeight: '600' },
