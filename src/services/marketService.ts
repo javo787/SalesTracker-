@@ -114,13 +114,39 @@ class MarketService {
 
   // News
   async getLatestNews(): Promise<NewsFeed | null> {
-    if (!ADS_API_URL) throw new Error('Ads API URL not configured');
+    console.log('[News] getLatestNews called');
+    console.log('[News] ADS_API_URL =', ADS_API_URL);
+
+    if (!ADS_API_URL) {
+      console.error('[News] ABORT: ADS_API_URL is undefined or empty');
+      throw new Error('Ads API URL not configured');
+    }
+
+    const url = `${ADS_API_URL}/api/news`;
+    console.log('[News] fetching:', url);
+
     try {
-      const response = await fetch(`${ADS_API_URL}/api/news`);
-      if (response.status === 404) return null;
-      return this.handleResponse(response);
-    } catch (e) {
-      console.warn('Failed to fetch news', e);
+      const response = await fetch(url);
+      console.log('[News] response status:', response.status);
+
+      if (response.status === 404) {
+        console.warn('[News] 404 — returning null');
+        return null;
+      }
+
+      const data = await response.json();
+      console.log('[News] response ok:', response.ok);
+      console.log('[News] articles count:', data?.articles?.length ?? 'no articles field');
+      console.log('[News] date:', data?.date);
+
+      if (!response.ok) {
+        console.error('[News] server error body:', JSON.stringify(data));
+        throw new Error(data.message || 'API request failed');
+      }
+
+      return data as NewsFeed;
+    } catch (e: any) {
+      console.error('[News] fetch exception:', e?.message, e);
       return null;
     }
   }

@@ -42,8 +42,12 @@ export function useNews() {
   };
 
   const fetchNews = useCallback(async (isRefresh = false) => {
-    if (isFetchingRef.current) return;
+    if (isFetchingRef.current) {
+      console.log('[useNews] already fetching, skip');
+      return;
+    }
     isFetchingRef.current = true;
+    console.log('[useNews] fetchNews start, isRefresh=', isRefresh);
 
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
@@ -52,32 +56,42 @@ export function useNews() {
     try {
       if (!isRefresh) {
         const cached = await AsyncStorage.getItem(CACHE_KEY);
+        console.log('[useNews] cache raw exists:', !!cached);
         if (cached) {
           const { data, timestamp } = JSON.parse(cached);
-          if (Date.now() - timestamp < CACHE_TTL) {
+          const age = Date.now() - timestamp;
+          console.log('[useNews] cache age ms:', age, '| TTL:', CACHE_TTL, '| data null?', data === null);
+          if (data && age < CACHE_TTL) {
+            console.log('[useNews] serving from cache, articles:', data?.articles?.length);
             if (mountedRef.current) setNews(data);
             checkAndNotifyImportant(data);
             if (mountedRef.current) setLoading(false);
             return;
           }
+          console.log('[useNews] cache invalid (null data or expired) — going to network');
         }
       }
 
+      console.log('[useNews] calling marketService.getLatestNews()');
       const data = await marketService.getLatestNews();
+      console.log('[useNews] got data:', data === null ? 'NULL' : `articles=${data?.articles?.length}, date=${data?.date}`);
+
       if (mountedRef.current) setNews(data);
       checkAndNotifyImportant(data);
 
       if (data) {
-        await AsyncStorage.setItem(CACHE_KEY, JSON.stringify({
-          data,
-          timestamp: Date.now()
-        }));
+        await AsyncStorage.setItem(CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() }));
+        console.log('[useNews] saved to cache');
+      } else {
+        console.warn('[useNews] data is null — NOT saving to cache');
       }
     } catch (e: any) {
+      console.error('[useNews] error:', e?.message);
       if (mountedRef.current) setError(e.message);
       const cached = await AsyncStorage.getItem(CACHE_KEY);
       if (cached) {
         const { data } = JSON.parse(cached);
+        console.log('[useNews] fallback to cache after error, data null?', data === null);
         if (mountedRef.current) setNews(data);
       }
     } finally {
