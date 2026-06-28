@@ -9,6 +9,10 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_ADS_API_URL": "https://savdo-tan.vercel.app",
+        "EXPO_PUBLIC_API_URL": "https://savdoapp.onrender.com"
       }
     },
     "preview": {
@@ -16,6 +20,10 @@
       "channel": "preview",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_ADS_API_URL": "https://savdo-tan.vercel.app",
+        "EXPO_PUBLIC_API_URL": "https://savdoapp.onrender.com"
       }
     },
     "production": {
@@ -23,6 +31,10 @@
       "channel": "production",
       "android": {
         "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_ADS_API_URL": "https://savdo-tan.vercel.app",
+        "EXPO_PUBLIC_API_URL": "https://savdoapp.onrender.com"
       }
     }
   }
