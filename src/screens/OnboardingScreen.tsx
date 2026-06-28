@@ -131,15 +131,15 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
                 style={[roleStyles.roleBtn, selectedRole === 'owner' && roleStyles.roleBtnActive]}
                 onPress={() => { setSelectedRole('owner'); setRoleError(''); }}
               >
-                <Text style={roleStyles.roleEmoji}>👑</Text>
                 <Text style={[roleStyles.roleText, selectedRole === 'owner' && roleStyles.roleTextActive]}>Я владелец</Text>
+                <Text style={roleStyles.roleSubtext}>Открываю магазин / управляю</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[roleStyles.roleBtn, selectedRole === 'seller' && roleStyles.roleBtnActive]}
                 onPress={() => { setSelectedRole('seller'); setRoleError(''); }}
               >
-                <Text style={roleStyles.roleEmoji}>🧑‍💼</Text>
                 <Text style={[roleStyles.roleText, selectedRole === 'seller' && roleStyles.roleTextActive]}>Я продавец</Text>
+                <Text style={roleStyles.roleSubtext}>Работаю в чужом магазине</Text>
               </TouchableOpacity>
             </View>
 
@@ -312,9 +312,14 @@ const roleStyles = StyleSheet.create({
     alignItems: 'center', backgroundColor: '#FFF'
   },
   roleBtnActive: { borderColor: '#534AB7', backgroundColor: '#F5F4FF' },
-  roleEmoji: { fontSize: 32, marginBottom: 8 },
   roleText: { fontSize: 14, fontWeight: '600', color: '#666' },
   roleTextActive: { color: '#534AB7' },
+  roleSubtext: {
+    fontSize: 12,
+    color: '#888',
+    marginTop: 4,
+    textAlign: 'center',
+  },
   inputGroup: { width: '100%' },
   label: { fontSize: 14, color: '#666', marginBottom: 8, fontWeight: '500' },
   input: {
