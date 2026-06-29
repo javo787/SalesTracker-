@@ -63,6 +63,12 @@
           "image": "./assets/adaptive-icon-fg.png",
           "imageWidth": 200,
           "backgroundColor": "#1D9E75"
+        "expo-build-properties",
+        {
+          "android": {
+            "enableProguardInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
+          }
         }
       ]
     ],
