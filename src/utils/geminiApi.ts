@@ -98,7 +98,8 @@ class GeminiApi {
         attempts++;
         if (attempts >= this.maxRetries) throw err;
         // небольшая экспоненциальная задержка перед следующей попыткой
-        await new Promise(res => setTimeout(res, Math.min(1000 * 2 ** attempts, 8000)));
+        const base = Math.min(1000 * 2 ** attempts, 8000);
+        await new Promise(res => setTimeout(res, Math.random() * base));
       }
     }
     throw new Error('Все Gemini ключи исчерпаны или недоступны');
