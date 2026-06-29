@@ -63,8 +63,8 @@ class ReviewService {
    */
   async openStoreListing() {
     try {
-      const androidPackageName = 'com.savdo.app';
-      const itunesItemId = '123456789'; // TODO: Replace with real ID after App Store publication
+      const androidPackageName = 'savdo.app';
+      const itunesItemId = ''; // Set this to real App Store ID when publishing to iOS
 
       if (Platform.OS === 'ios') {
         // First try the native review dialog
@@ -72,7 +72,9 @@ class ReviewService {
           await StoreReview.requestReview();
         } else {
           // Fallback to App Store page
-          Linking.openURL(`https://apps.apple.com/app/id${itunesItemId}?action=write-review`);
+          if (itunesItemId) {
+            Linking.openURL(`https://apps.apple.com/app/id${itunesItemId}?action=write-review`);
+          }
         }
       } else {
         // Android: open Play Store

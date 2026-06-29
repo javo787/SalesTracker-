@@ -18,7 +18,6 @@ import { useAppContext } from '../context/AppContext';
 import { useShop } from '../context/ShopContext';
 import { useAuth } from '../context/AuthContext';
 import ClientAutocomplete from '../components/debt/ClientAutocomplete';
-import GeminiApi from '../utils/geminiApi';
 import ExpensesView from '../components/expenses/ExpensesView';
 import { ProductAutocomplete } from '../components/sales/ProductAutocomplete';
 import { AutocompleteResult } from '../types/product';
@@ -33,16 +32,6 @@ export default function AddSaleScreen(/* props */) {
   const { isOwner, isSeller, sellerName, role } = useShop();
   const { user } = useAuth();
   const userId = user?._id || 'guest';
-
-  const gemini = useMemo(() => {
-    const keys = [
-      process.env.EXPO_PUBLIC_GEMINI_KEY,
-      process.env.EXPO_PUBLIC_GEMINI_KEY_2,
-      process.env.EXPO_PUBLIC_GEMINI_KEY_3,
-    ].filter(Boolean) as string[];
-    if (keys.length === 0) return null;
-    return new GeminiApi({ geminiKeys: keys });
-  }, []);
 
   const [selectedProduct, setSelectedProduct] = useState<AutocompleteResult | null>(null);
   const [productName, setProductName] = useState('');
@@ -181,7 +170,8 @@ export default function AddSaleScreen(/* props */) {
   };
 
   const analyzeWithAI = async (text: string) => {
-    if (!gemini) {
+    const proxyUrl = process.env.EXPO_PUBLIC_ADS_API_URL;
+    if (!proxyUrl) {
       Alert.alert(t('common.error'), t('addSale.errorGemini'));
       return;
     }
@@ -205,39 +195,18 @@ export default function AddSaleScreen(/* props */) {
     setProcessing(true);
     analyticsService.logEvent('ai_usage', { type: 'voice_sale', language: language });
     try {
-      const data = await gemini.generateContent({
-        contents: [{
-          parts: [{
-            text: `Act as a professional retail assistant for merchants in Central Asia (Tajikistan/Uzbekistan).
-Your task is to accurately extract sales data from voice transcripts.
-
-TRANSCRIPT: "${text}"
-
-RULES:
-1. Identify product name, sale price (sell_price), purchase price (buy_price), and quantity.
-2. If the user mentions total "revenue" (выручка/савдо) and "profit" (прибыль/фоида), include them.
-3. Handle multilingual input (Russian, Tajik, Uzbek).
-4. Return ONLY a pure JSON object. No markdown, no explanations.
-
-JSON STRUCTURE:
-{
-  "product_name": string (capitalized),
-  "sell_price": number (0 if unknown),
-  "buy_price": number (0 if unknown),
-  "quantity": number (1 if unknown),
-  "revenue": number (0 if unknown),
-  "profit": number (0 if unknown)
-}
-
-FEW-SHOT EXAMPLES:
-"сегодня савдо 5000 фоида 1200" -> {"product_name":"","sell_price":0,"buy_price":0,"quantity":1,"revenue":5000,"profit":1200}
-"бист кило пиёз фурухтум бо дах сомони" -> {"product_name":"Пиёз","sell_price":10,"buy_price":0,"quantity":20,"revenue":200,"profit":0}
-"продал 3 пачки чая по 15 купил по 11" -> {"product_name":"Чай","sell_price":15,"buy_price":11,"quantity":3,"revenue":45,"profit":12}
-"десять коробок колы по 120 сомони" -> {"product_name":"Кола","sell_price":120,"buy_price":0,"quantity":10,"revenue":1200,"profit":0}
-"якешба 50 сомон фоида монд" -> {"product_name":"","sell_price":0,"buy_price":0,"quantity":1,"revenue":0,"profit":50}`
-          }]
-        }]
+      const geminiResponse = await fetch(`${proxyUrl}/api/proxy/gemini`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: `Act as a professional retail assistant for merchants in Central Asia (Tajikistan/Uzbekistan).\nYour task is to accurately extract sales data from voice transcripts.\n\nTRANSCRIPT: "${text}"\n\nRULES:\n1. Identify product name, sale price (sell_price), purchase price (buy_price), and quantity.\n2. If the user mentions total "revenue" (выручка/савдо) and "profit" (прибыль/фоида), include them.\n3. Handle multilingual input (Russian, Tajik, Uzbek).\n4. Return ONLY a pure JSON object. No markdown, no explanations.\n\nJSON STRUCTURE:\n{\n  "product_name": string (capitalized),\n  "sell_price": number (0 if unknown),\n  "buy_price": number (0 if unknown),\n  "quantity": number (1 if unknown),\n  "revenue": number (0 if unknown),\n  "profit": number (0 if unknown)\n}` }] }]
+        }),
       });
+
+      if (!geminiResponse.ok) {
+        throw new Error(`Proxy error: ${geminiResponse.status}`);
+      }
+      const data = await geminiResponse.json();
       const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
       const parsed = JSON.parse(rawText.replace(/```json|```/g, '').trim());
 
