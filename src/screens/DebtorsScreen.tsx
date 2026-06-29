@@ -922,7 +922,7 @@ export default function DebtorsScreen() {
               </TouchableOpacity>
             </View>
 
-            <Text style={[styles.label, themeStyles.text]}>Имя клиента *</Text>
+            <Text style={[styles.label, themeStyles.text]}>{t('debtors.clientName')} *</Text>
             <TextInput
               style={[styles.input, isDark ? styles.inputDark : styles.inputLight]}
               placeholder="Например: Алишер"

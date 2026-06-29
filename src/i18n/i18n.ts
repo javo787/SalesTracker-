@@ -206,6 +206,12 @@ const resources = {
         paidNowPlaceholder: 'Внесено сейчас',
         dueDatePlaceholder: 'Срок оплаты (ГГГГ-ММ-ДД)',
       },
+      onboarding: {
+        errorSelectRole: 'Выберите роль',
+        errorShopName: 'Введите название магазина',
+        errorInviteCode: 'Введите код из 6 символов',
+        errorGeneric: 'Ошибка. Проверьте код или соединение.',
+      },
       debtors: {
         title: 'Должники',
         totalOwed: 'Итого должны',
@@ -356,6 +362,10 @@ const resources = {
         terms: 'Продолжая, вы соглашаетесь с условиями использования',
         errorInvalid: 'Неверный email или пароль',
         errorNetwork: 'Нет подключения к серверу',
+      },
+      debt: {
+        placeholderShopName: 'Напр. Мой Магазин',
+        placeholderInviteCode: 'SAVDO7',
       },
       profile: {
         title: 'Профиль',
@@ -764,6 +774,12 @@ const resources = {
         paidNowPlaceholder: 'Ҳоло пардохт шуд',
         dueDatePlaceholder: 'Мӯҳлати пардохт (СССС-ММ-РР)',
       },
+      onboarding: {
+        errorSelectRole: 'Нақшро интихоб кунед',
+        errorShopName: 'Номи дӯконро ворид кунед',
+        errorInviteCode: 'Рамзи 6-рақамиро ворид кунед',
+        errorGeneric: 'Хато. Рамз ё пайвастшавиро тафтиш кунед.',
+      },
       debtors: {
         title: 'Қарздорон',
         totalOwed: 'Ҷамъи қарзҳо',
@@ -914,6 +930,10 @@ const resources = {
         terms: 'Бо идома додани шумо ба шартҳои истифода розӣ мешавед',
         errorInvalid: 'Email ё рамзи нодуруст',
         errorNetwork: 'Пайвастшавӣ ба сервер нест',
+      },
+      debt: {
+        placeholderShopName: 'Мас. Дӯкони ман',
+        placeholderInviteCode: 'SAVDO7',
       },
       profile: {
         title: 'Профил',
@@ -1322,6 +1342,12 @@ const resources = {
         paidNowPlaceholder: 'Hozir to\'landi',
         dueDatePlaceholder: 'To\'lov muddati (YYYY-MM-DD)',
       },
+      onboarding: {
+        errorSelectRole: 'Rolni tanlang',
+        errorShopName: 'Do\'kon nomini kiriting',
+        errorInviteCode: '6 ta belgidan iborat kodni kiriting',
+        errorGeneric: 'Xato. Kodni yoki ulanishni tekshiring.',
+      },
       debtors: {
         title: 'Qarzdorlar',
         totalOwed: 'Jami qarzlar',
@@ -1472,6 +1498,10 @@ const resources = {
         terms: 'Davom etish orqali siz foydalanish shartlariga rozilik bildirasiz',
         errorInvalid: 'Email yoki parol noto‘g‘ri',
         errorNetwork: 'Serverga ulanish imkoni yo‘q',
+      },
+      debt: {
+        placeholderShopName: 'Mas. Mening do\'konim',
+        placeholderInviteCode: 'SAVDO7',
       },
       profile: {
         title: 'Profil',

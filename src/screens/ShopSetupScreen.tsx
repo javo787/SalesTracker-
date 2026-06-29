@@ -21,19 +21,19 @@ export default function ShopSetupScreen() {
   const [error, setError] = useState('');
 
   const handleAction = async () => {
-    if (!selectedRole) { setError('Выберите роль'); return; }
+    if (!selectedRole) { setError(t('onboarding.errorSelectRole')); return; }
     setLoading(true);
     setError('');
     try {
       if (selectedRole === 'owner') {
-        if (!shopNameInput.trim()) { setError('Введите название магазина'); setLoading(false); return; }
+        if (!shopNameInput.trim()) { setError(t('onboarding.errorShopName')); setLoading(false); return; }
         await createShop(shopNameInput.trim());
       } else {
-        if (inviteCodeInput.length < 6) { setError('Введите код из 6 символов'); setLoading(false); return; }
+        if (inviteCodeInput.length < 6) { setError(t('onboarding.errorInviteCode')); setLoading(false); return; }
         await joinShop(inviteCodeInput.trim().toUpperCase());
       }
     } catch (e: any) {
-      setError(e.message || 'Ошибка. Проверьте код или соединение.');
+      setError(e.message || t('onboarding.errorGeneric'));
     } finally {
       setLoading(false);
     }
@@ -69,7 +69,7 @@ export default function ShopSetupScreen() {
             <Text style={roleStyles.label}>Название магазина</Text>
             <TextInput
               style={roleStyles.input}
-              placeholder="Напр. Мой Магазин"
+              placeholder={t('debt.placeholderShopName')}
               value={shopNameInput}
               onChangeText={setShopNameInput}
               autoFocus
@@ -82,7 +82,7 @@ export default function ShopSetupScreen() {
             <Text style={roleStyles.label}>Код приглашения (6 символов)</Text>
             <TextInput
               style={roleStyles.input}
-              placeholder="SAVDO7"
+              placeholder={t('debt.placeholderInviteCode')}
               value={inviteCodeInput}
               onChangeText={setInviteCodeInput}
               autoCapitalize="characters"

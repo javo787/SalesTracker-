@@ -84,19 +84,3 @@ const gracefulShutdown = async (signal: string) => {
 
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-
-const shutdown = async (signal: string) => {
-  console.log(`${signal} received, shutting down gracefully...`);
-  server.close(async () => {
-    await mongoose.disconnect();
-    console.log('Server closed');
-    process.exit(0);
-  });
-  setTimeout(() => {
-    console.error('Forced shutdown after timeout');
-    process.exit(1);
-  }, 10000);
-};
-
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));

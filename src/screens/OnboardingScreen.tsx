@@ -4,6 +4,7 @@ import {
   Dimensions, SafeAreaView, TextInput, ActivityIndicator
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTranslation } from 'react-i18next';
 import { useAppContext } from '../context/AppContext';
 import { useShop } from '../context/ShopContext';
 
@@ -49,6 +50,7 @@ interface OnboardingScreenProps {
 }
 
 export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
+  const { t } = useTranslation();
   const { setSellerMode } = useAppContext();
   const { createShop, joinShop } = useShop();
   const [currentStep, setCurrentStep] = useState(0);
@@ -69,19 +71,19 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
     }
 
     if (step.isRoleStep) {
-      if (!selectedRole) { setRoleError('Выберите роль'); return; }
+      if (!selectedRole) { setRoleError(t('onboarding.errorSelectRole')); return; }
       setRoleLoading(true);
       setRoleError('');
       try {
         if (selectedRole === 'owner') {
-          if (!shopNameInput.trim()) { setRoleError('Введите название магазина'); setRoleLoading(false); return; }
+          if (!shopNameInput.trim()) { setRoleError(t('onboarding.errorShopName')); setRoleLoading(false); return; }
           await createShop(shopNameInput.trim());
         } else {
-          if (inviteCodeInput.length < 6) { setRoleError('Введите код из 6 символов'); setRoleLoading(false); return; }
+          if (inviteCodeInput.length < 6) { setRoleError(t('onboarding.errorInviteCode')); setRoleLoading(false); return; }
           await joinShop(inviteCodeInput.trim().toUpperCase());
         }
       } catch (e: any) {
-        setRoleError(e.message || 'Ошибка. Проверьте код или соединение.');
+        setRoleError(e.message || t('onboarding.errorGeneric'));
         setRoleLoading(false);
         return;
       }
@@ -148,7 +150,7 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
                 <Text style={roleStyles.label}>Название магазина</Text>
                 <TextInput
                   style={roleStyles.input}
-                  placeholder="Напр. Мой Магазин"
+                  placeholder={t('debt.placeholderShopName')}
                   value={shopNameInput}
                   onChangeText={setShopNameInput}
                   autoFocus
@@ -161,7 +163,7 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
                 <Text style={roleStyles.label}>Код приглашения (6 символов)</Text>
                 <TextInput
                   style={roleStyles.input}
-                  placeholder="SAVDO7"
+                  placeholder={t('debt.placeholderInviteCode')}
                   value={inviteCodeInput}
                   onChangeText={setInviteCodeInput}
                   autoCapitalize="characters"

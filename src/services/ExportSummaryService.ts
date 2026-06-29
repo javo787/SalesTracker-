@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const CACHE_KEY = 'export_summary_cache';
-const BACKEND_URL = (process.env.EXPO_PUBLIC_API_URL || '') + '/api/ai/summary';
+const BACKEND_URL = (process.env.EXPO_PUBLIC_ADS_API_URL || '') + '/api/ai/summary';
 
 export interface SummaryPayload {
   language: 'ru' | 'tj' | 'uz';

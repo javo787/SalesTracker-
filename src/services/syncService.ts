@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState } from 'react-native';
 import { api } from './api';
-import { getProducts, getSalesByPeriod, getShopSession } from '../db/database';
+import { getProducts, getProductsForSync, getSalesByPeriod, getShopSession } from '../db/database';
 import * as SQLite from 'expo-sqlite';
 
 const db = SQLite.openDatabaseSync('savdo.db');
@@ -21,7 +21,7 @@ export const SyncService = {
       };
 
       if (isOwner) {
-        payload.products = getProducts();
+        payload.products = getProductsForSync();
       }
 
       const result = await api.post<{ syncedAt: string }>('/sync/push', payload);
