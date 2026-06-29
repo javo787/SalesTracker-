@@ -2,6 +2,7 @@ import express from 'express';
 import { authMiddleware, AuthRequest } from '../middleware/authMiddleware';
 import User from '../models/User';
 import { runSalesReminderCheck } from '../services/salesReminderService';
+import CronRun from '../models/CronRun';
 
 const router = express.Router();
 
@@ -38,10 +39,26 @@ router.post('/run-reminder', async (req, res) => {
   if (secret !== process.env.CRON_SECRET) {
     return res.status(401).json({ message: 'Unauthorized' });
   }
+
+  const todayStr = new Date().toISOString().split('T')[0]; // 'YYYY-MM-DD'
+
+  try {
+    // Attempt to claim today's run. Throws E11000 if already claimed.
+    await CronRun.create({ job: 'sales-reminder', date: todayStr });
+  } catch (err: any) {
+    if (err.code === 11000) {
+      // Already ran today — return 200 so cron-job.org does not retry again
+      return res.json({ success: true, skipped: true, reason: 'already_ran_today' });
+    }
+    return res.status(500).json({ message: 'Failed to claim cron run', error: err.message });
+  }
+
   try {
     const result = await runSalesReminderCheck();
     res.json({ success: true, ...result });
   } catch (err: any) {
+    // Release the lock so a manual retry is possible later in the day
+    await CronRun.deleteOne({ job: 'sales-reminder', date: todayStr }).catch(() => {});
     res.status(500).json({ message: 'Reminder check failed', error: err.message });
   }
 });
