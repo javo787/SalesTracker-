@@ -311,6 +311,11 @@ export function getProducts() {
   return db.getAllSync('SELECT * FROM products WHERE is_deleted = 0 ORDER BY name ASC');
 }
 
+export function getProductsForSync() {
+  // Returns ALL products including soft-deleted ones, for sync purposes
+  return db.getAllSync('SELECT * FROM products ORDER BY name ASC');
+}
+
 export function getDistinctCategories(): string[] {
   const rows = db.getAllSync('SELECT DISTINCT category FROM products WHERE category IS NOT NULL AND is_deleted = 0 ORDER BY category ASC') as { category: string }[];
   return rows.map(r => r.category);

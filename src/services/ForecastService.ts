@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 
 const CACHE_KEY = 'ai_forecast_cache';
-const BACKEND_URL = (process.env.EXPO_PUBLIC_API_URL || '') + '/api/ai/forecast';
+const BACKEND_URL = (process.env.EXPO_PUBLIC_ADS_API_URL || '') + '/api/ai/forecast';
 
 export interface ForecastPayload {
   language: 'ru' | 'tj' | 'uz';

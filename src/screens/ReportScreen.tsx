@@ -23,6 +23,7 @@ import { useAuth } from '../context/AuthContext';
 import { ExtendedReportService } from '../services/ExtendedReportService';
 import { ExportSummaryService, SummaryPayload } from '../services/ExportSummaryService';
 import { adService } from '../services/adService';
+import { showInterstitialSilently } from '../utils/adUtils';
 import { AD_UNIT_IDS } from '../constants/ads';
 import { Colors, LightTheme, DarkTheme, Radius, Shadow, FontSize, Spacing } from '../constants/theme';
 import { ForecastService } from '../services/ForecastService';
@@ -251,6 +252,7 @@ export default function ReportScreen() {
           dialogTitle: 'Экспорт отчёта',
           UTI: 'public.comma-separated-values-text'
         });
+        showInterstitialSilently();
       } else {
         Alert.alert(t('common.error'), 'Общий доступ недоступен на этом устройстве');
       }
@@ -449,6 +451,7 @@ export default function ReportScreen() {
           dialogTitle: t('exportSummary.fileReady'),
           UTI: 'com.microsoft.excel.xlsx'
         });
+        showInterstitialSilently();
       }
     } catch (e) {
       console.error('Excel generation error:', e);

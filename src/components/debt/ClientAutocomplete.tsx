@@ -3,6 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, Platform, ScrollView,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { useAppContext } from '../../context/AppContext';
 import { searchClients } from '../../db/database';
 import { useAutocomplete } from '../../hooks/useAutocomplete';
@@ -24,6 +25,7 @@ interface Props {
 export default function ClientAutocomplete({
   value, phone, onChange, onChangePhone, onSelect,
 }: Props) {
+  const { t } = useTranslation();
   const { resolvedTheme } = useAppContext();
   const isDark = resolvedTheme === 'dark';
 
@@ -112,7 +114,7 @@ export default function ClientAutocomplete({
       {/* Name input */}
       <TextInput
         style={inputStyle}
-        placeholder="Имя клиента *"
+        placeholder={`${t('debtors.clientName')} *`}
         placeholderTextColor={isDark ? '#888' : '#aaa'}
         value={value}
         onChangeText={handleChange}
@@ -126,7 +128,7 @@ export default function ClientAutocomplete({
       {/* Phone input */}
       <TextInput
         style={[inputStyle, { marginTop: 8 }]}
-        placeholder="Телефон (необязательно)"
+        placeholder={`${t('debtors.phone')} (${t('common.notSpecified').toLowerCase()})`}
         placeholderTextColor={isDark ? '#888' : '#aaa'}
         value={phone}
         onChangeText={onChangePhone}
