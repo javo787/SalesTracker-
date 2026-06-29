@@ -10,47 +10,48 @@ import { useShop } from '../context/ShopContext';
 
 const { width } = Dimensions.get('window');
 
-const STEPS = [
-  {
-    title: 'Добавьте свои товары',
-    description: 'Внесите список того, что вы продаете, укажите цену закупки и продажи.',
-    icon: '📦',
-    color: '#1D9E75'
-  },
-  {
-    title: 'Записывайте продажи',
-    description: 'Используйте голос или вводите вручную. AI сам посчитает вашу прибыль.',
-    icon: '🎤',
-    color: '#0C447C'
-  },
-  {
-    title: 'Как вы торгуете?',
-    description: 'Это поможет настроить приложение под ваш бизнес.',
-    icon: '🏪',
-    color: '#854F0B',
-    isSellerModeStep: true,
-  },
-  {
-    title: 'Как вы используете приложение?',
-    description: 'Это определит ваши права доступа.',
-    icon: '🏪',
-    color: '#534AB7',
-    isRoleStep: true,
-  },
-  {
-    title: 'Смотрите прибыль',
-    description: 'Анализируйте доход за день, неделю или месяц. Управляйте бизнесом мудро.',
-    icon: '📈',
-    color: '#3B6D11'
-  }
-];
-
 interface OnboardingScreenProps {
   onFinish: () => void;
 }
 
 export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
   const { t } = useTranslation();
+
+  const STEPS = [
+    {
+      title: t('onboarding.step1Title'),
+      description: t('onboarding.step1Desc'),
+      icon: '📦',
+      color: '#1D9E75'
+    },
+    {
+      title: t('onboarding.step2Title'),
+      description: t('onboarding.step2Desc'),
+      icon: '🎤',
+      color: '#0C447C'
+    },
+    {
+      title: t('onboarding.step3Title'),
+      description: t('onboarding.step3Desc'),
+      icon: '🏪',
+      color: '#854F0B',
+      isSellerModeStep: true,
+    },
+    {
+      title: t('onboarding.step4Title'),
+      description: t('onboarding.step4Desc'),
+      icon: '🤝',
+      color: '#534AB7',
+      isRoleStep: true,
+    },
+    {
+      title: t('onboarding.step5Title'),
+      description: t('onboarding.step5Desc'),
+      icon: '📈',
+      color: '#3B6D11'
+    }
+  ];
+
   const { setSellerMode } = useAppContext();
   const { createShop, joinShop } = useShop();
   const [currentStep, setCurrentStep] = useState(0);
@@ -111,8 +112,8 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
               onPress={() => setSelectedMode('retail')}
             >
               <Text style={selectionStyles.cardIcon}>🛒</Text>
-              <Text style={selectionStyles.cardTitle}>Розница</Text>
-              <Text style={selectionStyles.cardDesc}>Продуктовый ларёк, аптека, небольшой магазин</Text>
+              <Text style={selectionStyles.cardTitle}>{t('onboarding.retailTitle')}</Text>
+              <Text style={selectionStyles.cardDesc}>{t('onboarding.retailDesc')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[
@@ -122,8 +123,8 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
               onPress={() => setSelectedMode('wholesale')}
             >
               <Text style={selectionStyles.cardIcon}>📦</Text>
-              <Text style={selectionStyles.cardTitle}>Опт / Крупная торговля</Text>
-              <Text style={selectionStyles.cardDesc}>Ткань, стройматериалы, техника, одежда партиями</Text>
+              <Text style={selectionStyles.cardTitle}>{t('onboarding.wholesaleTitle')}</Text>
+              <Text style={selectionStyles.cardDesc}>{t('onboarding.wholesaleDesc')}</Text>
             </TouchableOpacity>
           </View>
         ) : step.isRoleStep ? (
@@ -133,21 +134,21 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
                 style={[roleStyles.roleBtn, selectedRole === 'owner' && roleStyles.roleBtnActive]}
                 onPress={() => { setSelectedRole('owner'); setRoleError(''); }}
               >
-                <Text style={[roleStyles.roleText, selectedRole === 'owner' && roleStyles.roleTextActive]}>Я владелец</Text>
-                <Text style={roleStyles.roleSubtext}>Открываю магазин / управляю</Text>
+                <Text style={[roleStyles.roleText, selectedRole === 'owner' && roleStyles.roleTextActive]}>{t('onboarding.ownerLabel')}</Text>
+                <Text style={roleStyles.roleSubtext}>{t('onboarding.ownerSubtext')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[roleStyles.roleBtn, selectedRole === 'seller' && roleStyles.roleBtnActive]}
                 onPress={() => { setSelectedRole('seller'); setRoleError(''); }}
               >
-                <Text style={[roleStyles.roleText, selectedRole === 'seller' && roleStyles.roleTextActive]}>Я продавец</Text>
-                <Text style={roleStyles.roleSubtext}>Работаю в чужом магазине</Text>
+                <Text style={[roleStyles.roleText, selectedRole === 'seller' && roleStyles.roleTextActive]}>{t('onboarding.sellerLabel')}</Text>
+                <Text style={roleStyles.roleSubtext}>{t('onboarding.sellerSubtext')}</Text>
               </TouchableOpacity>
             </View>
 
             {selectedRole === 'owner' && (
               <View style={roleStyles.inputGroup}>
-                <Text style={roleStyles.label}>Название магазина</Text>
+                <Text style={roleStyles.label}>{t('onboarding.shopNameLabel')}</Text>
                 <TextInput
                   style={roleStyles.input}
                   placeholder={t('debt.placeholderShopName')}
@@ -160,7 +161,7 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
 
             {selectedRole === 'seller' && (
               <View style={roleStyles.inputGroup}>
-                <Text style={roleStyles.label}>Код приглашения (6 символов)</Text>
+                <Text style={roleStyles.label}>{t('onboarding.inviteCodeLabel')}</Text>
                 <TextInput
                   style={roleStyles.input}
                   placeholder={t('debt.placeholderInviteCode')}
@@ -183,9 +184,7 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
         )}
 
         <Text style={styles.title}>{step.title}</Text>
-        {!step.isSellerModeStep && !step.isRoleStep && (
-          <Text style={styles.description}>{step.description}</Text>
-        )}
+        <Text style={styles.description}>{step.description}</Text>
 
         <View style={styles.dots}>
           {STEPS.map((_, i) => (
@@ -211,7 +210,7 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
         disabled={(step.isSellerModeStep && !selectedMode) || (step.isRoleStep && !selectedRole) || roleLoading}
       >
         <Text style={styles.buttonText}>
-          {currentStep === STEPS.length - 1 ? 'Начать работу' : 'Далее'}
+          {currentStep === STEPS.length - 1 ? t('onboarding.startBtn') : t('onboarding.nextBtn')}
         </Text>
       </TouchableOpacity>
     </SafeAreaView>
