@@ -19,6 +19,18 @@
     "backgroundColor": "#1D9E75"
   }
 },
+      "package": "savdo.app",
+      "googleServicesFile": "./google-services.json",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
+      ],
+      "softwareKeyboardLayoutMode": "pan"
+    },
     "updates": {
       "url": "https://u.expo.dev/617f1baa-d4b4-4221-b3f6-f9b321325ec0"
     },
@@ -74,7 +86,11 @@
     ],
     "ios": {
       "bundleIdentifier": "com.savdo.app",
-      "googleServicesFile": "./GoogleService-Info.plist"
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "infoPlist": {
+        "NSSpeechRecognitionUsageDescription": "Allow $(PRODUCT_NAME) to use speech recognition.",
+        "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to use the microphone."
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -93,9 +109,9 @@
     },
     "extra": {
       "eas": {
-        "projectId": "617f1baa-d4b4-4221-b3f6-f9b321325ec0"
+        "projectId": "8faaddbd-db91-4531-9c3e-3faf5cce53aa"
       }
     },
-    "owner": "javocha"
+    "owner": "javohirbeks-project"
   }
 }
