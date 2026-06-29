@@ -63,6 +63,9 @@ const translations = {
       emailTitle: "Email Us",
       emailDesc: "For bugs, feature requests or account questions.",
       emailNote: "We respond within 24 hours.",
+      telegramTitle: "Telegram Support",
+      telegramDesc: "Write to our bot for fast support.",
+      telegramBtn: "Open @SavdoApp_support_bot",
       rateTitle: "Rate & Review",
       rateDesc: "Found a bug? Leave a review on Google Play — we read every one.",
       rateBtn: "Open Google Play"
@@ -121,6 +124,9 @@ const translations = {
       emailTitle: "Напишите нам",
       emailDesc: "Для сообщений об ошибках, пожеланий или вопросов по аккаунту.",
       emailNote: "Мы отвечаем в течение 24 часов.",
+      telegramTitle: "Поддержка в Telegram",
+      telegramDesc: "Напишите нашему боту — мы ответим быстро.",
+      telegramBtn: "Открыть @SavdoApp_support_bot",
       rateTitle: "Оцените нас",
       rateDesc: "Нашли баг? Оставьте отзыв в Google Play — мы читаем каждый из них.",
       rateBtn: "Открыть Google Play"
@@ -179,6 +185,9 @@ const translations = {
       emailTitle: "Bizga yozing",
       emailDesc: "Xatoliklar, takliflar yoki hisobingiz bo'yicha savollar uchun.",
       emailNote: "Biz 24 soat ichida javob beramiz.",
+      telegramTitle: "Telegram orqali yordam",
+      telegramDesc: "Botimizga yozing — tez javob beramiz.",
+      telegramBtn: "@SavdoApp_support_bot ni ochish",
       rateTitle: "Bizni baholang",
       rateDesc: "Xatolik topdingizmi? Google Play-da sharh qoldiring — biz har birini o'qiymiz.",
       rateBtn: "Google Play-ni ochish"
@@ -237,6 +246,9 @@ const translations = {
       emailTitle: "Ба мо нависед",
       emailDesc: "Барои гузоришҳо дар бораи хатогиҳо, дархостҳо ё саволҳо дар бораи ҳисоб.",
       emailNote: "Мо дар давоми 24 соат ҷавоб медиҳем.",
+      telegramTitle: "Дастгирӣ дар Telegram",
+      telegramDesc: "Ба бот нависед — мо зуд ҷавоб медиҳем.",
+      telegramBtn: "@SavdoApp_support_bot кушоед",
       rateTitle: "Моро арзёбӣ кунед",
       rateDesc: "Хатогие ёфтед? Дар Google Play тақриз гузоред — мо ҳар як тақризро мехонем.",
       rateBtn: "Google Play-ро кушоед"
@@ -609,24 +621,45 @@ export default function SupportPage({
       </section>
 
       <section className="contact-section">
-        <div className="container contact-grid">
-          <div className="contact-card">
-            <svg className="contact-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-              <polyline points="22,6 12,13 2,6"/>
-            </svg>
-            <h3>{t.contact.emailTitle}</h3>
-            <p>{t.contact.emailDesc}</p>
-            <a href="mailto:savdoapp@gmail.com" className="contact-link">savdoapp@gmail.com</a>
-            <span className="contact-note">{t.contact.emailNote}</span>
-          </div>
-          <div className="contact-card">
-            <svg className="contact-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="5 3 19 12 5 21 5 3"/>
-            </svg>
-            <h3>{t.contact.rateTitle}</h3>
-            <p>{t.contact.rateDesc}</p>
-            <a href="#" className="contact-btn-outline">{t.contact.rateBtn}</a>
+        <div className="container">
+          <div className="contact-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+            <div className="contact-card">
+              <svg className="contact-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                <polyline points="22,6 12,13 2,6"/>
+              </svg>
+              <h3>{t.contact.emailTitle}</h3>
+              <p>{t.contact.emailDesc}</p>
+              <a href="mailto:savdoapp@gmail.com" className="contact-link">savdoapp@gmail.com</a>
+              <span className="contact-note">{t.contact.emailNote}</span>
+            </div>
+
+            <div className="contact-card">
+              <svg className="contact-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 2L11 13"/>
+                <path d="M22 2L15 22l-4-9-9-4 20-7z"/>
+              </svg>
+              <h3>{t.contact.telegramTitle}</h3>
+              <p>{t.contact.telegramDesc}</p>
+              <a
+                href="https://t.me/SavdoApp_support_bot"
+                className="contact-link"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {t.contact.telegramBtn}
+              </a>
+              <span className="contact-note">&nbsp;</span>
+            </div>
+
+            <div className="contact-card">
+              <svg className="contact-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="5 3 19 12 5 21 5 3"/>
+              </svg>
+              <h3>{t.contact.rateTitle}</h3>
+              <p>{t.contact.rateDesc}</p>
+              <a href="#" className="contact-btn-outline">{t.contact.rateBtn}</a>
+            </div>
           </div>
         </div>
       </section>

@@ -9,6 +9,7 @@ import syncRoutes from './routes/sync';
 import profileRoutes from './routes/profile';
 import shopRoutes from './routes/shop';
 import notificationRoutes from './routes/notifications';
+import telegramRoutes from './routes/telegram';
 
 dotenv.config();
 
@@ -59,6 +60,7 @@ app.use('/sync', syncRoutes);
 app.use('/profile', profileRoutes);
 app.use('/shop', shopRoutes);
 app.use('/notifications', notificationRoutes);
+app.use('/telegram', telegramRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
