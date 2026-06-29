@@ -5,20 +5,9 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "platforms": [
-      "android"
-    ],
+    "platforms": ["android"],
     "scheme": "savdo",
     "android": {
-  "package": "savdo.app",
-  "googleServicesFile": "./google-services.json",
-  "permissions": ["android.permission.RECORD_AUDIO"],
-  "softwareKeyboardLayoutMode": "pan",
-  "adaptiveIcon": {
-    "foregroundImage": "./assets/adaptive-icon-fg.png",
-    "backgroundColor": "#1D9E75"
-  }
-},
       "package": "savdo.app",
       "googleServicesFile": "./google-services.json",
       "permissions": [
@@ -26,10 +15,13 @@
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
-        "android.permission.USE_BIOMETRIC",
-        "android.permission.USE_FINGERPRINT"
+        "android.permission.USE_BIOMETRIC"
       ],
-      "softwareKeyboardLayoutMode": "pan"
+      "softwareKeyboardLayoutMode": "pan",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon-fg.png",
+        "backgroundColor": "#1D9E75"
+      }
     },
     "updates": {
       "url": "https://u.expo.dev/617f1baa-d4b4-4221-b3f6-f9b321325ec0"
@@ -75,6 +67,9 @@
           "image": "./assets/adaptive-icon-fg.png",
           "imageWidth": 200,
           "backgroundColor": "#1D9E75"
+        }
+      ],
+      [
         "expo-build-properties",
         {
           "android": {
