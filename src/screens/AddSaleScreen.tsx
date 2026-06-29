@@ -11,6 +11,7 @@ import * as Haptics from 'expo-haptics';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { addSale, addSaleWithSeller, getProducts, upsertClient, addDebt, updateDebtNotificationId } from '../db/database';
 import { scheduleDebtReminder } from '../utils/notifications';
+import { toISODate } from '../utils/dateUtils';
 import { analyticsService } from '../services/analyticsService';
 import { reviewService } from '../services/reviewService';
 import VoiceRecorder from '../components/VoiceRecorder';
@@ -287,14 +288,15 @@ export default function AddSaleScreen(/* props */) {
       const resolvedClientId = upsertClient(clientName.trim(), clientPhone.trim());
       const paid = paymentType === 'partial' ? (parseFloat(paidAmount) || 0) : 0;
       const totalDebt = sPrice * qty;
-      const debtResult = addDebt(resolvedClientId, saleId?.lastInsertRowId ?? null, totalDebt, paid, '', dueDate) as any;
+      const isoDueDate = toISODate(dueDate) || '';
+      const debtResult = addDebt(resolvedClientId, saleId?.lastInsertRowId ?? null, totalDebt, paid, '', isoDueDate) as any;
 
-      if (dueDate && debtResult?.lastInsertRowId) {
+      if (isoDueDate && debtResult?.lastInsertRowId) {
         const notifId = await scheduleDebtReminder(
           debtResult.lastInsertRowId,
           clientName,
           totalDebt - paid,
-          dueDate,
+          isoDueDate,
           currency.symbol
         );
         if (notifId) {

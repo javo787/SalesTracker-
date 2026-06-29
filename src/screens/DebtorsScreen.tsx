@@ -18,6 +18,8 @@ import {
   getAllClientsWithStats, updateClient, deleteClientIfSafe,
 } from '../db/database';
 import { cancelDebtReminder } from '../utils/notifications';
+import { toISODate } from '../utils/dateUtils';
+import { ClientDebtHistoryList } from '../components/debt/ClientDebtHistoryList';
 
 interface ClientSearchResult { id: number; name: string; phone?: string; }
 
@@ -147,6 +149,7 @@ export default function DebtorsScreen() {
 
   const openClientDetail = (client: any) => {
     setSelectedClient(client);
+    setClientHistory(getClientDebtHistory(client.id) as any[]);
     setShowClientDetailModal(true);
   };
 
@@ -221,14 +224,8 @@ export default function DebtorsScreen() {
     if (!currentClientId) {
       currentClientId = upsertClient(clientName.trim(), clientPhone.trim());
     }
-    let parsedDueDate: string | null = null;
-    if (dueDate.length === 10) {
-      const parts = dueDate.split('.');
-      if (parts.length === 3 && parts[0].length === 2 && parts[1].length === 2 && parts[2].length === 4) {
-        parsedDueDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
-      }
-    }
-    addDebt(currentClientId, null, parseFloat(debtAmount), 0, debtNote.trim(), parsedDueDate || '');
+    const isoDueDate = toISODate(dueDate);
+    addDebt(currentClientId, null, parseFloat(debtAmount), 0, debtNote.trim(), isoDueDate || '');
     resetAddModal();
     setShowAddModal(false);
     loadDebts();
@@ -661,80 +658,7 @@ export default function DebtorsScreen() {
 
               {activeTab === 'history' && (
                 <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
-                  {clientHistory.length === 0 ? (
-                    <Text style={{ color: '#999', textAlign: 'center', padding: 20 }}>
-                      {t('debtors.historyEmpty')}
-                    </Text>
-                  ) : (
-                    clientHistory.map((debt: any) => {
-                      const debtPayments = getDebtPayments(debt.id) as any[];
-                      const isPaid = debt.status === 'paid';
-                      return (
-                        <View key={String(debt.id)} style={[styles.historyDebtCard,
-                          { borderLeftColor: isPaid ? '#1D9E75' : '#E53935' }
-                        ]}>
-                          {/* Дата создания + статус */}
-                          <View style={styles.historyDebtHeader}>
-                            <Text style={styles.historyDebtDate}>
-                              {new Date(debt.created_at).toLocaleDateString(t('tabs.home') === 'Главная' ? 'ru-RU' : t('tabs.home') === 'Асосӣ' ? 'tg-TJ' : 'uz-UZ', {
-                                day: 'numeric', month: 'short', year: 'numeric'
-                              })}
-                            </Text>
-                            <View style={[styles.statusPill,
-                              isPaid ? styles.statusActive : styles.statusOverdue
-                            ]}>
-                              <Text style={styles.statusText}>
-                                {isPaid ? '✓ ' + t('debtors.paidLabel') : t('debtors.statusActive')}
-                              </Text>
-                            </View>
-                          </View>
-
-                          {/* Товар если есть */}
-                          {debt.product_name && (
-                            <Text style={styles.historyDebtProduct}>
-                              🛍️ {debt.product_name}
-                              {debt.quantity && debt.quantity > 1 ? ` × ${debt.quantity}` : ''}
-                            </Text>
-                          )}
-
-                          {/* Сумма */}
-                          <Text style={styles.historyDebtAmount}>
-                            {debt.amount_total.toLocaleString()} {currency.symbol}
-                            {debt.remaining > 0 && (
-                              ` · ${t('debtors.remainingLabel')} ${debt.remaining.toLocaleString()}`
-                            )}
-                          </Text>
-
-                          {/* Заметка */}
-                          {debt.note ? (
-                            <Text style={styles.historyDebtNote}>💬 {debt.note}</Text>
-                          ) : null}
-
-                          {/* Платежи по этому долгу */}
-                          {debtPayments.length > 0 && (
-                            <View style={styles.historyPaymentsList}>
-                              {debtPayments.map((p: any) => (
-                                <View key={String(p.id)} style={styles.historyPaymentItem}>
-                                  <Ionicons name="arrow-up-circle-outline" size={14} color="#1D9E75" />
-                                  <Text style={styles.historyPaymentDate}>
-                                    {new Date(p.created_at).toLocaleDateString(t('tabs.home') === 'Главная' ? 'ru-RU' : t('tabs.home') === 'Асосӣ' ? 'tg-TJ' : 'uz-UZ', {
-                                      day: 'numeric', month: 'short'
-                                    })}
-                                  </Text>
-                                  <Text style={styles.historyPaymentAmount}>
-                                    +{p.amount.toLocaleString()} {currency.symbol}
-                                  </Text>
-                                  {p.note ? (
-                                    <Text style={styles.historyPaymentNote}>{p.note}</Text>
-                                  ) : null}
-                                </View>
-                              ))}
-                            </View>
-                          )}
-                        </View>
-                      );
-                    })
-                  )}
+                  <ClientDebtHistoryList history={clientHistory} />
                 </ScrollView>
               )}
             </ScrollView>
@@ -1080,6 +1004,13 @@ export default function DebtorsScreen() {
             {selectedClient?.note ? (
               <Text style={clientStyles.noteText}>📝 {selectedClient.note}</Text>
             ) : null}
+
+            <Text style={[styles.historyTitle, { marginTop: 10, paddingHorizontal: 4 }]}>
+              {t('debtors.history')} ({clientHistory.length})
+            </Text>
+            <ScrollView style={{ maxHeight: 250, marginTop: 8 }} showsVerticalScrollIndicator={false}>
+              <ClientDebtHistoryList history={clientHistory} />
+            </ScrollView>
 
             {/* Actions */}
             <View style={clientStyles.actionRow}>
