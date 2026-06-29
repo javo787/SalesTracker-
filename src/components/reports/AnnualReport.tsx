@@ -6,9 +6,8 @@ import {
 import { BarChart } from 'react-native-gifted-charts';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import * as XLSX from 'xlsx';
 import { useTranslation } from 'react-i18next';
-import { arrayBufferToBase64 } from '../../utils/excelUtils';
+import { generateExcel } from '../../utils/excelUtils';
 import { getAnnualStats } from '../../db/database';
 import { useAppContext } from '../../context/AppContext';
 import { AD_UNIT_IDS } from '../../constants/ads';
@@ -180,23 +179,26 @@ export default function AnnualReport() {
         [t('exportSummary.headerAnalysis')],
         [summary],
       ];
-      const sheet1 = XLSX.utils.aoa_to_sheet(summaryData);
-      sheet1['!cols'] = [{ wch: 25 }, { wch: 80 }];
 
       // Sheet 2: Monthly Data
       const monthHeader = [t('expenses.month'), t('common.revenue'), t('common.profit'), t('reports.expenses'), t('reports.netProfit'), t('home.salesCount')];
       const monthRows = annualData.months.map((m: any) => [
         MONTH_FULL[m.month - 1], m.revenue, m.profit, m.expenses, m.netProfit, m.salesCount
       ]);
-      const sheet2 = XLSX.utils.aoa_to_sheet([monthHeader, ...monthRows]);
-      sheet2['!cols'] = [{ wch: 20 }];
 
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, sheet1, t('exportSummary.sheetName'));
-      XLSX.utils.book_append_sheet(workbook, sheet2, t('expenses.month'));
+      const base64 = await generateExcel([
+        {
+          name: t('exportSummary.sheetName'),
+          data: summaryData,
+          columns: [{ width: 25 }, { width: 80 }]
+        },
+        {
+          name: t('expenses.month'),
+          data: [monthHeader, ...monthRows],
+          columns: [{ width: 20 }, { width: 15 }, { width: 15 }, { width: 15 }, { width: 15 }, { width: 15 }]
+        }
+      ]);
 
-      const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-      const base64 = arrayBufferToBase64(buffer);
       const fileName = `SavdoApp_Annual_AI_${annualData.year}.xlsx`;
       const filePath = `${FileSystem.cacheDirectory}${fileName}`;
 

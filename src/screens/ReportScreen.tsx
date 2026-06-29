@@ -11,9 +11,8 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as XLSX from 'xlsx';
 import { getStats, getSalesByPeriod, deleteSale, getExpenseStats, getMyStats } from '../db/database';
-import { arrayBufferToBase64 } from '../utils/excelUtils';
+import { generateExcel } from '../utils/excelUtils';
 import { useAppContext } from '../context/AppContext';
 import { useShop } from '../context/ShopContext';
 import AnnualReport from '../components/reports/AnnualReport';
@@ -423,23 +422,26 @@ export default function ReportScreen() {
         [t('exportSummary.headerAnalysis')],
         [summary],
       ];
-      const sheet1 = XLSX.utils.aoa_to_sheet(summaryData);
-      sheet1['!cols'] = [{ wch: 25 }, { wch: 80 }];
 
       // Sheet 2: Sales Data
       const salesHeader = ['ID', t('addSale.productName'), t('addSale.quantity'), t('addSale.sellPrice'), t('addSale.buyPrice'), t('common.profit'), t('addSale.note'), 'Дата'];
       const salesRows = sales.map(s => [
         s.id, s.product_name, s.quantity, s.sell_price, s.buy_price, s.profit, s.note || '', s.created_at
       ]);
-      const sheet2 = XLSX.utils.aoa_to_sheet([salesHeader, ...salesRows]);
-      sheet2['!cols'] = [{ wch: 8 }, { wch: 30 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 30 }, { wch: 20 }];
 
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, sheet1, t('exportSummary.sheetName'));
-      XLSX.utils.book_append_sheet(workbook, sheet2, t('reports.allSales'));
+      const base64 = await generateExcel([
+        {
+          name: t('exportSummary.sheetName'),
+          data: summaryData,
+          columns: [{ width: 25 }, { width: 80 }]
+        },
+        {
+          name: t('reports.allSales'),
+          data: [salesHeader, ...salesRows],
+          columns: [{ width: 8 }, { width: 30 }, { width: 10 }, { width: 12 }, { width: 12 }, { width: 12 }, { width: 30 }, { width: 20 }]
+        }
+      ]);
 
-      const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-      const base64 = arrayBufferToBase64(buffer);
       const fileName = `SavdoApp_AI_${new Date().getTime()}.xlsx`;
       const filePath = `${FileSystem.cacheDirectory}${fileName}`;
 

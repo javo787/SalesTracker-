@@ -59,6 +59,15 @@
         }
       ],
       "@benfurkankilic/expo-yandex-mobile-ads",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableProguardInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
+          }
+        }
+      ],
       "@react-native-firebase/app",
       "@react-native-firebase/analytics",
       "@react-native-firebase/messaging"
