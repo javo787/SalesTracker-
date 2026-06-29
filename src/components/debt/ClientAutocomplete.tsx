@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, Platform,
+  StyleSheet, Platform, ScrollView,
 } from 'react-native';
 import { useAppContext } from '../../context/AppContext';
 import { searchClients } from '../../db/database';
@@ -27,7 +27,7 @@ export default function ClientAutocomplete({
   const { resolvedTheme } = useAppContext();
   const isDark = resolvedTheme === 'dark';
 
-  const fetchFn  = useCallback((q: string) => searchClients(q) as Client[], []);
+  const fetchFn = useCallback((q: string) => searchClients(q) as Client[], []);
   const fetchTop = useCallback(() => searchClients('') as Client[], []);
   const { results, isOpen, search, onFocus, onBlur, select } =
     useAutocomplete<Client>(fetchFn, fetchTop, 250);
@@ -45,10 +45,10 @@ export default function ClientAutocomplete({
 
   const handleBlur = useCallback(() => onBlur(), [onBlur]);
 
-  const inputStyle  = [styles.input, isDark ? styles.inputDark : styles.inputLight];
-  const dropBg      = isDark ? '#2C2C2C' : '#ffffff';
-  const dropBorder  = isDark ? '#444'    : '#E0E0E0';
-  const textColor   = isDark ? '#EEE'    : '#222';
+  const inputStyle = [styles.input, isDark ? styles.inputDark : styles.inputLight];
+  const dropBg = isDark ? '#2C2C2C' : '#ffffff';
+  const dropBorder = isDark ? '#444' : '#E0E0E0';
+  const textColor = isDark ? '#EEE' : '#222';
 
   return (
     <View style={styles.container}>
@@ -78,28 +78,34 @@ export default function ClientAutocomplete({
             },
           ]}
         >
-          {results.map((c, index) => (
-            <TouchableOpacity
-              key={String(c.id)}
-              style={[
-                styles.item,
-                { borderBottomColor: dropBorder },
-                index === results.length - 1 && { borderBottomWidth: 0 },
-              ]}
-              onPress={() => handleSelect(c)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.itemLeft}>
-                <Text style={[styles.itemName, { color: textColor }]} numberOfLines={1}>
-                  {c.name}
-                </Text>
-                {c.phone ? (
-                  <Text style={styles.itemPhone}>{c.phone}</Text>
-                ) : null}
-              </View>
-              <Text style={styles.selectHint}>↵</Text>
-            </TouchableOpacity>
-          ))}
+          <ScrollView
+            style={{ maxHeight: 210 }}
+            keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled
+          >
+            {results.map((c, index) => (
+              <TouchableOpacity
+                key={String(c.id)}
+                style={[
+                  styles.item,
+                  { borderBottomColor: dropBorder },
+                  index === results.length - 1 && { borderBottomWidth: 0 },
+                ]}
+                onPress={() => handleSelect(c)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.itemLeft}>
+                  <Text style={[styles.itemName, { color: textColor }]} numberOfLines={1}>
+                    {c.name}
+                  </Text>
+                  {c.phone ? (
+                    <Text style={styles.itemPhone}>{c.phone}</Text>
+                  ) : null}
+                </View>
+                <Text style={styles.selectHint}>↵</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
       )}
 
@@ -142,13 +148,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   inputLight: { backgroundColor: '#F7F7F7', borderColor: '#E0E0E0', color: '#222' },
-  inputDark:  { backgroundColor: '#2C2C2C', borderColor: '#444',    color: '#EEE' },
+  inputDark: { backgroundColor: '#2C2C2C', borderColor: '#444', color: '#EEE' },
   dropdown: {
     borderRadius: 10,
     borderWidth: 1,
     overflow: 'hidden',
-    marginBottom: 4,   // small gap between list and name input
-    maxHeight: 210,
+    marginBottom: 4, // small gap between list and name input
   },
   item: {
     flexDirection: 'row',
@@ -159,8 +164,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     minHeight: 52,
   },
-  itemLeft:   { flex: 1, marginRight: 8 },
-  itemName:   { fontSize: 15, fontWeight: '500' },
-  itemPhone:  { fontSize: 12, color: '#999', marginTop: 2 },
+  itemLeft: { flex: 1, marginRight: 8 },
+  itemName: { fontSize: 15, fontWeight: '500' },
+  itemPhone: { fontSize: 12, color: '#999', marginTop: 2 },
   selectHint: { fontSize: 16, color: '#bbb' },
 });

@@ -282,13 +282,18 @@ FEW-SHOT EXAMPLES:
 
     const finalSellPrice = sellPrice || (salePricePlaceholder ? String(salePricePlaceholder) : '');
 
-    if (!finalSellPrice || !buyPrice) {
+    if (!finalSellPrice) {
+      Alert.alert(t('common.error'), t('addSale.errorPrices'));
+      return;
+    }
+
+    if (isOwner && !buyPrice) {
       Alert.alert(t('common.error'), t('addSale.errorPrices'));
       return;
     }
 
     const sPrice = parseFloat(finalSellPrice);
-    const bPrice = parseFloat(buyPrice);
+    const bPrice = parseFloat(buyPrice) || 0;
     const qty = parseFloat(quantity) || 1;
 
     if (contextSellerMode === 'wholesale' && paymentType !== 'full' && !clientName.trim()) {
