@@ -61,7 +61,16 @@
       "@benfurkankilic/expo-yandex-mobile-ads",
       "@react-native-firebase/app",
       "@react-native-firebase/analytics",
-      "@react-native-firebase/messaging"
+      "@react-native-firebase/messaging",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableProguardInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
+          }
+        }
+      ]
     ],
     "ios": {
       "bundleIdentifier": "com.savdo.app",
