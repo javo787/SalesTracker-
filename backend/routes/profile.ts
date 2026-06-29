@@ -16,10 +16,30 @@ router.get('/', authMiddleware, async (req: AuthRequest, res) => {
 
 router.patch('/', authMiddleware, async (req: AuthRequest, res) => {
   const { name, avatarUrl } = req.body;
+
+  // Validate avatar: must be a data URI, base64 portion ≤ 300KB
+  if (avatarUrl !== undefined && avatarUrl !== null) {
+    if (typeof avatarUrl !== 'string') {
+      return res.status(400).json({ message: 'avatarUrl must be a string' });
+    }
+    if (avatarUrl.length > 0 && !avatarUrl.startsWith('data:image/')) {
+      return res.status(400).json({ message: 'avatarUrl must be a data URI' });
+    }
+    // base64 string length for 300KB image ≈ 409600 chars; add headroom for data URI prefix
+    const MAX_AVATAR_CHARS = 450_000;
+    if (avatarUrl.length > MAX_AVATAR_CHARS) {
+      return res.status(413).json({ message: 'Avatar image too large (max ~300KB)' });
+    }
+  }
+
   try {
+    const updateFields: Record<string, any> = {};
+    if (name !== undefined) updateFields.name = name;
+    if (avatarUrl !== undefined) updateFields.avatarUrl = avatarUrl;
+
     const user = await User.findByIdAndUpdate(
       req.userId,
-      { name, avatarUrl },
+      updateFields,
       { new: true }
     ).select('-passwordHash');
     res.json(user);

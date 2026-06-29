@@ -34,12 +34,11 @@
           "recordAudioAndroid": true
         }
       ],
-      "expo-speech-recognition",
       "expo-sharing",
       [
         "expo-image-picker",
         {
-          "photosPermission": "The app accesses your photos."
+          "photosPermission": "Разрешите доступ к фото для прикрепления изображений товаров"
         }
       ],
       "expo-font",
