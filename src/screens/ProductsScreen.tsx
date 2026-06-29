@@ -656,7 +656,8 @@ export default function ProductsScreen() {
                         e.stopPropagation();
                         navigation.navigate('ProductDetail', { product: p });
                       }}
-                      style={{ padding: 4 }}
+                      style={{ padding: 8 }}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
                       <Ionicons name="information-circle-outline" size={18} color={Colors.primary} />
                     </TouchableOpacity>

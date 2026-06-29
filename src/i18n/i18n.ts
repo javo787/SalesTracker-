@@ -247,6 +247,8 @@ const resources = {
         debtLabel: 'Долг',
         paidLabel: 'Оплачено',
         remainingLabel: 'Остаток',
+        originalDebt: 'Долг составлял',
+        fullyPaid: '✓ Полностью оплачен',
         clients: 'Клиенты',
       },
       products: {
@@ -815,6 +817,8 @@ const resources = {
         debtLabel: 'Қарз',
         paidLabel: 'Пардохт шуд',
         remainingLabel: 'Бақия',
+        originalDebt: 'Қарз буд',
+        fullyPaid: '✓ Пурра пардохт шуд',
         clients: 'Муштариён',
       },
       products: {
@@ -1383,6 +1387,8 @@ const resources = {
         debtLabel: 'Qarz',
         paidLabel: 'To\'langan',
         remainingLabel: 'Qoldiq',
+        originalDebt: 'Qarz edi',
+        fullyPaid: '✓ To\'liq to\'langan',
         clients: 'Mijozlar',
       },
       products: {
