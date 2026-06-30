@@ -8,6 +8,13 @@ import mongoose from 'mongoose';
 
 const router = express.Router();
 
+function localDateString(d: Date): string {
+  // Tajikistan/Uzbekistan is UTC+5.
+  // We add 5 hours to the UTC date to get the local date string.
+  const localDate = new Date(d.getTime() + 5 * 60 * 60 * 1000);
+  return localDate.toISOString().split('T')[0];
+}
+
 // Generate unique invite code
 async function generateInviteCode(): Promise<string> {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Removed O,0,I,1 for visual clarity
@@ -127,36 +134,35 @@ router.get('/members', authMiddleware, requireShop, requireOwner, async (req: Au
       .select('userId displayName role isActive joinedAt lastActiveAt')
       .lean();
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayStr = today.toISOString().split('T')[0];
+    const todayStr = localDateString(new Date());
 
-    const sellersWithStats = await Promise.all(
-      members.map(async (m) => {
-        const stats = await Sale.aggregate([
-          {
-            $match: {
-              shopId: new mongoose.Types.ObjectId(req.shopId),
-              sellerId: m.userId,
-              created_at: { $gte: todayStr },
-            },
-          },
-          {
-            $group: {
-              _id: null,
-              todayRevenue: { $sum: { $multiply: ['$sell_price', '$quantity'] } },
-              todaySalesCount: { $sum: 1 },
-            },
-          },
-        ]);
-        return {
-          ...m,
-          isSelf: m.userId.toString() === req.userId,
-          todayRevenue: stats[0]?.todayRevenue || 0,
-          todaySalesCount: stats[0]?.todaySalesCount || 0,
-        };
-      })
-    );
+    const stats = await Sale.aggregate([
+      {
+        $match: {
+          shopId: new mongoose.Types.ObjectId(req.shopId),
+          created_at: { $gte: todayStr },
+        },
+      },
+      {
+        $group: {
+          _id: '$sellerId',
+          todayRevenue: { $sum: { $multiply: ['$sell_price', '$quantity'] } },
+          todaySalesCount: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const statsMap = new Map(stats.map(s => [s._id.toString(), s]));
+
+    const sellersWithStats = members.map((m) => {
+      const s = statsMap.get(m.userId.toString());
+      return {
+        ...m,
+        isSelf: m.userId.toString() === req.userId,
+        todayRevenue: s?.todayRevenue || 0,
+        todaySalesCount: s?.todaySalesCount || 0,
+      };
+    });
 
     res.json(sellersWithStats);
   } catch (error) {
@@ -280,13 +286,15 @@ router.get('/seller-stats', authMiddleware, requireShop, requireOwner, async (re
     let fromDate: string;
 
     if (period === 'week') {
-      const d = new Date(now); d.setDate(d.getDate() - 7);
-      fromDate = d.toISOString().split('T')[0];
+      const d = new Date(now);
+      d.setDate(d.getDate() - 7);
+      fromDate = localDateString(d);
     } else if (period === 'month') {
-      const d = new Date(now); d.setDate(1);
-      fromDate = d.toISOString().split('T')[0];
+      // Get the local date string for 'now', then take YYYY-MM and append -01
+      const localNow = localDateString(now);
+      fromDate = localNow.substring(0, 7) + '-01';
     } else {
-      fromDate = now.toISOString().split('T')[0];
+      fromDate = localDateString(now);
     }
 
     const stats = await Sale.aggregate([
