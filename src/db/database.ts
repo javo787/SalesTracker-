@@ -181,6 +181,48 @@ export function initDatabase() {
     });
   }
 
+  const schemaV3MigrationDone = db.getFirstSync(
+    "SELECT value FROM app_meta WHERE key = 'schema_v3'"
+  ) as { value: string } | null;
+
+  if (!schemaV3MigrationDone) {
+    db.withTransactionSync(() => {
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS orders (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          client_id INTEGER,
+          seller_id TEXT,
+          seller_name TEXT,
+          total_amount REAL NOT NULL,
+          payment_type TEXT,
+          status TEXT DEFAULT 'completed',
+          note TEXT,
+          created_at TEXT,
+          FOREIGN KEY (client_id) REFERENCES clients(id)
+        );
+      `);
+
+      const productsTableInfo = db.getAllSync("PRAGMA table_info(products)") as any[];
+      const salesTableInfo = db.getAllSync("PRAGMA table_info(sales)") as any[];
+      const debtsTableInfo = db.getAllSync("PRAGMA table_info(debts)") as any[];
+
+      if (!productsTableInfo.some(c => c.name === 'article')) {
+        db.execSync("ALTER TABLE products ADD COLUMN article TEXT");
+      }
+      if (!productsTableInfo.some(c => c.name === 'is_continuous')) {
+        db.execSync("ALTER TABLE products ADD COLUMN is_continuous INTEGER DEFAULT 0");
+      }
+      if (!salesTableInfo.some(c => c.name === 'order_id')) {
+        db.execSync("ALTER TABLE sales ADD COLUMN order_id INTEGER");
+      }
+      if (!debtsTableInfo.some(c => c.name === 'order_id')) {
+        db.execSync("ALTER TABLE debts ADD COLUMN order_id INTEGER");
+      }
+
+      db.runSync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_v3', 'done')");
+    });
+  }
+
   // Migration: shop_session table
   db.execSync(`
     CREATE TABLE IF NOT EXISTS shop_session (
@@ -223,7 +265,8 @@ export function addProduct(
   hasPackages: number = 0,
   packageName: string | null = null,
   unitsPerPackage: number = 1,
-  category: string | null = null
+  category: string | null = null,
+  isContinuous: number = 0
 ) {
   try {
     const now = nowLocalISO();
@@ -231,9 +274,9 @@ export function addProduct(
       `INSERT INTO products (
         name, buy_price, sell_price, stock, min_stock_alert,
         base_unit, has_packages, package_name, units_per_package,
-        category, updated_at, synced, is_deleted, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)`,
-      [name, buyPrice, sellPrice, stock, minStockAlert, baseUnit, hasPackages, packageName, unitsPerPackage, category, now, now]
+        category, updated_at, synced, is_deleted, created_at, is_continuous
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)`,
+      [name, buyPrice, sellPrice, stock, minStockAlert, baseUnit, hasPackages, packageName, unitsPerPackage, category, now, now, isContinuous]
     );
     if (stock <= minStockAlert && minStockAlert > 0) {
       notifyLowStock(name, stock);
@@ -256,16 +299,17 @@ export function updateProduct(
   hasPackages: number = 0,
   packageName: string | null = null,
   unitsPerPackage: number = 1,
-  category: string | null = null
+  category: string | null = null,
+  isContinuous: number = 0
 ) {
   try {
     const result = db.runSync(
       `UPDATE products SET
         name = ?, buy_price = ?, sell_price = ?, stock = ?, min_stock_alert = ?,
         base_unit = ?, has_packages = ?, package_name = ?, units_per_package = ?,
-        category = ?, updated_at = ?, synced = 0
+        category = ?, updated_at = ?, synced = 0, is_continuous = ?
       WHERE id = ?`,
-      [name, buyPrice, sellPrice, stock, minStockAlert, baseUnit, hasPackages, packageName, unitsPerPackage, category, nowLocalISO(), id]
+      [name, buyPrice, sellPrice, stock, minStockAlert, baseUnit, hasPackages, packageName, unitsPerPackage, category, nowLocalISO(), isContinuous, id]
     );
     if (stock <= minStockAlert && minStockAlert > 0) {
       notifyLowStock(name, stock);
@@ -849,14 +893,15 @@ export function addDebt(
   amountTotal: number,
   amountPaid: number = 0,
   note: string = '',
-  dueDate: string = ''
+  dueDate: string = '',
+  orderId: number | null = null
 ) {
   const now = nowLocalISO();
   return db.runSync(
     `INSERT INTO debts
-       (client_id, sale_id, amount_total, amount_paid, status, due_date, note, created_at, updated_at)
-     VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?)`,
-    [clientId, saleId, amountTotal, amountPaid, dueDate || null, note, now, now]
+       (client_id, sale_id, amount_total, amount_paid, status, due_date, note, created_at, updated_at, order_id)
+     VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)`,
+    [clientId, saleId, amountTotal, amountPaid, dueDate || null, note, now, now, orderId]
   );
 }
 
@@ -867,7 +912,10 @@ export function getDebtsWithClients() {
       c.name AS client_name,
       c.phone AS client_phone,
       (d.amount_total - d.amount_paid) AS remaining,
-      s.product_name AS product_name_from_sale
+      COALESCE(
+        s.product_name,
+        (SELECT GROUP_CONCAT(product_name, ', ') FROM sales WHERE order_id = d.order_id)
+      ) AS product_name_from_sale
     FROM debts d
     JOIN clients c ON c.id = d.client_id
     LEFT JOIN sales s ON s.id = d.sale_id
@@ -1015,7 +1063,7 @@ export function searchProductsForAutocomplete(query: string) {
           (SELECT s.sell_price FROM sales s WHERE s.product_id = p.id ORDER BY s.created_at DESC LIMIT 1) as lastSalePrice,
           (SELECT COUNT(*) FROM sales s WHERE s.product_id = p.id) as salesCount,
           (SELECT MAX(s.created_at) FROM sales s WHERE s.product_id = p.id) as lastSoldAt,
-          p.base_unit, p.has_packages, p.package_name, p.units_per_package
+          p.base_unit, p.has_packages, p.package_name, p.units_per_package, p.is_continuous, p.stock
         FROM products p
         WHERE p.is_deleted = 0
         UNION ALL
@@ -1027,7 +1075,7 @@ export function searchProductsForAutocomplete(query: string) {
           (SELECT s2.sell_price FROM sales s2 WHERE s2.product_name = s.product_name AND s2.product_id IS NULL ORDER BY s2.created_at DESC LIMIT 1) as lastSalePrice,
           COUNT(*) as salesCount,
           MAX(s.created_at) as lastSoldAt,
-          'шт' as base_unit, 0 as has_packages, NULL as package_name, 1 as units_per_package
+          'шт' as base_unit, 0 as has_packages, NULL as package_name, 1 as units_per_package, 0 as is_continuous, 0 as stock
         FROM sales s
         WHERE s.product_id IS NULL
           AND s.product_name NOT IN (SELECT name FROM products)
@@ -1050,7 +1098,7 @@ export function searchProductsForAutocomplete(query: string) {
         (SELECT s.sell_price FROM sales s WHERE s.product_id = p.id ORDER BY s.created_at DESC LIMIT 1) as lastSalePrice,
         (SELECT COUNT(*) FROM sales s WHERE s.product_id = p.id) as salesCount,
         (SELECT MAX(s.created_at) FROM sales s WHERE s.product_id = p.id) as lastSoldAt,
-        p.base_unit, p.has_packages, p.package_name, p.units_per_package
+        p.base_unit, p.has_packages, p.package_name, p.units_per_package, p.is_continuous, p.stock
       FROM products p
       WHERE p.name LIKE ? || '%' AND p.is_deleted = 0
     ),
@@ -1063,7 +1111,7 @@ export function searchProductsForAutocomplete(query: string) {
         (SELECT s2.sell_price FROM sales s2 WHERE s2.product_name = s.product_name AND s2.product_id IS NULL ORDER BY s2.created_at DESC LIMIT 1) as lastSalePrice,
         COUNT(*) as salesCount,
         MAX(s.created_at) as lastSoldAt,
-        'шт' as base_unit, 0 as has_packages, NULL as package_name, 1 as units_per_package
+        'шт' as base_unit, 0 as has_packages, NULL as package_name, 1 as units_per_package, 0 as is_continuous, 0 as stock
       FROM sales s
       WHERE s.product_id IS NULL
         AND s.product_name LIKE ? || '%'
@@ -1166,6 +1214,79 @@ export function addSaleWithSeller(
     }
   }
   return result;
+}
+
+export function addOrderWithItems(
+  items: Array<{
+    productId: number | null;
+    productName: string;
+    quantity: number;
+    sellPrice: number;
+    buyPrice: number;
+    note?: string;
+  }>,
+  clientId: number | null,
+  paymentType: 'full' | 'partial' | 'debt',
+  paidAmount: number,
+  dueDate: string,
+  sellerId: string,
+  sellerName: string,
+  role: 'owner' | 'seller'
+): { orderId: number; saleIds: number[]; totalAmount: number } {
+  const totalAmount = items.reduce((sum, item) => sum + item.sellPrice * item.quantity, 0);
+  const now = nowLocalISO();
+  let orderId: number;
+  const saleIds: number[] = [];
+  const lowStockProducts: Array<{ name: string; stock: number }> = [];
+
+  db.withTransactionSync(() => {
+    // 1. Insert Order
+    const orderResult = db.runSync(
+      `INSERT INTO orders (client_id, seller_id, seller_name, total_amount, payment_type, status, created_at)
+       VALUES (?, ?, ?, ?, ?, 'completed', ?)`,
+      [clientId, sellerId, sellerName, totalAmount, paymentType, now]
+    ) as { lastInsertRowId: number };
+    orderId = orderResult.lastInsertRowId;
+
+    // 2. Insert Sales and Update Stock
+    for (const item of items) {
+      const profit = role === 'owner' ? (item.sellPrice - item.buyPrice) * item.quantity : null;
+      const actualBuyPrice = role === 'owner' ? item.buyPrice : null;
+      const stockUpdated = item.productId ? 1 : 0;
+
+      const saleResult = db.runSync(
+        `INSERT INTO sales (
+          product_id, product_name, quantity, sell_price, buy_price,
+          profit, note, stock_updated, created_at, seller_id, seller_name, order_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          item.productId, item.productName, item.quantity, item.sellPrice, actualBuyPrice,
+          profit, item.note || null, stockUpdated, now, sellerId, sellerName, orderId
+        ]
+      ) as { lastInsertRowId: number };
+      saleIds.push(saleResult.lastInsertRowId);
+
+      if (item.productId) {
+        db.runSync('UPDATE products SET stock = stock - ? WHERE id = ?', [item.quantity, item.productId]);
+
+        // Prepare for notification after transaction
+        const p = db.getFirstSync('SELECT name, stock, min_stock_alert FROM products WHERE id = ?', [item.productId]) as any;
+        if (p && p.stock <= p.min_stock_alert && p.min_stock_alert > 0) {
+          lowStockProducts.push({ name: p.name, stock: p.stock });
+        }
+      }
+    }
+
+    // 3. Add Debt if applicable
+    if (paymentType !== 'full' && clientId) {
+      addDebt(clientId, null, totalAmount, paidAmount, '', dueDate, orderId);
+    }
+  });
+
+  // 4. Notify low stock after transaction
+  lowStockProducts.forEach(p => notifyLowStock(p.name, p.stock));
+
+  return { orderId: orderId!, saleIds, totalAmount };
 }
 
 // Статистика для продавца (только его продажи, без buy_price)

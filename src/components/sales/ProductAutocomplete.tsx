@@ -26,7 +26,7 @@ interface Props {
   placeholderTextColor?: string;
 }
 
-export function ProductAutocomplete({
+export const ProductAutocomplete = React.forwardRef<any, Props>(({
   value,
   onChange,
   onSelect,
@@ -34,7 +34,7 @@ export function ProductAutocomplete({
   containerStyle,
   placeholder,
   placeholderTextColor,
-}: Props) {
+}, ref) => {
   const { resolvedTheme, currency } = useAppContext();
   const isDark = resolvedTheme === 'dark';
   const { t } = useTranslation();
@@ -74,6 +74,7 @@ export function ProductAutocomplete({
   return (
     <View style={[styles.container, containerStyle]}>
       <TextInput
+        ref={ref}
         style={inputStyle}
         value={value}
         onChangeText={handleInputChange}
@@ -116,7 +117,7 @@ export function ProductAutocomplete({
       )}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {
