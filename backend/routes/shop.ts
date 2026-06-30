@@ -151,6 +151,7 @@ router.get('/members', authMiddleware, requireShop, requireOwner, async (req: Au
         ]);
         return {
           ...m,
+          isSelf: m.userId.toString() === req.userId,
           todayRevenue: stats[0]?.todayRevenue || 0,
           todaySalesCount: stats[0]?.todaySalesCount || 0,
         };
@@ -161,6 +162,83 @@ router.get('/members', authMiddleware, requireShop, requireOwner, async (req: Au
   } catch (error) {
     console.error('Fetch members error:', error);
     res.status(500).json({ message: 'Error fetching members' });
+  }
+});
+
+// PATCH /shop/members/:userId/role — update member role (owner only)
+router.patch('/members/:userId/role', authMiddleware, requireShop, requireOwner, async (req: AuthRequest, res) => {
+  const session = await mongoose.startSession();
+  try {
+    const { userId } = req.params;
+    const { action } = req.body;
+
+    if (userId === req.userId) return res.status(400).json({ message: 'Cannot transfer ownership to yourself' });
+
+    if (action !== 'transfer_ownership') return res.status(400).json({ message: 'Invalid action' });
+
+    const targetMember = await ShopMember.findOne({ shopId: req.shopId, userId, isActive: true });
+    if (!targetMember) return res.status(404).json({ message: 'Active member not found' });
+    if (targetMember.role === 'owner') return res.status(400).json({ message: 'Target is already an owner' });
+
+    await session.withTransaction(async () => {
+      // 1. Promote target
+      targetMember.role = 'owner';
+      await targetMember.save({ session });
+
+      // 2. Demote current owner
+      await ShopMember.updateOne(
+        { shopId: req.shopId, userId: req.userId, isActive: true },
+        { role: 'seller' },
+        { session }
+      );
+
+      // 3. Update shop ownerId
+      await Shop.findByIdAndUpdate(req.shopId, { ownerId: userId }, { session });
+    });
+
+    res.json({
+      message: 'Ownership transferred successfully',
+      newOwnerId: userId,
+      previousOwnerNewRole: 'seller'
+    });
+  } catch (error) {
+    console.error('Transfer ownership error:', error);
+    res.status(500).json({ message: 'Error transferring ownership' });
+  } finally {
+    session.endSession();
+  }
+});
+
+// POST /shop/leave — leave current shop
+router.post('/leave', authMiddleware, requireShop, async (req: AuthRequest, res) => {
+  try {
+    const member = await ShopMember.findOne({ shopId: req.shopId, userId: req.userId, isActive: true });
+    if (!member) return res.status(404).json({ message: 'Member not found' });
+
+    const activeCount = await ShopMember.countDocuments({ shopId: req.shopId, isActive: true });
+
+    if (member.role === 'owner') {
+      if (activeCount > 1) {
+        return res.status(409).json({
+          code: 'TRANSFER_REQUIRED',
+          message: 'Please assign a new owner before leaving the shop'
+        });
+      } else {
+        // Last owner leaving — archive shop
+        member.isActive = false;
+        await member.save();
+        await Shop.findByIdAndUpdate(req.shopId, { isActive: false });
+        return res.json({ message: 'Shop archived' });
+      }
+    }
+
+    // Regular seller leaving
+    member.isActive = false;
+    await member.save();
+    res.json({ message: 'You have left the shop' });
+  } catch (error) {
+    console.error('Leave shop error:', error);
+    res.status(500).json({ message: 'Error leaving shop' });
   }
 });
 

@@ -3,7 +3,22 @@ import { clearShopSession } from '../db/database';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
+type RevokedCallback = () => void;
+
 class ApiClient {
+  private revokedCallbacks: RevokedCallback[] = [];
+
+  onShopRevoked(callback: RevokedCallback) {
+    this.revokedCallbacks.push(callback);
+    return () => {
+      this.revokedCallbacks = this.revokedCallbacks.filter(cb => cb !== callback);
+    };
+  }
+
+  private emitRevoked() {
+    this.revokedCallbacks.forEach(cb => cb());
+  }
+
   private async getHeaders() {
     const token = await SecureStore.getItemAsync('auth_token');
     const headers: any = {
@@ -21,13 +36,21 @@ class ApiClient {
       throw new Error('Unauthorized');
     }
     if (response.status === 403) {
-      // Shop access revoked or logic error
-      clearShopSession();
-      throw new Error('SHOP_ACCESS_REVOKED');
+      const errorData = await response.json().catch(() => ({}));
+      if (errorData.message?.includes('Not a member of any shop')) {
+        this.emitRevoked();
+        clearShopSession();
+        throw new Error('SHOP_ACCESS_REVOKED');
+      }
+      // Other 403 (e.g. requireOwner on seller request)
+      throw new Error(errorData.message || 'Forbidden');
     }
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `Request failed (HTTP ${response.status})`);
+      const error: any = new Error(errorData.message || `Request failed (HTTP ${response.status})`);
+      error.status = response.status;
+      error.code = errorData.code;
+      throw error;
     }
     return response.json();
   }

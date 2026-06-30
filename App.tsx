@@ -1,6 +1,6 @@
 import 'react-native-gesture-handler';
 import { useEffect, useState, useRef } from 'react';
-import { View, ActivityIndicator, TouchableOpacity, Platform, Text, AppState } from 'react-native';
+import { View, ActivityIndicator, TouchableOpacity, Platform, Text, AppState, Alert } from 'react-native';
 import * as NavigationBar from 'expo-navigation-bar';
 import { NavigationContainer, DrawerActions, useNavigationContainerRef } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -303,7 +303,17 @@ function AppContent() {
   const routeNameRef = useRef<string>(undefined);
 
   const { currency } = useAppContext();
-  const { hasShop, isLoading: isShopLoading } = useShop();
+  const { hasShop, isLoading: isShopLoading, shopRevoked, setShopRevoked } = useShop();
+
+  useEffect(() => {
+    if (shopRevoked) {
+      Alert.alert(
+        t('sellers.shopRevokedTitle') || 'Access Revoked',
+        t('sellers.shopRevokedDesc') || 'You are no longer a member of this shop.',
+        [{ text: 'OK', onPress: () => setShopRevoked(false) }]
+      );
+    }
+  }, [shopRevoked]);
 
   useEffect(() => {
     if (isAuthenticated && hasShop) {

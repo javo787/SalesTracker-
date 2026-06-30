@@ -22,8 +22,20 @@ const ShopMemberSchema = new Schema({
   lastActiveAt: { type: Date, default: Date.now },
 });
 
-// One user - one shop (in current version)
-ShopMemberSchema.index({ userId: 1 }, { unique: true });
+// One user - one active shop (allows historical inactive records)
+ShopMemberSchema.index(
+  { userId: 1 },
+  { unique: true, partialFilterExpression: { isActive: true } }
+);
 ShopMemberSchema.index({ shopId: 1, isActive: 1 });
 
-export default mongoose.model<IShopMember>('ShopMember', ShopMemberSchema);
+const ShopMember = mongoose.model<IShopMember>('ShopMember', ShopMemberSchema);
+
+// Safely handle index creation errors (e.g. if an old index exists in production)
+ShopMember.on('index', (error) => {
+  if (error) {
+    console.error('ShopMember index error:', error);
+  }
+});
+
+export default ShopMember;

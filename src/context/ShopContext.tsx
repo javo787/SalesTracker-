@@ -15,9 +15,12 @@ interface ShopContextType {
   isSeller: boolean;
   hasShop: boolean;
   isLoading: boolean;
+  shopRevoked: boolean;
+  setShopRevoked: (val: boolean) => void;
   createShop(shopName: string): Promise<void>;
   joinShop(inviteCode: string): Promise<void>;
-  leaveShop(): Promise<void>;
+  leaveShop(): Promise<{ ok: true } | { ok: false; code: 'TRANSFER_REQUIRED' }>;
+  transferOwnership(userId: string): Promise<void>;
   refreshShopInfo(): Promise<void>;
   regenerateInviteCode(): Promise<string>;
 }
@@ -31,9 +34,19 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [sellerName, setSellerName] = useState<string | null>(null);
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [shopRevoked, setShopRevoked] = useState(false);
 
   useEffect(() => {
     loadFromLocal();
+
+    const unsubscribe = api.onShopRevoked(() => {
+      clearShopSession();
+      setShopId(null); setShopName(null); setRole(null);
+      setSellerName(null); setInviteCode(null);
+      setShopRevoked(true);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const loadFromLocal = () => {
@@ -111,10 +124,27 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return newCode;
   };
 
-  const leaveShop = async () => {
-    clearShopSession();
-    setShopId(null); setShopName(null); setRole(null);
-    setSellerName(null); setInviteCode(null);
+  const transferOwnership = async (userId: string) => {
+    await api.patch(`/shop/members/${userId}/role`, { action: 'transfer_ownership' });
+    setRole('seller');
+    if (shopId && shopName && sellerName) {
+      saveShopSession({ shopId, shopName, role: 'seller', sellerName, inviteCode: inviteCode || undefined });
+    }
+  };
+
+  const leaveShop = async (): Promise<{ ok: true } | { ok: false; code: 'TRANSFER_REQUIRED' }> => {
+    try {
+      await api.post('/shop/leave', {});
+      clearShopSession();
+      setShopId(null); setShopName(null); setRole(null);
+      setSellerName(null); setInviteCode(null);
+      return { ok: true };
+    } catch (e: any) {
+      if (e.message?.includes('TRANSFER_REQUIRED') || e.status === 409) {
+        return { ok: false, code: 'TRANSFER_REQUIRED' };
+      }
+      throw e;
+    }
   };
 
   return (
@@ -124,7 +154,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isSeller: role === 'seller',
       hasShop: !!shopId,
       isLoading,
-      createShop, joinShop, leaveShop, refreshShopInfo, regenerateInviteCode,
+      shopRevoked,
+      setShopRevoked,
+      createShop, joinShop, leaveShop, transferOwnership, refreshShopInfo, regenerateInviteCode,
     }}>
       {children}
     </ShopContext.Provider>
