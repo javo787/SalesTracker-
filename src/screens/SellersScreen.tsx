@@ -8,13 +8,15 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { useShop } from '../context/ShopContext';
 import { api } from '../services/api';
+import { useNavigation, CommonActions } from '@react-navigation/native';
 import { Colors, LightTheme, DarkTheme, Radius, Shadow, FontSize, Spacing } from '../constants/theme';
 import { useAppContext } from '../context/AppContext';
 import { ShopMember, SellerStats } from '../types/auth';
 
 export default function SellersScreen() {
   const { t } = useTranslation();
-  const { inviteCode, regenerateInviteCode, shopId } = useShop();
+  const navigation = useNavigation();
+  const { inviteCode, regenerateInviteCode, shopId, isOwner, role, transferOwnership, leaveShop } = useShop();
   const { resolvedTheme, currency } = useAppContext();
   const isDark = resolvedTheme === 'dark';
   const themeStyles = isDark ? darkStyles : lightStyles;
@@ -48,6 +50,91 @@ export default function SellersScreen() {
   const onRefresh = () => {
     setRefreshing(true);
     loadData();
+  };
+
+  const handleTransferOwnership = (userId: string, name: string) => {
+    Alert.alert(
+      t('sellers.makeOwnerTitle') || 'Transfer Ownership',
+      t('sellers.makeOwnerConfirm', { name }) || `You will lose owner rights. Transfer to ${name}?`,
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('common.continue'),
+          onPress: async () => {
+            try {
+              await transferOwnership(userId);
+              Alert.alert(t('common.success'), t('sellers.makeOwnerSuccess') || 'Ownership transferred');
+              loadData();
+              // If no longer owner, navigate away or refresh will handle it via drawer update,
+              // but explicit navigation to Home is better if this screen is owner-only
+              navigation.dispatch(
+                CommonActions.reset({
+                  index: 0,
+                  routes: [{ name: 'Main' }],
+                })
+              );
+            } catch (e: any) {
+              Alert.alert(t('common.error'), e.message);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleLeaveShop = () => {
+    Alert.alert(
+      t('sellers.leaveShopTitle') || 'Leave Shop',
+      t('sellers.leaveShopConfirm') || 'Are you sure you want to leave the shop?',
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('common.delete'), // Using delete style for leave
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const result = await leaveShop();
+              if (result.ok) {
+                // navigation will be handled by ShopProvider/App.tsx logic since hasShop becomes false
+              } else if (result.code === 'TRANSFER_REQUIRED') {
+                Alert.alert(t('common.error'), t('sellers.leaveShopBlockedDesc'));
+              }
+            } catch (e: any) {
+              Alert.alert(t('common.error'), e.message);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleMemberActions = (member: ShopMember) => {
+    const options: { text: string; style?: 'cancel' | 'default' | 'destructive'; onPress?: () => void }[] = [
+      {
+        text: t('common.cancel'),
+        style: 'cancel'
+      }
+    ];
+
+    if (member.isSelf) return;
+
+    if (isOwner && member.role !== 'owner') {
+      options.unshift({
+        text: t('sellers.makeOwnerTitle') || 'Make Owner',
+        style: 'default',
+        onPress: () => handleTransferOwnership(member.userId, member.displayName)
+      });
+    }
+
+    if (isOwner) {
+      options.push({
+        text: t('common.delete'),
+        style: 'destructive',
+        onPress: () => handleDeactivate(member.userId, member.displayName)
+      });
+    }
+
+    Alert.alert(member.displayName, member.role === 'owner' ? t('common.owner') : t('common.seller'), options as any);
   };
 
   const handleDeactivate = (userId: string, name: string) => {
@@ -159,9 +246,9 @@ export default function SellersScreen() {
                   <Text style={[styles.revenue, themeStyles.text]}>
                     {(memberStats?.revenue || 0).toLocaleString()} {currency.symbol}
                   </Text>
-                  {member.role !== 'owner' && (
-                    <TouchableOpacity onPress={() => handleDeactivate(member.userId, member.displayName)}>
-                      <Text style={styles.deleteText}>{t('common.delete')}</Text>
+                  {!member.isSelf && (
+                    <TouchableOpacity onPress={() => handleMemberActions(member)} style={{ padding: 5 }}>
+                      <Ionicons name="ellipsis-vertical" size={20} color={isDark ? '#AAA' : '#666'} />
                     </TouchableOpacity>
                   )}
                 </View>
@@ -189,6 +276,28 @@ export default function SellersScreen() {
           <Text style={styles.regenBtnText}>{t('sellers.regenerateBtn') || 'Перевыпустить код'}</Text>
         </TouchableOpacity>
       </View>
+
+      <View style={[styles.leaveCard, themeStyles.card]}>
+        <Text style={[styles.leaveTitle, themeStyles.text]}>{t('sellers.leaveShopTitle') || 'Покинуть магазин'}</Text>
+        <Text style={styles.leaveDesc}>
+          {isOwner && members.filter(m => m.isActive).length > 1
+            ? t('sellers.leaveShopBlockedDesc') || 'Сначала назначьте нового владельца через меню участника, затем сможете покинуть магазин'
+            : t('sellers.leaveShopDesc') || 'Вы выйдете из текущего магазина и сможете создать новый или вступить по коду приглашения'}
+        </Text>
+
+        <TouchableOpacity
+          style={[
+            styles.leaveBtn,
+            isOwner && members.filter(m => m.isActive).length > 1 && styles.leaveBtnDisabled
+          ]}
+          onPress={handleLeaveShop}
+          disabled={isOwner && members.filter(m => m.isActive).length > 1}
+        >
+          <Ionicons name="exit-outline" size={20} color="#FFF" />
+          <Text style={styles.leaveBtnText}>{t('sellers.leaveShopBtn') || 'Покинуть'}</Text>
+        </TouchableOpacity>
+      </View>
+
       <View style={{ height: 40 }} />
     </ScrollView>
   );
@@ -237,5 +346,11 @@ const styles = StyleSheet.create({
   copyBtn: { backgroundColor: Colors.primary, borderRadius: 10, paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', gap: 8 },
   copyBtnText: { color: '#FFF', fontWeight: 'bold' },
   regenBtn: { alignSelf: 'center', padding: 10 },
-  regenBtnText: { color: Colors.primary, fontSize: 14, fontWeight: '500' }
+  regenBtnText: { color: Colors.primary, fontSize: 14, fontWeight: '500' },
+  leaveCard: { margin: 20, marginTop: 0, padding: 20, borderRadius: 16, ...Shadow.md },
+  leaveTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 8 },
+  leaveDesc: { fontSize: 13, color: '#888', lineHeight: 18, marginBottom: 20 },
+  leaveBtn: { backgroundColor: Colors.danger, borderRadius: 10, height: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  leaveBtnDisabled: { backgroundColor: '#CCC' },
+  leaveBtnText: { color: '#FFF', fontWeight: 'bold' },
 });

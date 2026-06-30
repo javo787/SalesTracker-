@@ -58,6 +58,7 @@ export interface ShopMember {
   isActive: boolean;
   joinedAt: string;
   lastActiveAt: string;
+  isSelf?: boolean;
   todayRevenue?: number;
   todaySalesCount?: number;
 }
