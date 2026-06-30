@@ -205,6 +205,12 @@ const resources = {
         paymentDebt: '📋 В долг',
         paidNowPlaceholder: 'Внесено сейчас',
         dueDatePlaceholder: 'Срок оплаты (ГГГГ-ММ-ДД)',
+        addToCart: 'Добавить в корзину',
+        cartTotal: 'Итого: {{total}} {{symbol}} · {{count}} поз.',
+        checkoutBtn: 'Оформить заказ · {{total}} {{symbol}}',
+        addClientOptional: '+ Указать клиента',
+        newProductBadge: '🆕 новый товар',
+        lowStockWarning: 'на складе только {{stock}}',
       },
       onboarding: {
         step1Title: "Добавьте товары",
@@ -286,6 +292,7 @@ const resources = {
         packageName: 'Название упаковки',
         unitsPerPackage: 'Кол-во в упаковке',
         packageNamePlaceholder: 'напр. коробка',
+        isContinuous: 'Непрерывный товар (метр, литр)',
         advancedSettings: 'Дополнительно (упаковки, единицы)',
         lastUpdate: 'Обновлено',
         editProduct: 'Редактировать товар',
@@ -807,6 +814,12 @@ const resources = {
         paymentDebt: '📋 Ба қарз',
         paidNowPlaceholder: 'Ҳоло пардохт шуд',
         dueDatePlaceholder: 'Мӯҳлати пардохт (СССС-ММ-РР)',
+        addToCart: 'Ба сабад илова кардан', // TODO: needs native speaker review
+        cartTotal: 'Ҷамъ: {{total}} {{symbol}} · {{count}} адад', // TODO: needs native speaker review
+        checkoutBtn: 'Фармоиш додан · {{total}} {{symbol}}', // TODO: needs native speaker review
+        addClientOptional: '+ Нишон додани муштарӣ', // TODO: needs native speaker review
+        newProductBadge: '🆕 моли нав', // TODO: needs native speaker review
+        lowStockWarning: 'дар анбор танҳо {{stock}}', // TODO: needs native speaker review
       },
       onboarding: {
         // TODO: needs native speaker review
@@ -889,6 +902,7 @@ const resources = {
         packageName: 'Номи упаковка',
         unitsPerPackage: 'Миқдор дар упаковка',
         packageNamePlaceholder: 'мас. қуттӣ',
+        isContinuous: 'Моли бефосила (метр, литр)',
         advancedSettings: 'Иловагӣ (упаковкаҳо, воҳидҳо)',
         lastUpdate: 'Нав карда шуд',
         editProduct: 'Таҳрири мол',
@@ -2012,6 +2026,12 @@ const resources = {
         paymentDebt: '📋 Qarzga',
         paidNowPlaceholder: 'Hozir to\'landi',
         dueDatePlaceholder: 'To\'lov muddati (YYYY-MM-DD)',
+        addToCart: 'Savatga qo\'shish', // TODO: needs native speaker review
+        cartTotal: 'Jami: {{total}} {{symbol}} · {{count}} ta', // TODO: needs native speaker review
+        checkoutBtn: 'Buyurtma berish · {{total}} {{symbol}}', // TODO: needs native speaker review
+        addClientOptional: '+ Mijozni ko\'rsatish', // TODO: needs native speaker review
+        newProductBadge: '🆕 yangi mahsulot', // TODO: needs native speaker review
+        lowStockWarning: 'omborda faqat {{stock}}', // TODO: needs native speaker review
       },
       onboarding: {
         // TODO: needs native speaker review
@@ -2094,6 +2114,7 @@ const resources = {
         packageName: 'Upakovka nomi',
         unitsPerPackage: 'Upakovkadagi soni',
         packageNamePlaceholder: 'masalan: quti',
+        isContinuous: 'Uzluksiz mahsulot (metr, litr)',
         advancedSettings: 'Qo\'shimcha (upakovkalar, birliklar)',
         lastUpdate: 'Yangilandi',
         editProduct: 'Mahsulotni tahrirlash',

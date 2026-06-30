@@ -39,6 +39,7 @@ export default function ProductsScreen() {
   const [minStockAlert, setMinStockAlert] = useState(String(defaultMinStockAlert));
   const [baseUnit, setBaseUnit] = useState('шт');
   const [hasPackages, setHasPackages] = useState(false);
+  const [isContinuous, setIsContinuous] = useState(false);
   const [packageName, setPackageName] = useState('');
   const [unitsPerPackage, setUnitsPerPackage] = useState('1');
   const [category, setCategory] = useState('');
@@ -150,10 +151,10 @@ export default function ProductsScreen() {
     const cat = category.trim() || null;
 
     if (editingId) {
-      updateProduct(editingId, name.trim(), bPrice, sPrice, st, alert, baseUnit, hasPackages ? 1 : 0, packageName, uPerPkg, cat);
+      updateProduct(editingId, name.trim(), bPrice, sPrice, st, alert, baseUnit, hasPackages ? 1 : 0, packageName, uPerPkg, cat, isContinuous ? 1 : 0);
       analyticsService.logEvent('product_updated', { product_id: editingId });
     } else {
-      const result = addProduct(name.trim(), bPrice, sPrice, st, alert, baseUnit, hasPackages ? 1 : 0, packageName, uPerPkg, cat);
+      const result = addProduct(name.trim(), bPrice, sPrice, st, alert, baseUnit, hasPackages ? 1 : 0, packageName, uPerPkg, cat, isContinuous ? 1 : 0);
       analyticsService.logEvent('product_added', { product_id: result.lastInsertRowId });
 
       // Suggest adding expense for purchase cost
@@ -193,7 +194,7 @@ export default function ProductsScreen() {
   const resetForm = () => {
     setName(''); setBuyPrice(''); setSellPrice(''); setStock('');
     setMinStockAlert(String(defaultMinStockAlert));
-    setBaseUnit('шт'); setHasPackages(false); setPackageName(''); setUnitsPerPackage('1');
+    setBaseUnit('шт'); setHasPackages(false); setIsContinuous(false); setPackageName(''); setUnitsPerPackage('1');
     setCategory('');
     setEditingId(null);
     setShowAdvanced(false);
@@ -216,11 +217,12 @@ export default function ProductsScreen() {
             setMinStockAlert(String(p.min_stock_alert || 0));
             setBaseUnit(p.base_unit || 'шт');
             setHasPackages(p.has_packages === 1);
+            setIsContinuous(p.is_continuous === 1);
             setPackageName(p.package_name || '');
             setUnitsPerPackage(String(p.units_per_package || 1));
             setCategory(p.category || '');
             setShowForm(true);
-            setShowAdvanced(p.has_packages === 1 || p.base_unit !== 'шт');
+            setShowAdvanced(p.has_packages === 1 || p.base_unit !== 'шт' || p.is_continuous === 1);
             scrollViewRef.current?.scrollTo({ y: 0, animated: true });
           }
         },
@@ -406,10 +408,11 @@ export default function ProductsScreen() {
                   setMinStockAlert(String(existing.min_stock_alert || 0));
                   setBaseUnit(existing.base_unit || 'шт');
                   setHasPackages(existing.has_packages === 1);
+                  setIsContinuous(existing.is_continuous === 1);
                   setPackageName(existing.package_name || '');
                   setUnitsPerPackage(String(existing.units_per_package || 1));
                   setCategory(existing.category || '');
-                  setShowAdvanced(existing.has_packages === 1 || existing.base_unit !== 'шт');
+                  setShowAdvanced(existing.has_packages === 1 || existing.base_unit !== 'шт' || existing.is_continuous === 1);
                 }
               } else if (p.source === 'history') {
                 setBuyPrice(String(p.purchasePrice || ''));
@@ -546,6 +549,14 @@ export default function ProductsScreen() {
               >
                 <Ionicons name={hasPackages ? 'checkbox' : 'square-outline'} size={24} color="#1D9E75" />
                 <Text style={[styles.checkboxLabel, themeStyles.text]}>{t('products.hasPackages')}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.checkboxRow}
+                onPress={() => setIsContinuous(!isContinuous)}
+              >
+                <Ionicons name={isContinuous ? 'checkbox' : 'square-outline'} size={24} color="#1D9E75" />
+                <Text style={[styles.checkboxLabel, themeStyles.text]}>{t('products.isContinuous')}</Text>
               </TouchableOpacity>
 
               {hasPackages && (

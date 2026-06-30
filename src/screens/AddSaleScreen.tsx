@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { addSale, addSaleWithSeller, getProducts, upsertClient, addDebt, updateDebtNotificationId } from '../db/database';
+import { addSale, addSaleWithSeller, getProducts, upsertClient, addDebt, updateDebtNotificationId, addOrderWithItems } from '../db/database';
 import { scheduleDebtReminder } from '../utils/notifications';
 import { toISODate } from '../utils/dateUtils';
 import { analyticsService } from '../services/analyticsService';
@@ -26,6 +26,18 @@ import { Colors, LightTheme, DarkTheme, Radius, Shadow, FontSize, Spacing } from
 
 const CACHE_TTL = 60 * 60 * 1000; // 1 час в мс
 
+type CartItem = {
+  id: string;
+  product: AutocompleteResult | null;
+  productId: number | null;
+  productName: string;
+  quantity: number;
+  sellPrice: number;
+  buyPrice: number;
+  note: string;
+  unitLabel: string;
+};
+
 export default function AddSaleScreen(/* props */) {
   const { t } = useTranslation();
   const navigation = useNavigation<any>();
@@ -39,9 +51,12 @@ export default function AddSaleScreen(/* props */) {
   const [sellPrice, setSellPrice] = useState('');
   const [buyPrice, setBuyPrice] = useState('');
   const [quantity, setQuantity] = useState('');
+  const [unitType, setUnitType] = useState<'base' | 'package'>('base');
   const [note, setNote] = useState('');
   const [salePricePlaceholder, setSalePricePlaceholder] = useState<number | null>(null);
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
 
+  const productInputRef = useRef<any>(null);
   const [paymentType, setPaymentType] = useState<'full' | 'partial' | 'debt'>('full');
   const [paidAmount, setPaidAmount] = useState('');
   const [dueDate, setDueDate] = useState('');
@@ -69,13 +84,87 @@ export default function AddSaleScreen(/* props */) {
   };
   const [voiceText, setVoiceText] = useState('');
   const [lastSaved, setLastSaved] = useState<{ name: string; profit: string; revenue: string } | null>(null);
-  const [activeTab, setActiveTab] = useState<'sales' | 'expenses'>('sales');
   const [showVoiceBar, setShowVoiceBar] = useState(false);
-  const fadeAnim = useMemo(() => new Animated.Value(1), []);
 
   const [isSaved, setIsSaved] = useState(false);
+  const [showFullClient, setShowFullClient] = useState(false);
+  const [showNoteInput, setShowNoteInput] = useState(false);
+  const [maskBuyPrice, setMaskBuyPrice] = useState(true);
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const opacityAnim = useRef(new Animated.Value(1)).current;
+
+  const addToCart = () => {
+    if (!productName.trim()) {
+      Alert.alert(t('common.error'), t('addSale.productPlaceholder'));
+      return;
+    }
+
+    const finalSellPrice = sellPrice || (salePricePlaceholder ? String(salePricePlaceholder) : '');
+    if (!finalSellPrice) {
+      Alert.alert(t('common.error'), t('addSale.errorPrices'));
+      return;
+    }
+
+    if (isOwner && !buyPrice) {
+      Alert.alert(t('common.error'), t('addSale.errorPrices'));
+      return;
+    }
+
+    const sPrice = parseFloat(finalSellPrice);
+    const bPrice = parseFloat(buyPrice) || 0;
+    let qty = parseFloat(quantity) || 1;
+    const pId = selectedProduct?.id ? parseInt(selectedProduct.id) : null;
+
+    if (selectedProduct?.has_packages === 1 && selectedProduct?.is_continuous !== 1 && unitType === 'package') {
+      qty = qty * (selectedProduct.units_per_package || 1);
+    }
+
+    const getUnitLabel = (q: number, p: AutocompleteResult | null) => {
+      if (p?.has_packages === 1 && p?.is_continuous !== 1) {
+        const packs = (q / (p.units_per_package || 1)).toFixed(2);
+        return `${packs} ${p.package_name} (${q} ${p.base_unit})`;
+      }
+      return `${q} ${p?.base_unit || 'шт'}`;
+    };
+
+    setCartItems((prev: CartItem[]) => {
+      const existingIndex = prev.findIndex((item: CartItem) =>
+        item.productId === pId &&
+        (pId !== null || item.productName === productName.trim())
+      );
+
+      if (existingIndex > -1) {
+        const newCart = [...prev];
+        const existingItem = { ...newCart[existingIndex] };
+        existingItem.quantity += qty;
+        existingItem.unitLabel = getUnitLabel(existingItem.quantity, existingItem.product);
+        newCart[existingIndex] = existingItem;
+        return newCart;
+      }
+
+      const newItem: CartItem = {
+        id: Math.random().toString(36).substring(2, 9),
+        product: selectedProduct,
+        productId: pId,
+        productName: productName.trim(),
+        quantity: qty,
+        sellPrice: sPrice,
+        buyPrice: bPrice,
+        note: note.trim(),
+        unitLabel: getUnitLabel(qty, selectedProduct)
+      };
+      return [...prev, newItem];
+    });
+
+    // Clear form
+    setProductName(''); setSellPrice(''); setBuyPrice('');
+    setQuantity(''); setNote(''); setVoiceText('');
+    setSelectedProduct(null); setSalePricePlaceholder(null);
+    setShowNoteInput(false);
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setTimeout(() => productInputRef.current?.focus(), 100);
+  };
 
   const triggerSaveAnimation = () => {
     // Вибрация
@@ -245,111 +334,146 @@ export default function AddSaleScreen(/* props */) {
   };
 
   const handleSave = async () => {
-    if (!productName.trim()) {
-      Alert.alert(t('common.error'), t('addSale.productPlaceholder'));
-      return;
+    let finalItems: CartItem[] = [...cartItems];
+
+    // If form is filled, add it as last item
+    if (productName.trim()) {
+      const finalSellPrice = sellPrice || (salePricePlaceholder ? String(salePricePlaceholder) : '');
+      if (finalSellPrice && (!isOwner || buyPrice)) {
+        const sPrice = parseFloat(finalSellPrice);
+        const bPrice = parseFloat(buyPrice) || 0;
+        let qty = parseFloat(quantity) || 1;
+        if (selectedProduct?.has_packages === 1 && selectedProduct?.is_continuous !== 1 && unitType === 'package') {
+          qty = qty * (selectedProduct.units_per_package || 1);
+        }
+
+        const getUnitLabel = (q: number, p: AutocompleteResult | null) => {
+          if (p?.has_packages === 1 && p?.is_continuous !== 1) {
+            const packs = (q / (p.units_per_package || 1)).toFixed(2);
+            return `${packs} ${p.package_name} (${q} ${p.base_unit})`;
+          }
+          return `${q} ${p?.base_unit || 'шт'}`;
+        };
+
+        finalItems.push({
+          id: 'temp',
+          product: selectedProduct,
+          productId: selectedProduct?.id ? parseInt(selectedProduct.id) : null,
+          productName: productName.trim(),
+          quantity: qty,
+          sellPrice: sPrice,
+          buyPrice: bPrice,
+          note: note.trim(),
+          unitLabel: getUnitLabel(qty, selectedProduct)
+        });
+      }
     }
 
-    const finalSellPrice = sellPrice || (salePricePlaceholder ? String(salePricePlaceholder) : '');
-
-    if (!finalSellPrice) {
-      Alert.alert(t('common.error'), t('addSale.errorPrices'));
+    if (finalItems.length === 0) {
+      if (!productName.trim()) {
+        Alert.alert(t('common.error'), t('addSale.productPlaceholder'));
+      } else {
+        Alert.alert(t('common.error'), t('addSale.errorPrices'));
+      }
       return;
     }
-
-    if (isOwner && !buyPrice) {
-      Alert.alert(t('common.error'), t('addSale.errorPrices'));
-      return;
-    }
-
-    const sPrice = parseFloat(finalSellPrice);
-    const bPrice = parseFloat(buyPrice) || 0;
-    const qty = parseFloat(quantity) || 1;
 
     if (contextSellerMode === 'wholesale' && paymentType !== 'full' && !clientName.trim()) {
       Alert.alert(t('common.error'), t('addSale.errorClientName'));
       return;
     }
 
-    const saleId = addSaleWithSeller(
-      selectedProduct?.id ? parseInt(selectedProduct.id) : null,
-      productName.trim(),
-      qty,
-      sPrice,
-      bPrice,
-      note,
-      userId,
-      sellerName || user?.name || 'Продавец',
-      role || 'owner'
-    ) as any;
+    const seller_Id = userId;
+    const seller_Name = sellerName || user?.name || 'Продавец';
+    const current_role = role || 'owner';
 
-    // Handle debt
-    if (paymentType !== 'full' && clientName.trim()) {
-      const resolvedClientId = upsertClient(clientName.trim(), clientPhone.trim());
-      const paid = paymentType === 'partial' ? (parseFloat(paidAmount) || 0) : 0;
-      const totalDebt = sPrice * qty;
-      const isoDueDate = toISODate(dueDate) || '';
-      const debtResult = addDebt(resolvedClientId, saleId?.lastInsertRowId ?? null, totalDebt, paid, '', isoDueDate) as any;
+    let orderId: number | null = null;
+    let singleSaleId: number | null = null;
+    let totalRevenue = 0;
 
-      if (isoDueDate && debtResult?.lastInsertRowId) {
-        const notifId = await scheduleDebtReminder(
-          debtResult.lastInsertRowId,
-          clientName,
-          totalDebt - paid,
-          isoDueDate,
-          currency.symbol
-        );
-        if (notifId) {
-          updateDebtNotificationId(debtResult.lastInsertRowId, notifId);
+    if (finalItems.length > 1 || cartItems.length > 0) {
+      // Multiple items flow
+      const orderResult = addOrderWithItems(
+        finalItems,
+        clientName.trim() ? upsertClient(clientName.trim(), clientPhone.trim()) : null,
+        paymentType,
+        parseFloat(paidAmount) || 0,
+        toISODate(dueDate) || '',
+        seller_Id,
+        seller_Name,
+        current_role
+      );
+      orderId = orderResult.orderId;
+      totalRevenue = orderResult.totalAmount;
+    } else {
+      // Single item retail flow - maintain identical behavior
+      const item = finalItems[0];
+      const saleResult = addSaleWithSeller(
+        item.productId,
+        item.productName,
+        item.quantity,
+        item.sellPrice,
+        item.buyPrice,
+        item.note,
+        seller_Id,
+        seller_Name,
+        current_role
+      ) as any;
+      singleSaleId = saleResult?.lastInsertRowId;
+      totalRevenue = item.sellPrice * item.quantity;
+
+      // Single item debt logic
+      if (paymentType !== 'full' && clientName.trim()) {
+        const resolvedClientId = upsertClient(clientName.trim(), clientPhone.trim());
+        const paid = paymentType === 'partial' ? (parseFloat(paidAmount) || 0) : 0;
+        const totalDebt = totalRevenue;
+        const isoDueDate = toISODate(dueDate) || '';
+        const debtResult = addDebt(resolvedClientId, singleSaleId, totalDebt, paid, '', isoDueDate) as any;
+
+        if (isoDueDate && debtResult?.lastInsertRowId) {
+          const notifId = await scheduleDebtReminder(
+            debtResult.lastInsertRowId,
+            clientName,
+            totalDebt - paid,
+            isoDueDate,
+            currency.symbol
+          );
+          if (notifId) {
+            updateDebtNotificationId(debtResult.lastInsertRowId, notifId);
+          }
         }
       }
     }
 
-    const profit = (sPrice - bPrice) * qty;
-
+    // Analytics and notifications
     analyticsService.logEvent('sale_added', {
-      product_id: selectedProduct?.id || 'none',
-      quantity: qty,
-      profit: profit,
-      revenue: sPrice * qty,
+      items_count: finalItems.length,
+      total_revenue: totalRevenue,
       payment_type: paymentType,
     });
     reviewService.incrementSalesAndCheck();
 
     setLastSaved({
-      name: productName,
-      profit: profit.toFixed(0),
-      revenue: (sPrice * qty).toFixed(0),
+      name: finalItems.length > 1 ? `${finalItems.length} поз.` : finalItems[0].productName,
+      profit: finalItems.reduce((acc, it) => acc + (it.sellPrice - it.buyPrice) * it.quantity, 0).toFixed(0),
+      revenue: totalRevenue.toFixed(0),
     });
 
+    // Reset all
     setProductName(''); setSellPrice(''); setBuyPrice('');
     setQuantity(''); setNote(''); setVoiceText('');
     setSelectedProduct(null); setSalePricePlaceholder(null);
+    setCartItems([]);
     setPaymentType('full'); setPaidAmount(''); setDueDate('');
     setClientName(''); setClientPhone(''); setClientId(null);
+    setShowFullClient(false); setShowNoteInput(false);
 
     triggerSaveAnimation();
   };
 
   const themeStyles = isDark ? darkStyles : lightStyles;
 
-
-  const switchTab = (tab: 'sales' | 'expenses') => {
-    if (tab === activeTab) return;
-
-    Animated.timing(fadeAnim, {
-      toValue: 0,
-      duration: 150,
-      useNativeDriver: true,
-    }).start(() => {
-      setActiveTab(tab);
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 150,
-        useNativeDriver: true,
-      }).start();
-    });
-  };
+  const cartTotal = cartItems.reduce((sum: number, item: CartItem) => sum + item.sellPrice * item.quantity, 0);
 
   return (
     <Animated.View style={[
@@ -410,37 +534,58 @@ export default function AddSaleScreen(/* props */) {
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* Tab Switcher */}
-      <View style={styles.tabContainer}>
-        <View style={[styles.segmentedControl, isDark ? styles.segmentedControlDark : styles.segmentedControlLight]}>
-          <TouchableOpacity
-            style={[styles.tabBtn, activeTab === 'sales' && styles.tabBtnActive]}
-            onPress={() => switchTab('sales')}
-          >
-            <Text style={[styles.tabText, activeTab === 'sales' && styles.tabTextActive]}>
-              {t('home.salesCount')}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tabBtn, activeTab === 'expenses' && styles.tabBtnActive]}
-            onPress={() => switchTab('expenses')}
-          >
-            <Text style={[styles.tabText, activeTab === 'expenses' && styles.tabTextActive]}>
-              {t('tabs.expenses')}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
-        {activeTab === 'sales' ? (
+      <View style={{ flex: 1 }}>
           <ScrollView keyboardShouldPersistTaps="handled">
+            {/* Cart List */}
+            {cartItems.length > 0 && (
+              <View style={[styles.cartContainer, themeStyles.card]}>
+                <Text style={[styles.cartTitle, themeStyles.text]}>{t('debtors.clients')}</Text>
+                {cartItems.map((item: CartItem, index: number) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[styles.cartItem, index === cartItems.length - 1 && { borderBottomWidth: 0 }]}
+                    onPress={() => {
+                      setProductName(item.productName);
+                      setQuantity(String(item.quantity));
+                      setSellPrice(String(item.sellPrice));
+                      setBuyPrice(String(item.buyPrice));
+                      setNote(item.note);
+                      setSelectedProduct(item.product);
+                      if (item.product?.has_packages) {
+                        setUnitType('base'); // Reset to base for editing
+                      }
+                      setCartItems((prev: CartItem[]) => prev.filter((i: CartItem) => i.id !== item.id));
+                    }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.cartItemName, themeStyles.text]}>{item.productName}</Text>
+                      <Text style={styles.cartItemDetails}>{item.unitLabel} · {item.sellPrice} {currency.symbol}</Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={[styles.cartItemTotal, themeStyles.text]}>{(item.sellPrice * item.quantity).toLocaleString()} {currency.symbol}</Text>
+                      <TouchableOpacity onPress={() => setCartItems((prev: CartItem[]) => prev.filter((i: CartItem) => i.id !== item.id))}>
+                        <Ionicons name="trash-outline" size={18} color="#FF3B30" />
+                      </TouchableOpacity>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
       {/* Форма */}
       <View style={[styles.form, themeStyles.card]}>
         <Text style={[styles.sectionTitle, themeStyles.text]}>{t('addSale.formTitle')}</Text>
 
-        <Text style={[styles.label, themeStyles.text]}>{t('addSale.productName')} *</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Text style={[styles.label, themeStyles.text]}>{t('addSale.productName')} *</Text>
+          {productName && !selectedProduct && (
+            <View style={styles.newBadge}>
+              <Text style={styles.newBadgeText}>{t('addSale.newProductBadge')}</Text>
+            </View>
+          )}
+        </View>
         <ProductAutocomplete
+          ref={productInputRef}
           inputStyle={[styles.input, themeStyles.input]}
           placeholder={t('addSale.productPlaceholder')}
           placeholderTextColor={isDark ? '#888' : '#aaa'}
@@ -479,48 +624,109 @@ export default function AddSaleScreen(/* props */) {
           {isOwner && (
             <View style={styles.halfField}>
               <Text style={[styles.label, themeStyles.text]}>{t('addSale.buyPrice')} *</Text>
-              <TextInput
-                ref={buyPriceRef}
-                style={[styles.input, themeStyles.input]}
-                placeholder="0"
-                placeholderTextColor={isDark ? '#888' : '#aaa'}
-                keyboardType="numeric"
-                value={buyPrice}
-                onChangeText={setBuyPrice}
-                returnKeyType="next"
-                onSubmitEditing={() => quantityInputRef.current?.focus()}
-                blurOnSubmit={false}
-              />
+              {maskBuyPrice && selectedProduct ? (
+                <TouchableOpacity
+                  style={[styles.input, themeStyles.input, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}
+                  onLongPress={() => {
+                    setMaskBuyPrice(false);
+                    setTimeout(() => setMaskBuyPrice(true), 2500);
+                  }}
+                >
+                  <Text style={themeStyles.text}>•••• {currency.symbol}</Text>
+                  <Ionicons name="eye-outline" size={18} color="#888" />
+                </TouchableOpacity>
+              ) : (
+                <TextInput
+                  ref={buyPriceRef}
+                  style={[styles.input, themeStyles.input]}
+                  placeholder="0"
+                  placeholderTextColor={isDark ? '#888' : '#aaa'}
+                  keyboardType="numeric"
+                  value={buyPrice}
+                  onChangeText={setBuyPrice}
+                  returnKeyType="next"
+                  onSubmitEditing={() => quantityInputRef.current?.focus()}
+                  blurOnSubmit={false}
+                />
+              )}
             </View>
           )}
         </View>
 
-        <Text style={[styles.label, themeStyles.text]}>{t('addSale.quantity')}</Text>
-        <TextInput
-          ref={quantityInputRef}
-          style={[styles.input, themeStyles.input]}
-          placeholder="1"
-          placeholderTextColor={isDark ? '#888' : '#aaa'}
-          keyboardType="numeric"
-          value={quantity}
-          onChangeText={setQuantity}
-          returnKeyType="next"
-          onSubmitEditing={() => noteRef.current?.focus()}
-          blurOnSubmit={false}
-        />
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={[styles.label, themeStyles.text]}>{t('addSale.quantity')}</Text>
+          {selectedProduct?.has_packages === 1 && selectedProduct?.is_continuous !== 1 && (
+            <View style={styles.unitToggle}>
+              <TouchableOpacity
+                onPress={() => setUnitType('base')}
+                style={[styles.unitBtn, unitType === 'base' && styles.unitBtnActive]}
+              >
+                <Text style={[styles.unitBtnText, unitType === 'base' && styles.unitBtnTextActive]}>
+                  {selectedProduct.base_unit}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setUnitType('package')}
+                style={[styles.unitBtn, unitType === 'package' && styles.unitBtnActive]}
+              >
+                <Text style={[styles.unitBtnText, unitType === 'package' && styles.unitBtnTextActive]}>
+                  {selectedProduct.package_name}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
+        <View>
+          <TextInput
+            ref={quantityInputRef}
+            style={[styles.input, themeStyles.input]}
+            placeholder={selectedProduct?.is_continuous === 1 ? String(selectedProduct.units_per_package || '1') : '1'}
+            placeholderTextColor={isDark ? '#888' : '#aaa'}
+            keyboardType="numeric"
+            value={quantity}
+            onChangeText={setQuantity}
+            returnKeyType="next"
+            onSubmitEditing={() => noteRef.current?.focus()}
+            blurOnSubmit={false}
+          />
+          {selectedProduct?.has_packages === 1 && selectedProduct?.is_continuous !== 1 && quantity !== '' && (
+            <Text style={styles.quantityHint}>
+              {unitType === 'package'
+                ? `≈ ${(parseFloat(quantity) || 0) * (selectedProduct.units_per_package || 1)} ${selectedProduct.base_unit}`
+                : `≈ ${((parseFloat(quantity) || 0) / (selectedProduct.units_per_package || 1)).toFixed(2)} ${selectedProduct.package_name}`
+              }
+            </Text>
+          )}
+          {selectedProduct?.stock !== undefined && (parseFloat(quantity) || 0) > selectedProduct.stock && (
+            <Text style={styles.lowStockWarning}>
+              {t('addSale.lowStockWarning', { stock: selectedProduct.stock })}
+            </Text>
+          )}
+        </View>
 
         <Text style={[styles.label, themeStyles.text]}>{t('addSale.note')}</Text>
-        <TextInput
-          ref={noteRef}
-          style={[styles.input, styles.inputMultiline, themeStyles.input]}
-          placeholder={t('addSale.notePlaceholder')}
-          placeholderTextColor={isDark ? '#888' : '#aaa'}
-          value={note}
-          onChangeText={setNote}
-          multiline
-          returnKeyType="done"
-          blurOnSubmit={true}
-        />
+        {showNoteInput || note !== '' ? (
+          <TextInput
+            ref={noteRef}
+            style={[styles.input, styles.inputMultiline, themeStyles.input]}
+            placeholder={t('addSale.notePlaceholder')}
+            placeholderTextColor={isDark ? '#888' : '#aaa'}
+            value={note}
+            onChangeText={setNote}
+            multiline
+            returnKeyType="done"
+            blurOnSubmit={true}
+            autoFocus={showNoteInput}
+            onBlur={() => {
+              if (note === '') setShowNoteInput(false);
+            }}
+          />
+        ) : (
+          <TouchableOpacity onPress={() => setShowNoteInput(true)} style={styles.noteLink}>
+            <Text style={styles.noteLinkText}>📝 {t('addSale.note')}</Text>
+          </TouchableOpacity>
+        )}
 
     {/* Payment type selector — shown only in wholesale mode */}
     {contextSellerMode === 'wholesale' && (
@@ -553,6 +759,29 @@ export default function AddSaleScreen(/* props */) {
             );
           })}
         </View>
+
+        {paymentType === 'full' && (
+          <View style={{ marginTop: Spacing.md }}>
+            {showFullClient ? (
+              <ClientAutocomplete
+                value={clientName}
+                phone={clientPhone}
+                onChange={setClientName}
+                onChangePhone={setClientPhone}
+                onSelect={(c) => {
+                  setClientName(c.name);
+                  setClientPhone(c.phone);
+                  setClientId(c.id);
+                }}
+              />
+            ) : (
+              <TouchableOpacity onPress={() => setShowFullClient(true)} style={styles.addClientBtn}>
+                <Ionicons name="person-outline" size={18} color={Colors.primary} />
+                <Text style={styles.addClientBtnText}>{t('addSale.addClientOptional')}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
 
         {paymentType === 'partial' && (
           <TextInput
@@ -598,7 +827,7 @@ export default function AddSaleScreen(/* props */) {
                 mode="date"
                 display="default"
                 minimumDate={new Date()}
-                onChange={(event, selectedDate) => {
+                onChange={(event: any, selectedDate?: Date) => {
                   setShowDatePicker(false);
                   if (selectedDate) {
                     const d = selectedDate.getDate().toString().padStart(2, '0');
@@ -647,21 +876,42 @@ export default function AddSaleScreen(/* props */) {
           </View>
         ) : null}
 
-        <TouchableOpacity
-          style={[styles.saveBtn, isSaved && { backgroundColor: '#1D9E75' }]}
-          onPress={handleSave}
-          activeOpacity={0.8}
-        >
-          <Ionicons
-            name={isSaved ? 'checkmark-circle' : 'checkmark'}
-            size={20}
-            color="#fff"
-            style={{ marginRight: 8 }}
-          />
-          <Text style={styles.saveBtnText}>
-            {isSaved ? t('common.saved') : t('addSale.saveBtn')}
-          </Text>
-        </TouchableOpacity>
+        {cartItems.length > 0 && (
+          <View style={styles.runningTotal}>
+            <Text style={[styles.runningTotalText, themeStyles.text]}>
+              {t('addSale.cartTotal', { total: cartTotal.toLocaleString(), symbol: currency.symbol, count: cartItems.length })}
+            </Text>
+          </View>
+        )}
+
+        <View style={styles.actionsRow}>
+          <TouchableOpacity
+            style={[styles.saveBtn, { flex: 1 }, isSaved && { backgroundColor: '#1D9E75' }]}
+            onPress={handleSave}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name={isSaved ? 'checkmark-circle' : 'checkmark'}
+              size={20}
+              color="#fff"
+              style={{ marginRight: 8 }}
+            />
+            <Text style={styles.saveBtnText} numberOfLines={1}>
+              {cartItems.length > 0
+                ? t('addSale.checkoutBtn', { total: cartTotal.toLocaleString(), symbol: currency.symbol })
+                : (isSaved ? t('common.saved') : t('addSale.saveBtn'))
+              }
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.addToCartBtn}
+            onPress={addToCart}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="add" size={30} color="#fff" />
+          </TouchableOpacity>
+        </View>
       </View>
 
             {/* Успешно сохранено */}
@@ -674,10 +924,7 @@ export default function AddSaleScreen(/* props */) {
               </View>
             )}
           </ScrollView>
-        ) : (
-          <ExpensesView />
-        )}
-      </Animated.View>
+      </View>
     </Animated.View>
   );
 }
@@ -825,6 +1072,130 @@ const styles = StyleSheet.create({
   },
   successTitle: { fontSize: FontSize.lg, fontWeight: 'bold', color: Colors.primary, marginBottom: Spacing.sm },
   successText: { fontSize: FontSize.md, marginBottom: Spacing.xs },
+  cartContainer: {
+    margin: Spacing.lg,
+    marginBottom: Spacing.md,
+    padding: Spacing.md,
+    borderRadius: Radius.lg,
+    ...Shadow.sm,
+  },
+  cartTitle: {
+    fontSize: FontSize.md,
+    fontWeight: 'bold',
+    marginBottom: Spacing.md,
+  },
+  cartItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.sm,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#eee',
+  },
+  cartItemName: {
+    fontSize: FontSize.md,
+    fontWeight: '500',
+  },
+  cartItemDetails: {
+    fontSize: FontSize.sm,
+    color: '#888',
+    marginTop: 2,
+  },
+  cartItemTotal: {
+    fontSize: FontSize.md,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  newBadge: {
+    backgroundColor: '#E3F2FD',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: Radius.sm,
+  },
+  newBadgeText: {
+    fontSize: 10,
+    color: '#2196F3',
+    fontWeight: 'bold',
+  },
+  noteLink: {
+    paddingVertical: Spacing.sm,
+  },
+  noteLinkText: {
+    color: Colors.primary,
+    fontSize: FontSize.md,
+  },
+  addClientBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: Spacing.xs,
+  },
+  addClientBtnText: {
+    color: Colors.primary,
+    fontSize: FontSize.sm,
+    fontWeight: '500',
+  },
+  runningTotal: {
+    marginTop: Spacing.lg,
+    alignItems: 'center',
+    paddingVertical: Spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.05)',
+  },
+  runningTotalText: {
+    fontSize: FontSize.md,
+    fontWeight: '600',
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+    marginTop: Spacing.xl,
+    alignItems: 'center',
+  },
+  addToCartBtn: {
+    width: 56,
+    height: 56,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Shadow.md,
+  },
+  unitToggle: {
+    flexDirection: 'row',
+    backgroundColor: '#F2F2F7',
+    borderRadius: Radius.md,
+    padding: 2,
+    marginTop: Spacing.md,
+  },
+  unitBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: Radius.sm,
+  },
+  unitBtnActive: {
+    backgroundColor: '#fff',
+    ...Shadow.sm,
+  },
+  unitBtnText: {
+    fontSize: FontSize.xs,
+    fontWeight: '600',
+    color: '#8E8E93',
+  },
+  unitBtnTextActive: {
+    color: '#000',
+  },
+  quantityHint: {
+    fontSize: FontSize.xs,
+    color: '#888',
+    marginTop: 4,
+    marginLeft: 4,
+  },
+  lowStockWarning: {
+    fontSize: FontSize.xs,
+    color: '#FF9500',
+    marginTop: 4,
+    marginLeft: 4,
+  },
   successProfit: { fontSize: FontSize.lg, fontWeight: 'bold', color: Colors.primary, marginTop: Spacing.xs },
   paymentSection: {
     marginTop: Spacing.md,

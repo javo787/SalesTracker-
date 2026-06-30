@@ -39,4 +39,6 @@ export interface AutocompleteResult {
   has_packages?: number;
   package_name?: string | null;
   units_per_package?: number;
+  is_continuous?: number;
+  stock?: number;
 }
