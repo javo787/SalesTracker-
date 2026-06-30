@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { useShop } from '../context/ShopContext';
 import { api } from '../services/api';
-import { useNavigation, CommonActions } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { Colors, LightTheme, DarkTheme, Radius, Shadow, FontSize, Spacing } from '../constants/theme';
 import { useAppContext } from '../context/AppContext';
 import { ShopMember, SellerStats } from '../types/auth';
@@ -26,9 +26,12 @@ export default function SellersScreen() {
   const [period, setPeriod] = useState<'today' | 'week' | 'month'>('today');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   const loadData = useCallback(async () => {
+    if (!isOwner) return;
     try {
+      setLoadError(false);
       const [membersData, statsData] = await Promise.all([
         api.get<ShopMember[]>('/shop/members'),
         api.get<{ period: string, stats: SellerStats[] }>(`/shop/seller-stats?period=${period}`)
@@ -37,15 +40,21 @@ export default function SellersScreen() {
       setStats(statsData.stats);
     } catch (e) {
       console.error('Failed to load sellers:', e);
+      setLoadError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [period]);
+  }, [period, isOwner]);
 
   useEffect(() => {
+    if (!isOwner) {
+      Alert.alert(t('common.error'), "Доступно только владельцу магазина");
+      navigation.goBack();
+      return;
+    }
     loadData();
-  }, [loadData]);
+  }, [loadData, isOwner, navigation, t]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -63,15 +72,10 @@ export default function SellersScreen() {
           onPress: async () => {
             try {
               await transferOwnership(userId);
-              Alert.alert(t('common.success'), t('sellers.makeOwnerSuccess') || 'Ownership transferred');
-              loadData();
-              // If no longer owner, navigate away or refresh will handle it via drawer update,
-              // but explicit navigation to Home is better if this screen is owner-only
-              navigation.dispatch(
-                CommonActions.reset({
-                  index: 0,
-                  routes: [{ name: 'Main' }],
-                })
+              Alert.alert(
+                t('common.success'),
+                t('sellers.makeOwnerSuccess') || 'Ownership transferred',
+                [{ text: 'OK', onPress: () => navigation.goBack() }]
               );
             } catch (e: any) {
               Alert.alert(t('common.error'), e.message);
@@ -200,6 +204,24 @@ export default function SellersScreen() {
     );
   }
 
+  if (loadError) {
+    return (
+      <View style={[styles.container, themeStyles.container, styles.centered]}>
+        <Ionicons name="cloud-offline-outline" size={64} color={themeStyles.iconError.color} />
+        <Text style={[styles.errorText, themeStyles.text]}>{"Не удалось загрузить данные команды"}</Text>
+        <TouchableOpacity
+          style={[styles.retryBtn, { backgroundColor: Colors.primary }]}
+          onPress={() => {
+            setLoading(true);
+            loadData();
+          }}
+        >
+          <Text style={styles.retryBtnText}>{"Повторить"}</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <ScrollView
       style={[styles.container, themeStyles.container]}
@@ -211,10 +233,10 @@ export default function SellersScreen() {
           {(['today', 'week', 'month'] as const).map((p) => (
             <TouchableOpacity
               key={p}
-              style={[styles.periodBtn, period === p && styles.periodBtnActive]}
+              style={[styles.periodBtn, themeStyles.periodBtn, period === p && styles.periodBtnActive]}
               onPress={() => setPeriod(p)}
             >
-              <Text style={[styles.periodText, period === p && styles.periodTextActive]}>
+              <Text style={[styles.periodText, themeStyles.periodText, period === p && styles.periodTextActive]}>
                 {t(`reports.${p === 'today' ? 'today' : p === 'week' ? 'days7' : 'days30'}`)}
               </Text>
             </TouchableOpacity>
@@ -234,11 +256,11 @@ export default function SellersScreen() {
                   <View style={[styles.avatar, { backgroundColor: Colors.primaryLight }]}>
                     <Ionicons name="person" size={24} color={Colors.primary} />
                   </View>
-                  <View style={[styles.statusDot, { backgroundColor: online ? Colors.primary : '#CCC' }]} />
+                  <View style={[styles.statusDot, online ? { backgroundColor: Colors.primary } : themeStyles.statusOffline]} />
                 </View>
                 <View style={styles.nameWrap}>
                   <Text style={[styles.memberName, themeStyles.text]}>{member.displayName}</Text>
-                  <Text style={styles.memberSub}>
+                  <Text style={[styles.memberSub, themeStyles.memberSub]}>
                     {memberStats?.salesCount || 0} {t('home.salesCount').toLowerCase()} • {online ? 'онлайн' : t('sellers.lastActive', { time: new Date(member.lastActiveAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) })}
                   </Text>
                 </View>
@@ -264,15 +286,27 @@ export default function SellersScreen() {
 
         <View style={styles.codeRow}>
           <View style={styles.codeBox}>
-            <Text style={styles.codeText}>{inviteCode}</Text>
+            {inviteCode ? (
+              <Text style={styles.codeText}>{inviteCode}</Text>
+            ) : (
+              <ActivityIndicator color={Colors.primary} />
+            )}
           </View>
-          <TouchableOpacity style={styles.copyBtn} onPress={copyToClipboard}>
+          <TouchableOpacity
+            style={[styles.copyBtn, !inviteCode && { opacity: 0.5 }]}
+            onPress={copyToClipboard}
+            disabled={!inviteCode}
+          >
             <Ionicons name="copy-outline" size={20} color="#FFF" />
             <Text style={styles.copyBtnText}>{t('common.copy') || 'Копировать'}</Text>
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.regenBtn} onPress={handleRegenerate}>
+        <TouchableOpacity
+          style={[styles.regenBtn, !inviteCode && { opacity: 0.5 }]}
+          onPress={handleRegenerate}
+          disabled={!inviteCode}
+        >
           <Text style={styles.regenBtnText}>{t('sellers.regenerateBtn') || 'Перевыпустить код'}</Text>
         </TouchableOpacity>
       </View>
@@ -307,12 +341,22 @@ const lightStyles = StyleSheet.create({
   container: { backgroundColor: '#F8F9FA' },
   card: { backgroundColor: '#FFF' },
   text: { color: '#333' },
+  periodBtn: { backgroundColor: '#EEE' },
+  periodText: { color: '#666' },
+  memberSub: { color: '#999' },
+  statusOffline: { backgroundColor: '#CCC' },
+  iconError: { color: '#CCC' },
 });
 
 const darkStyles = StyleSheet.create({
   container: { backgroundColor: '#121212' },
   card: { backgroundColor: '#1E1E1E' },
   text: { color: '#EEE' },
+  periodBtn: { backgroundColor: '#333' },
+  periodText: { color: '#AAA' },
+  memberSub: { color: '#888' },
+  statusOffline: { backgroundColor: '#444' },
+  iconError: { color: '#555' },
 });
 
 const styles = StyleSheet.create({
@@ -320,10 +364,13 @@ const styles = StyleSheet.create({
   centered: { justifyContent: 'center', alignItems: 'center' },
   header: { padding: 20, paddingTop: 20 },
   title: { fontSize: 24, fontWeight: 'bold', marginBottom: 15 },
+  errorText: { fontSize: 16, marginTop: 15, marginBottom: 20, textAlign: 'center', opacity: 0.7 },
+  retryBtn: { paddingVertical: 12, paddingHorizontal: 30, borderRadius: 12 },
+  retryBtnText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
   periodRow: { flexDirection: 'row', gap: 10 },
-  periodBtn: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 20, backgroundColor: '#EEE' },
+  periodBtn: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 20 },
   periodBtnActive: { backgroundColor: Colors.primary },
-  periodText: { fontSize: 13, color: '#666' },
+  periodText: { fontSize: 13 },
   periodTextActive: { color: '#FFF', fontWeight: '600' },
   list: { paddingHorizontal: 20, gap: 12 },
   memberCard: { padding: 16, borderRadius: 16, ...Shadow.sm },
@@ -333,10 +380,9 @@ const styles = StyleSheet.create({
   statusDot: { position: 'absolute', right: 0, bottom: 0, width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: '#FFF' },
   nameWrap: { flex: 1 },
   memberName: { fontSize: 16, fontWeight: '600' },
-  memberSub: { fontSize: 12, color: '#999', marginTop: 2 },
+  memberSub: { fontSize: 12, marginTop: 2 },
   revenueWrap: { alignItems: 'flex-end' },
   revenue: { fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
-  deleteText: { fontSize: 12, color: Colors.danger, fontWeight: '500' },
   inviteCard: { margin: 20, padding: 20, borderRadius: 16, ...Shadow.md, borderStyle: 'dashed', borderWidth: 1, borderColor: Colors.primary },
   inviteTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 8 },
   inviteDesc: { fontSize: 13, color: '#888', lineHeight: 18, marginBottom: 20 },
