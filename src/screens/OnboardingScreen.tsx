@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  Dimensions, SafeAreaView, TextInput, ActivityIndicator
+  Dimensions, SafeAreaView, TextInput, ActivityIndicator,
+  Image, ImageSourcePropType, Animated
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
@@ -21,33 +22,33 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
     {
       title: t('onboarding.step1Title'),
       description: t('onboarding.step1Desc'),
-      icon: '📦',
+      image: require('../../assets/onboarding/step1.png'),
       color: '#1D9E75'
     },
     {
       title: t('onboarding.step2Title'),
       description: t('onboarding.step2Desc'),
-      icon: '🎤',
+      image: require('../../assets/onboarding/step2.png'),
       color: '#0C447C'
     },
     {
       title: t('onboarding.step3Title'),
       description: t('onboarding.step3Desc'),
-      icon: '🏪',
+      image: require('../../assets/onboarding/step3.png'),
       color: '#854F0B',
       isSellerModeStep: true,
     },
     {
       title: t('onboarding.step4Title'),
       description: t('onboarding.step4Desc'),
-      icon: '🤝',
+      image: require('../../assets/onboarding/step4.png'),
       color: '#534AB7',
       isRoleStep: true,
     },
     {
       title: t('onboarding.step5Title'),
       description: t('onboarding.step5Desc'),
-      icon: '📈',
+      image: require('../../assets/onboarding/step5.png'),
       color: '#3B6D11'
     }
   ];
@@ -55,6 +56,21 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
   const { setSellerMode } = useAppContext();
   const { createShop, joinShop } = useShop();
   const [currentStep, setCurrentStep] = useState(0);
+
+  const progressAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(progressAnim, {
+      toValue: currentStep + 1,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  }, [currentStep]);
+
+  const progressWidth = progressAnim.interpolate({
+    inputRange: [0, STEPS.length],
+    outputRange: ['0%', '100%'],
+  });
   const [selectedMode, setSelectedMode] = useState<'retail' | 'wholesale' | null>(null);
 
   const [selectedRole, setSelectedRole] = useState<'owner' | 'seller' | null>(null);
@@ -101,6 +117,14 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
 
   return (
     <SafeAreaView style={styles.container}>
+      <View style={styles.progressTrack}>
+        <Animated.View
+          style={[
+            styles.progressFill,
+            { width: progressWidth, backgroundColor: step.color }
+          ]}
+        />
+      </View>
       <View style={styles.content}>
         {step.isSellerModeStep ? (
           <View style={selectionStyles.container}>
@@ -178,8 +202,8 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
             {roleLoading && <ActivityIndicator color="#534AB7" style={{ marginTop: 10 }} />}
           </View>
         ) : (
-          <View style={[styles.iconContainer, { backgroundColor: step.color }]}>
-            <Text style={styles.icon}>{step.icon}</Text>
+          <View style={[styles.iconContainer, { backgroundColor: step.color + '15' }]}>
+            <Image source={step.image} style={styles.illustrationImage} resizeMode="contain" />
           </View>
         )}
 
@@ -200,19 +224,29 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
         </View>
       </View>
 
-      <TouchableOpacity
-        style={[
-          styles.button,
-          { backgroundColor: step.color },
-          ((step.isSellerModeStep && !selectedMode) || (step.isRoleStep && !selectedRole) || roleLoading) && { opacity: 0.5 }
-        ]}
-        onPress={handleNext}
-        disabled={(step.isSellerModeStep && !selectedMode) || (step.isRoleStep && !selectedRole) || roleLoading}
-      >
-        <Text style={styles.buttonText}>
-          {currentStep === STEPS.length - 1 ? t('onboarding.startBtn') : t('onboarding.nextBtn')}
-        </Text>
-      </TouchableOpacity>
+      <View style={styles.buttonContainer}>
+        {currentStep > 0 && (
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => setCurrentStep(currentStep - 1)}
+          >
+            <Text style={styles.backButtonText}>{t('onboarding.backBtn')}</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity
+          style={[
+            styles.button,
+            { backgroundColor: step.color },
+            ((step.isSellerModeStep && !selectedMode) || (step.isRoleStep && !selectedRole) || roleLoading) && { opacity: 0.5 }
+          ]}
+          onPress={handleNext}
+          disabled={(step.isSellerModeStep && !selectedMode) || (step.isRoleStep && !selectedRole) || roleLoading}
+        >
+          <Text style={styles.buttonText}>
+            {currentStep === STEPS.length - 1 ? t('onboarding.startBtn') : t('onboarding.nextBtn')}
+          </Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
@@ -231,20 +265,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40
   },
   iconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 240,
+    height: 240,
+    borderRadius: 24,
+    alignSelf: 'center',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 40,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4
   },
-  icon: {
-    fontSize: 60
+  illustrationImage: {
+    width: '80%',
+    height: '80%',
   },
   title: {
     fontSize: 24,
@@ -272,8 +303,15 @@ const styles = StyleSheet.create({
   dotActive: {
     width: 24
   },
+  buttonContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    gap: 12,
+    width: '100%',
+    justifyContent: 'center'
+  },
   button: {
-    width: width - 80,
+    flex: 1,
     height: 56,
     borderRadius: 28,
     alignItems: 'center',
@@ -288,6 +326,33 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 18,
     fontWeight: 'bold'
+  },
+  backButton: {
+    flex: 0.35,
+    height: 56,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: '#DDD',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent'
+  },
+  backButtonText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '600'
+  },
+  progressTrack: {
+    height: 4,
+    backgroundColor: '#EEE',
+    borderRadius: 2,
+    marginHorizontal: 20,
+    marginTop: 12,
+    overflow: 'hidden'
+  },
+  progressFill: {
+    height: 4,
+    borderRadius: 2
   }
 });
 
