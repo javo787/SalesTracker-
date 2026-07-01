@@ -221,6 +221,11 @@ const resources = {
         newProductBadge: '🆕 новый товар',
         lowStockWarning: 'на складе только {{stock}}',
         saveFailed: 'Не удалось сохранить продажу',
+        positionsLabel: 'поз.',
+        receiptTotal: 'ИТОГО',
+        thankYou: 'Спасибо за покупку',
+        shareReceipt: 'Поделиться счётом',
+        checkoutAction: 'Оформить',
       },
       onboarding: {
         step1Title: "Добавьте товары",
@@ -850,6 +855,11 @@ const resources = {
         newProductBadge: '🆕 моли нав', // TODO: needs native speaker review
         lowStockWarning: 'дар анбор танҳо {{stock}}', // TODO: needs native speaker review
         saveFailed: 'Фурӯш захира нашуд', // TODO: needs native speaker review
+        positionsLabel: 'адад',
+        receiptTotal: 'ҶАМЪ',
+        thankYou: 'Ташаккур барои харид',
+        shareReceipt: 'Ҳисоб фиристодан',
+        checkoutAction: 'Расмиёт',
       },
       onboarding: {
         // TODO: needs native speaker review
@@ -2097,6 +2107,11 @@ const resources = {
         newProductBadge: '🆕 yangi mahsulot', // TODO: needs native speaker review
         lowStockWarning: 'omborda faqat {{stock}}', // TODO: needs native speaker review
         saveFailed: 'Sotuvni saqlab bo\'lmadi', // TODO: needs native speaker review
+        positionsLabel: 'ta',
+        receiptTotal: 'JAMI',
+        thankYou: 'Xarid uchun rahmat',
+        shareReceipt: 'Hisob ulashish',
+        checkoutAction: 'Rasmiylashtirish',
       },
       onboarding: {
         // TODO: needs native speaker review
