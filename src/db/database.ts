@@ -278,6 +278,25 @@ export function initDatabase() {
     });
   }
 
+  const schemaV5MigrationDone = db.getFirstSync(
+    "SELECT value FROM app_meta WHERE key = 'schema_v5'"
+  ) as { value: string } | null;
+
+  if (!schemaV5MigrationDone) {
+    db.withTransactionSync(() => {
+      const cols = db.getAllSync("PRAGMA table_info(products)") as any[];
+      if (!cols.some(c => c.name === 'color')) {
+        db.execSync("ALTER TABLE products ADD COLUMN color TEXT");
+      }
+      if (!cols.some(c => c.name === 'article')) {
+        db.execSync("ALTER TABLE products ADD COLUMN article TEXT");
+      }
+      db.runSync(
+        "INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_v5', 'done')"
+      );
+    });
+  }
+
   // Migration: shop_session table
   db.execSync(`
     CREATE TABLE IF NOT EXISTS shop_session (
@@ -321,7 +340,9 @@ export function addProduct(
   packageName: string | null = null,
   unitsPerPackage: number = 1,
   category: string | null = null,
-  isContinuous: number = 0
+  isContinuous: number = 0,
+  article: string | null = null,
+  color: string | null = null
 ) {
   try {
     const now = nowLocalISO();
@@ -329,9 +350,10 @@ export function addProduct(
       `INSERT INTO products (
         name, buy_price, sell_price, stock, min_stock_alert,
         base_unit, has_packages, package_name, units_per_package,
-        category, updated_at, synced, is_deleted, created_at, is_continuous
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)`,
-      [name, buyPrice, sellPrice, stock, minStockAlert, baseUnit, hasPackages, packageName, unitsPerPackage, category, now, now, isContinuous]
+        category, updated_at, synced, is_deleted, created_at, is_continuous,
+        article, color
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?)`,
+      [name, buyPrice, sellPrice, stock, minStockAlert, baseUnit, hasPackages, packageName, unitsPerPackage, category, now, now, isContinuous, article, color]
     );
     if (stock <= minStockAlert && minStockAlert > 0) {
       notifyLowStock(name, stock);
@@ -355,16 +377,19 @@ export function updateProduct(
   packageName: string | null = null,
   unitsPerPackage: number = 1,
   category: string | null = null,
-  isContinuous: number = 0
+  isContinuous: number = 0,
+  article: string | null = null,
+  color: string | null = null
 ) {
   try {
     const result = db.runSync(
       `UPDATE products SET
         name = ?, buy_price = ?, sell_price = ?, stock = ?, min_stock_alert = ?,
         base_unit = ?, has_packages = ?, package_name = ?, units_per_package = ?,
-        category = ?, updated_at = ?, synced = 0, is_continuous = ?
+        category = ?, updated_at = ?, synced = 0, is_continuous = ?,
+        article = ?, color = ?
       WHERE id = ?`,
-      [name, buyPrice, sellPrice, stock, minStockAlert, baseUnit, hasPackages, packageName, unitsPerPackage, category, nowLocalISO(), isContinuous, id]
+      [name, buyPrice, sellPrice, stock, minStockAlert, baseUnit, hasPackages, packageName, unitsPerPackage, category, nowLocalISO(), isContinuous, article, color, id]
     );
     if (stock <= minStockAlert && minStockAlert > 0) {
       notifyLowStock(name, stock);
@@ -1119,7 +1144,12 @@ export function searchProductsForAutocomplete(query: string) {
           (SELECT s.sell_price FROM sales s WHERE s.product_id = p.id ORDER BY s.created_at DESC LIMIT 1) as lastSalePrice,
           (SELECT COUNT(*) FROM sales s WHERE s.product_id = p.id) as salesCount,
           (SELECT MAX(s.created_at) FROM sales s WHERE s.product_id = p.id) as lastSoldAt,
-          p.base_unit, p.has_packages, p.package_name, p.units_per_package, p.is_continuous, p.stock
+          p.base_unit, p.has_packages, p.package_name, p.units_per_package, p.is_continuous, p.stock,
+          p.article, p.color,
+          CASE WHEN p.color IS NOT NULL AND p.color != ''
+               THEN p.name || ' · ' || p.color
+               ELSE p.name
+          END AS displayName
         FROM products p
         WHERE p.is_deleted = 0
         UNION ALL
@@ -1131,13 +1161,15 @@ export function searchProductsForAutocomplete(query: string) {
           (SELECT s2.sell_price FROM sales s2 WHERE s2.product_name = s.product_name AND s2.product_id IS NULL ORDER BY s2.created_at DESC LIMIT 1) as lastSalePrice,
           COUNT(*) as salesCount,
           MAX(s.created_at) as lastSoldAt,
-          'шт' as base_unit, 0 as has_packages, NULL as package_name, 1 as units_per_package, 0 as is_continuous, 0 as stock
+          'шт' as base_unit, 0 as has_packages, NULL as package_name, 1 as units_per_package, 0 as is_continuous, 0 as stock,
+          NULL as article, NULL as color,
+          s.product_name as displayName
         FROM sales s
         WHERE s.product_id IS NULL
           AND s.product_name NOT IN (SELECT name FROM products)
         GROUP BY s.product_name
       )
-      SELECT * FROM AllItems
+      SELECT id, displayName as name, source, purchasePrice, lastSalePrice, salesCount, lastSoldAt, base_unit, has_packages, package_name, units_per_package, is_continuous, stock, article, color, name as baseName FROM AllItems
       ORDER BY salesCount DESC, lastSoldAt DESC
       LIMIT 5
     `);
@@ -1149,25 +1181,34 @@ export function searchProductsForAutocomplete(query: string) {
       SELECT
         CAST(p.id AS TEXT) as id,
         p.name,
+        p.name as baseName,
         'catalog' as source,
         p.buy_price as purchasePrice,
         (SELECT s.sell_price FROM sales s WHERE s.product_id = p.id ORDER BY s.created_at DESC LIMIT 1) as lastSalePrice,
         (SELECT COUNT(*) FROM sales s WHERE s.product_id = p.id) as salesCount,
         (SELECT MAX(s.created_at) FROM sales s WHERE s.product_id = p.id) as lastSoldAt,
-        p.base_unit, p.has_packages, p.package_name, p.units_per_package, p.is_continuous, p.stock
+        p.base_unit, p.has_packages, p.package_name, p.units_per_package, p.is_continuous, p.stock,
+        p.article, p.color,
+        CASE WHEN p.color IS NOT NULL AND p.color != ''
+             THEN p.name || ' · ' || p.color
+             ELSE p.name
+        END AS displayName
       FROM products p
-      WHERE p.name LIKE ? || '%' AND p.is_deleted = 0
+      WHERE (p.name LIKE ? || '%' OR p.article LIKE ? || '%') AND p.is_deleted = 0
     ),
     HistoryMatches AS (
       SELECT
         NULL as id,
         s.product_name as name,
+        s.product_name as baseName,
         'history' as source,
         (SELECT s2.buy_price FROM sales s2 WHERE s2.product_name = s.product_name AND s2.product_id IS NULL ORDER BY s2.created_at DESC LIMIT 1) as purchasePrice,
         (SELECT s2.sell_price FROM sales s2 WHERE s2.product_name = s.product_name AND s2.product_id IS NULL ORDER BY s2.created_at DESC LIMIT 1) as lastSalePrice,
         COUNT(*) as salesCount,
         MAX(s.created_at) as lastSoldAt,
-        'шт' as base_unit, 0 as has_packages, NULL as package_name, 1 as units_per_package, 0 as is_continuous, 0 as stock
+        'шт' as base_unit, 0 as has_packages, NULL as package_name, 1 as units_per_package, 0 as is_continuous, 0 as stock,
+        NULL as article, NULL as color,
+        s.product_name as displayName
       FROM sales s
       WHERE s.product_id IS NULL
         AND s.product_name LIKE ? || '%'
@@ -1175,16 +1216,17 @@ export function searchProductsForAutocomplete(query: string) {
       GROUP BY s.product_name
     )
     SELECT * FROM (
-      SELECT * FROM CatalogMatches
+      SELECT id, displayName as name, source, purchasePrice, lastSalePrice, salesCount, lastSoldAt, base_unit, has_packages, package_name, units_per_package, is_continuous, stock, article, color, baseName FROM CatalogMatches
       UNION ALL
-      SELECT * FROM HistoryMatches
+      SELECT id, displayName as name, source, purchasePrice, lastSalePrice, salesCount, lastSoldAt, base_unit, has_packages, package_name, units_per_package, is_continuous, stock, article, color, baseName FROM HistoryMatches
     ) AS CombinedResults
     ORDER BY
       CASE WHEN source = 'catalog' THEN 0 ELSE 1 END,
-      salesCount DESC,
-      lastSoldAt DESC
+      CASE WHEN source = 'catalog' THEN article ELSE NULL END NULLS LAST,
+      CASE WHEN source = 'catalog' THEN baseName ELSE name END,
+      color
     LIMIT 8
-  `, [query, query]);
+  `, [query, query, query]);
 }
 
 // ── Shop Session ────────────────────────────────────

@@ -14,6 +14,8 @@ export interface Product {
   synced: number;
   is_deleted: number;
   created_at: string;
+  color?: string | null;
+  article?: string | null;
 }
 
 export interface StockMovement {
@@ -41,4 +43,7 @@ export interface AutocompleteResult {
   units_per_package?: number;
   is_continuous?: number;
   stock?: number;
+  article?: string | null;
+  color?: string | null;
+  baseName?: string;
 }
