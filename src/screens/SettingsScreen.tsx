@@ -120,7 +120,7 @@ const groupStyles = StyleSheet.create({
 
 export default function SettingsScreen(props: any) {
   const { t, i18n } = useTranslation();
-  const { isOwner } = useShop();
+  const { isOwner, hasShop } = useShop();
   const {
     theme, currency, language, setTheme, setCurrency, setLanguage,
     notificationsEnabled, setNotificationsEnabled,
@@ -132,11 +132,48 @@ export default function SettingsScreen(props: any) {
   const [conversionHistory, setConversionHistory] = useState<any[]>([]);
   const [loadingRate, setLoadingRate] = useState(false);
   const [lastBackupAt, setLastBackupAt] = useState<string | null>(null);
+  const [syncEnabled, setSyncEnabled] = useState(true);
 
   useEffect(() => {
     loadConversionHistory();
     loadLastBackupTime();
+    loadSyncSettings();
   }, []);
+
+  const loadSyncSettings = async () => {
+    const val = await AsyncStorage.getItem('sync_enabled');
+    if (val === null) {
+      setSyncEnabled(hasShop);
+      await AsyncStorage.setItem('sync_enabled', hasShop ? 'true' : 'false');
+    } else {
+      setSyncEnabled(val === 'true');
+    }
+  };
+
+  const handleSyncToggle = async (val: boolean) => {
+    if (!hasShop) return;
+
+    if (!val && isOwner) {
+      Alert.alert(
+        t('settings.syncDisableConfirmTitle'),
+        t('settings.syncDisableConfirmMsg'),
+        [
+          { text: t('common.cancel'), style: 'cancel' },
+          {
+            text: t('common.continue'),
+            style: 'destructive',
+            onPress: async () => {
+              setSyncEnabled(false);
+              await AsyncStorage.setItem('sync_enabled', 'false');
+            }
+          }
+        ]
+      );
+    } else {
+      setSyncEnabled(val);
+      await AsyncStorage.setItem('sync_enabled', val ? 'true' : 'false');
+    }
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -493,6 +530,35 @@ export default function SettingsScreen(props: any) {
           />
         </View>
       </SettingGroup>
+
+      {/* ── СИНХРОНИЗАЦИЯ ── */}
+      <SectionLabel label={t('settings.syncTitle')} isDark={isDark} />
+      <SettingGroup isDark={isDark}>
+        <SettingRow
+          icon="sync-outline"
+          iconColor="#007AFF"
+          label={hasShop
+            ? (syncEnabled ? t('settings.syncEnabledLabel') : t('settings.syncDisabledLabel'))
+            : t('settings.syncUnavailableLabel')
+          }
+          isDark={isDark}
+          isLast
+          right={
+            <Switch
+              value={hasShop && syncEnabled}
+              onValueChange={handleSyncToggle}
+              disabled={!hasShop}
+              trackColor={{ false: '#767577', true: '#1D9E75' }}
+              thumbColor="#fff"
+            />
+          }
+        />
+      </SettingGroup>
+      <View style={{ marginHorizontal: 16, marginTop: 8, marginBottom: 4 }}>
+        <Text style={{ fontSize: 12, color: isDark ? '#777' : '#999', lineHeight: 16 }}>
+          {t('settings.syncExplanation')}
+        </Text>
+      </View>
 
       {/* ── БЕЗОПАСНОСТЬ ── */}
       <SectionLabel label={t('appLock.securitySettings')} isDark={isDark} />

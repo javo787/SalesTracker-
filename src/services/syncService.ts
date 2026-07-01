@@ -13,6 +13,9 @@ export const SyncService = {
     const session = getShopSession();
     if (!session.shopId) return;
 
+    const syncEnabled = await AsyncStorage.getItem('sync_enabled');
+    if (syncEnabled === 'false') return;
+
     isSyncing = true;
     try {
       const isOwner = session.role === 'owner';
@@ -37,6 +40,9 @@ export const SyncService = {
     if (isSyncing) return;
     const session = getShopSession();
     if (!session.shopId) return;
+
+    const syncEnabled = await AsyncStorage.getItem('sync_enabled');
+    if (syncEnabled === 'false') return;
 
     isSyncing = true;
     try {
@@ -117,7 +123,10 @@ export const SyncService = {
   },
 
   initAutoSync() {
-    AppState.addEventListener('change', (nextAppState) => {
+    AppState.addEventListener('change', async (nextAppState) => {
+      const syncEnabled = await AsyncStorage.getItem('sync_enabled');
+      if (syncEnabled === 'false') return;
+
       if (nextAppState === 'active') {
         this.pull().then(() => this.push());
       } else if (nextAppState === 'background') {

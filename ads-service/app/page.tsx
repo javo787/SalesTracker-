@@ -453,6 +453,61 @@ export default function Home() {
           font-size: 15px;
         }
 
+        /* Reviews */
+        .reviews {
+          padding: 96px 0;
+          background-color: var(--card);
+        }
+
+        .reviews-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+          gap: 24px;
+        }
+
+        .review-card {
+          background: white;
+          border-radius: 16px;
+          padding: 32px;
+          box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+          border: 1px solid var(--border);
+          display: flex;
+          flex-direction: column;
+        }
+
+        .review-stars {
+          color: #FFB800;
+          margin-bottom: 16px;
+          display: flex;
+          gap: 2px;
+        }
+
+        .review-text {
+          font-size: 15px;
+          color: var(--text-secondary);
+          line-height: 1.6;
+          margin-bottom: 24px;
+          font-style: italic;
+        }
+
+        .review-author {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          margin-top: auto;
+        }
+
+        .author-info h4 {
+          font-size: 15px;
+          font-weight: 700;
+          color: var(--text);
+        }
+
+        .author-info p {
+          font-size: 13px;
+          color: var(--text-secondary);
+        }
+
         /* CTA Banner */
         .cta-banner {
           background: linear-gradient(135deg, var(--primary), #0C7A58);
@@ -727,6 +782,60 @@ export default function Home() {
             <div className="pill">🇺🇿 O'zbek</div>
             <div className="pill">🇹🇯 Тоҷикӣ</div>
             <div className="pill">🇬🇧 English</div>
+          </div>
+        </div>
+      </section>
+
+      {/* Reviews Section */}
+      <section className="reviews">
+        <div className="container">
+          <div className="section-heading-center">
+            <h2>Trusted by bazaar traders</h2>
+            <p>Here is what our users say about SavdoApp</p>
+          </div>
+          <div className="reviews-grid">
+            <div className="review-card">
+              <div className="review-stars">
+                {[...Array(5)].map((_, i) => (
+                  <svg key={i} width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                ))}
+              </div>
+              <p className="review-text">"Before I used a notebook, but often lost records or forgot to write down small sales. Now everything is in the phone, and I see my real profit every day."</p>
+              <div className="review-author">
+                <div className="author-info">
+                  <h4>Dilshod K.</h4>
+                  <p>Korchinka, Tashkent</p>
+                </div>
+              </div>
+            </div>
+            <div className="review-card">
+              <div className="review-stars">
+                {[...Array(5)].map((_, i) => (
+                  <svg key={i} width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                ))}
+              </div>
+              <p className="review-text">"Voice input is a lifesaver when there's a queue. I just say the price and quantity, and the app does the rest. Very convenient for market conditions."</p>
+              <div className="review-author">
+                <div className="author-info">
+                  <h4>Alisher Z.</h4>
+                  <p>Panchshanbe Bazaar, Khujand</p>
+                </div>
+              </div>
+            </div>
+            <div className="review-card">
+              <div className="review-stars">
+                {[...Array(5)].map((_, i) => (
+                  <svg key={i} width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                ))}
+              </div>
+              <p className="review-text">"I finally tracked all customer debts in one place. The reminders help me collect payments on time without awkward conversations."</p>
+              <div className="review-author">
+                <div className="author-info">
+                  <h4>Gulnara M.</h4>
+                  <p>Dordoi Bazaar, Bishkek</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>

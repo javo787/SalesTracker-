@@ -103,7 +103,11 @@ const translations: Record<string, Translation> = {
         ],
       },
       {
-        title: '3. How We Use Your Information',
+        title: '3. Government and Tax Authorities',
+        content: 'We do not transfer data about your sales, products, or income to tax, law enforcement, or other government authorities. SavdoApp has no technical integration with the state information systems of any country. Access to the synchronized data of your store is only available to you and the team members you have personally invited.',
+      },
+      {
+        title: '4. How We Use Your Information',
         content: [
           'Core app features: sales tracking, inventory, reporting',
           'Voice-to-text transcription via Groq',
@@ -114,7 +118,7 @@ const translations: Record<string, Translation> = {
         ],
       },
       {
-        title: '4. Data Storage & Security',
+        title: '5. Data Storage & Security',
         content: [
           'Business data stored locally on your device (SQLite) — never leaves device unless you export',
           'Server data (account, news) stored on Render with TLS/HTTPS encryption',
@@ -122,19 +126,19 @@ const translations: Record<string, Translation> = {
         ],
       },
       {
-        title: '5. Third-Party Services',
+        title: '6. Third-Party Services',
         content: 'We use the following third-party services to provide app functionality:',
       },
       {
-        title: '6. Permissions',
+        title: '7. Permissions',
         content: 'The app requests the following permissions to provide specific features:',
       },
       {
-        title: "7. Children's Privacy",
+        title: "8. Children's Privacy",
         content: 'The App is not directed at children under 13 (under 16 in EEA). We do not knowingly collect data from children. Contact us to request deletion if applicable.',
       },
       {
-        title: '8. Your Rights',
+        title: '9. Your Rights',
         content: [
           'Access, correct, or delete your data',
           'Object to or restrict processing',
@@ -143,18 +147,18 @@ const translations: Record<string, Translation> = {
         ],
       },
       {
-        title: '9. Data Retention',
+        title: '10. Data Retention',
         content: [
           'Local data: until you uninstall or clear app data.',
           'Server data: retained while account is active, deleted within 90 days of account removal.',
         ],
       },
       {
-        title: '10. Changes to This Policy',
+        title: '11. Changes to This Policy',
         content: 'We update this policy as needed. Material changes announced via in-app notice and updated "Last updated" date. Continued use = acceptance.',
       },
       {
-        title: '11. Contact Us',
+        title: '12. Contact Us',
         content: 'If you have questions about this policy, contact us:',
       },
     ],
@@ -227,7 +231,11 @@ const translations: Record<string, Translation> = {
         ],
       },
       {
-        title: '3. Как мы используем вашу информацию',
+        title: '3. Государственные и налоговые органы',
+        content: 'Мы не передаём данные о ваших продажах, товарах или доходах налоговым, правоохранительным или иным государственным органам. У SavdoApp нет технической интеграции с государственными информационными системами какой-либо страны. Доступ к синхронизированным данным вашего магазина есть только у вас и у участников вашей команды, которых вы сами пригласили.',
+      },
+      {
+        title: '4. Как мы используем вашу информацию',
         content: [
           'Основные функции приложения: отслеживание продаж, инвентаризация, отчетность',
           'Транскрипция голоса в текст через Groq',
@@ -238,7 +246,7 @@ const translations: Record<string, Translation> = {
         ],
       },
       {
-        title: '4. Хранение и безопасность данных',
+        title: '5. Хранение и безопасность данных',
         content: [
           'Бизнес-данные хранятся локально на вашем устройстве (SQLite) — никогда не покидают устройство, если вы их не экспортируете',
           'Серверные данные (аккаунт, новости) хранятся на Render с шифрованием TLS/HTTPS',
@@ -246,19 +254,19 @@ const translations: Record<string, Translation> = {
         ],
       },
       {
-        title: '5. Сторонние сервисы',
+        title: '6. Сторонние сервисы',
         content: 'Мы используем следующие сторонние сервисы для обеспечения функциональности приложения:',
       },
       {
-        title: '6. Разрешения',
+        title: '7. Разрешения',
         content: 'Приложение запрашивает следующие разрешения для обеспечения определенных функций:',
       },
       {
-        title: '7. Конфиденциальность детей',
+        title: '8. Конфиденциальность детей',
         content: 'Приложение не предназначено для детей младше 13 лет (младше 16 лет в ЕЭЗ). Мы сознательно не собираем данные детей. Свяжитесь с нами, чтобы запросить удаление, если это применимо.',
       },
       {
-        title: '8. Ваши права',
+        title: '9. Ваши права',
         content: [
           'Доступ, исправление или удаление ваших данных',
           'Возражение против обработки или ограничение обработки',
@@ -267,18 +275,18 @@ const translations: Record<string, Translation> = {
         ],
       },
       {
-        title: '9. Хранение данных',
+        title: '10. Хранение данных',
         content: [
           'Локальные данные: до тех пор, пока вы не удалите приложение или не очистите данные приложения.',
           'Данные сервера: сохраняются, пока учетная запись активна, удаляются в течение 90 дней после удаления учетной записи.',
         ],
       },
       {
-        title: '10. Изменения в этой политике',
+        title: '11. Изменения в этой политике',
         content: 'Мы обновляем эту политику по мере необходимости. О существенных изменениях сообщается через уведомление в приложении и обновленную дату «Последнее обновление». Продолжение использования означает принятие.',
       },
       {
-        title: '11. Свяжитесь с нами',
+        title: '12. Свяжитесь с нами',
         content: 'Если у вас есть вопросы по этой политике, свяжитесь с нами:',
       },
     ],
@@ -351,7 +359,11 @@ const translations: Record<string, Translation> = {
         ],
       },
       {
-        title: '3. Ma\'lumotlaringizdan qanday foydalanamiz',
+        title: '3. Davlat va soliq organlari',
+        content: 'Biz sizning savdolaringiz, mahsulotlaringiz yoki daromadlaringiz haqidagi ma\'lumotlarni soliq, huquqni muhofaza qilish yoki boshqa davlat organlariga o\'tkazmaymiz. SavdoApp biron bir mamlakatning davlat axborot tizimlari bilan texnik integratsiyaga ega emas. Do\'koningizning sinxronlashtirilgan ma\'lumotlariga faqat siz va o\'zingiz taklif qilgan jamoa a\'zolari kirish huquqiga ega.',
+      },
+      {
+        title: '4. Ma\'lumotlaringizdan qanday foydalanamiz',
         content: [
           'Ilovaning asosiy xususiyatlari: savdo kuzatuvi, inventarizatsiya, hisobot berish',
           'Groq orqali ovozni matnga aylantirish',
@@ -362,7 +374,7 @@ const translations: Record<string, Translation> = {
         ],
       },
       {
-        title: '4. Ma\'lumotlarni saqlash va xavfsizligi',
+        title: '5. Ma\'lumotlarni saqlash va xavfsizligi',
         content: [
           'Biznes ma\'lumotlari qurilmangizda mahalliy ravishda saqlanadi (SQLite) — eksport qilmasangiz, hech qachon qurilmadan tashqariga chiqmaydi',
           'Server ma\'lumotlari (hisob, yangiliklar) Render-da TLS/HTTPS shifrlash bilan saqlanadi',
@@ -370,19 +382,19 @@ const translations: Record<string, Translation> = {
         ],
       },
       {
-        title: '5. Uchinchi tomon xizmatlari',
+        title: '6. Uchinchi tomon xizmatlari',
         content: 'Ilova funksionalligini ta\'minlash uchun biz quyidagi uchinchi tomon xizmatlaridan foydalanamiz:',
       },
       {
-        title: '6. Ruxsatnomalar',
+        title: '7. Ruxsatnomalar',
         content: 'Ilova muayyan funksiyalarni ta\'minlash uchun quyidagi ruxsatnomalarni so\'raydi:',
       },
       {
-        title: '7. Bolalar maxfiyligi',
+        title: '8. Bolalar maxfiyligi',
         content: 'Ilova 13 yoshga to\'lmagan (EEAda 16 yoshgacha) bolalarga qaratilmagan. Biz bila turib bolalardan ma\'lumot to\'plamaymiz. Agar kerak bo\'lsa, o\'chirishni so\'rash uchun biz bilan bog\'laning.',
       },
       {
-        title: '8. Sizning huquqlaringiz',
+        title: '9. Sizning huquqlaringiz',
         content: [
           'Ma\'lumotlaringizga kirish, ularni tuzatish yoki o\'chirish',
           'Qayta ishlashga e\'tiroz bildirish yoki uni cheklash',
@@ -391,18 +403,18 @@ const translations: Record<string, Translation> = {
         ],
       },
       {
-        title: '9. Ma\'lumotlarni saqlash muddati',
+        title: '10. Ma\'lumotlarni saqlash muddati',
         content: [
           'Mahalliy ma\'lumotlar: ilovani o\'chirib tashlamaguningizcha yoki ilova ma\'lumotlarini tozalamaguningizcha.',
           'Server ma\'lumotlari: hisob faol bo\'lganda saqlanadi, hisob o\'chirilgandan keyin 90 kun ichida o\'chiriladi.',
         ],
       },
       {
-        title: '10. Ushbu siyosatga o\'zgartirishlar',
+        title: '11. Ushbu siyosatga o\'zgartirishlar',
         content: 'Ushbu siyosatni kerak bo\'lganda yangilab turamiz. Muhim o\'zgartirishlar ilova ichidagi bildirishnoma va yangilangan "Oxirgi yangilangan sana" orqali e\'lon qilinadi. Foydalanishni davom ettirish rozilikni anglatadi.',
       },
       {
-        title: '11. Biz bilan bog\'lanish',
+        title: '12. Biz bilan bog\'lanish',
         content: 'Ushbu siyosat bo\'yicha savollaringiz bo\'lsa, biz bilan bog\'laning:',
       },
     ],
@@ -475,7 +487,11 @@ const translations: Record<string, Translation> = {
         ],
       },
       {
-        title: '3. Чӣ тавр мо маълумоти шуморо истифода мебарем',
+        title: '3. Мақомоти давлатӣ ва андоз',
+        content: 'Мо маълумотро дар бораи фурӯш, мол ё даромади шумо ба мақомоти андоз, ҳифзи ҳуқуқ ё дигар мақомоти давлатӣ намедиҳем. SavdoApp бо системаҳои иттилоотии давлатии ягон кишвар ҳамгироии техникӣ надорад. Дастрасӣ ба маълумоти ҳамоҳангшудаи дӯкони шумо танҳо барои шумо ва аъзоёни дастае, ки худатон даъват кардаед, дастрас аст.',
+      },
+      {
+        title: '4. Чӣ тавр мо маълумоти шуморо истифода мебарем',
         content: [
           'Хусусиятҳои асосии барнома: пайгирии фурӯш, инвентаризатсия, ҳисоботдиҳӣ',
           'Транскрипсияи овоз ба матн тавассути Groq',
@@ -486,7 +502,7 @@ const translations: Record<string, Translation> = {
         ],
       },
       {
-        title: '4. Нигоҳдорӣ ва амнияти маълумот',
+        title: '5. Нигоҳдорӣ ва амнияти маълумот',
         content: [
           'Маълумоти тиҷоратӣ дар дастгоҳи шумо ба таври маҳаллӣ нигоҳ дошта мешавад (SQLite) — ҳеҷ гоҳ аз дастгоҳ берун намеравад, агар шумо содирот накунед',
           'Маълумоти сервер (ҳисоб, ахбор) дар Render бо рамзгузории TLS/HTTPS нигоҳ дошта мешавад',
@@ -494,19 +510,19 @@ const translations: Record<string, Translation> = {
         ],
       },
       {
-        title: '5. Хизматрасониҳои тарафи сеюм',
+        title: '6. Хизматрасониҳои тарафи сеюм',
         content: 'Мо хидматҳои зерини тарафи сеюмро барои таъмини кори барнома истифода мебарем:',
       },
       {
-        title: '6. Иҷозатҳо',
+        title: '7. Иҷозатҳо',
         content: 'Барнома иҷозатҳои зеринро барои таъмини хусусиятҳои мушаххас дархост мекунад:',
       },
       {
-        title: '7. Махфияти кӯдакон',
+        title: '8. Махфияти кӯдакон',
         content: 'Барнома ба кӯдакони то 13-сола (дар EEA то 16-сола) нигаронида нашудааст. Мо дидаю дониста аз кӯдакон маълумот ҷамъ намеорем. Барои дархости нест кардан бо мо тамос гиред, агар лозим бошад.',
       },
       {
-        title: '8. Ҳуқуқҳои шумо',
+        title: '9. Ҳуқуқҳои шумо',
         content: [
           'Дастрасӣ, ислоҳ ё нест кардани маълумоти шумо',
           'Эътироз ба коркард ё маҳдуд кардани он',
@@ -515,18 +531,18 @@ const translations: Record<string, Translation> = {
         ],
       },
       {
-        title: '9. Нигоҳдории маълумот',
+        title: '10. Нигоҳдории маълумот',
         content: [
           'Маълумоти маҳаллӣ: то он даме, ки шумо барномаро нест кунед ё маълумоти барномаро тоза кунед.',
           'Маълумоти сервер: то он даме, ки ҳисоб фаъол аст, нигоҳ дошта мешавад, дар давоми 90 рӯзи нест кардани ҳисоб нест карда мешавад.',
         ],
       },
       {
-        title: '10. Тағйирот дар ин сиёсат',
+        title: '11. Тағйирот дар ин сиёсат',
         content: 'Мо ин сиёсатро мувофиқи зарурат нав мекунем. Тағйироти ҷиддӣ тавассути огоҳии дохили барнома ва санаи навшудаи "Навсозии охирин" эълон карда мешаванд. Идомаи истифода = қабул.',
       },
       {
-        title: '11. Бо мо тамос гиред',
+        title: '12. Бо мо тамос гиред',
         content: 'Агар шумо дар бораи ин сиёсат савол дошта бошед, бо мо тамос гиред:',
       },
     ],
@@ -815,13 +831,13 @@ export default function PrivacyPage({
                 ))}
 
               {/* Special content for specific sections */}
-              {section.title.includes('3.') && (
+              {section.title.includes('4.') && (
                 <p className="text">
                   <span className="bold-label">{t.labels.notSold}</span>
                 </p>
               )}
 
-              {section.title.includes('5.') && (
+              {section.title.includes('6.') && (
                 <div className="table-container">
                   <table>
                     <thead>
@@ -853,7 +869,7 @@ export default function PrivacyPage({
                 </div>
               )}
 
-              {section.title.includes('6.') && (
+              {section.title.includes('7.') && (
                 <>
                   <div className="badge-container">
                     {t.permissions.map((p, i) => (
@@ -868,7 +884,7 @@ export default function PrivacyPage({
                 </>
               )}
 
-              {section.title.includes('8.') && (
+              {section.title.includes('9.') && (
                 <>
                   <p className="text">
                     {t.labels.contactLabel}:{' '}
@@ -883,7 +899,7 @@ export default function PrivacyPage({
                 </>
               )}
 
-              {section.title.includes('11.') && (
+              {section.title.includes('12.') && (
                 <p className="text">
                   SavdoApp<br />
                   {t.labels.emailLabel}:{' '}
