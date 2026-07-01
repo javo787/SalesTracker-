@@ -332,6 +332,10 @@ const resources = {
         noProducts: 'Товары не найдены',
         addFirstProduct: 'Добавьте первый товар',
         tryAnotherQuery: 'Попробуйте другой запрос',
+        article: 'Артикул / Модель',
+        color: 'Цвет / Разновидность',
+        addVariant: '+ Добавить вариант',
+        variantsCount: '{{count}} вар.',
       },
       warehouse: {
         stockIn: 'Приёмка',
@@ -951,6 +955,10 @@ const resources = {
         noProducts: 'Молҳо ёфт нашуданд',
         addFirstProduct: 'Аввалин молро илова кунед',
         tryAnotherQuery: 'Дархости дигарро санҷед',
+        article: 'Артикул / Модел',
+        color: 'Ранг / Навъ',
+        addVariant: '+ Навъи нав',
+        variantsCount: '{{count}} навъ',
       },
       warehouse: {
         stockIn: 'Қабул',
@@ -2180,6 +2188,10 @@ const resources = {
         noProducts: 'Tovarlar topilmadi',
         addFirstProduct: 'Birinchi tovarni qo\'shing',
         tryAnotherQuery: 'Boshqa so\'rovni sinab ko\'ring',
+        article: 'Artikul / Model',
+        color: 'Rang / Xilma-xil',
+        addVariant: '+ Variant qo\'shish',
+        variantsCount: '{{count}} rang',
       },
       warehouse: {
         stockIn: 'Qabul qilish',

@@ -15,6 +15,7 @@ import { useAutocomplete } from '../../hooks/useAutocomplete';
 import { AutocompleteResult } from '../../types/product';
 import { searchProductsForAutocomplete } from '../../db/database';
 import { HighlightedText } from './HighlightedText';
+import { ColorCircle, getColorHex } from '../../constants/colors';
 
 interface Props {
   value: string;
@@ -50,26 +51,61 @@ export const ProductAutocomplete = React.forwardRef<any, Props>(({
   const catalogItems = results.filter((r) => r.source === 'catalog');
   const historyItems = results.filter((r) => r.source === 'history');
 
-  const renderItem = (item: AutocompleteResult) => (
-    <TouchableOpacity
-      key={`${item.source}-${item.id || item.name}`}
-      style={styles.item}
-      onPress={() => handleSelect(item)}
-    >
-      <View style={styles.itemLeft}>
-        <Text style={styles.icon}>{item.source === 'catalog' ? '📦' : '🕐'}</Text>
-        <HighlightedText
-          text={item.name}
-          query={value}
-          accentColor="#1D9E75"
-          baseStyle={StyleSheet.flatten([styles.itemName, isDark ? styles.textDark : styles.textLight])}
-        />
-      </View>
-      <Text style={styles.itemPrice}>
-        {item.purchasePrice} {currency.symbol}
-      </Text>
-    </TouchableOpacity>
-  );
+  const groupedCatalog = React.useMemo(() => {
+    const groups = new Map<string, AutocompleteResult[]>();
+    const singles: AutocompleteResult[] = [];
+
+    catalogItems.forEach(item => {
+      if (item.article) {
+        if (!groups.has(item.article)) groups.set(item.article, []);
+        groups.get(item.article)!.push(item);
+      } else {
+        singles.push(item);
+      }
+    });
+
+    const items: ({ type: 'group'; article: string; variants: AutocompleteResult[] } | { type: 'single'; item: AutocompleteResult })[] = [];
+
+    groups.forEach((variants, article) => {
+      if (variants.length > 1) {
+        items.push({ type: 'group', article, variants });
+      } else {
+        singles.push(variants[0]);
+      }
+    });
+
+    singles.forEach(item => items.push({ type: 'single', item }));
+
+    // Keep relative order as much as possible, or sort
+    return items;
+  }, [catalogItems]);
+
+  const renderItem = (item: AutocompleteResult) => {
+    const colorHex = item.color ? getColorHex(item.color) : null;
+    return (
+      <TouchableOpacity
+        key={`${item.source}-${item.id || item.name}`}
+        style={styles.item}
+        onPress={() => handleSelect(item)}
+      >
+        <View style={styles.itemLeft}>
+          <Text style={styles.icon}>{item.source === 'catalog' ? '📦' : '🕐'}</Text>
+          {colorHex && (
+            <ColorCircle size={14} hex={colorHex} style={{ marginRight: 6 }} />
+          )}
+          <HighlightedText
+            text={item.name}
+            query={value}
+            accentColor="#1D9E75"
+            baseStyle={StyleSheet.flatten([styles.itemName, isDark ? styles.textDark : styles.textLight])}
+          />
+        </View>
+        <Text style={styles.itemPrice}>
+          {item.purchasePrice} {currency.symbol}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={[styles.container, containerStyle]}>
@@ -100,7 +136,51 @@ export const ProductAutocomplete = React.forwardRef<any, Props>(({
                 <View style={styles.divider}>
                   <Text style={styles.dividerText}>────── {t('common.fromCatalog')} ──────</Text>
                 </View>
-                {catalogItems.map(renderItem)}
+                {groupedCatalog.map((g, idx) => {
+                  if (g.type === 'single') return renderItem(g.item);
+                  return (
+                    <View key={`group-${g.article}`} style={{ borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#EEE', paddingVertical: 8 }}>
+                      <View style={[styles.item, { borderBottomWidth: 0, paddingBottom: 4 }]}>
+                         <View style={styles.itemLeft}>
+                           <Text style={styles.icon}>📦</Text>
+                           <Text style={[styles.itemName, isDark ? styles.textDark : styles.textLight, { fontWeight: 'bold' }]}>
+                             {g.variants[0].baseName ?? g.variants[0].name}
+                           </Text>
+                         </View>
+                      </View>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 8 }}>
+                        {g.variants.map((v) => (
+                          <TouchableOpacity
+                            key={v.id}
+                            onPress={() => handleSelect(v)}
+                            style={{
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              gap: 4,
+                              paddingVertical: 6,
+                              paddingHorizontal: 12,
+                              borderRadius: 20,
+                              backgroundColor: isDark ? '#2C2C2C' : '#F0F0F0',
+                              borderWidth: 1,
+                              borderColor: isDark ? '#444' : '#E0E0E0',
+                            }}
+                          >
+                            <ColorCircle
+                              size={12}
+                              hex={getColorHex(v.color ?? '') ?? '#BDBDBD'}
+                            />
+                            <Text style={[isDark ? styles.textDark : styles.textLight, { fontSize: 12 }]}>
+                              {(v.color ?? v.name).length > 8
+                                ? (v.color ?? v.name).slice(0, 8) + '…'
+                                : (v.color ?? v.name)}
+                              {v.stock && v.stock > 0 ? ` (${v.stock})` : ''}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  );
+                })}
               </>
             )}
 

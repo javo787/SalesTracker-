@@ -18,6 +18,7 @@ import StockOperationModal from '../components/stock/StockOperationModal';
 import StockHistorySheet from '../components/stock/StockHistorySheet';
 import { ProductAutocomplete } from '../components/sales/ProductAutocomplete';
 import { Colors, LightTheme, DarkTheme, Radius, Shadow } from '../constants/theme';
+import { PRESET_COLORS, getColorHex, ColorCircle } from '../constants/colors';
 
 export default function ProductsScreen() {
   const { t } = useTranslation();
@@ -44,6 +45,8 @@ export default function ProductsScreen() {
   const [packageName, setPackageName] = useState('');
   const [unitsPerPackage, setUnitsPerPackage] = useState('1');
   const [category, setCategory] = useState('');
+  const [article, setArticle] = useState('');
+  const [color, setColor] = useState('');
   const [allCategories, setAllCategories] = useState<string[]>([]);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
 
@@ -124,7 +127,11 @@ export default function ProductsScreen() {
     // 1. Search Query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      result = result.filter(p => p.name.toLowerCase().includes(query));
+      result = result.filter(p =>
+        (p.name || '').toLowerCase().includes(query) ||
+        (p.article || '').toLowerCase().includes(query) ||
+        (p.color || '').toLowerCase().includes(query)
+      );
     }
 
     // 2. Chip Filter
@@ -146,6 +153,78 @@ export default function ProductsScreen() {
 
     return result;
   }, [products, searchQuery, activeFilter, sortDirection, debtProductIdsList]);
+
+  type ProductGroup = {
+    article: string;
+    displayName: string;
+    variants: any[];
+  };
+  type DisplayItem =
+    | { type: 'group'; data: ProductGroup }
+    | { type: 'single'; data: any };
+
+  const displayItems = useMemo(() => {
+    const groups = new Map<string, any[]>();
+    const singles: any[] = [];
+
+    filteredProducts.forEach(p => {
+      if (p.article) {
+        if (!groups.has(p.article)) groups.set(p.article, []);
+        groups.get(p.article)!.push(p);
+      } else {
+        singles.push(p);
+      }
+    });
+
+    const items: DisplayItem[] = [];
+
+    groups.forEach((variants, art) => {
+      if (variants.length > 1) {
+        variants.sort((a, b) => (a.color || '').localeCompare(b.color || ''));
+        items.push({
+          type: 'group',
+          data: {
+            article: art,
+            displayName: variants[0].name,
+            variants
+          }
+        });
+      } else {
+        singles.push(variants[0]);
+      }
+    });
+
+    singles.forEach(p => items.push({ type: 'single', data: p }));
+
+    // Re-sort items by stock of the first/main item if desired,
+    // but here we just follow the base filteredProducts order mostly.
+    // To keep it simple and consistent with filteredProducts sorting:
+    items.sort((a, b) => {
+      const stockA = a.type === 'single' ? a.data.stock : Math.min(...a.data.variants.map((v: any) => v.stock));
+      const stockB = b.type === 'single' ? b.data.stock : Math.min(...b.data.variants.map((v: any) => v.stock));
+      return sortDirection === 'asc' ? stockA - stockB : stockB - stockA;
+    });
+
+    return items;
+  }, [filteredProducts, sortDirection]);
+
+  const openAddVariantForm = (group: ProductGroup) => {
+    const template = group.variants[0];
+    setName(group.displayName);
+    setArticle(group.article);
+    setColor('');
+    setStock('');
+    setBuyPrice(String(template.buy_price));
+    setSellPrice(String(template.sell_price));
+    setBaseUnit(template.base_unit || 'шт');
+    setHasPackages(template.has_packages === 1);
+    setPackageName(template.package_name || '');
+    setUnitsPerPackage(String(template.units_per_package || 1));
+    setIsContinuous(template.is_continuous === 1);
+    setEditingId(null);
+    setShowAdvanced(true);
+    setShowForm(true);
+  };
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -171,10 +250,10 @@ export default function ProductsScreen() {
     const cat = category.trim() || null;
 
     if (editingId) {
-      updateProduct(editingId, name.trim(), bPrice, sPrice, st, alert, baseUnit, hasPackages ? 1 : 0, packageName, uPerPkg, cat, isContinuous ? 1 : 0);
+      updateProduct(editingId, name.trim(), bPrice, sPrice, st, alert, baseUnit, hasPackages ? 1 : 0, packageName, uPerPkg, cat, isContinuous ? 1 : 0, article.trim() || null, color.trim() || null);
       analyticsService.logEvent('product_updated', { product_id: editingId });
     } else {
-      const result = addProduct(name.trim(), bPrice, sPrice, st, alert, baseUnit, hasPackages ? 1 : 0, packageName, uPerPkg, cat, isContinuous ? 1 : 0);
+      const result = addProduct(name.trim(), bPrice, sPrice, st, alert, baseUnit, hasPackages ? 1 : 0, packageName, uPerPkg, cat, isContinuous ? 1 : 0, article.trim() || null, color.trim() || null);
       analyticsService.logEvent('product_added', { product_id: result.lastInsertRowId });
 
       // Suggest adding expense for purchase cost
@@ -216,6 +295,8 @@ export default function ProductsScreen() {
     setMinStockAlert(String(defaultMinStockAlert));
     setBaseUnit('шт'); setHasPackages(false); setIsContinuous(false); setPackageName(''); setUnitsPerPackage('1');
     setCategory('');
+    setArticle('');
+    setColor('');
     setEditingId(null);
     setShowAdvanced(false);
   };
@@ -241,8 +322,16 @@ export default function ProductsScreen() {
             setPackageName(p.package_name || '');
             setUnitsPerPackage(String(p.units_per_package || 1));
             setCategory(p.category || '');
+            setArticle(p.article || '');
+            setColor(p.color || '');
             setShowForm(true);
-            setShowAdvanced(p.has_packages === 1 || p.base_unit !== 'шт' || p.is_continuous === 1);
+            setShowAdvanced(
+              p.has_packages === 1 ||
+              p.base_unit !== 'шт' ||
+              p.is_continuous === 1 ||
+              !!p.article ||
+              !!p.color
+            );
             scrollViewRef.current?.scrollTo({ y: 0, animated: true });
           }
         },
@@ -441,7 +530,15 @@ export default function ProductsScreen() {
                   setPackageName(existing.package_name || '');
                   setUnitsPerPackage(String(existing.units_per_package || 1));
                   setCategory(existing.category || '');
-                  setShowAdvanced(existing.has_packages === 1 || existing.base_unit !== 'шт' || existing.is_continuous === 1);
+                  setArticle(existing.article || '');
+                  setColor(existing.color || '');
+                  setShowAdvanced(
+                    existing.has_packages === 1 ||
+                    existing.base_unit !== 'шт' ||
+                    existing.is_continuous === 1 ||
+                    !!existing.article ||
+                    !!existing.color
+                  );
                 }
               } else if (p.source === 'history') {
                 setBuyPrice(String(p.purchasePrice || ''));
@@ -563,6 +660,58 @@ export default function ProductsScreen() {
 
           {showAdvanced && (
             <View style={styles.advancedForm}>
+              <Text style={[styles.label, themeStyles.text]}>{t('products.article')}</Text>
+              <TextInput
+                style={[styles.input, themeStyles.input]}
+                placeholder="6593"
+                placeholderTextColor={isDark ? '#888' : '#aaa'}
+                value={article}
+                onChangeText={setArticle}
+              />
+
+              <Text style={[styles.label, themeStyles.text]}>{t('products.color')}</Text>
+              <TextInput
+                style={[styles.input, themeStyles.input]}
+                placeholder="Другой цвет..."
+                placeholderTextColor={isDark ? '#888' : '#aaa'}
+                value={PRESET_COLORS.some(c => c.label === color) ? '' : color}
+                onChangeText={setColor}
+              />
+
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                {PRESET_COLORS.map((preset) => {
+                  const isSelected = color === preset.label;
+                  return (
+                    <TouchableOpacity
+                      key={preset.label}
+                      onPress={() => setColor(preset.label)}
+                      style={{ width: 58, alignItems: 'center' }}
+                    >
+                      <View style={{ position: 'relative' }}>
+                        <ColorCircle
+                          hex={preset.hex}
+                          size={32}
+                          style={isSelected ? { borderWidth: 2, borderColor: '#1D9E75' } : null}
+                        />
+                        {isSelected && (
+                          <View style={{
+                            position: 'absolute', bottom: -2, right: -2,
+                            backgroundColor: '#1D9E75', borderRadius: 8,
+                            width: 16, height: 16,
+                            justifyContent: 'center', alignItems: 'center'
+                          }}>
+                            <Ionicons name="checkmark" size={11} color="#fff" />
+                          </View>
+                        )}
+                      </View>
+                      <Text style={[themeStyles.text, { fontSize: 9, marginTop: 3 }]} numberOfLines={1}>
+                        {preset.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
               <Text style={[styles.label, themeStyles.text]}>{t('products.baseUnit')}</Text>
               <TextInput
                 style={[styles.input, themeStyles.input]}
@@ -700,164 +849,335 @@ export default function ProductsScreen() {
           <Text style={styles.emptyHint}>{searchQuery ? t('products.tryAnotherQuery') || 'Try another query' : t('products.addFirstProduct') || 'Add your first product'}</Text>
         </View>
       ) : (
-        filteredProducts.map((p: any) => {
-          const isExpanded = expandedProductId === p.id;
-          const stats = productStats[p.id];
+        displayItems.map((item, index) => {
+          if (item.type === 'single') {
+            const p = item.data;
+            const isExpanded = expandedProductId === p.id;
+            const stats = productStats[p.id];
 
-          return (
-            <View key={String(p.id)} style={[styles.productItem, themeStyles.card]}>
-              <TouchableOpacity
-                style={styles.productMain}
-                onPress={() => {
-                  const newId = isExpanded ? null : p.id;
-                  setExpandedProductId(newId);
-                  if (newId && !productStats[newId]) {
-                    const stats = getProductSalesStats(p.id);
-                    setProductStats(prev => ({ ...prev, [p.id]: stats }));
-                  }
-                }}
-                onLongPress={() => handleLongPress(p)}
-                delayLongPress={500}
-              >
-                <View style={styles.productLeft}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={[styles.productName, themeStyles.text]}>{p.name}</Text>
-                    <TouchableOpacity
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        navigation.navigate('ProductDetail', { product: p });
-                      }}
-                      style={{ padding: 8 }}
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    >
-                      <Ionicons name="information-circle-outline" size={18} color={Colors.primary} />
-                    </TouchableOpacity>
-                  </View>
-                  <Text style={styles.productPrices}>
-                    {isOwner && `${t('addSale.buyPrice')}: ${p.buy_price} ${currency.symbol} · `}{t('addSale.sellPrice')}: {p.sell_price} {currency.symbol}
-                  </Text>
-                </View>
-                <View style={styles.productRight}>
-                  <Text style={[
-                    styles.productStock,
-                    { color: p.stock <= 0 ? Colors.danger : p.stock <= (p.min_stock_alert || 0) ? Colors.warning : Colors.primary }
-                  ]}>
-                    {p.stock} {p.base_unit || t('reports.pcs')}
-                  </Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    {isOwner && (
-                      <Text style={styles.productProfit}>
-                        +{(p.sell_price - p.buy_price).toFixed(0)} {currency.symbol}
-                      </Text>
-                    )}
-                    <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={14} color="#aaa" />
-                  </View>
-                </View>
-              </TouchableOpacity>
-
-              {isExpanded && (
-                <View style={[styles.expandedContent, { borderTopWidth: 1, borderTopColor: isDark ? '#333' : '#eee' }]}>
-                  {/* Stats Row */}
-                  <View style={styles.statsRow}>
-                    <View style={styles.statBox}>
-                      <Text style={styles.statLabel}>{t('products.totalSold')}</Text>
-                      <Text style={[styles.statValue, themeStyles.text]}>{stats?.total_sold || 0}</Text>
-                    </View>
-                    <View style={styles.statBox}>
-                      <Text style={styles.statLabel}>{t('products.totalRevenue')}</Text>
-                      <Text style={[styles.statValue, themeStyles.text]}>{stats?.total_revenue?.toFixed(0) || 0} {currency.symbol}</Text>
-                    </View>
-                    {isOwner && (
-                      <View style={styles.statBox}>
-                        <Text style={styles.statLabel}>{t('products.totalProfit')}</Text>
-                        <Text style={[styles.statValue, { color: Colors.primary }]}>{stats?.total_profit?.toFixed(0) || 0} {currency.symbol}</Text>
-                      </View>
-                    )}
-                  </View>
-
-                  <View style={[styles.infoRow, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
-                    <Text style={styles.infoText}>
-                      {t('products.addedDate')}: {p.created_at ? new Date(p.created_at.replace(' ', 'T')).toLocaleDateString('ru-RU') : '—'}
-                    </Text>
-
-                    {(stats?.total_sold || 0) > 0 && (
+            return (
+              <View key={`single-${p.id}`} style={[styles.productItem, themeStyles.card]}>
+                <TouchableOpacity
+                  style={styles.productMain}
+                  onPress={() => {
+                    const newId = isExpanded ? null : p.id;
+                    setExpandedProductId(newId);
+                    if (newId && !productStats[newId]) {
+                      const stats = getProductSalesStats(p.id);
+                      setProductStats(prev => ({ ...prev, [p.id]: stats }));
+                    }
+                  }}
+                  onLongPress={() => handleLongPress(p)}
+                  delayLongPress={500}
+                >
+                  <View style={styles.productLeft}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={[styles.productName, themeStyles.text]}>{p.name}</Text>
                       <TouchableOpacity
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          navigation.navigate('ProductDetail', { product: p });
+                        }}
+                        style={{ padding: 8 }}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        <Ionicons name="information-circle-outline" size={18} color={Colors.primary} />
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={styles.productPrices}>
+                      {isOwner && `${t('addSale.buyPrice')}: ${p.buy_price} ${currency.symbol} · `}{t('addSale.sellPrice')}: {p.sell_price} {currency.symbol}
+                    </Text>
+                  </View>
+                  <View style={styles.productRight}>
+                    <Text style={[
+                      styles.productStock,
+                      { color: p.stock <= 0 ? Colors.danger : p.stock <= (p.min_stock_alert || 0) ? Colors.warning : Colors.primary }
+                    ]}>
+                      {p.stock} {p.base_unit || t('reports.pcs')}
+                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      {isOwner && (
+                        <Text style={styles.productProfit}>
+                          +{(p.sell_price - p.buy_price).toFixed(0)} {currency.symbol}
+                        </Text>
+                      )}
+                      <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={14} color="#aaa" />
+                    </View>
+                  </View>
+                </TouchableOpacity>
+
+                {isExpanded && (
+                  <View style={[styles.expandedContent, { borderTopWidth: 1, borderTopColor: isDark ? '#333' : '#eee' }]}>
+                    {/* Stats Row */}
+                    <View style={styles.statsRow}>
+                      <View style={styles.statBox}>
+                        <Text style={styles.statLabel}>{t('products.totalSold')}</Text>
+                        <Text style={[styles.statValue, themeStyles.text]}>{stats?.total_sold || 0}</Text>
+                      </View>
+                      <View style={styles.statBox}>
+                        <Text style={styles.statLabel}>{t('products.totalRevenue')}</Text>
+                        <Text style={[styles.statValue, themeStyles.text]}>{stats?.total_revenue?.toFixed(0) || 0} {currency.symbol}</Text>
+                      </View>
+                      {isOwner && (
+                        <View style={styles.statBox}>
+                          <Text style={styles.statLabel}>{t('products.totalProfit')}</Text>
+                          <Text style={[styles.statValue, { color: Colors.primary }]}>{stats?.total_profit?.toFixed(0) || 0} {currency.symbol}</Text>
+                        </View>
+                      )}
+                    </View>
+
+                    <View style={[styles.infoRow, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
+                      <Text style={styles.infoText}>
+                        {t('products.addedDate')}: {p.created_at ? new Date(p.created_at.replace(' ', 'T')).toLocaleDateString('ru-RU') : '—'}
+                      </Text>
+
+                      {(stats?.total_sold || 0) > 0 && (
+                        <TouchableOpacity
+                          onPress={() => {
+                            setHistoryProductName(p.name);
+                            setProductSalesHistory(getProductSalesHistory(p.id));
+                            setShowSalesHistory(true);
+                          }}
+                        >
+                          <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: '600' }}>
+                            {t('products.salesHistory')} →
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+
+                    <View style={styles.productActions}>
+                      <TouchableOpacity
+                        style={[styles.actionBtn, isOwner && styles.actionBtnSell]}
                         onPress={() => {
-                          setHistoryProductName(p.name);
-                          setProductSalesHistory(getProductSalesHistory(p.id));
-                          setShowSalesHistory(true);
+                          navigation.navigate('Main', {
+                            screen: 'Tabs',
+                            params: {
+                              screen: 'Sale',
+                              params: {
+                                prefillSell: p.sell_price,
+                                prefillBuy: p.buy_price,
+                                prefillProductName: p.name,
+                                prefillProductId: p.id,
+                              }
+                            }
+                          });
                         }}
                       >
-                        <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: '600' }}>
-                          {t('products.salesHistory')} →
-                        </Text>
+                        <Ionicons name="cash-outline" size={18} color="#1D9E75" />
+                        <Text style={styles.actionBtnText}>{t('products.sellBtn')}</Text>
                       </TouchableOpacity>
-                    )}
+                      {isOwner && (
+                        <>
+                          <TouchableOpacity
+                            style={styles.actionBtn}
+                            onPress={() => {
+                              setSelectedProduct(p);
+                              setOpType('stock_in');
+                              setOpModalVisible(true);
+                            }}
+                          >
+                            <Ionicons name="add-circle-outline" size={18} color="#1D9E75" />
+                            <Text style={styles.actionBtnText}>{t('warehouse.stockIn')}</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={styles.actionBtn}
+                            onPress={() => {
+                              setSelectedProduct(p);
+                              setOpType('waste');
+                              setOpModalVisible(true);
+                            }}
+                          >
+                            <Ionicons name="trash-outline" size={18} color="#FF5252" />
+                            <Text style={[styles.actionBtnText, { color: '#FF5252' }]}>{t('warehouse.waste')}</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={styles.actionBtn}
+                            onPress={() => {
+                              setSelectedProduct(p);
+                              setOpType('correction');
+                              setOpModalVisible(true);
+                            }}
+                          >
+                            <Ionicons name="git-compare-outline" size={18} color="#FF9800" />
+                            <Text style={[styles.actionBtnText, { color: '#FF9800' }]}>{t('warehouse.correction')}</Text>
+                          </TouchableOpacity>
+                        </>
+                      )}
+                    </View>
                   </View>
-
-                  <View style={styles.productActions}>
-                    <TouchableOpacity
-                      style={[styles.actionBtn, isOwner && styles.actionBtnSell]}
-                      onPress={() => {
-                        navigation.navigate('Main', {
-                          screen: 'Tabs',
-                          params: {
-                            screen: 'Sale',
-                            params: {
-                              prefillSell: p.sell_price,
-                              prefillBuy: p.buy_price,
-                              prefillProductName: p.name,
-                              prefillProductId: p.id,
-                            }
-                          }
-                        });
-                      }}
-                    >
-                      <Ionicons name="cash-outline" size={18} color="#1D9E75" />
-                      <Text style={styles.actionBtnText}>{t('products.sellBtn')}</Text>
-                    </TouchableOpacity>
-                    {isOwner && (
-                      <>
-                        <TouchableOpacity
-                          style={styles.actionBtn}
-                          onPress={() => {
-                            setSelectedProduct(p);
-                            setOpType('stock_in');
-                            setOpModalVisible(true);
-                          }}
-                        >
-                          <Ionicons name="add-circle-outline" size={18} color="#1D9E75" />
-                          <Text style={styles.actionBtnText}>{t('warehouse.stockIn')}</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.actionBtn}
-                          onPress={() => {
-                            setSelectedProduct(p);
-                            setOpType('waste');
-                            setOpModalVisible(true);
-                          }}
-                        >
-                          <Ionicons name="trash-outline" size={18} color="#FF5252" />
-                          <Text style={[styles.actionBtnText, { color: '#FF5252' }]}>{t('warehouse.waste')}</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.actionBtn}
-                          onPress={() => {
-                            setSelectedProduct(p);
-                            setOpType('correction');
-                            setOpModalVisible(true);
-                          }}
-                        >
-                          <Ionicons name="git-compare-outline" size={18} color="#FF9800" />
-                          <Text style={[styles.actionBtnText, { color: '#FF9800' }]}>{t('warehouse.correction')}</Text>
-                        </TouchableOpacity>
-                      </>
-                    )}
-                  </View>
+                )}
+              </View>
+            );
+          } else {
+            // RENDERING GROUP
+            const { data } = item;
+            return (
+              <View key={`group-${data.article}`} style={[styles.productItem, themeStyles.card, { paddingBottom: 8 }]}>
+                <View style={[styles.productMain, { paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: isDark ? '#333' : '#eee' }]}>
+                  <Text style={[styles.productName, themeStyles.text, { fontWeight: 'bold' }]}>{data.displayName}</Text>
+                  <Text style={{ fontSize: 12, color: '#999' }}>
+                    {t('products.variantsCount', { count: data.variants.length })}
+                  </Text>
                 </View>
-              )}
-            </View>
-          );
+
+                {data.variants.map((v: any) => {
+                  const isExpanded = expandedProductId === v.id;
+                  const stats = productStats[v.id];
+                  return (
+                    <View key={v.id}>
+                      <TouchableOpacity
+                        style={[styles.productMain, { paddingVertical: 10 }]}
+                        onPress={() => {
+                          const newId = isExpanded ? null : v.id;
+                          setExpandedProductId(newId);
+                          if (newId && !productStats[newId]) {
+                            const stats = getProductSalesStats(v.id);
+                            setProductStats(prev => ({ ...prev, [v.id]: stats }));
+                          }
+                        }}
+                        onLongPress={() => handleLongPress(v)}
+                      >
+                        <View style={[styles.productLeft, { flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
+                          <ColorCircle size={18} hex={(v.color ? getColorHex(v.color) : null) ?? '#BDBDBD'} />
+                          <Text style={[themeStyles.text, { fontSize: 14 }]}>{v.color || v.name}</Text>
+                        </View>
+                        <View style={[styles.productRight, { flexDirection: 'row', alignItems: 'center', gap: 12 }]}>
+                          <Text style={[
+                            styles.productStock,
+                            { fontSize: 14, color: v.stock <= 0 ? Colors.danger : v.stock <= (v.min_stock_alert || 0) ? Colors.warning : Colors.primary }
+                          ]}>
+                            {v.stock}
+                          </Text>
+                          {isOwner && (
+                            <Text style={[styles.productProfit, { fontSize: 12 }]}>
+                              +{(v.sell_price - v.buy_price).toFixed(0)} {currency.symbol}
+                            </Text>
+                          )}
+                          <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={14} color="#aaa" />
+                          <TouchableOpacity
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              navigation.navigate('ProductDetail', { product: v });
+                            }}
+                            style={{ padding: 4 }}
+                          >
+                            <Ionicons name="information-circle-outline" size={18} color={Colors.primary} />
+                          </TouchableOpacity>
+                        </View>
+                      </TouchableOpacity>
+
+                      {isExpanded && (
+                        <View style={[styles.expandedContent, { borderTopWidth: 1, borderTopColor: isDark ? '#333' : '#eee' }]}>
+                          {/* Copied expandedContent block from single item */}
+                          <View style={styles.statsRow}>
+                            <View style={styles.statBox}>
+                              <Text style={styles.statLabel}>{t('products.totalSold')}</Text>
+                              <Text style={[styles.statValue, themeStyles.text]}>{stats?.total_sold || 0}</Text>
+                            </View>
+                            <View style={styles.statBox}>
+                              <Text style={styles.statLabel}>{t('products.totalRevenue')}</Text>
+                              <Text style={[styles.statValue, themeStyles.text]}>{stats?.total_revenue?.toFixed(0) || 0} {currency.symbol}</Text>
+                            </View>
+                            {isOwner && (
+                              <View style={styles.statBox}>
+                                <Text style={styles.statLabel}>{t('products.totalProfit')}</Text>
+                                <Text style={[styles.statValue, { color: Colors.primary }]}>{stats?.total_profit?.toFixed(0) || 0} {currency.symbol}</Text>
+                              </View>
+                            )}
+                          </View>
+                          <View style={[styles.infoRow, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
+                            <Text style={styles.infoText}>
+                              {t('products.addedDate')}: {v.created_at ? new Date(v.created_at.replace(' ', 'T')).toLocaleDateString('ru-RU') : '—'}
+                            </Text>
+                            {(stats?.total_sold || 0) > 0 && (
+                              <TouchableOpacity
+                                onPress={() => {
+                                  setHistoryProductName(v.name + (v.color ? ` · ${v.color}` : ''));
+                                  setProductSalesHistory(getProductSalesHistory(v.id));
+                                  setShowSalesHistory(true);
+                                }}
+                              >
+                                <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: '600' }}>
+                                  {t('products.salesHistory')} →
+                                </Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                          <View style={styles.productActions}>
+                            <TouchableOpacity
+                              style={[styles.actionBtn, isOwner && styles.actionBtnSell]}
+                              onPress={() => {
+                                navigation.navigate('Main', {
+                                  screen: 'Tabs',
+                                  params: {
+                                    screen: 'Sale',
+                                    params: {
+                                      prefillSell: v.sell_price,
+                                      prefillBuy: v.buy_price,
+                                      prefillProductName: v.name + (v.color ? ` · ${v.color}` : ''),
+                                      prefillProductId: v.id,
+                                    }
+                                  }
+                                });
+                              }}
+                            >
+                              <Ionicons name="cash-outline" size={18} color="#1D9E75" />
+                              <Text style={styles.actionBtnText}>{t('products.sellBtn')}</Text>
+                            </TouchableOpacity>
+                            {isOwner && (
+                              <>
+                                <TouchableOpacity
+                                  style={styles.actionBtn}
+                                  onPress={() => {
+                                    setSelectedProduct(v);
+                                    setOpType('stock_in');
+                                    setOpModalVisible(true);
+                                  }}
+                                >
+                                  <Ionicons name="add-circle-outline" size={18} color="#1D9E75" />
+                                  <Text style={styles.actionBtnText}>{t('warehouse.stockIn')}</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  style={styles.actionBtn}
+                                  onPress={() => {
+                                    setSelectedProduct(v);
+                                    setOpType('waste');
+                                    setOpModalVisible(true);
+                                  }}
+                                >
+                                  <Ionicons name="trash-outline" size={18} color="#FF5252" />
+                                  <Text style={[styles.actionBtnText, { color: '#FF5252' }]}>{t('warehouse.waste')}</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  style={styles.actionBtn}
+                                  onPress={() => {
+                                    setSelectedProduct(v);
+                                    setOpType('correction');
+                                    setOpModalVisible(true);
+                                  }}
+                                >
+                                  <Ionicons name="git-compare-outline" size={18} color="#FF9800" />
+                                  <Text style={[styles.actionBtnText, { color: '#FF9800' }]}>{t('warehouse.correction')}</Text>
+                                </TouchableOpacity>
+                              </>
+                            )}
+                          </View>
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+
+                <TouchableOpacity
+                  style={{ padding: 12, alignItems: 'center' }}
+                  onPress={() => openAddVariantForm(data)}
+                >
+                  <Text style={{ color: '#1D9E75', fontWeight: '600' }}>+ {t('products.addVariant')}</Text>
+                </TouchableOpacity>
+              </View>
+            );
+          }
         })
       )}
     </ScrollView>
