@@ -62,11 +62,12 @@ export function initDatabase() {
       product_name TEXT,
       quantity INTEGER DEFAULT 1,
       sell_price REAL NOT NULL,
-      buy_price REAL NOT NULL,
-      profit REAL NOT NULL,
+      buy_price REAL,
+      profit REAL,
       note TEXT,
       stock_updated INTEGER DEFAULT 0,
       created_at TEXT,
+      is_pending_review INTEGER DEFAULT 0,
       FOREIGN KEY (product_id) REFERENCES products(id)
     );
 
@@ -220,6 +221,60 @@ export function initDatabase() {
       }
 
       db.runSync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_v3', 'done')");
+    });
+  }
+
+  const schemaV4MigrationDone = db.getFirstSync(
+    "SELECT value FROM app_meta WHERE key = 'schema_v4'"
+  ) as { value: string } | null;
+
+  if (!schemaV4MigrationDone) {
+    db.withTransactionSync(() => {
+      // Recreate sales table to make buy_price and profit nullable and add is_pending_review
+      db.execSync(`
+        CREATE TABLE sales_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          product_id INTEGER,
+          product_name TEXT,
+          quantity INTEGER DEFAULT 1,
+          sell_price REAL NOT NULL,
+          buy_price REAL,
+          profit REAL,
+          note TEXT,
+          stock_updated INTEGER DEFAULT 0,
+          created_at TEXT,
+          seller_id TEXT,
+          seller_name TEXT,
+          stock_warning INTEGER DEFAULT 0,
+          remote_id TEXT,
+          order_id INTEGER,
+          is_pending_review INTEGER DEFAULT 0,
+          FOREIGN KEY (product_id) REFERENCES products(id)
+        );
+      `);
+
+      // Copy data from old table to new table
+      const columns = [
+        'id', 'product_id', 'product_name', 'quantity', 'sell_price', 'buy_price',
+        'profit', 'note', 'stock_updated', 'created_at', 'seller_id', 'seller_name',
+        'stock_warning', 'remote_id', 'order_id'
+      ];
+
+      // Check which columns actually exist in the current sales table
+      const tableInfo = db.getAllSync("PRAGMA table_info(sales)") as any[];
+      const existingCols = columns.filter(c => tableInfo.some(ti => ti.name === c));
+      const colsStr = existingCols.join(', ');
+
+      db.execSync(`INSERT INTO sales_new (${colsStr}) SELECT ${colsStr} FROM sales`);
+      db.execSync('DROP TABLE sales');
+      db.execSync('ALTER TABLE sales_new RENAME TO sales');
+
+      // Recreate indexes
+      db.execSync('CREATE INDEX IF NOT EXISTS idx_sales_product_id ON sales(product_id)');
+      db.execSync('CREATE INDEX IF NOT EXISTS idx_sales_product_name ON sales(product_name)');
+      db.execSync('CREATE INDEX IF NOT EXISTS idx_sales_created_at ON sales(created_at)');
+
+      db.runSync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_v4', 'done')");
     });
   }
 
@@ -518,7 +573,8 @@ export function addSale(
   quantity: number,
   sellPrice: number,
   buyPrice: number,
-  note: string = ''
+  note: string = '',
+  isPendingReview: number = 0
 ) {
   const profit = (sellPrice - buyPrice) * quantity;
   const stockUpdated = productId ? 1 : 0;
@@ -526,8 +582,8 @@ export function addSale(
     let result: any;
     db.withTransactionSync(() => {
       result = db.runSync(
-        'INSERT INTO sales (product_id, product_name, quantity, sell_price, buy_price, profit, note, stock_updated, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [productId, productName, quantity, sellPrice, buyPrice, profit, note, stockUpdated, nowLocalISO()]
+        'INSERT INTO sales (product_id, product_name, quantity, sell_price, buy_price, profit, note, stock_updated, created_at, is_pending_review) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [productId, productName, quantity, sellPrice, buyPrice, profit, note, stockUpdated, nowLocalISO(), isPendingReview]
       );
       if (productId) {
         db.runSync('UPDATE products SET stock = stock - ? WHERE id = ?', [quantity, productId]);
@@ -1184,7 +1240,8 @@ export function addSaleWithSeller(
   note: string = '',
   sellerId: string,
   sellerName: string,
-  role: 'owner' | 'seller'
+  role: 'owner' | 'seller',
+  isPendingReview: number = 0
 ) {
   // Продавец не может знать прибыль — ставим null
   const profit = role === 'owner' ? (sellPrice - buyPrice) * quantity : null;
@@ -1196,11 +1253,11 @@ export function addSaleWithSeller(
     result = db.runSync(
       `INSERT INTO sales (
         product_id, product_name, quantity, sell_price, buy_price,
-        profit, note, stock_updated, created_at, seller_id, seller_name
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        profit, note, stock_updated, created_at, seller_id, seller_name, is_pending_review
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         productId, productName, quantity, sellPrice, actualBuyPrice,
-        profit, note, stockUpdated, nowLocalISO(), sellerId, sellerName
+        profit, note, stockUpdated, nowLocalISO(), sellerId, sellerName, isPendingReview
       ]
     );
     if (productId) {
@@ -1224,6 +1281,7 @@ export function addOrderWithItems(
     sellPrice: number;
     buyPrice: number;
     note?: string;
+    isPendingReview?: number;
   }>,
   clientId: number | null,
   paymentType: 'full' | 'partial' | 'debt',
@@ -1257,11 +1315,11 @@ export function addOrderWithItems(
       const saleResult = db.runSync(
         `INSERT INTO sales (
           product_id, product_name, quantity, sell_price, buy_price,
-          profit, note, stock_updated, created_at, seller_id, seller_name, order_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          profit, note, stock_updated, created_at, seller_id, seller_name, order_id, is_pending_review
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           item.productId, item.productName, item.quantity, item.sellPrice, actualBuyPrice,
-          profit, item.note || null, stockUpdated, now, sellerId, sellerName, orderId
+          profit, item.note || null, stockUpdated, now, sellerId, sellerName, orderId, item.isPendingReview || 0
         ]
       ) as { lastInsertRowId: number };
       saleIds.push(saleResult.lastInsertRowId);
@@ -1343,6 +1401,13 @@ export function getProductExpenses(productId: number): { total: number; count: n
     [productId]
   ) as any;
   return result || { total: 0, count: 0 };
+}
+
+export function getPendingReviewCount(): number {
+  const result = db.getFirstSync(
+    "SELECT COUNT(*) as count FROM sales WHERE is_pending_review = 1"
+  ) as any;
+  return result?.count || 0;
 }
 
 export { db };

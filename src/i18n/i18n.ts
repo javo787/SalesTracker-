@@ -212,6 +212,7 @@ const resources = {
         addClientOptional: '+ Указать клиента',
         newProductBadge: '🆕 новый товар',
         lowStockWarning: 'на складе только {{stock}}',
+        saveFailed: 'Не удалось сохранить продажу',
       },
       onboarding: {
         step1Title: "Добавьте товары",
@@ -521,6 +522,8 @@ const resources = {
         ownerOnly: 'Доступно только владельцу магазина',
         loadError: 'Не удалось загрузить данные команды',
         online: 'онлайн',
+        pendingReviewTitle: 'Требуют проверки',
+        pendingReviewDesc: '{{count}} продаж без цены закупки',
       },
       news: {
         title: 'Новости бизнеса',
@@ -826,6 +829,7 @@ const resources = {
         addClientOptional: '+ Нишон додани муштарӣ', // TODO: needs native speaker review
         newProductBadge: '🆕 моли нав', // TODO: needs native speaker review
         lowStockWarning: 'дар анбор танҳо {{stock}}', // TODO: needs native speaker review
+        saveFailed: 'Фурӯш захира нашуд', // TODO: needs native speaker review
       },
       onboarding: {
         // TODO: needs native speaker review
@@ -1136,6 +1140,8 @@ const resources = {
         ownerOnly: 'Танҳо барои соҳиби дӯкон дастрас аст', // TODO: needs native speaker review
         loadError: 'Маълумоти даста боргузорӣ нашуд', // TODO: needs native speaker review
         online: 'онлайн',
+        pendingReviewTitle: 'Тафтиш лозим аст', // TODO: needs native speaker review
+        pendingReviewDesc: '{{count}} фурӯш бе нархи харид', // TODO: needs native speaker review
       },
       news: {
         title: 'Хабарҳои тиҷорат',
@@ -1435,6 +1441,7 @@ const resources = {
         paymentDebt: '📋 Debt',
         paidNowPlaceholder: 'Paid now',
         dueDatePlaceholder: 'Due date (YYYY-MM-DD)',
+        saveFailed: 'Failed to save sale',
       },
       onboarding: {
         step1Title: "Add Products",
@@ -1743,6 +1750,8 @@ const resources = {
         ownerOnly: 'Available only to the shop owner',
         loadError: 'Failed to load team data',
         online: 'online',
+        pendingReviewTitle: 'Requires Review',
+        pendingReviewDesc: '{{count}} sales without purchase price',
       },
       news: {
         title: 'Business News',
@@ -2048,6 +2057,7 @@ const resources = {
         addClientOptional: '+ Mijozni ko\'rsatish', // TODO: needs native speaker review
         newProductBadge: '🆕 yangi mahsulot', // TODO: needs native speaker review
         lowStockWarning: 'omborda faqat {{stock}}', // TODO: needs native speaker review
+        saveFailed: 'Sotuvni saqlab bo\'lmadi', // TODO: needs native speaker review
       },
       onboarding: {
         // TODO: needs native speaker review
@@ -2358,6 +2368,8 @@ const resources = {
         ownerOnly: 'Faqat do\'kon egasi uchun mavjud', // TODO: needs native speaker review
         loadError: 'Jamoa ma\'lumotlarini yuklab bo\'lmadi', // TODO: needs native speaker review
         online: 'onlayn',
+        pendingReviewTitle: 'Tekshirish talab etiladi', // TODO: needs native speaker review
+        pendingReviewDesc: '{{count}} ta sotuv xarid narxisiz', // TODO: needs native speaker review
       },
       news: {
         title: 'Biznes yangiliklari',

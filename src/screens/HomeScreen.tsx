@@ -8,7 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
-import { getStats, getSalesToday, deleteSale, getDebtSummary, getMyStats, getMySalesToday } from '../db/database';
+import { getStats, getSalesToday, deleteSale, getDebtSummary, getMyStats, getMySalesToday, getPendingReviewCount } from '../db/database';
 import { useAppContext } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { useShop } from '../context/ShopContext';
@@ -157,6 +157,7 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [dailyTip, setDailyTip] = useState<string | null>(null);
   const [debtSummary, setDebtSummary] = useState({ total_remaining: 0, debtor_count: 0 });
+  const [pendingReviewCount, setPendingReviewCount] = useState(0);
 
   const lastLoadRef = useRef<number>(0);
   const lastTipRef = useRef<number>(0);
@@ -171,6 +172,9 @@ export default function HomeScreen() {
     setTodaySales(sales);
     if (contextSellerMode === 'wholesale') {
       setDebtSummary(getDebtSummary());
+    }
+    if (isOwner) {
+      setPendingReviewCount(getPendingReviewCount());
     }
   };
 
@@ -271,6 +275,25 @@ export default function HomeScreen() {
       </LinearGradient>
 
       <CurrencyConversionBanner />
+
+      {isOwner && pendingReviewCount > 0 && (
+        <TouchableOpacity
+          style={[styles.pendingWidget, themeStyles.card]}
+          onPress={() => navigation.navigate('Products', { filter: 'pending' })}
+          activeOpacity={0.7}
+        >
+          <View style={styles.pendingWidgetLeft}>
+            <View style={[styles.pendingIconBg, isDark && { backgroundColor: '#332615' }]}>
+              <Ionicons name="alert-circle" size={24} color="#FF9500" />
+            </View>
+            <View>
+              <Text style={[styles.pendingLabel, themeStyles.text]}>{t('sellers.pendingReviewTitle')}</Text>
+              <Text style={styles.pendingSub}>{t('sellers.pendingReviewDesc', { count: pendingReviewCount })}</Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color="#FF9500" />
+        </TouchableOpacity>
+      )}
 
   {contextSellerMode === 'wholesale' && debtSummary.total_remaining > 0 && (
     <TouchableOpacity
@@ -530,4 +553,18 @@ const styles = StyleSheet.create({
   debtWidgetCount: { fontSize: FontSize.sm, color: '#E53935', fontWeight: '500' },
   debtWidgetRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   debtWidgetAmount: { fontSize: FontSize.xl, fontWeight: 'bold' },
+  pendingWidget: {
+    marginHorizontal: Spacing.lg, marginTop: Spacing.md,
+    borderRadius: Radius.lg, padding: Spacing.md,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    borderLeftWidth: 4, borderLeftColor: '#FF9500',
+    ...Shadow.md,
+  },
+  pendingWidgetLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  pendingIconBg: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: '#FFF9EB', justifyContent: 'center', alignItems: 'center',
+  },
+  pendingLabel: { fontSize: FontSize.md, fontWeight: '600' },
+  pendingSub: { fontSize: FontSize.sm - 1, color: '#999', marginTop: 1 },
 });
