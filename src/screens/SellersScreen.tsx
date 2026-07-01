@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Alert, RefreshControl, ActivityIndicator, Image
+  Alert, RefreshControl, ActivityIndicator
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useTranslation } from 'react-i18next';
@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useShop } from '../context/ShopContext';
 import { api } from '../services/api';
 import { useNavigation } from '@react-navigation/native';
-import { Colors, LightTheme, DarkTheme, Radius, Shadow, FontSize, Spacing } from '../constants/theme';
+import { Colors, Shadow } from '../constants/theme';
 import { useAppContext } from '../context/AppContext';
 import { ShopMember, SellerStats } from '../types/auth';
 
@@ -49,7 +49,7 @@ export default function SellersScreen() {
 
   useEffect(() => {
     if (!isOwner) {
-      Alert.alert(t('common.error'), "Доступно только владельцу магазина");
+      Alert.alert(t('common.error'), t('sellers.ownerOnly') || "Доступно только владельцу магазина");
       navigation.goBack();
       return;
     }
@@ -208,7 +208,7 @@ export default function SellersScreen() {
     return (
       <View style={[styles.container, themeStyles.container, styles.centered]}>
         <Ionicons name="cloud-offline-outline" size={64} color={themeStyles.iconError.color} />
-        <Text style={[styles.errorText, themeStyles.text]}>{"Не удалось загрузить данные команды"}</Text>
+        <Text style={[styles.errorText, themeStyles.text]}>{t('sellers.loadError') || "Не удалось загрузить данные команды"}</Text>
         <TouchableOpacity
           style={[styles.retryBtn, { backgroundColor: Colors.primary }]}
           onPress={() => {
@@ -216,7 +216,7 @@ export default function SellersScreen() {
             loadData();
           }}
         >
-          <Text style={styles.retryBtnText}>{"Повторить"}</Text>
+          <Text style={styles.retryBtnText}>{t('common.retry') || "Повторить"}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -261,7 +261,7 @@ export default function SellersScreen() {
                 <View style={styles.nameWrap}>
                   <Text style={[styles.memberName, themeStyles.text]}>{member.displayName}</Text>
                   <Text style={[styles.memberSub, themeStyles.memberSub]}>
-                    {memberStats?.salesCount || 0} {t('home.salesCount').toLowerCase()} • {online ? 'онлайн' : t('sellers.lastActive', { time: new Date(member.lastActiveAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) })}
+                    {memberStats?.salesCount || 0} {t('home.salesCount').toLowerCase()} • {online ? (t('sellers.online') || 'онлайн') : t('sellers.lastActive', { time: new Date(member.lastActiveAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) })}
                   </Text>
                 </View>
                 <View style={styles.revenueWrap}>
@@ -285,7 +285,7 @@ export default function SellersScreen() {
         <Text style={styles.inviteDesc}>{t('sellers.inviteDesc') || 'Поделитесь этим кодом с вашим сотрудником. Он должен ввести его при первом входе.'}</Text>
 
         <View style={styles.codeRow}>
-          <View style={styles.codeBox}>
+          <View style={[styles.codeBox, themeStyles.codeBox]}>
             {inviteCode ? (
               <Text style={styles.codeText}>{inviteCode}</Text>
             ) : (
@@ -346,6 +346,7 @@ const lightStyles = StyleSheet.create({
   memberSub: { color: '#999' },
   statusOffline: { backgroundColor: '#CCC' },
   iconError: { color: '#CCC' },
+  codeBox: { backgroundColor: '#F0F0F0', borderColor: '#DDD' },
 });
 
 const darkStyles = StyleSheet.create({
@@ -357,6 +358,7 @@ const darkStyles = StyleSheet.create({
   memberSub: { color: '#888' },
   statusOffline: { backgroundColor: '#444' },
   iconError: { color: '#555' },
+  codeBox: { backgroundColor: '#2A2A2A', borderColor: '#333' },
 });
 
 const styles = StyleSheet.create({
@@ -387,7 +389,7 @@ const styles = StyleSheet.create({
   inviteTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 8 },
   inviteDesc: { fontSize: 13, color: '#888', lineHeight: 18, marginBottom: 20 },
   codeRow: { flexDirection: 'row', gap: 10, marginBottom: 15 },
-  codeBox: { flex: 1, height: 50, backgroundColor: '#F0F0F0', borderRadius: 10, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#DDD' },
+  codeBox: { flex: 1, height: 50, borderRadius: 10, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
   codeText: { fontSize: 22, fontWeight: 'bold', letterSpacing: 2, color: Colors.primary },
   copyBtn: { backgroundColor: Colors.primary, borderRadius: 10, paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', gap: 8 },
   copyBtnText: { color: '#FFF', fontWeight: 'bold' },

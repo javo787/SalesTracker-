@@ -32,6 +32,7 @@ const resources = {
         sharingNotAvailable: 'Функция недоступна на этом устройстве',
         backupExportFailed: 'Не удалось экспортировать резервную копию',
         backupImportFailed: 'Не удалось импортировать резервную копию',
+        retry: 'Повторить',
       },
       tabs: {
         home: 'Главная',
@@ -517,6 +518,9 @@ const resources = {
         leaveShopBlockedDesc: 'Сначала назначьте нового владельца через меню участника, затем сможете покинуть магазин',
         shopRevokedTitle: 'Доступ отозван',
         shopRevokedDesc: 'Вы больше не являетесь участником этого магазина.',
+        ownerOnly: 'Доступно только владельцу магазина',
+        loadError: 'Не удалось загрузить данные команды',
+        online: 'онлайн',
       },
       news: {
         title: 'Новости бизнеса',
@@ -642,6 +646,7 @@ const resources = {
         sharingNotAvailable: 'Ин функсия дар ин дастгоҳ дастрас нест',
         backupExportFailed: 'Содир кардани нусхаи захиравӣ нагузашт',
         backupImportFailed: 'Ворид кардани нусхаи захиравӣ нагузашт',
+        retry: 'Такрор кардан', // TODO: needs native speaker review
       },
       tabs: {
         home: 'Асосӣ',
@@ -1128,6 +1133,9 @@ const resources = {
         leaveShopBlockedDesc: 'Аввал соҳибмулки навро тавассути менюи иштирокчӣ таъин кунед, пас шумо метавонед дӯконро тарк кунед',
         shopRevokedTitle: 'Дастрасӣ бекор карда шуд',
         shopRevokedDesc: 'Шумо дигар узви ин дӯкон нестед.',
+        ownerOnly: 'Танҳо барои соҳиби дӯкон дастрас аст', // TODO: needs native speaker review
+        loadError: 'Маълумоти даста боргузорӣ нашуд', // TODO: needs native speaker review
+        online: 'онлайн',
       },
       news: {
         title: 'Хабарҳои тиҷорат',
@@ -1253,6 +1261,7 @@ const resources = {
         sharingNotAvailable: 'Function not available on this device',
         backupExportFailed: 'Failed to export backup',
         backupImportFailed: 'Failed to import backup',
+        retry: 'Retry',
       },
       tabs: {
         home: 'Home',
@@ -1731,6 +1740,9 @@ const resources = {
         leaveShopBlockedDesc: 'Assign a new owner via member menu first, then you can leave the shop',
         shopRevokedTitle: 'Access Revoked',
         shopRevokedDesc: 'You are no longer a member of this shop.',
+        ownerOnly: 'Available only to the shop owner',
+        loadError: 'Failed to load team data',
+        online: 'online',
       },
       news: {
         title: 'Business News',
@@ -1856,6 +1868,7 @@ const resources = {
         sharingNotAvailable: 'Bu qurilmada funksiya mavjud emas',
         backupExportFailed: 'Zaxira nusxasini eksport qilib bo\'lmadi',
         backupImportFailed: 'Zaxira nusxasini import qilib bo\'lmadi',
+        retry: 'Takrorlash', // TODO: needs native speaker review
       },
       tabs: {
         home: 'Asosiy',
@@ -2342,6 +2355,9 @@ const resources = {
         leaveShopBlockedDesc: 'Avval ishtirokchilar menyusi orqali yangi egasini tayinlang, so\'ngra do\'konni tark etishingiz mumkin',
         shopRevokedTitle: 'Kirish taqiqlandi',
         shopRevokedDesc: 'Siz endi ushbu do\'konning a\'zosi emassiz.',
+        ownerOnly: 'Faqat do\'kon egasi uchun mavjud', // TODO: needs native speaker review
+        loadError: 'Jamoa ma\'lumotlarini yuklab bo\'lmadi', // TODO: needs native speaker review
+        online: 'onlayn',
       },
       news: {
         title: 'Biznes yangiliklari',
