@@ -10,6 +10,7 @@ import { useAppContext } from '../context/AppContext';
 import { useShop } from '../context/ShopContext';
 
 const { width } = Dimensions.get('window');
+const illustrationSize = Math.min(width * 0.72, 300);
 
 interface OnboardingScreenProps {
   onFinish: () => void;
@@ -57,7 +58,23 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
   const { createShop, joinShop } = useShop();
   const [currentStep, setCurrentStep] = useState(0);
 
+  const fadeAnim = useRef(new Animated.Value(1)).current;
   const progressAnim = useRef(new Animated.Value(0)).current;
+
+  const goToStep = (nextStep: number) => {
+    Animated.timing(fadeAnim, {
+      toValue: 0,
+      duration: 150,
+      useNativeDriver: true,
+    }).start(() => {
+      setCurrentStep(nextStep);
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    });
+  };
 
   useEffect(() => {
     Animated.timing(progressAnim, {
@@ -108,7 +125,7 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
     }
 
     if (currentStep < STEPS.length - 1) {
-      setCurrentStep(currentStep + 1);
+      goToStep(currentStep + 1);
     } else {
       await AsyncStorage.setItem('onboarding_completed', 'true');
       onFinish();
@@ -116,7 +133,7 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { flex: 1 }]}>
       <View style={styles.progressTrack}>
         <Animated.View
           style={[
@@ -125,7 +142,7 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
           ]}
         />
       </View>
-      <View style={styles.content}>
+      <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
         {step.isSellerModeStep ? (
           <View style={selectionStyles.container}>
             <TouchableOpacity
@@ -209,26 +226,13 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
 
         <Text style={styles.title}>{step.title}</Text>
         <Text style={styles.description}>{step.description}</Text>
-
-        <View style={styles.dots}>
-          {STEPS.map((_, i) => (
-            <View
-              key={i}
-              style={[
-                styles.dot,
-                currentStep === i && styles.dotActive,
-                { backgroundColor: currentStep === i ? step.color : '#CCC' }
-              ]}
-            />
-          ))}
-        </View>
-      </View>
+      </Animated.View>
 
       <View style={styles.buttonContainer}>
         {currentStep > 0 && (
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => setCurrentStep(currentStep - 1)}
+            onPress={() => goToStep(currentStep - 1)}
           >
             <Text style={styles.backButtonText}>{t('onboarding.backBtn')}</Text>
           </TouchableOpacity>
@@ -241,6 +245,7 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
           ]}
           onPress={handleNext}
           disabled={(step.isSellerModeStep && !selectedMode) || (step.isRoleStep && !selectedRole) || roleLoading}
+          activeOpacity={0.82}
         >
           <Text style={styles.buttonText}>
             {currentStep === STEPS.length - 1 ? t('onboarding.startBtn') : t('onboarding.nextBtn')}
@@ -255,18 +260,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFF',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 60
   },
   content: {
+    flex: 1,
     width: '100%',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 40
   },
   iconContainer: {
-    width: 240,
-    height: 240,
+    width: illustrationSize,
+    height: illustrationSize,
     borderRadius: 24,
     alignSelf: 'center',
     alignItems: 'center',
@@ -274,8 +278,8 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   illustrationImage: {
-    width: '80%',
-    height: '80%',
+    width: '90%',
+    height: '90%',
   },
   title: {
     fontSize: 24,
@@ -290,19 +294,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 24
   },
-  dots: {
-    flexDirection: 'row',
-    marginTop: 40,
-    gap: 8
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4
-  },
-  dotActive: {
-    width: 24
-  },
   buttonContainer: {
     flexDirection: 'row',
     paddingHorizontal: 20,
@@ -312,7 +303,7 @@ const styles = StyleSheet.create({
   },
   button: {
     flex: 1,
-    height: 56,
+    height: 58,
     borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
@@ -325,7 +316,8 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#FFF',
     fontSize: 18,
-    fontWeight: 'bold'
+    fontWeight: 'bold',
+    letterSpacing: 0.3
   },
   backButton: {
     flex: 0.35,
@@ -348,7 +340,8 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     marginHorizontal: 20,
     marginTop: 12,
-    overflow: 'hidden'
+    overflow: 'hidden',
+    alignSelf: 'stretch'
   },
   progressFill: {
     height: 4,
