@@ -190,7 +190,7 @@ const resources = {
         sellPrice: 'Цена продажи',
         buyPrice: 'Цена закупки',
         quantity: 'Количество',
-        note: 'Заметка (необязательно)',
+        note: 'Заметка',
         notePlaceholder: 'Любая заметка...',
         previewTitle: 'Предварительный расчёт',
         saveBtn: 'Сохранить продажу',
@@ -205,6 +205,7 @@ const resources = {
         paymentDebt: '📋 В долг',
         paidNowPlaceholder: 'Внесено сейчас',
         dueDatePlaceholder: 'Срок оплаты (ГГГГ-ММ-ДД)',
+        dueDateLabel: 'Срок',
         addToCart: 'Добавить в корзину',
         cartTotal: 'Итого: {{total}} {{symbol}} · {{count}} поз.',
         checkoutBtn: 'Оформить заказ · {{total}} {{symbol}}',
@@ -799,7 +800,7 @@ const resources = {
         sellPrice: 'Нархи фурӯш',
         buyPrice: 'Нархи харид',
         quantity: 'Миқдор',
-        note: 'Эзоҳ (ихтиёрӣ)',
+        note: 'Эзоҳ',
         notePlaceholder: 'Ҳар гуна эзоҳ...',
         previewTitle: 'Ҳисобкунии пешакӣ',
         saveBtn: 'Захира кардани фурӯш',
@@ -814,6 +815,7 @@ const resources = {
         paymentDebt: '📋 Ба қарз',
         paidNowPlaceholder: 'Ҳоло пардохт шуд',
         dueDatePlaceholder: 'Мӯҳлати пардохт (СССС-ММ-РР)',
+        dueDateLabel: 'Мӯҳлат',
         addToCart: 'Ба сабад илова кардан', // TODO: needs native speaker review
         cartTotal: 'Ҷамъ: {{total}} {{symbol}} · {{count}} адад', // TODO: needs native speaker review
         checkoutBtn: 'Фармоиш додан · {{total}} {{symbol}}', // TODO: needs native speaker review
@@ -2011,7 +2013,7 @@ const resources = {
         sellPrice: 'Sotish narxi',
         buyPrice: 'Sotib olish narxi',
         quantity: 'Miqdori',
-        note: 'Izoh (ixtiyoriy)',
+        note: 'Eslatma',
         notePlaceholder: 'Har qanday izoh...',
         previewTitle: 'Oldindan hisob-kitob',
         saveBtn: 'Sotuvni saqlash',
@@ -2026,6 +2028,7 @@ const resources = {
         paymentDebt: '📋 Qarzga',
         paidNowPlaceholder: 'Hozir to\'landi',
         dueDatePlaceholder: 'To\'lov muddati (YYYY-MM-DD)',
+        dueDateLabel: 'Muddat',
         addToCart: 'Savatga qo\'shish', // TODO: needs native speaker review
         cartTotal: 'Jami: {{total}} {{symbol}} · {{count}} ta', // TODO: needs native speaker review
         checkoutBtn: 'Buyurtma berish · {{total}} {{symbol}}', // TODO: needs native speaker review
