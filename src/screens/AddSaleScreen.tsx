@@ -495,15 +495,6 @@ export default function AddSaleScreen(/* props */) {
       themeStyles.container,
       { transform: [{ scale: scaleAnim }], opacity: opacityAnim }
     ]}>
-      {/* Voice Floating Button */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => setShowVoiceBar(true)}
-        activeOpacity={0.8}
-      >
-        <Ionicons name="mic" size={28} color="#fff" />
-      </TouchableOpacity>
-
       {/* Voice Input Modal (Bottom Bar) */}
       <Modal
         visible={showVoiceBar}
@@ -553,7 +544,6 @@ export default function AddSaleScreen(/* props */) {
             {/* Cart List */}
             {cartItems.length > 0 && (
               <View style={[styles.cartContainer, themeStyles.card]}>
-                <Text style={[styles.cartTitle, themeStyles.text]}>{t('debtors.clients')}</Text>
                 {cartItems.map((item: CartItem, index: number) => (
                   <TouchableOpacity
                     key={item.id}
@@ -641,7 +631,7 @@ export default function AddSaleScreen(/* props */) {
               {maskBuyPrice && selectedProduct ? (
                 <TouchableOpacity
                   style={[styles.input, themeStyles.input, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}
-                  onLongPress={() => {
+                  onPress={() => {
                     setMaskBuyPrice(false);
                     setTimeout(() => setMaskBuyPrice(true), 2500);
                   }}
@@ -719,23 +709,30 @@ export default function AddSaleScreen(/* props */) {
           )}
         </View>
 
-        <Text style={[styles.label, themeStyles.text]}>{t('addSale.note')}</Text>
         {showNoteInput || note !== '' ? (
-          <TextInput
-            ref={noteRef}
-            style={[styles.input, styles.inputMultiline, themeStyles.input]}
-            placeholder={t('addSale.notePlaceholder')}
-            placeholderTextColor={isDark ? '#888' : '#aaa'}
-            value={note}
-            onChangeText={setNote}
-            multiline
-            returnKeyType="done"
-            blurOnSubmit={true}
-            autoFocus={showNoteInput}
-            onBlur={() => {
-              if (note === '') setShowNoteInput(false);
-            }}
-          />
+          <View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <Text style={[styles.label, themeStyles.text, { marginTop: 0 }]}>{t('addSale.note')}</Text>
+              <TouchableOpacity onPress={() => { setNote(''); setShowNoteInput(false); }}>
+                <Ionicons name="close-circle-outline" size={18} color="#888" />
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              ref={noteRef}
+              style={[styles.input, styles.inputMultiline, themeStyles.input]}
+              placeholder={t('addSale.notePlaceholder')}
+              placeholderTextColor={isDark ? '#888' : '#aaa'}
+              value={note}
+              onChangeText={setNote}
+              multiline
+              returnKeyType="done"
+              blurOnSubmit={true}
+              autoFocus={showNoteInput}
+              onBlur={() => {
+                if (note === '') setShowNoteInput(false);
+              }}
+            />
+          </View>
         ) : (
           <TouchableOpacity onPress={() => setShowNoteInput(true)} style={styles.noteLink}>
             <Text style={styles.noteLinkText}>📝 {t('addSale.note')}</Text>
@@ -811,6 +808,9 @@ export default function AddSaleScreen(/* props */) {
         {(paymentType === 'partial' || paymentType === 'debt') && (
           <View style={{ marginTop: 8, gap: 8 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={[{ fontSize: FontSize.sm, color: '#888', minWidth: 40 }]}>
+                {t('addSale.dueDateLabel')}
+              </Text>
               <TextInput
                 style={[styles.input, themeStyles.input, { flex: 1 }]}
                 placeholder="ДД.ММ.ГГГГ"
@@ -899,6 +899,14 @@ export default function AddSaleScreen(/* props */) {
         )}
 
         <View style={styles.actionsRow}>
+          <TouchableOpacity
+            style={styles.addToCartBtn}
+            onPress={() => setShowVoiceBar(true)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="mic" size={24} color="#fff" />
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={[styles.saveBtn, { flex: 1 }, isSaved && { backgroundColor: '#1D9E75' }]}
             onPress={handleSave}
@@ -1003,16 +1011,6 @@ const styles = StyleSheet.create({
   tabTextActive: {
     color: '#fff',
   },
-  fab: {
-    position: 'absolute',
-    bottom: 24, right: 24,
-    width: 60, height: 60,
-    borderRadius: 30,
-    backgroundColor: Colors.primary,
-    justifyContent: 'center', alignItems: 'center',
-    zIndex: 999,
-    ...Shadow.lg,
-  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -1067,7 +1065,7 @@ const styles = StyleSheet.create({
   previewValue: { fontSize: FontSize.md, fontWeight: '600' },
   saveBtn: {
     backgroundColor: Colors.primary, borderRadius: Radius.lg,
-    padding: Spacing.lg, alignItems: 'center', marginTop: Spacing.xl,
+    padding: Spacing.lg, alignItems: 'center',
     ...Shadow.md,
     flexDirection: 'row',
     justifyContent: 'center',
@@ -1092,11 +1090,6 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     borderRadius: Radius.lg,
     ...Shadow.sm,
-  },
-  cartTitle: {
-    fontSize: FontSize.md,
-    fontWeight: 'bold',
-    marginBottom: Spacing.md,
   },
   cartItem: {
     flexDirection: 'row',
