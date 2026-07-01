@@ -391,58 +391,72 @@ export default function AddSaleScreen(/* props */) {
     let singleSaleId: number | null = null;
     let totalRevenue = 0;
 
-    if (finalItems.length > 1 || cartItems.length > 0) {
-      // Multiple items flow
-      const orderResult = addOrderWithItems(
-        finalItems,
-        clientName.trim() ? upsertClient(clientName.trim(), clientPhone.trim()) : null,
-        paymentType,
-        parseFloat(paidAmount) || 0,
-        toISODate(dueDate) || '',
-        seller_Id,
-        seller_Name,
-        current_role
-      );
-      orderId = orderResult.orderId;
-      totalRevenue = orderResult.totalAmount;
-    } else {
-      // Single item retail flow - maintain identical behavior
-      const item = finalItems[0];
-      const saleResult = addSaleWithSeller(
-        item.productId,
-        item.productName,
-        item.quantity,
-        item.sellPrice,
-        item.buyPrice,
-        item.note,
-        seller_Id,
-        seller_Name,
-        current_role
-      ) as any;
-      singleSaleId = saleResult?.lastInsertRowId;
-      totalRevenue = item.sellPrice * item.quantity;
+    try {
+      if (finalItems.length > 1 || cartItems.length > 0) {
+        // Multiple items flow
+        const itemsWithPending = finalItems.map(it => ({
+          ...it,
+          isPendingReview: (current_role === 'seller' && it.productId === null) ? 1 : 0
+        }));
 
-      // Single item debt logic
-      if (paymentType !== 'full' && clientName.trim()) {
-        const resolvedClientId = upsertClient(clientName.trim(), clientPhone.trim());
-        const paid = paymentType === 'partial' ? (parseFloat(paidAmount) || 0) : 0;
-        const totalDebt = totalRevenue;
-        const isoDueDate = toISODate(dueDate) || '';
-        const debtResult = addDebt(resolvedClientId, singleSaleId, totalDebt, paid, '', isoDueDate) as any;
+        const orderResult = addOrderWithItems(
+          itemsWithPending,
+          clientName.trim() ? upsertClient(clientName.trim(), clientPhone.trim()) : null,
+          paymentType,
+          parseFloat(paidAmount) || 0,
+          toISODate(dueDate) || '',
+          seller_Id,
+          seller_Name,
+          current_role
+        );
+        orderId = orderResult.orderId;
+        totalRevenue = orderResult.totalAmount;
+      } else {
+        // Single item retail flow - maintain identical behavior
+        const item = finalItems[0];
+        const isPending = (current_role === 'seller' && item.productId === null) ? 1 : 0;
 
-        if (isoDueDate && debtResult?.lastInsertRowId) {
-          const notifId = await scheduleDebtReminder(
-            debtResult.lastInsertRowId,
-            clientName,
-            totalDebt - paid,
-            isoDueDate,
-            currency.symbol
-          );
-          if (notifId) {
-            updateDebtNotificationId(debtResult.lastInsertRowId, notifId);
+        const saleResult = addSaleWithSeller(
+          item.productId,
+          item.productName,
+          item.quantity,
+          item.sellPrice,
+          item.buyPrice,
+          item.note,
+          seller_Id,
+          seller_Name,
+          current_role,
+          isPending
+        ) as any;
+        singleSaleId = saleResult?.lastInsertRowId;
+        totalRevenue = item.sellPrice * item.quantity;
+
+        // Single item debt logic
+        if (paymentType !== 'full' && clientName.trim()) {
+          const resolvedClientId = upsertClient(clientName.trim(), clientPhone.trim());
+          const paid = paymentType === 'partial' ? (parseFloat(paidAmount) || 0) : 0;
+          const totalDebt = totalRevenue;
+          const isoDueDate = toISODate(dueDate) || '';
+          const debtResult = addDebt(resolvedClientId, singleSaleId, totalDebt, paid, '', isoDueDate) as any;
+
+          if (isoDueDate && debtResult?.lastInsertRowId) {
+            const notifId = await scheduleDebtReminder(
+              debtResult.lastInsertRowId,
+              clientName,
+              totalDebt - paid,
+              isoDueDate,
+              currency.symbol
+            );
+            if (notifId) {
+              updateDebtNotificationId(debtResult.lastInsertRowId, notifId);
+            }
           }
         }
       }
+    } catch (e) {
+      console.error('Failed to save sale:', e);
+      Alert.alert(t('common.error'), t('addSale.saveFailed') || 'Не удалось сохранить продажу');
+      return;
     }
 
     // Analytics and notifications

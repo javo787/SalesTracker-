@@ -1,14 +1,14 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
-  TouchableOpacity, TextInput, Alert, RefreshControl, Modal
+  TouchableOpacity, TextInput, Alert, RefreshControl, Modal, ActivityIndicator
 } from 'react-native';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import {
   addProduct, updateProduct, deleteProduct, getProducts, getDistinctCategories, getProductIdsWithDebts,
-  getProductSalesStats, getProductSalesHistory, getUnregisteredProductsFromHistory
+  getProductSalesStats, getProductSalesHistory, getUnregisteredProductsFromHistory, db
 } from '../db/database';
 import { useShop } from '../context/ShopContext';
 import { analyticsService } from '../services/analyticsService';
@@ -22,6 +22,7 @@ import { Colors, LightTheme, DarkTheme, Radius, Shadow } from '../constants/them
 export default function ProductsScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
   const { resolvedTheme, currency, defaultMinStockAlert, sellerMode } = useAppContext(); const isDark = resolvedTheme === "dark";
   const { addExpense } = useExpenses();
   const { isOwner } = useShop();
@@ -47,7 +48,7 @@ export default function ProductsScreen() {
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
 
   // Filters & Sorting
-  const [activeFilter, setActiveFilter] = useState<'all' | 'low_stock' | 'debts' | { category: string }>('all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'low_stock' | 'debts' | 'pending' | { category: string }>('all');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [debtProductIdsList, setDebtProductIdsList] = useState<number[]>([]);
 
@@ -74,6 +75,8 @@ export default function ProductsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
 
+  const [pendingSales, setPendingSales] = useState<any[]>([]);
+
   const loadProducts = () => {
     const allProds = getProducts() as any[];
     setProducts(allProds);
@@ -81,6 +84,12 @@ export default function ProductsScreen() {
     // Load unregistered products
     const unreg = getUnregisteredProductsFromHistory() as any[];
     setUnregistered(unreg);
+
+    // Load pending review sales
+    if (isOwner) {
+      const pending = db.getAllSync("SELECT * FROM sales WHERE is_pending_review = 1 ORDER BY created_at DESC") as any[];
+      setPendingSales(pending);
+    }
 
     // Derive distinct categories from products to avoid extra SQL query
     const cats = Array.from(new Set(allProds.map(p => p.category).filter(Boolean))) as string[];
@@ -99,6 +108,12 @@ export default function ProductsScreen() {
     }
   }, [sellerMode]);
 
+  useEffect(() => {
+    if (route.params?.filter) {
+      setActiveFilter(route.params.filter);
+    }
+  }, [route.params?.filter]);
+
   const filteredProducts = useMemo(() => {
     let result = [...products];
     const debtSet = new Set(debtProductIdsList);
@@ -114,6 +129,8 @@ export default function ProductsScreen() {
       result = result.filter(p => p.stock <= (p.min_stock_alert || 0));
     } else if (activeFilter === 'debts') {
       result = result.filter(p => debtSet.has(p.id));
+    } else if (activeFilter === 'pending') {
+      return []; // Return empty as we render pendingSales separately
     } else if (typeof activeFilter === 'object' && activeFilter.category) {
       result = result.filter(p => p.category === activeFilter.category);
     }
@@ -335,6 +352,15 @@ export default function ProductsScreen() {
               onPress={() => setActiveFilter('debts')}
             >
               <Text style={[styles.chipText, themeStyles.chipText, activeFilter === 'debts' && styles.chipTextActive]}>📋 {t('products.debtsFilter')}</Text>
+            </TouchableOpacity>
+          )}
+
+          {isOwner && pendingSales.length > 0 && (
+            <TouchableOpacity
+              style={[styles.chip, themeStyles.chip, activeFilter === 'pending' && styles.chipActive]}
+              onPress={() => setActiveFilter('pending')}
+            >
+              <Text style={[styles.chipText, themeStyles.chipText, activeFilter === 'pending' && styles.chipTextActive]}>⚠️ {t('sellers.pendingReviewTitle')}</Text>
             </TouchableOpacity>
           )}
 
@@ -634,7 +660,60 @@ export default function ProductsScreen() {
         </TouchableOpacity>
       </View>
 
-      {filteredProducts.length === 0 ? (
+      {activeFilter === 'pending' ? (
+        pendingSales.length === 0 ? (
+          <View style={styles.empty}>
+            <Text style={styles.emptyText}>🎉 {t('products.allRegistered')}</Text>
+          </View>
+        ) : (
+          pendingSales.map((sale: any) => (
+            <View key={String(sale.id)} style={[styles.productItem, themeStyles.card, { borderLeftWidth: 4, borderLeftColor: '#FF9500' }]}>
+              <View style={styles.productMain}>
+                <View style={styles.productLeft}>
+                  <Text style={[styles.productName, themeStyles.text]}>{sale.product_name}</Text>
+                  <Text style={styles.productPrices}>
+                    {t('common.revenue')}: {sale.sell_price * sale.quantity} {currency.symbol} · {t('common.quantity')}: {sale.quantity}
+                  </Text>
+                  <Text style={[styles.infoText, { marginTop: 4 }]}>
+                    {t('common.seller')}: {sale.seller_name} · {new Date(sale.created_at.replace(' ', 'T')).toLocaleDateString()}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={{ backgroundColor: Colors.primary, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, alignSelf: 'center' }}
+                  onPress={() => {
+                    // Logic to fix buy price
+                    Alert.prompt(
+                      t('addSale.buyPrice'),
+                      `${sale.product_name}: ${t('addSale.buyPrice')}`,
+                      [
+                        { text: t('common.cancel'), style: 'cancel' },
+                        {
+                          text: t('common.save'),
+                          onPress: (val) => {
+                            const bPrice = parseFloat(val || '0');
+                            if (isNaN(bPrice)) return;
+                            const profit = (sale.sell_price - bPrice) * sale.quantity;
+                            db.runSync(
+                              "UPDATE sales SET buy_price = ?, profit = ?, is_pending_review = 0 WHERE id = ?",
+                              [bPrice, profit, sale.id]
+                            );
+                            loadProducts();
+                          }
+                        }
+                      ],
+                      'plain-text',
+                      '',
+                      'numeric'
+                    );
+                  }}
+                >
+                  <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>{t('common.edit')}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))
+        )
+      ) : filteredProducts.length === 0 ? (
         <View style={styles.empty}>
           <Text style={styles.emptyText}>{searchQuery ? t('reports.nothingFound') : t('products.noProducts') || 'No products'}</Text>
           <Text style={styles.emptyHint}>{searchQuery ? t('products.tryAnotherQuery') || 'Try another query' : t('products.addFirstProduct') || 'Add your first product'}</Text>
