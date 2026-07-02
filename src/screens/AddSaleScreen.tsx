@@ -84,7 +84,10 @@ export default function AddSaleScreen(/* props */) {
     setDueDate(formatted);
   };
   const [voiceText, setVoiceText] = useState('');
-  const [lastSaved, setLastSaved] = useState<{ name: string; profit: string; revenue: string } | null>(null);
+  const [showDebtOptions, setShowDebtOptions] = useState(false);
+  const [lastSaved, setLastSaved] = useState<{
+    name: string; profit: string; revenue: string; shareText?: string;
+  } | null>(null);
   const [showVoiceBar, setShowVoiceBar] = useState(false);
 
   const [isSaved, setIsSaved] = useState(false);
@@ -507,10 +510,31 @@ export default function AddSaleScreen(/* props */) {
     });
     reviewService.incrementSalesAndCheck();
 
+    const savedItems = finalItems; // те же позиции что идут в БД
+    const savedTotal = savedItems.reduce(
+      (s, i) => s + i.sellPrice * i.quantity, 0
+    );
+    const now = new Date();
+    const receiptText = [
+      shopName ? shopName.toUpperCase() : null,
+      now.toLocaleDateString('ru-RU') + '  ' +
+      now.toLocaleTimeString('ru-RU', { hour:'2-digit', minute:'2-digit' }),
+      '',
+      '─────────────────────',
+      ...savedItems.map(i =>
+        `${i.productName}\n  ${i.unitLabel} × ${i.sellPrice.toLocaleString()} = ${(i.sellPrice*i.quantity).toLocaleString()} ${currency.symbol}`
+      ),
+      '─────────────────────',
+      `${t('addSale.receiptTotal')}: ${savedTotal.toLocaleString()} ${currency.symbol}`,
+      '',
+      t('addSale.thankYou'),
+    ].filter(Boolean).join('\n');
+
     setLastSaved({
       name: finalItems.length > 1 ? `${finalItems.length} поз.` : finalItems[0].productName,
       profit: finalItems.reduce((acc, it) => acc + (it.sellPrice - it.buyPrice) * it.quantity, 0).toFixed(0),
       revenue: totalRevenue.toFixed(0),
+      shareText: receiptText,
     });
 
     // Reset all
@@ -521,6 +545,7 @@ export default function AddSaleScreen(/* props */) {
     setPaymentType('full'); setPaidAmount(''); setDueDate('');
     setClientName(''); setClientPhone(''); setClientId(null);
     setShowFullClient(false); setShowNoteInput(false);
+    setShowDebtOptions(false);
 
     triggerSaveAnimation();
   };
@@ -840,8 +865,31 @@ export default function AddSaleScreen(/* props */) {
           </TouchableOpacity>
         )}
 
-    {/* Payment type selector — shown only in wholesale mode */}
-    {contextSellerMode === 'wholesale' && (
+    {/* Payment type selector */}
+    {contextSellerMode === 'retail' && !showDebtOptions ? (
+      <View style={styles.paymentSection}>
+        <Text style={[styles.label, themeStyles.text]}>{t('addSale.paymentLabel')}</Text>
+        <TouchableOpacity
+          style={[styles.paymentBtn, isDark ? styles.paymentBtnDark : styles.paymentBtnLight, styles.paymentBtnActive]}
+          onPress={() => {
+            setPaymentType('full');
+            setShowDebtOptions(false);
+          }}
+        >
+          <Text style={[styles.paymentBtnText, styles.paymentBtnTextActive]}>
+            {t('addSale.paymentFull')}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={{ marginTop: 8, alignSelf: 'flex-start' }}
+          onPress={() => setShowDebtOptions(true)}
+        >
+          <Text style={{ color: Colors.primary, fontSize: 13 }}>
+            {t('addSale.debtLink')}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    ) : (
       <View style={styles.paymentSection}>
         <Text style={[styles.label, themeStyles.text]}>{t('addSale.paymentLabel')}</Text>
         <View style={styles.paymentRow}>
@@ -859,7 +907,10 @@ export default function AddSaleScreen(/* props */) {
                   isDark ? styles.paymentBtnDark : styles.paymentBtnLight,
                   paymentType === type && styles.paymentBtnActive,
                 ]}
-                onPress={() => setPaymentType(type)}
+                onPress={() => {
+                  setPaymentType(type);
+                  if (type === 'full') setShowDebtOptions(false);
+                }}
               >
                 <Text style={[
                   styles.paymentBtnText,
@@ -1040,7 +1091,28 @@ export default function AddSaleScreen(/* props */) {
             {/* Успешно сохранено */}
             {lastSaved && (
               <View style={[styles.successCard, themeStyles.successCard]}>
-                <Text style={styles.successTitle}>✅ {t('common.saved')}</Text>
+                {/* Шапка: заголовок + кнопка шеринга */}
+                <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
+                  <Text style={styles.successTitle}>✅ {t('common.saved')}</Text>
+                  {lastSaved.shareText && (
+                    <TouchableOpacity
+                      onPress={async () => {
+                        Keyboard.dismiss();
+                        await new Promise(r => setTimeout(r, 150));
+                        try {
+                          await Share.share({
+                            message: lastSaved!.shareText!,
+                            title: shopName || t('addSale.receiptTotal'),
+                          });
+                        } catch (_) {}
+                      }}
+                      hitSlop={{ top:8, bottom:8, left:8, right:8 }}
+                    >
+                      <Ionicons name="share-outline" size={20} color={Colors.primary} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+
                 <Text style={[styles.successText, themeStyles.text]}>{lastSaved.name}</Text>
                 <Text style={[styles.successText, themeStyles.text]}>{t('common.revenue')}: {lastSaved.revenue} {currency.symbol}</Text>
                 {isOwner && <Text style={styles.successProfit}>{t('common.profit')}: +{lastSaved.profit} {currency.symbol}</Text>}

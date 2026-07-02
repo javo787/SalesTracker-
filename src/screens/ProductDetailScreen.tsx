@@ -436,6 +436,33 @@ const ProductDetailScreen = () => {
 
           {activeTab === 'stock' && (
             <View>
+              {product.created_at && (
+                <View style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 8,
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
+                  borderBottomWidth: StyleSheet.hairlineWidth,
+                  borderBottomColor: isDark ? '#2A2A2A' : '#F0F0F0',
+                }}>
+                  <View style={[styles.moveIcon, { backgroundColor: '#88888820' }]}>
+                    <Ionicons name="calendar-outline" size={18} color="#888" />
+                  </View>
+                  <View>
+                    <Text style={{ fontSize: 11, color: '#888' }}>
+                      {t('productDetail.systemAdded')}
+                    </Text>
+                    <Text style={[{ fontSize: 13, fontWeight: '600' }, { color: themeStyles.text }]}>
+                      {new Date(product.created_at.replace(' ', 'T'))
+                        .toLocaleDateString('ru-RU', {
+                          day: '2-digit', month: 'long', year: 'numeric'
+                        })}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
               {stockMovements.length === 0 ? (
                 <Text style={styles.emptyText}>Нет движений</Text>
               ) : (
