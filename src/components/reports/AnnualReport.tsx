@@ -169,7 +169,7 @@ export default function AnnualReport() {
     try {
       // Sheet 1: AI Summary
       const summaryData = [
-        ["Отчёт SavdoApp (Годовой)"],
+        ["Отчёт Saleze (Годовой)"],
         [getPeriodLabel()],
         [],
         [t('exportSummary.headerRevenue'), `${annualData.totals.revenue} ${currency.symbol}`],
@@ -197,7 +197,7 @@ export default function AnnualReport() {
 
       const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
       const base64 = arrayBufferToBase64(buffer);
-      const fileName = `SavdoApp_Annual_AI_${annualData.year}.xlsx`;
+      const fileName = `Saleze_Annual_AI_${annualData.year}.xlsx`;
       const filePath = `${FileSystem.cacheDirectory}${fileName}`;
 
       await FileSystem.writeAsStringAsync(filePath, base64, { encoding: FileSystem.EncodingType.Base64 });

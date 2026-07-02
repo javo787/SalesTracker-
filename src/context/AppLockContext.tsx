@@ -158,7 +158,7 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setIsSystemDialogOpen(true);
     try {
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'SavdoApp',
+        promptMessage: 'Saleze',
         disableDeviceFallback: true,
       });
       if (result.success) {

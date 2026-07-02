@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "SavdoApp",
+    "name": "Saleze",
     "slug": "savdo-app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -47,7 +47,7 @@
       [
         "expo-local-authentication",
         {
-          "faceIDPermission": "Используйте Face ID для быстрой и безопасной разблокировки SavdoApp"
+          "faceIDPermission": "Используйте Face ID для быстрой и безопасной разблокировки Saleze"
         }
       ],
       [
@@ -96,8 +96,8 @@
         "orientation": "portrait",
         "themeColor": "#1D9E75",
         "backgroundColor": "#1D9E75",
-        "name": "SavdoApp",
-        "shortName": "SavdoApp",
+        "name": "Saleze",
+        "shortName": "Saleze",
         "description": "Умный помощник для торговли",
         "lang": "ru"
       }

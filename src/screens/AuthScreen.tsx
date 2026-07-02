@@ -98,7 +98,7 @@ export default function AuthScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
           <Image source={require('../../assets/icon.png')} style={styles.logo} />
-          <Text style={[styles.title, themeStyles.text]}>SavdoApp</Text>
+          <Text style={[styles.title, themeStyles.text]}>Saleze</Text>
           <Text style={styles.tagline}>Учёт продаж для базарных торговцев</Text>
         </View>
 

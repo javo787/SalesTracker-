@@ -147,7 +147,7 @@ const resources = {
         showDailyTipSub: 'Умная подсказка на главном экране',
       },
       home: {
-        title: 'Savdo — Учёт',
+        title: 'Saleze — Учёт',
         weekStats: 'Статистика за 7 дней',
         recentSales: 'Последние продажи',
         noSales: 'Продаж пока нет',
@@ -421,7 +421,7 @@ const resources = {
       },
       debt: {
         placeholderShopName: 'Напр. Мой Магазин',
-        placeholderInviteCode: 'SAVDO7',
+        placeholderInviteCode: 'SALEZE7',
       },
       profile: {
         title: 'Профиль',
@@ -572,7 +572,7 @@ const resources = {
         useBiometric: 'Использовать биометрию',
         usePin: 'Войти по PIN',
         usePattern: 'Войти по ключу',
-        biometricPrompt: 'Вход в SavdoApp',
+        biometricPrompt: 'Вход в Saleze',
         biometricSuccess: 'Успешно',
         biometricError: 'Ошибка биометрии',
         securitySettings: 'Безопасность',
@@ -781,7 +781,7 @@ const resources = {
         syncDisableConfirmMsg: 'Агар шумо ҳамоҳангсозиро хомӯш кунед, фурӯшандагони дастаи шумо фурӯшҳои навро аз ин дастгоҳ намебинанд. Давом диҳем?',
       },
       home: {
-        title: 'Savdo — Баҳисобгирӣ',
+        title: 'Saleze — Баҳисобгирӣ',
         weekStats: 'Омор барои 7 рӯз',
         recentSales: 'Фурӯшҳои охирин',
         noSales: 'Ҳанӯз фурӯш нест',
@@ -1055,7 +1055,7 @@ const resources = {
       },
       debt: {
         placeholderShopName: 'Мас. Дӯкони ман',
-        placeholderInviteCode: 'SAVDO7',
+        placeholderInviteCode: 'SALEZE7',
       },
       profile: {
         title: 'Профил',
@@ -1206,7 +1206,7 @@ const resources = {
         useBiometric: 'Истифодаи биометрия',
         usePin: 'Воридшавӣ бо PIN',
         usePattern: 'Воридшавӣ бо калид',
-        biometricPrompt: 'Воридшавӣ ба SavdoApp',
+        biometricPrompt: 'Воридшавӣ ба Saleze',
         biometricSuccess: 'Муваффақона',
         biometricError: 'Хатои биометрия',
         securitySettings: 'Амният',
@@ -1420,7 +1420,7 @@ const resources = {
         showDailyTipSub: 'Smart tip on the home screen',
       },
       home: {
-        title: 'Savdo — Tracking',
+        title: 'Saleze — Tracking',
         weekStats: '7 days statistics',
         recentSales: 'Recent sales',
         noSales: 'No sales yet',
@@ -1694,7 +1694,7 @@ const resources = {
       },
       debt: {
         placeholderShopName: 'e.g., My Shop',
-        placeholderInviteCode: 'SAVDO7',
+        placeholderInviteCode: 'SALEZE7',
       },
       profile: {
         title: 'Profile',
@@ -1845,7 +1845,7 @@ const resources = {
         useBiometric: 'Use Biometrics',
         usePin: 'Enter via PIN',
         usePattern: 'Enter via Pattern',
-        biometricPrompt: 'Login to SavdoApp',
+        biometricPrompt: 'Login to Saleze',
         biometricSuccess: 'Success',
         biometricError: 'Biometrics error',
         securitySettings: 'Security',
@@ -2054,7 +2054,7 @@ const resources = {
         syncDisableConfirmMsg: 'Agar sinxronizatsiyani o\'chirib qo\'ysangiz, jamoangizdagi sotuvchilar ushbu qurilmadan yangi sotuvlarni ko\'rmaydilar. Davom etamizmi?',
       },
       home: {
-        title: 'Savdo — Hisob-kitob',
+        title: 'Saleze — Hisob-kitob',
         weekStats: '7 kunlik statistika',
         recentSales: 'Oxirgi sotuvlar',
         noSales: 'Hozircha sotuvlar yo‘q',
@@ -2328,7 +2328,7 @@ const resources = {
       },
       debt: {
         placeholderShopName: 'Mas. Mening do\'konim',
-        placeholderInviteCode: 'SAVDO7',
+        placeholderInviteCode: 'SALEZE7',
       },
       profile: {
         title: 'Profil',
@@ -2479,7 +2479,7 @@ const resources = {
         useBiometric: 'Biometriyadan foydalanish',
         usePin: 'PIN orqali kirish',
         usePattern: 'Kalit orqali kirish',
-        biometricPrompt: 'SavdoApp-ga kirish',
+        biometricPrompt: 'Saleze-ga kirish',
         biometricSuccess: 'Muvaffaqiyatli',
         biometricError: 'Biometriya xatosi',
         securitySettings: 'Xavfsizlik',
@@ -2693,7 +2693,7 @@ const resources = {
         showDailyTipSub: 'Бош экрандаги ақлли маслаҳат',
       },
       home: {
-        title: 'Савдо — Ҳисоб-китоб',
+        title: 'Saleze — Ҳисоб-китоб',
         weekStats: '7 кунлик статистика',
         recentSales: 'Охирги сотувлар',
         noSales: 'Ҳозирча сотувлар йўқ',
@@ -2967,7 +2967,7 @@ const resources = {
       },
       debt: {
         placeholderShopName: 'Мас. Менинг дўконим',
-        placeholderInviteCode: 'САВДО7',
+        placeholderInviteCode: 'SALEZE7',
       },
       profile: {
         title: 'Профил',
@@ -3118,7 +3118,7 @@ const resources = {
         useBiometric: 'Биометриядан фойдаланиш',
         usePin: 'ПИН орқали кириш',
         usePattern: 'Калит орқали кириш',
-        biometricPrompt: 'СавдоАпп-га кириш',
+        biometricPrompt: 'Saleze-ga кириш',
         biometricSuccess: 'Муваффақиятли',
         biometricError: 'Биометрия хатоси',
         securitySettings: 'Хавфсизлик',
@@ -3330,7 +3330,7 @@ const resources = {
         showDailyTipSub: 'Dica inteligente na tela inicial',
       },
       home: {
-        title: 'Savdo — Controle',
+        title: 'Saleze — Controle',
         weekStats: 'Estatísticas de 7 dias',
         recentSales: 'Vendas recentes',
         noSales: 'Ainda não há vendas',
@@ -3604,7 +3604,7 @@ const resources = {
       },
       debt: {
         placeholderShopName: 'Ex.: Minha Loja',
-        placeholderInviteCode: 'SAVDO7',
+        placeholderInviteCode: 'SALEZE7',
       },
       profile: {
         title: 'Perfil',
@@ -3755,7 +3755,7 @@ const resources = {
         useBiometric: 'Usar biometria',
         usePin: 'Entrar com PIN',
         usePattern: 'Entrar com padrão',
-        biometricPrompt: 'Entrar no SavdoApp',
+        biometricPrompt: 'Entrar no Saleze',
         biometricSuccess: 'Sucesso',
         biometricError: 'Erro de biometria',
         securitySettings: 'Segurança',
@@ -3967,7 +3967,7 @@ const resources = {
         showDailyTipSub: 'Suggerimento intelligente nella schermata iniziale',
       },
       home: {
-        title: 'Savdo — Gestione',
+        title: 'Saleze — Gestione',
         weekStats: 'Statistiche 7 giorni',
         recentSales: 'Vendite recenti',
         noSales: 'Ancora nessuna vendita',
@@ -4241,7 +4241,7 @@ const resources = {
       },
       debt: {
         placeholderShopName: 'Es. Il Mio Negozio',
-        placeholderInviteCode: 'SAVDO7',
+        placeholderInviteCode: 'SALEZE7',
       },
       profile: {
         title: 'Profilo',
@@ -4392,7 +4392,7 @@ const resources = {
         useBiometric: 'Usa la biometria',
         usePin: 'Accedi con PIN',
         usePattern: 'Accedi con schema',
-        biometricPrompt: 'Accedi a SavdoApp',
+        biometricPrompt: 'Accedi a Saleze',
         biometricSuccess: 'Riuscito',
         biometricError: 'Errore biometrico',
         securitySettings: 'Sicurezza',

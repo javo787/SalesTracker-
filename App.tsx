@@ -505,7 +505,7 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = messaging().onMessage(async remoteMessage => {
       await showRemoteNotification(
-        remoteMessage.notification?.title ?? 'SavdoApp',
+        remoteMessage.notification?.title ?? 'Saleze',
         remoteMessage.notification?.body ?? '',
         remoteMessage.data
       );
