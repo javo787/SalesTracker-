@@ -47,6 +47,7 @@ export default function ProductsScreen() {
   const [category, setCategory] = useState('');
   const [article, setArticle] = useState('');
   const [color, setColor] = useState('');
+  const [showColorPicker, setShowColorPicker] = useState(false);
   const [allCategories, setAllCategories] = useState<string[]>([]);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
 
@@ -297,6 +298,7 @@ export default function ProductsScreen() {
     setCategory('');
     setArticle('');
     setColor('');
+    setShowColorPicker(false);
     setEditingId(null);
     setShowAdvanced(false);
   };
@@ -324,6 +326,7 @@ export default function ProductsScreen() {
             setCategory(p.category || '');
             setArticle(p.article || '');
             setColor(p.color || '');
+            setShowColorPicker(!!(p.color));
             setShowForm(true);
             setShowAdvanced(
               p.has_packages === 1 ||
@@ -532,6 +535,7 @@ export default function ProductsScreen() {
                   setCategory(existing.category || '');
                   setArticle(existing.article || '');
                   setColor(existing.color || '');
+                  setShowColorPicker(!!(existing.color));
                   setShowAdvanced(
                     existing.has_packages === 1 ||
                     existing.base_unit !== 'шт' ||
@@ -669,48 +673,85 @@ export default function ProductsScreen() {
                 onChangeText={setArticle}
               />
 
-              <Text style={[styles.label, themeStyles.text]}>{t('products.color')}</Text>
-              <TextInput
-                style={[styles.input, themeStyles.input]}
-                placeholder="Другой цвет..."
-                placeholderTextColor={isDark ? '#888' : '#aaa'}
-                value={PRESET_COLORS.some(c => c.label === color) ? '' : color}
-                onChangeText={setColor}
-              />
+              {color !== '' ? (
+                <TouchableOpacity
+                  onPress={() => setShowColorPicker(!showColorPicker)}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8, marginTop: 12 }}
+                >
+                  <ColorCircle
+                    size={22}
+                    hex={(color ? getColorHex(color) : null) ?? '#BDBDBD'}
+                  />
+                  <Text style={[themeStyles.text, { fontSize: 14 }]}>{color}</Text>
+                  <Ionicons
+                    name={showColorPicker ? 'chevron-up' : 'chevron-down'}
+                    size={14} color="#888"
+                  />
+                  <TouchableOpacity
+                    onPress={() => { setColor(''); setShowColorPicker(false); }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="close-circle" size={16} color="#aaa" />
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              ) : (
+                !showColorPicker && (
+                  <TouchableOpacity
+                    onPress={() => setShowColorPicker(true)}
+                    style={{ marginBottom: 8, marginTop: 12 }}
+                  >
+                    <Text style={{ color: '#1D9E75', fontSize: 14 }}>
+                      {t('products.color')}
+                    </Text>
+                  </TouchableOpacity>
+                )
+              )}
 
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
-                {PRESET_COLORS.map((preset) => {
-                  const isSelected = color === preset.label;
-                  return (
-                    <TouchableOpacity
-                      key={preset.label}
-                      onPress={() => setColor(preset.label)}
-                      style={{ width: 58, alignItems: 'center' }}
-                    >
-                      <View style={{ position: 'relative' }}>
-                        <ColorCircle
-                          hex={preset.hex}
-                          size={32}
-                          style={isSelected ? { borderWidth: 2, borderColor: '#1D9E75' } : null}
-                        />
-                        {isSelected && (
-                          <View style={{
-                            position: 'absolute', bottom: -2, right: -2,
-                            backgroundColor: '#1D9E75', borderRadius: 8,
-                            width: 16, height: 16,
-                            justifyContent: 'center', alignItems: 'center'
-                          }}>
-                            <Ionicons name="checkmark" size={11} color="#fff" />
+              {showColorPicker && (
+                <View style={{ marginTop: color === '' ? 12 : 0 }}>
+                  <TextInput
+                    style={[styles.input, themeStyles.input]}
+                    placeholder="Другой цвет..."
+                    placeholderTextColor={isDark ? '#888' : '#aaa'}
+                    value={PRESET_COLORS.some(c => c.label === color) ? '' : color}
+                    onChangeText={setColor}
+                  />
+
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                    {PRESET_COLORS.map((preset) => {
+                      const isSelected = color === preset.label;
+                      return (
+                        <TouchableOpacity
+                          key={preset.label}
+                          onPress={() => setColor(preset.label)}
+                          style={{ width: 58, alignItems: 'center' }}
+                        >
+                          <View style={{ position: 'relative' }}>
+                            <ColorCircle
+                              hex={preset.hex}
+                              size={32}
+                              style={isSelected ? { borderWidth: 2, borderColor: '#1D9E75' } : null}
+                            />
+                            {isSelected && (
+                              <View style={{
+                                position: 'absolute', bottom: -2, right: -2,
+                                backgroundColor: '#1D9E75', borderRadius: 8,
+                                width: 16, height: 16,
+                                justifyContent: 'center', alignItems: 'center'
+                              }}>
+                                <Ionicons name="checkmark" size={11} color="#fff" />
+                              </View>
+                            )}
                           </View>
-                        )}
-                      </View>
-                      <Text style={[themeStyles.text, { fontSize: 9, marginTop: 3 }]} numberOfLines={1}>
-                        {preset.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+                          <Text style={[themeStyles.text, { fontSize: 9, marginTop: 3 }]} numberOfLines={1}>
+                            {preset.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
 
               <Text style={[styles.label, themeStyles.text]}>{t('products.baseUnit')}</Text>
               <TextInput
