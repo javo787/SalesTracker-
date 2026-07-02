@@ -140,6 +140,11 @@ const resources = {
         syncUnavailableLabel: 'Недоступно — вы работаете без команды, все данные уже только на этом телефоне',
         syncDisableConfirmTitle: 'Отключить синхронизацию?',
         syncDisableConfirmMsg: 'Если вы отключите синхронизацию, продавцы в вашей команде не будут видеть новые продажи с этого устройства. Продолжить?',
+        homeScreenSection: 'Главный экран',
+        showGreeting: 'Приветствие',
+        showGreetingSub: 'Доброе утро / день / вечер',
+        showDailyTip: 'Совет дня',
+        showDailyTipSub: 'Умная подсказка на главном экране',
       },
       home: {
         title: 'Savdo — Учёт',
@@ -774,7 +779,12 @@ const resources = {
         syncUnavailableLabel: 'Дастрас нест — шумо бе даста кор мекунед, ҳама маълумот аллакай танҳо дар ин телефон аст',
         syncDisableConfirmTitle: 'Ҳамоҳангсозӣ хомӯш карда шавад?',
         syncDisableConfirmMsg: 'Агар шумо ҳамоҳангсозиро хомӯш кунед, фурӯшандагони дастаи шумо фурӯшҳои навро аз ин дастгоҳ намебинанд. Давом диҳем?',
-      },
+        homeScreenSection: 'Экрани асосӣ',
+        showGreeting: 'Салом',
+        showGreetingSub: 'Субҳ / рӯз / шом бахайр',
+        showDailyTip: 'Маслиҳати рӯз',
+        showDailyTipSub: 'Маслиҳати доно дар экрани асосӣ',
+      }, // TODO: needs native speaker review
       home: {
         title: 'Savdo — Баҳисобгирӣ',
         weekStats: 'Омор барои 7 рӯз',
@@ -2026,7 +2036,12 @@ const resources = {
         syncUnavailableLabel: 'Mavjud emas — siz jamoasiz ishlayapsiz, barcha ma\'lumotlar faqat ushbu telefonda',
         syncDisableConfirmTitle: 'Sinxronizatsiyani o\'chirish?',
         syncDisableConfirmMsg: 'Agar sinxronizatsiyani o\'chirib qo\'ysangiz, jamoangizdagi sotuvchilar ushbu qurilmadan yangi sotuvlarni ko\'rmaydilar. Davom etamizmi?',
-      },
+        homeScreenSection: 'Bosh ekran',
+        showGreeting: 'Salomlashish',
+        showGreetingSub: 'Xayrli tong / kun / kech',
+        showDailyTip: 'Kun maslahati',
+        showDailyTipSub: 'Bosh ekrandagi aqlli maslahat',
+      }, // TODO: needs native speaker review
       home: {
         title: 'Savdo — Hisob-kitob',
         weekStats: '7 kunlik statistika',

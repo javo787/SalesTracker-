@@ -2,27 +2,14 @@ import React, { createContext, useState, useEffect, useContext, useMemo, useCall
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import i18n from '../i18n/i18n';
+import { ALL_CURRENCIES, CURRENCIES_MAP, CurrencyDef } from '../constants/currencies';
 
 type Theme = 'light' | 'dark' | 'system';
-
-interface Currency {
-  code: string;
-  label: string;
-  symbol: string;
-  country: string;
-}
-
-const CURRENCIES: Record<string, Currency> = {
-  TJS: { code: 'TJS', label: 'Сомони', symbol: 'TJS', country: '🇹🇯 Таджикистан' },
-  UZS: { code: 'UZS', label: 'Сум', symbol: 'сум', country: '🇺🇿 Узбекистан' },
-  KZT: { code: 'KZT', label: 'Тенге', symbol: '₸', country: '🇰🇿 Казахстан' },
-  KGS: { code: 'KGS', label: 'Сом', symbol: 'с', country: '🇰🇬 Кыргызстан' },
-};
 
 interface AppContextType {
   theme: Theme;
   resolvedTheme: 'light' | 'dark';
-  currency: Currency;
+  currency: CurrencyDef;
   language: string;
   setTheme: (theme: Theme) => void;
   setCurrency: (code: string) => void;
@@ -35,6 +22,10 @@ interface AppContextType {
   setIsPremium: (value: boolean) => Promise<void>;
   sellerMode: 'retail' | 'wholesale';
   setSellerMode: (mode: 'retail' | 'wholesale') => Promise<void>;
+  showGreeting: boolean;
+  showDailyTip: boolean;
+  setShowGreeting: (value: boolean) => Promise<void>;
+  setShowDailyTip: (value: boolean) => Promise<void>;
   loading: boolean;
 }
 
@@ -43,12 +34,14 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const systemColorScheme = useColorScheme();
   const [theme, setThemeState] = useState<Theme>('system');
-  const [currency, setCurrencyState] = useState<Currency>(CURRENCIES.TJS);
+  const [currency, setCurrencyState] = useState<CurrencyDef>(CURRENCIES_MAP.TJS);
   const [language, setLanguageState] = useState('ru');
   const [notificationsEnabled, setNotificationsEnabledState] = useState(true);
   const [defaultMinStockAlert, setDefaultMinStockAlertState] = useState(0);
   const [isPremium, setIsPremiumState] = useState(false);
   const [sellerMode, setSellerModeState] = useState<'retail' | 'wholesale'>('retail');
+  const [showGreetingState, setShowGreetingState] = useState(false);
+  const [showDailyTipState, setShowDailyTipState] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -57,7 +50,11 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const loadSettings = async () => {
     try {
-      const [savedTheme, savedCurrency, savedLang, savedNotifs, savedMinStock, savedPremium, savedSellerMode] = await Promise.all([
+      const [
+        savedTheme, savedCurrency, savedLang, savedNotifs,
+        savedMinStock, savedPremium, savedSellerMode,
+        savedShowGreeting, savedShowDailyTip
+      ] = await Promise.all([
         AsyncStorage.getItem('app_theme'),
         AsyncStorage.getItem('app_currency'),
         AsyncStorage.getItem('app_language'),
@@ -65,6 +62,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         AsyncStorage.getItem('app_default_min_stock'),
         AsyncStorage.getItem('app_is_premium'),
         AsyncStorage.getItem('app_seller_mode'),
+        AsyncStorage.getItem('app_show_greeting'),
+        AsyncStorage.getItem('app_show_daily_tip'),
       ]);
 
       if (savedTheme) {
@@ -73,7 +72,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // For new users, default to system
         setThemeState('system');
       }
-      if (savedCurrency && CURRENCIES[savedCurrency]) setCurrencyState(CURRENCIES[savedCurrency]);
+      if (savedCurrency && CURRENCIES_MAP[savedCurrency]) setCurrencyState(CURRENCIES_MAP[savedCurrency]);
       if (savedLang) setLanguageState(savedLang);
       if (savedNotifs !== null) setNotificationsEnabledState(savedNotifs === 'true');
       if (savedMinStock !== null) setDefaultMinStockAlertState(parseInt(savedMinStock) || 0);
@@ -81,6 +80,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (savedSellerMode === 'retail' || savedSellerMode === 'wholesale') {
         setSellerModeState(savedSellerMode);
       }
+      if (savedShowGreeting !== null) setShowGreetingState(savedShowGreeting === 'true');
+      if (savedShowDailyTip !== null) setShowDailyTipState(savedShowDailyTip === 'true');
     } catch (e) {
       console.error('Failed to load settings', e);
     } finally {
@@ -94,10 +95,20 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   }, []);
 
   const setCurrency = useCallback(async (code: string) => {
-    if (CURRENCIES[code]) {
-      setCurrencyState(CURRENCIES[code]);
+    if (CURRENCIES_MAP[code]) {
+      setCurrencyState(CURRENCIES_MAP[code]);
       await AsyncStorage.setItem('app_currency', code);
     }
+  }, []);
+
+  const setShowGreeting = useCallback(async (value: boolean) => {
+    setShowGreetingState(value);
+    await AsyncStorage.setItem('app_show_greeting', String(value));
+  }, []);
+
+  const setShowDailyTip = useCallback(async (value: boolean) => {
+    setShowDailyTipState(value);
+    await AsyncStorage.setItem('app_show_daily_tip', String(value));
   }, []);
 
   const setLanguage = useCallback(async (lang: string) => {
@@ -146,6 +157,10 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setIsPremium,
     sellerMode,
     setSellerMode,
+    showGreeting: showGreetingState,
+    showDailyTip: showDailyTipState,
+    setShowGreeting,
+    setShowDailyTip,
     setTheme,
     setCurrency,
     setLanguage,
@@ -163,6 +178,10 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setIsPremium,
     sellerMode,
     setSellerMode,
+    showGreetingState,
+    showDailyTipState,
+    setShowGreeting,
+    setShowDailyTip,
     setTheme,
     setCurrency,
     setLanguage,
