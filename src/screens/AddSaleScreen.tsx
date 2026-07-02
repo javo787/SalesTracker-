@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import {
-  View, Text, TextInput, TouchableOpacity, Share,
+  View, Text, TextInput, TouchableOpacity, Share, Keyboard,
   StyleSheet, ScrollView, Alert, ActivityIndicator, Animated, Modal, TouchableWithoutFeedback, Easing
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -196,8 +196,13 @@ export default function AddSaleScreen(/* props */) {
     parts.push('');
     parts.push(t('addSale.thankYou'));
 
+    Keyboard.dismiss();
+    await new Promise(resolve => setTimeout(resolve, 150));
     try {
-      await Share.share({ message: parts.join('\n') });
+      await Share.share({
+        message: parts.join('\n'),
+        title: shopName || t('addSale.receiptTotal'),
+      });
     } catch (_) {}
   };
 

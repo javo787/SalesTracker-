@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { Keyboard } from 'react-native';
 
 export function useAutocomplete<T>(
   fetchFn: (query: string) => T[],
@@ -77,6 +78,14 @@ export function useAutocomplete<T>(
   const invalidateCache = useCallback(() => {
     cache.current = {};
     cacheKeys.current = [];
+  }, []);
+
+  useEffect(() => {
+    const sub = Keyboard.addListener('keyboardDidHide', () => {
+      if (timer.current) clearTimeout(timer.current);
+      setIsOpen(false);
+    });
+    return () => sub.remove();
   }, []);
 
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
