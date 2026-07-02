@@ -9,8 +9,10 @@ import { useAppLock } from '../context/AppLockContext';
 import { useAppContext } from '../context/AppContext';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useNavigation } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
+const RESET_GRACE_PERIOD_HOURS = 24;
 const GRID_SIZE = 3;
 const DOT_SIZE = 20;
 const GRID_SPACING = (width * 0.8) / GRID_SIZE;
@@ -18,10 +20,11 @@ const GRID_SPACING = (width * 0.8) / GRID_SIZE;
 export default function LockScreen() {
   const { t } = useTranslation();
   const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
+  const navigation = useNavigation();
   const {
     lockMethod, verifyPin, verifyPattern,
     authenticateWithBiometrics, biometricAvailable, biometricEnabled,
-    unlock, isLoading
+    unlock, isLoading, disableLock
   } = useAppLock();
 
   const [pin, setPin] = useState('');
@@ -29,6 +32,8 @@ export default function LockScreen() {
   const [attempts, setAttempts] = useState(0);
   const [lockoutTimer, setLockoutTimer] = useState(0);
   const [currentMethod, setCurrentMethod] = useState(lockMethod);
+  const [resetRequestedAt, setResetRequestedAt] = useState<number | null>(null);
+  const [remainingTime, setRemainingTime] = useState<string>('');
 
   const shakeAnim = useRef(new Animated.Value(0)).current;
 
@@ -41,12 +46,20 @@ export default function LockScreen() {
     const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
 
     loadAttempts();
+    checkPendingReset();
     if (biometricEnabled && biometricAvailable) {
-      authenticateWithBiometrics();
+      handleBiometricAuth();
     }
 
     return () => backHandler.remove();
   }, [biometricEnabled, biometricAvailable]);
+
+  const handleBiometricAuth = async () => {
+    const success = await authenticateWithBiometrics();
+    if (success) {
+      await resetAttempts();
+    }
+  };
 
   useEffect(() => {
     let interval: any;
@@ -73,6 +86,35 @@ export default function LockScreen() {
     }
   };
 
+  const checkPendingReset = async () => {
+    const savedResetAt = await AsyncStorage.getItem('app_lock_reset_requested_at');
+    if (savedResetAt) {
+      const requestedAt = parseInt(savedResetAt);
+      const elapsedMs = Date.now() - requestedAt;
+      const graceMs = RESET_GRACE_PERIOD_HOURS * 60 * 60 * 1000;
+
+      if (elapsedMs >= graceMs) {
+        await disableLock();
+        await AsyncStorage.removeItem('app_lock_reset_requested_at');
+        unlock();
+        Alert.alert(t('appLock.resetDoneTitle') || 'Lock Reset', t('appLock.resetDoneMsg') || 'Your lock has been reset as requested.');
+      } else {
+        setResetRequestedAt(requestedAt);
+        updateRemainingTime(requestedAt);
+      }
+    }
+  };
+
+  const updateRemainingTime = (requestedAt: number) => {
+    const totalGraceSeconds = RESET_GRACE_PERIOD_HOURS * 3600;
+    const elapsedSeconds = Math.floor((Date.now() - requestedAt) / 1000);
+    const remainingSeconds = Math.max(0, totalGraceSeconds - elapsedSeconds);
+
+    const h = Math.floor(remainingSeconds / 3600);
+    const m = Math.floor((remainingSeconds % 3600) / 60);
+    setRemainingTime(`${h}h ${m}m`);
+  };
+
   const saveAttempts = async (newAttempts: number) => {
     setAttempts(newAttempts);
     await AsyncStorage.setItem('app_lock_attempts', String(newAttempts));
@@ -86,6 +128,7 @@ export default function LockScreen() {
     setAttempts(0);
     await AsyncStorage.removeItem('app_lock_attempts');
     await AsyncStorage.removeItem('app_lock_lockout_time');
+    await AsyncStorage.removeItem('app_lock_reset_requested_at');
   };
 
   const shake = () => {
@@ -127,6 +170,7 @@ export default function LockScreen() {
   const [activeDots, setActiveDots] = useState<number[]>([]);
 
   const onGesture = Gesture.Pan()
+    .runOnJS(true)
     .onUpdate((event) => {
       if (lockoutTimer > 0) return;
       const { x, y } = event;
@@ -237,6 +281,14 @@ export default function LockScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: isDark ? '#121212' : '#FFF' }]}>
+      {resetRequestedAt && (
+        <View style={styles.resetBanner}>
+          <Text style={styles.resetBannerText}>
+            {t('appLock.resetPending', { time: remainingTime }) || `Reset in ${remainingTime}. Enter code to cancel.`}
+          </Text>
+        </View>
+      )}
+
       <View style={styles.header}>
         <Ionicons name="lock-closed" size={60} color="#1D9E75" />
         <Text style={[styles.title, { color: isDark ? '#EEE' : '#333' }]}>
@@ -253,7 +305,19 @@ export default function LockScreen() {
         ) : (
           <View style={styles.center}>
             {currentMethod === 'pin' ? renderPinDots() : renderPatternGrid()}
-            {error && <Text style={styles.errorText}>{error}</Text>}
+            {error && (
+              <View style={{ alignItems: 'center' }}>
+                <Text style={styles.errorText}>{error}</Text>
+                {attempts >= 2 && (
+                  <TouchableOpacity
+                    style={styles.forgotBtn}
+                    onPress={() => (navigation as any).navigate('ForgotLock')}
+                  >
+                    <Text style={styles.forgotBtnText}>{t('appLock.forgotCode') || 'Forgot code?'}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
           </View>
         )}
       </View>
@@ -263,7 +327,7 @@ export default function LockScreen() {
 
         <View style={styles.switchMethods}>
           {biometricAvailable && biometricEnabled && (
-            <TouchableOpacity style={styles.methodBtn} onPress={authenticateWithBiometrics}>
+            <TouchableOpacity style={styles.methodBtn} onPress={handleBiometricAuth}>
               <Ionicons name="finger-print-outline" size={24} color="#1D9E75" />
               <Text style={styles.methodBtnText}>{t('appLock.useBiometric')}</Text>
             </TouchableOpacity>
@@ -374,6 +438,27 @@ const styles = StyleSheet.create({
   timerText: {
     fontSize: 16,
     color: '#666',
+  },
+  forgotBtn: {
+    marginTop: 15,
+    padding: 5,
+  },
+  forgotBtnText: {
+    color: '#1D9E75',
+    fontSize: 16,
+    fontWeight: '500',
+    textDecorationLine: 'underline',
+  },
+  resetBanner: {
+    backgroundColor: '#FFF3E0',
+    padding: 12,
+    alignItems: 'center',
+  },
+  resetBannerText: {
+    color: '#E65100',
+    fontSize: 13,
+    fontWeight: '500',
+    textAlign: 'center',
   },
   patternContainer: {
     width: width * 0.8,

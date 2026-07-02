@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  Animated, Dimensions, Alert, ScrollView, Switch
+  Animated, Dimensions, Alert, ScrollView, Switch, Modal
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppLock } from '../context/AppLockContext';
 import { useAppContext } from '../context/AppContext';
@@ -34,6 +35,7 @@ export default function AppLockSetupScreen() {
   const shakeAnim = useRef(new Animated.Value(0)).current;
 
   const [isDisabling, setIsDisabling] = useState(false);
+  const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
 
   const shake = () => {
     Animated.sequence([
@@ -103,7 +105,8 @@ export default function AppLockSetupScreen() {
   const handleConfirm = async () => {
     if (method === 'pin') {
       if (inputPin === tempCode) {
-        await setupPin(inputPin);
+        const code = await setupPin(inputPin);
+        if (code) setRecoveryCode(code);
         if (biometricAvailable) {
             setStep('biometric');
         } else {
@@ -116,7 +119,8 @@ export default function AppLockSetupScreen() {
       }
     } else {
       if (JSON.stringify(activeDots) === JSON.stringify(tempPattern)) {
-        await setupPattern(activeDots);
+        const code = await setupPattern(activeDots);
+        if (code) setRecoveryCode(code);
         if (biometricAvailable) {
             setStep('biometric');
         } else {
@@ -131,8 +135,17 @@ export default function AppLockSetupScreen() {
   };
 
   const finishSetup = () => {
-    Alert.alert(t('common.saved'), '');
-    navigation.goBack();
+    if (!recoveryCode) {
+        Alert.alert(t('common.saved'), '');
+        navigation.goBack();
+    }
+  };
+
+  const copyRecoveryCode = async () => {
+    if (recoveryCode) {
+      await Clipboard.setStringAsync(recoveryCode);
+      Alert.alert(t('profile.referralCopied'), '');
+    }
   };
 
   const startDisable = () => {
@@ -150,6 +163,7 @@ export default function AppLockSetupScreen() {
   };
 
   const onGesture = Gesture.Pan()
+    .runOnJS(true)
     .onUpdate((event) => {
       const { x, y } = event;
       const col = Math.floor(x / GRID_SPACING);
@@ -193,6 +207,39 @@ export default function AppLockSetupScreen() {
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: isDark ? '#121212' : '#F5F5F5' }]}>
+      <Modal
+        visible={!!recoveryCode}
+        transparent={true}
+        animationType="fade"
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: isDark ? '#1E1E1E' : '#FFF' }]}>
+            <Ionicons name="shield-checkmark-outline" size={64} color="#1D9E75" />
+            <Text style={[styles.modalTitle, { color: isDark ? '#EEE' : '#333' }]}>
+              {t('appLock.recoveryTitle') || 'Save recovery code'}
+            </Text>
+            <Text style={[styles.modalDesc, { color: isDark ? '#AAA' : '#666' }]}>
+              {t('appLock.recoveryDesc') || "Save this recovery code — it's the only way to reset your lock if you forget your PIN/pattern. We can't show it again."}
+            </Text>
+            <View style={[styles.codeContainer, { backgroundColor: isDark ? '#333' : '#F5F5F5' }]}>
+              <Text style={[styles.codeText, { color: isDark ? '#FFF' : '#333' }]}>{recoveryCode}</Text>
+              <TouchableOpacity onPress={copyRecoveryCode}>
+                <Ionicons name="copy-outline" size={24} color="#1D9E75" />
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              style={styles.modalBtn}
+              onPress={() => {
+                setRecoveryCode(null);
+                navigation.goBack();
+              }}
+            >
+              <Text style={styles.modalBtnText}>{t('common.continue')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <View style={styles.header}>
         <Text style={[styles.title, { color: isDark ? '#EEE' : '#333' }]}>
           {step === 'choose' && t('appLock.title')}
@@ -355,5 +402,24 @@ const styles = StyleSheet.create({
       flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
       padding: 20, borderRadius: 15, width: '100%', marginBottom: 30
   },
-  bioLabel: { fontSize: 16, fontWeight: '500' }
+  bioLabel: { fontSize: 16, fontWeight: '500' },
+  modalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center', alignItems: 'center', padding: 20
+  },
+  modalContent: {
+    width: '100%', padding: 30, borderRadius: 20, alignItems: 'center'
+  },
+  modalTitle: { fontSize: 20, fontWeight: 'bold', marginTop: 20, textAlign: 'center' },
+  modalDesc: { textAlign: 'center', marginVertical: 15, fontSize: 14, lineHeight: 20 },
+  codeContainer: {
+    flexDirection: 'row', alignItems: 'center', padding: 15,
+    borderRadius: 10, gap: 15, marginBottom: 25, width: '100%', justifyContent: 'center'
+  },
+  codeText: { fontSize: 24, fontWeight: 'bold', letterSpacing: 2 },
+  modalBtn: {
+    backgroundColor: '#1D9E75', padding: 15, borderRadius: 10,
+    width: '100%', alignItems: 'center'
+  },
+  modalBtnText: { color: '#FFF', fontSize: 16, fontWeight: '600' }
 });
