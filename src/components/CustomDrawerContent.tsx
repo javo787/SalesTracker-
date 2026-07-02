@@ -19,6 +19,7 @@ import { useAuth } from '../context/AuthContext';
 import { useAppContext } from '../context/AppContext';
 import { useShop } from '../context/ShopContext';
 import AdFreeButton from './ads/AdFreeButton';
+import SyncDot from './SyncDot';
 
 function Divider() {
   const { resolvedTheme } = useAppContext();
@@ -51,13 +52,18 @@ export default function CustomDrawerContent(props: DrawerContentComponentProps) 
             onPress={() => props.navigation.navigate('Profile')}
             style={styles.profileClickable}
           >
-            {user?.avatarUrl ? (
-              <Image source={{ uri: user.avatarUrl }} style={styles.avatar} />
-            ) : (
-              <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                <Ionicons name="person" size={30} color="#fff" />
+            <View style={styles.avatarWrapper}>
+              {user?.avatarUrl ? (
+                <Image source={{ uri: user.avatarUrl }} style={styles.avatar} />
+              ) : (
+                <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                  <Ionicons name="person" size={30} color="#fff" />
+                </View>
+              )}
+              <View style={styles.syncDotBadge}>
+                <SyncDot size={14} borderColor={isDark ? '#1E1E1E' : '#F8F9FA'} />
               </View>
-            )}
+            </View>
             <View style={styles.userInfo}>
               <Text style={[styles.userName, themeStyles.text]} numberOfLines={1}>
                 {sellerName || user?.name || t('auth.guestBtn')}
@@ -141,6 +147,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
+  avatarWrapper: {
+    width: 60,
+    height: 60,
+    position: 'relative',
+  },
   avatar: {
     width: 60,
     height: 60,
@@ -150,6 +161,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#1D9E75',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  syncDotBadge: {
+    position: 'absolute',
+    bottom: -1,
+    right: -1,
   },
   userInfo: {
     flex: 1,
