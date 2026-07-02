@@ -7,7 +7,27 @@ import * as SQLite from 'expo-sqlite';
 const db = SQLite.openDatabaseSync('savdo.db');
 let isSyncing = false;
 
+// --- Лёгкий pub-sub статуса синхронизации (только для UI-индикатора,
+// на логику push/pull не влияет) ---
+type SyncStatusListener = (isSyncing: boolean) => void;
+const statusListeners = new Set<SyncStatusListener>();
+
+function setSyncingStatus(value: boolean) {
+  isSyncing = value;
+  statusListeners.forEach(listener => listener(value));
+}
+
 export const SyncService = {
+  subscribe(listener: SyncStatusListener): () => void {
+    statusListeners.add(listener);
+    listener(isSyncing);
+    return () => statusListeners.delete(listener);
+  },
+
+  getIsSyncing(): boolean {
+    return isSyncing;
+  },
+
   async push(): Promise<void> {
     if (isSyncing) return;
     const session = getShopSession();
@@ -16,7 +36,7 @@ export const SyncService = {
     const syncEnabled = await AsyncStorage.getItem('sync_enabled');
     if (syncEnabled === 'false') return;
 
-    isSyncing = true;
+    setSyncingStatus(true);
     try {
       const isOwner = session.role === 'owner';
       const payload: any = {
@@ -32,7 +52,7 @@ export const SyncService = {
     } catch (error) {
       console.warn('Sync push failed:', error);
     } finally {
-      isSyncing = false;
+      setSyncingStatus(false);
     }
   },
 
@@ -44,7 +64,7 @@ export const SyncService = {
     const syncEnabled = await AsyncStorage.getItem('sync_enabled');
     if (syncEnabled === 'false') return;
 
-    isSyncing = true;
+    setSyncingStatus(true);
     try {
       const isOwner = session.role === 'owner';
       const data = await api.get<{
@@ -118,7 +138,7 @@ export const SyncService = {
     } catch (error) {
       console.warn('Sync pull failed:', error);
     } finally {
-      isSyncing = false;
+      setSyncingStatus(false);
     }
   },
 

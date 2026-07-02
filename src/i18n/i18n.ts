@@ -3118,7 +3118,7 @@ const resources = {
         useBiometric: 'Биометриядан фойдаланиш',
         usePin: 'ПИН орқали кириш',
         usePattern: 'Калит орқали кириш',
-        biometricPrompt: 'Saleze-ga кириш',
+        biometricPrompt: 'Saleze-га кириш',
         biometricSuccess: 'Муваффақиятли',
         biometricError: 'Биометрия хатоси',
         securitySettings: 'Хавфсизлик',
