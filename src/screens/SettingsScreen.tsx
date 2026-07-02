@@ -22,9 +22,9 @@ import { reviewService } from '../services/reviewService';
 import { convertAllAmounts, clearAllData, getProducts, getSalesByPeriod, getExpenses, importBackupData } from '../db/database';
 
 const LANGUAGES = [
-  { code: 'ru', label: 'Русский', flag: '🇷🇺' },
-  { code: 'tg', label: 'Тоҷикӣ', flag: '🇹🇯' },
-  { code: 'uz', label: "O'zbek", flag: '🇺🇿' },
+  { code: 'ru', label: 'Русский' },
+  { code: 'tg', label: 'Тоҷикӣ' },
+  { code: 'uz', label: "O'zbek" },
 ];
 
 
@@ -287,7 +287,7 @@ export default function SettingsScreen(props: any) {
         expenses: getExpenses(3650),
       };
       const json = JSON.stringify(data, null, 2);
-      const fileName = `savdo_backup_${Date.now()}.json`;
+      const fileName = `saleze_backup_${Date.now()}.json`;
       const filePath = `${FileSystem.cacheDirectory}${fileName}`;
       await FileSystem.writeAsStringAsync(filePath, json, { encoding: FileSystem.EncodingType.UTF8 });
       if (await Sharing.isAvailableAsync()) {
@@ -439,7 +439,7 @@ export default function SettingsScreen(props: any) {
             key={lang.code}
             icon="language-outline"
             iconColor="#5856D6"
-            label={`${lang.flag}  ${lang.label}`}
+            label={lang.label}
             isDark={isDark}
             isLast={i === LANGUAGES.length - 1}
             onPress={() => setLanguage(lang.code)}

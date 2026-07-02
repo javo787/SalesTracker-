@@ -179,7 +179,7 @@ export default function ProfileScreen() {
     if (await Sharing.isAvailableAsync()) {
       setIsSystemDialogOpen(true);
       await Sharing.shareAsync(`https://savdo.app/join?code=${user?.referralCode}`, {
-        dialogTitle: 'Присоединяйся к SavdoApp',
+        dialogTitle: 'Присоединяйся к Saleze',
       });
       setTimeout(() => setIsSystemDialogOpen(false), 1000);
     }
