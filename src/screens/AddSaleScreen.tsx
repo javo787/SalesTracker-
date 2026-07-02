@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import {
-  View, Text, TextInput, TouchableOpacity,
+  View, Text, TextInput, TouchableOpacity, Share,
   StyleSheet, ScrollView, Alert, ActivityIndicator, Animated, Modal, TouchableWithoutFeedback, Easing
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -42,7 +42,7 @@ export default function AddSaleScreen(/* props */) {
   const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const { resolvedTheme, currency, language, sellerMode: contextSellerMode } = useAppContext(); const isDark = resolvedTheme === "dark";
-  const { isOwner, isSeller, sellerName, role } = useShop();
+  const { isOwner, isSeller, sellerName, role, shopName } = useShop();
   const { user } = useAuth();
   const userId = user?._id || 'guest';
 
@@ -164,6 +164,40 @@ export default function AddSaleScreen(/* props */) {
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setTimeout(() => productInputRef.current?.focus(), 100);
+  };
+
+  const handleShareReceipt = async () => {
+    if (cartItems.length === 0) return;
+
+    const now = new Date();
+    const date = now.toLocaleDateString('ru-RU', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+    });
+    const time = now.toLocaleTimeString('ru-RU', {
+      hour: '2-digit', minute: '2-digit',
+    });
+
+    const divider = '─────────────────────';
+
+    const itemLines = cartItems.map((item: CartItem) => {
+      const lineTotal = (item.sellPrice * item.quantity).toLocaleString();
+      return `${item.productName}\n  ${item.unitLabel}  ×  ${item.sellPrice.toLocaleString()} = ${lineTotal} ${currency.symbol}`;
+    }).join('\n\n');
+
+    const parts: string[] = [];
+    if (shopName) parts.push(shopName.toUpperCase());
+    parts.push(`${date}  ${time}`);
+    parts.push('');
+    parts.push(divider);
+    parts.push(itemLines);
+    parts.push(divider);
+    parts.push(`${t('addSale.receiptTotal')}: ${cartTotal.toLocaleString()} ${currency.symbol}`);
+    parts.push('');
+    parts.push(t('addSale.thankYou'));
+
+    try {
+      await Share.share({ message: parts.join('\n') });
+    } catch (_) {}
   };
 
   const triggerSaveAnimation = () => {
@@ -544,6 +578,19 @@ export default function AddSaleScreen(/* props */) {
             {/* Cart List */}
             {cartItems.length > 0 && (
               <View style={[styles.cartContainer, themeStyles.card]}>
+                <View style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: 10,
+                }}>
+                  <Text style={{ fontSize: 13, color: '#888' }}>
+                    {cartItems.length} {t('addSale.positionsLabel')}
+                  </Text>
+                  <Text style={[{ fontSize: 16, fontWeight: '700' }, themeStyles.text]}>
+                    {cartTotal.toLocaleString()} {currency.symbol}
+                  </Text>
+                </View>
                 {cartItems.map((item: CartItem, index: number) => (
                   <TouchableOpacity
                     key={item.id}
@@ -573,6 +620,36 @@ export default function AddSaleScreen(/* props */) {
                     </View>
                   </TouchableOpacity>
                 ))}
+
+                <View style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginTop: 10,
+                  paddingTop: 10,
+                  borderTopWidth: StyleSheet.hairlineWidth,
+                  borderTopColor: isDark ? '#333' : '#eee',
+                }}>
+                  <TouchableOpacity
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}
+                    onPress={handleShareReceipt}
+                  >
+                    <Ionicons name="share-outline" size={16} color={Colors.primary} />
+                    <Text style={{ color: Colors.primary, fontSize: 14 }}>
+                      {t('addSale.shareReceipt')}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}
+                    onPress={handleSave}
+                  >
+                    <Text style={{ color: Colors.primary, fontSize: 14, fontWeight: '700' }}>
+                      {t('addSale.checkoutAction')}
+                    </Text>
+                    <Ionicons name="arrow-forward-outline" size={16} color={Colors.primary} />
+                  </TouchableOpacity>
+                </View>
               </View>
             )}
 

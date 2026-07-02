@@ -53,7 +53,9 @@ export function useAutocomplete<T>(
   }, [fetchFn, fetchTop, delay]);
 
   const onFocus = useCallback((currentValue: string) => {
-    search(currentValue);
+    if (currentValue.trim()) {
+      search(currentValue);
+    }
   }, [search]);
 
   // KEY LOGIC: 150ms delay lets onPress fire before dropdown disappears
