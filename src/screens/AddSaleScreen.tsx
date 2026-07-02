@@ -23,6 +23,7 @@ import ExpensesView from '../components/expenses/ExpensesView';
 import { ProductAutocomplete } from '../components/sales/ProductAutocomplete';
 import { AutocompleteResult } from '../types/product';
 import { Colors, LightTheme, DarkTheme, Radius, Shadow, FontSize, Spacing } from '../constants/theme';
+import { ColorCircle, getColorHex } from '../constants/colors';
 
 const CACHE_TTL = 60 * 60 * 1000; // 1 час в мс
 
@@ -685,6 +686,24 @@ export default function AddSaleScreen(/* props */) {
             setTimeout(() => quantityInputRef.current?.focus(), 100);
           }}
         />
+
+        {selectedProduct !== null && selectedProduct.color && selectedProduct.color !== '' && (
+          <View style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 6,
+            marginTop: 4,
+            marginLeft: 2,
+          }}>
+            <ColorCircle
+              size={14}
+              hex={getColorHex(selectedProduct.color) ?? '#BDBDBD'}
+            />
+            <Text style={{ fontSize: 12, color: '#888' }}>
+              {selectedProduct.color}
+            </Text>
+          </View>
+        )}
 
         <View style={styles.row}>
           <View style={styles.halfField}>

@@ -148,7 +148,12 @@ export const ProductAutocomplete = React.forwardRef<any, Props>(({
                            </Text>
                          </View>
                       </View>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 8 }}>
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
+                        contentContainerStyle={{ paddingHorizontal: 12, gap: 8 }}
+                      >
                         {g.variants.map((v) => (
                           <TouchableOpacity
                             key={v.id}
