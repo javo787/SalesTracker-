@@ -3,7 +3,9 @@ import {
   View, Text, ScrollView, StyleSheet,
   TouchableOpacity, Alert, Linking, Switch, TextInput, ActivityIndicator
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { ALL_CURRENCIES, CurrencyDef } from '../constants/currencies';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -25,12 +27,6 @@ const LANGUAGES = [
   { code: 'uz', label: "O'zbek", flag: '🇺🇿' },
 ];
 
-const CURRENCIES = [
-  { code: 'TJS', label: 'Сомони', symbol: 'TJS', country: '🇹🇯 Таджикистан' },
-  { code: 'UZS', label: 'Сум', symbol: 'сум', country: '🇺🇿 Узбекистан' },
-  { code: 'KZT', label: 'Тенге', symbol: '₸', country: '🇰🇿 Казахстан' },
-  { code: 'KGS', label: 'Сом', symbol: 'с', country: '🇰🇬 Кыргызстан' },
-];
 
 const PRIVACY_POLICY_URL = 'https://savdo-tan.vercel.app/privacy';
 const SUPPORT_URL = 'https://savdo-tan.vercel.app/support';
@@ -125,8 +121,13 @@ export default function SettingsScreen(props: any) {
     theme, currency, language, setTheme, setCurrency, setLanguage,
     notificationsEnabled, setNotificationsEnabled,
     defaultMinStockAlert, setDefaultMinStockAlert,
-    sellerMode, setSellerMode, resolvedTheme
+    sellerMode, setSellerMode, resolvedTheme,
+    showGreeting, setShowGreeting, showDailyTip, setShowDailyTip
   } = useAppContext();
+
+  const insets = useSafeAreaInsets();
+  const [currencyExpanded, setCurrencyExpanded] = useState(false);
+  const [currencySearch, setCurrencySearch] = useState('');
   const { isLockEnabled, setIsSystemDialogOpen } = useAppLock();
 
   const [conversionHistory, setConversionHistory] = useState<any[]>([]);
@@ -366,7 +367,7 @@ export default function SettingsScreen(props: any) {
       style={[newStyles.container, { backgroundColor: isDark ? '#000' : '#F2F2F7' }]}
       showsVerticalScrollIndicator={false}
     >
-      <View style={{ height: 16 }} />
+      <View style={{ height: Math.max(insets.top, 16) + 8 }} />
 
       {/* ── ПРОФИЛЬ / РЕЖИМ ── */}
       <SectionLabel label={t('common.sellerMode')} isDark={isDark} />
@@ -454,25 +455,113 @@ export default function SettingsScreen(props: any) {
       {/* ── ВАЛЮТА ── */}
       <SectionLabel label={t('settings.currency')} isDark={isDark} />
       <SettingGroup isDark={isDark}>
-        {CURRENCIES.map((curr, i) => (
-          <SettingRow
-            key={curr.code}
-            icon="cash-outline"
-            iconColor="#34C759"
-            label={curr.country}
-            sublabel={`${curr.label} · ${curr.symbol}`}
-            isDark={isDark}
-            isLast={i === CURRENCIES.length - 1}
-            onPress={isOwner ? () => handleCurrencyChange(curr) : undefined}
-            right={
-              currency.code === curr.code ? (
-                <Ionicons name="checkmark" size={18} color="#1D9E75" style={{ marginRight: 4 }} />
-              ) : (loadingRate && isOwner) ? (
-                <ActivityIndicator size="small" color="#1D9E75" />
-              ) : null
-            }
-          />
-        ))}
+
+        {/* Строка-аккордеон — всегда видна */}
+        <SettingRow
+          icon="cash-outline"
+          iconColor="#34C759"
+          label={t('settings.currency')}
+          sublabel={`${currency.code} · ${currency.symbol} · ${currency.label}`}
+          isDark={isDark}
+          isLast={!currencyExpanded}
+          onPress={isOwner ? () => {
+            setCurrencyExpanded(prev => !prev);
+            setCurrencySearch('');
+          } : undefined}
+          right={
+            isOwner ? (
+              <Ionicons
+                name={currencyExpanded ? 'chevron-up' : 'chevron-down'}
+                size={16}
+                color={isDark ? '#555' : '#CCC'}
+              />
+            ) : null
+          }
+        />
+
+        {currencyExpanded && (
+          <View>
+            {/* Поиск */}
+            <View style={{
+              paddingHorizontal: 16,
+              paddingVertical: 8,
+              borderTopWidth: StyleSheet.hairlineWidth,
+              borderTopColor: isDark ? '#2A2A2A' : '#F0F0F0',
+            }}>
+              <View style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: isDark ? '#2C2C2C' : '#F0F0F0',
+                borderRadius: 10,
+                paddingHorizontal: 10,
+                gap: 6,
+              }}>
+                <Ionicons name="search-outline" size={15} color="#999" />
+                <TextInput
+                  value={currencySearch}
+                  onChangeText={setCurrencySearch}
+                  placeholder={t('common.search') || 'Поиск...'}
+                  placeholderTextColor="#999"
+                  style={{
+                    flex: 1,
+                    fontSize: 14,
+                    paddingVertical: 8,
+                    color: isDark ? '#EEE' : '#111',
+                  }}
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                  clearButtonMode="while-editing"
+                />
+              </View>
+            </View>
+
+            {/* Список валют */}
+            <ScrollView
+              style={{ maxHeight: 320 }}
+              nestedScrollEnabled
+              keyboardShouldPersistTaps="handled"
+            >
+              {(() => {
+                const query = currencySearch.toLowerCase().trim();
+                const priorityCurrencies = ALL_CURRENCIES.filter(c => c.priority);
+                const otherCurrencies = ALL_CURRENCIES.filter(c => !c.priority);
+
+                const filterFn = (c: CurrencyDef) =>
+                  !query ||
+                  c.code.toLowerCase().includes(query) ||
+                  c.label.toLowerCase().includes(query) ||
+                  c.country.toLowerCase().includes(query);
+
+                const filteredPriority = priorityCurrencies.filter(filterFn);
+                const filteredOther = otherCurrencies.filter(filterFn);
+                const allFiltered = [...filteredPriority, ...filteredOther];
+
+                return allFiltered.map((curr, i) => (
+                  <SettingRow
+                    key={curr.code}
+                    icon="ellipse"
+                    iconColor={currency.code === curr.code ? '#1D9E75' : '#ccc'}
+                    label={curr.country}
+                    sublabel={`${curr.label} · ${curr.symbol}`}
+                    isDark={isDark}
+                    isLast={i === allFiltered.length - 1}
+                    onPress={() => {
+                      handleCurrencyChange(curr);
+                      setCurrencyExpanded(false);
+                      setCurrencySearch('');
+                    }}
+                    right={
+                      currency.code === curr.code ? (
+                        <Ionicons name="checkmark" size={18} color="#1D9E75"
+                          style={{ marginRight: 4 }} />
+                      ) : loadingRate ? null : null
+                    }
+                  />
+                ));
+              })()}
+            </ScrollView>
+          </View>
+        )}
       </SettingGroup>
 
       {/* История конвертаций — компактно под валютой */}
@@ -615,6 +704,42 @@ export default function SettingsScreen(props: any) {
           </SettingGroup>
         </>
       )}
+
+      {/* ── ПЕРЕКЛЮЧАТЕЛИ ГЛАВНОГО ЭКРАНА ── */}
+      <SectionLabel label={t('settings.homeScreenSection')} isDark={isDark} />
+      <SettingGroup isDark={isDark}>
+        <SettingRow
+          icon="hand-left-outline"
+          iconColor="#5856D6"
+          label={t('settings.showGreeting')}
+          sublabel={t('settings.showGreetingSub')}
+          isDark={isDark}
+          right={
+            <Switch
+              value={showGreeting}
+              onValueChange={setShowGreeting}
+              trackColor={{ false: '#767577', true: '#1D9E75' }}
+              thumbColor="#fff"
+            />
+          }
+        />
+        <SettingRow
+          icon="bulb-outline"
+          iconColor="#FF9500"
+          label={t('settings.showDailyTip')}
+          sublabel={t('settings.showDailyTipSub')}
+          isDark={isDark}
+          isLast
+          right={
+            <Switch
+              value={showDailyTip}
+              onValueChange={setShowDailyTip}
+              trackColor={{ false: '#767577', true: '#1D9E75' }}
+              thumbColor="#fff"
+            />
+          }
+        />
+      </SettingGroup>
 
       {/* ── О ПРИЛОЖЕНИИ ── */}
       <SectionLabel label={t('settings.about')} isDark={isDark} />

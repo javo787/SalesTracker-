@@ -145,7 +145,7 @@ export default function HomeScreen() {
   const chipGap = Math.max(4, Math.round(8 * chipScale));
   const chipIconSize = Math.max(14, Math.round(18 * chipScale));
 
-  const { resolvedTheme, currency, sellerMode: contextSellerMode } = useAppContext(); const isDark = resolvedTheme === "dark";
+  const { resolvedTheme, currency, sellerMode: contextSellerMode, showGreeting, showDailyTip } = useAppContext(); const isDark = resolvedTheme === "dark";
   const { user } = useAuth();
   const { isOwner, isSeller, sellerName, shopId } = useShop();
   const navigation = useNavigation<any>();
@@ -260,7 +260,9 @@ export default function HomeScreen() {
       >
         <View style={styles.headerTopRow}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle}>{getGreeting()}</Text>
+            {showGreeting && (
+              <Text style={styles.headerTitle}>{getGreeting()}</Text>
+            )}
             <Text style={styles.headerDate}>
               {new Date().toLocaleDateString(i18n.language === 'tg' ? 'tg-TJ' : i18n.language === 'uz' ? 'uz-UZ' : 'ru-RU', {
                 day: 'numeric', month: 'long', year: 'numeric'
@@ -320,7 +322,7 @@ export default function HomeScreen() {
   )}
 
       {/* Карточки статистики */}
-      {dailyTip ? (
+      {showDailyTip && dailyTip ? (
         <View style={[styles.tipCard, themeStyles.card]}>
           <View style={styles.tipHeader}>
             <Text style={styles.tipEmoji}>💡</Text>
