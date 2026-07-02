@@ -169,9 +169,10 @@ export default function ProductsScreen() {
     const singles: any[] = [];
 
     filteredProducts.forEach(p => {
-      if (p.article) {
-        if (!groups.has(p.article)) groups.set(p.article, []);
-        groups.get(p.article)!.push(p);
+      const groupKey = p.article?.trim() || p.name?.trim();
+      if (groupKey) {
+        if (!groups.has(groupKey)) groups.set(groupKey, []);
+        groups.get(groupKey)!.push(p);
       } else {
         singles.push(p);
       }
@@ -510,46 +511,48 @@ export default function ProductsScreen() {
           <Text style={[styles.formTitle, themeStyles.text]}>{editingId ? t('products.editProduct') : t('products.newProduct')}</Text>
 
           <Text style={[styles.label, themeStyles.text]}>{t('addSale.productName')} *</Text>
-          <ProductAutocomplete
-            inputStyle={[styles.input, themeStyles.input]}
-            placeholder={t('addSale.productPlaceholder')}
-            placeholderTextColor={isDark ? '#888' : '#aaa'}
-            value={name}
-            onChange={setName}
-            onSelect={(p) => {
-              setName(p.name);
-              if (p.source === 'catalog' && p.id) {
-                // If it's already in catalog, we might want to switch to editing it
-                const existing = products.find(prod => String(prod.id) === String(p.id));
-                if (existing) {
-                  setEditingId(existing.id);
-                  setBuyPrice(String(existing.buy_price));
-                  setSellPrice(String(existing.sell_price));
-                  setStock(String(existing.stock));
-                  setMinStockAlert(String(existing.min_stock_alert || 0));
-                  setBaseUnit(existing.base_unit || 'шт');
-                  setHasPackages(existing.has_packages === 1);
-                  setIsContinuous(existing.is_continuous === 1);
-                  setPackageName(existing.package_name || '');
-                  setUnitsPerPackage(String(existing.units_per_package || 1));
-                  setCategory(existing.category || '');
-                  setArticle(existing.article || '');
-                  setColor(existing.color || '');
-                  setShowColorPicker(!!(existing.color));
-                  setShowAdvanced(
-                    existing.has_packages === 1 ||
-                    existing.base_unit !== 'шт' ||
-                    existing.is_continuous === 1 ||
-                    !!existing.article ||
-                    !!existing.color
-                  );
+          <View style={{ zIndex: 3000, overflow: 'visible' }}>
+            <ProductAutocomplete
+              inputStyle={[styles.input, themeStyles.input]}
+              placeholder={t('addSale.productPlaceholder')}
+              placeholderTextColor={isDark ? '#888' : '#aaa'}
+              value={name}
+              onChange={setName}
+              onSelect={(p) => {
+                setName(p.name);
+                if (p.source === 'catalog' && p.id) {
+                  // If it's already in catalog, we might want to switch to editing it
+                  const existing = products.find(prod => String(prod.id) === String(p.id));
+                  if (existing) {
+                    setEditingId(existing.id);
+                    setBuyPrice(String(existing.buy_price));
+                    setSellPrice(String(existing.sell_price));
+                    setStock(String(existing.stock));
+                    setMinStockAlert(String(existing.min_stock_alert || 0));
+                    setBaseUnit(existing.base_unit || 'шт');
+                    setHasPackages(existing.has_packages === 1);
+                    setIsContinuous(existing.is_continuous === 1);
+                    setPackageName(existing.package_name || '');
+                    setUnitsPerPackage(String(existing.units_per_package || 1));
+                    setCategory(existing.category || '');
+                    setArticle(existing.article || '');
+                    setColor(existing.color || '');
+                    setShowColorPicker(!!(existing.color));
+                    setShowAdvanced(
+                      existing.has_packages === 1 ||
+                      existing.base_unit !== 'шт' ||
+                      existing.is_continuous === 1 ||
+                      !!existing.article ||
+                      !!existing.color
+                    );
+                  }
+                } else if (p.source === 'history') {
+                  setBuyPrice(String(p.purchasePrice || ''));
+                  setSellPrice(String(p.lastSalePrice || ''));
                 }
-              } else if (p.source === 'history') {
-                setBuyPrice(String(p.purchasePrice || ''));
-                setSellPrice(String(p.lastSalePrice || ''));
-              }
-            }}
-          />
+              }}
+            />
+          </View>
 
           <View style={styles.row}>
             <View style={styles.half}>
@@ -936,12 +939,25 @@ export default function ProductsScreen() {
                     ]}>
                       {p.stock} {p.base_unit || t('reports.pcs')}
                     </Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                       {isOwner && (
                         <Text style={styles.productProfit}>
                           +{(p.sell_price - p.buy_price).toFixed(0)} {currency.symbol}
                         </Text>
                       )}
+                      <TouchableOpacity
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          openAddVariantForm({
+                            article: p.article?.trim() || p.name?.trim() || '',
+                            displayName: p.name,
+                            variants: [p],
+                          });
+                        }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Ionicons name="add-circle-outline" size={18} color={Colors.primary} />
+                      </TouchableOpacity>
                       <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={14} color="#aaa" />
                     </View>
                   </View>
@@ -1057,9 +1073,17 @@ export default function ProductsScreen() {
               <View key={`group-${data.article}`} style={[styles.productItem, themeStyles.card, { paddingBottom: 8 }]}>
                 <View style={[styles.productMain, { paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: isDark ? '#333' : '#eee' }]}>
                   <Text style={[styles.productName, themeStyles.text, { fontWeight: 'bold' }]}>{data.displayName}</Text>
-                  <Text style={{ fontSize: 12, color: '#999' }}>
-                    {t('products.variantsCount', { count: data.variants.length })}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <Text style={{ fontSize: 12, color: '#999' }}>
+                      {t('products.variantsCount', { count: data.variants.length })}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => openAddVariantForm(data)}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Ionicons name="add-circle-outline" size={22} color={Colors.primary} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
 
                 {data.variants.map((v: any) => {
@@ -1210,12 +1234,6 @@ export default function ProductsScreen() {
                   );
                 })}
 
-                <TouchableOpacity
-                  style={{ padding: 12, alignItems: 'center' }}
-                  onPress={() => openAddVariantForm(data)}
-                >
-                  <Text style={{ color: '#1D9E75', fontWeight: '600' }}>+ {t('products.addVariant')}</Text>
-                </TouchableOpacity>
               </View>
             );
           }
