@@ -29,7 +29,19 @@ const LANGUAGES = [
   { code: 'en',      label: 'English'   },
   { code: 'pt',      label: 'Português' },
   { code: 'it',      label: 'Italiano'  },
+  { code: 'es',      label: 'Español'   },
 ];
+
+const LOCALE_MAP: Record<string, string> = {
+  ru: 'ru-RU',
+  tg: 'tg-TJ',
+  uz: 'uz-UZ',
+  'uz-Cyrl': 'uz-UZ',
+  en: 'en-US',
+  pt: 'pt-BR',
+  it: 'it-IT',
+  es: 'es-419',
+};
 
 
 const PRIVACY_POLICY_URL = 'https://savdo-tan.vercel.app/privacy';
@@ -241,7 +253,7 @@ export default function SettingsScreen(props: any) {
                   from: currency.code,
                   to: newCurr.code,
                   rate: rate.toFixed(4),
-                  date: new Date().toLocaleDateString(i18n.language === 'tg' ? 'tg-TJ' : i18n.language === 'uz' ? 'uz-UZ' : 'ru-RU')
+                  date: new Date().toLocaleDateString(LOCALE_MAP[i18n.language] || 'ru-RU')
                 })
               );
             }
@@ -575,9 +587,7 @@ export default function SettingsScreen(props: any) {
             <Text key={index} style={{ fontSize: 11, color: isDark ? '#555' : '#BBB', marginBottom: 2 }}>
               {t('settings.currencyHistoryItem', {
                 from: item.from, to: item.to, rate: item.rate,
-                date: new Date(item.date).toLocaleDateString(
-                  i18n.language === 'tg' ? 'tg-TJ' : i18n.language === 'uz' ? 'uz-UZ' : 'ru-RU'
-                )
+                date: new Date(item.date).toLocaleDateString(LOCALE_MAP[i18n.language] || 'ru-RU')
               })}
             </Text>
           ))}
@@ -780,6 +790,7 @@ export default function SettingsScreen(props: any) {
             const lang = i18n.language === 'tg' ? 'tg'
               : i18n.language === 'uz' ? 'uz'
               : i18n.language === 'ru' ? 'ru'
+              : i18n.language === 'es' ? 'es'
               : 'en';
             Linking.openURL(`${SUPPORT_URL}?lang=${lang}`);
           }}
@@ -793,6 +804,7 @@ export default function SettingsScreen(props: any) {
             const lang = i18n.language === 'tg' ? 'tg'
               : i18n.language === 'uz' ? 'uz'
               : i18n.language === 'ru' ? 'ru'
+              : i18n.language === 'es' ? 'es'
               : 'en';
             Linking.openURL(`${PRIVACY_POLICY_URL}?lang=${lang}`);
           }}
