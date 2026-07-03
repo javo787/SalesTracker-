@@ -439,7 +439,7 @@ const ProductDetailScreen = () => {
               {product.created_at && (
                 <View style={{
                   flexDirection: 'row',
-                  alignItems: 'center',
+                  alignItems: 'flex-start',
                   gap: 8,
                   paddingHorizontal: 12,
                   paddingVertical: 10,
@@ -449,16 +449,37 @@ const ProductDetailScreen = () => {
                   <View style={[styles.moveIcon, { backgroundColor: '#88888820' }]}>
                     <Ionicons name="calendar-outline" size={18} color="#888" />
                   </View>
-                  <View>
+                  <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 11, color: '#888' }}>
                       {t('productDetail.systemAdded')}
                     </Text>
-                    <Text style={[{ fontSize: 13, fontWeight: '600' }, { color: themeStyles.text }]}>
+                    <Text style={[
+                      { fontSize: 13, fontWeight: '600' },
+                      isDark ? { color: '#EEE' } : { color: '#111' },
+                    ]}>
                       {new Date(product.created_at.replace(' ', 'T'))
                         .toLocaleDateString('ru-RU', {
-                          day: '2-digit', month: 'long', year: 'numeric'
+                          day: '2-digit', month: 'long', year: 'numeric',
                         })}
                     </Text>
+                    <View style={{ flexDirection: 'row', gap: 12, marginTop: 2 }}>
+                      <Text style={{ fontSize: 12, color: '#888' }}>
+                        {t('productDetail.initialStock')}:{' '}
+                        <Text style={{ color: isDark ? '#CCC' : '#333', fontWeight: '500' }}>
+                          {stockMovements.length === 0
+                            ? `${product.stock} ${product.base_unit || t('reports.pcs')}`
+                            : '—'}
+                        </Text>
+                      </Text>
+                      {product.buy_price > 0 && (
+                        <Text style={{ fontSize: 12, color: '#888' }}>
+                          {t('addSale.buyPrice')}:{' '}
+                          <Text style={{ color: isDark ? '#CCC' : '#333', fontWeight: '500' }}>
+                            {product.buy_price} {currency.symbol}
+                          </Text>
+                        </Text>
+                      )}
+                    </View>
                   </View>
                 </View>
               )}

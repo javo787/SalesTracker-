@@ -232,7 +232,8 @@ const resources = {
         thankYou: 'Спасибо за покупку',
         shareReceipt: 'Поделиться счётом',
         checkoutAction: 'Оформить',
-        debtLink: 'Частично / В долг →',
+        debtLink: 'В долг →',
+        selectColorHint: '↓ выберите цвет',
       },
       onboarding: {
         step1Title: 'Добавьте товары',
@@ -662,6 +663,7 @@ const resources = {
       },
       productDetail: {
         systemAdded: 'Добавлен в систему',
+        initialStock: 'Начало',
       },
     },
   },
@@ -752,6 +754,11 @@ const resources = {
         dark: 'Торик',
         system: 'Чун дар система',
         saveBtn: 'Захира кардани танзимот',
+        homeScreenSection: 'Экрани асосӣ',
+        showGreeting: 'Салом',
+        showGreetingSub: 'Субҳ / рӯз / шом бахайр',
+        showDailyTip: 'Маслиҳати рӯз',
+        showDailyTipSub: 'Маслиҳати ҳушёрона дар экрани асосӣ',
         about: 'Дар бораи барнома',
         version: 'Версия',
         developer: 'Таҳиягар',
@@ -889,7 +896,8 @@ const resources = {
         thankYou: 'Ташаккур барои харид',
         shareReceipt: 'Ҳисоб фиристодан',
         checkoutAction: 'Расмиёт',
-        debtLink: 'Қисман / Қарз →',
+        debtLink: 'Қарз →',
+        selectColorHint: '↓ ранг интихоб кунед',
       },
       onboarding: {
         step1Title: 'Молҳоро илова кунед',
@@ -1319,6 +1327,7 @@ const resources = {
       },
       productDetail: {
         systemAdded: 'Ба система илова шуд',
+        initialStock: 'Аввал',
       },
     },
   },
@@ -1363,6 +1372,7 @@ const resources = {
         expenses: 'Expenses',
         calculator: 'Calculator',
         currency: 'Rates',
+        clients: 'Clients',
       },
       expenses: {
         title: 'Expense Tracking',
@@ -1550,6 +1560,8 @@ const resources = {
         thankYou: 'Thank you for your purchase',
         shareReceipt: 'Share receipt',
         checkoutAction: 'Checkout',
+        debtLink: 'On credit →',
+        selectColorHint: '↓ select color',
       },
       onboarding: {
         step1Title: 'Add Products',
@@ -1977,6 +1989,10 @@ const resources = {
         wrongLanguage: 'Forecast in another language. Refresh to translate.',
         refresh: 'Refresh',
       },
+      productDetail: {
+        systemAdded: 'Added to system',
+        initialStock: 'Initial stock',
+      },
     },
   },
   uz: {
@@ -2203,7 +2219,8 @@ const resources = {
         thankYou: 'Xarid uchun rahmat',
         shareReceipt: 'Hisob ulashish',
         checkoutAction: 'Rasmiylashtirish',
-        debtLink: 'Qisman / Qarz →',
+        debtLink: 'Qarz →',
+        selectColorHint: '↓ rang tanlang',
       },
       onboarding: {
         step1Title: 'Mahsulotlarni qo‘shing',
@@ -2633,6 +2650,7 @@ const resources = {
       },
       productDetail: {
         systemAdded: 'Tizimga qo\'shildi',
+        initialStock: 'Boshlang\'ich',
       },
     },
   },
@@ -2865,7 +2883,8 @@ const resources = {
         thankYou: 'Харид учун раҳмат',
         shareReceipt: 'Ҳисоб улашиш',
         checkoutAction: 'Расмийлаштириш',
-        debtLink: 'Қисман / Қарз →',
+        debtLink: 'Қарз →',
+        selectColorHint: '↓ ранг танланг',
       },
       onboarding: {
         step1Title: 'Маҳсулотларни қўшинг',
@@ -3295,6 +3314,7 @@ const resources = {
       },
       productDetail: {
         systemAdded: 'Тизимга қўшилди',
+        initialStock: 'Дастлабки',
       },
     },
   },
@@ -3339,6 +3359,7 @@ const resources = {
         expenses: 'Despesas',
         calculator: 'Calculadora',
         currency: 'Câmbio',
+        clients: 'Clientes',
       },
       expenses: {
         title: 'Controle de despesas',
@@ -3410,6 +3431,8 @@ const resources = {
         noBackupYet: 'Ainda não há backups',
         lastBackupToday: 'Último backup: hoje',
         daysAgo_one: '{{count}} dia atrás',
+        daysAgo_few:  '{{count}} dias atrás',
+        daysAgo_many: '{{count}} dias atrás',
         daysAgo_other: '{{count}} dias atrás',
         backupExport: 'Exportar dados',
         backupImport: 'Importar dados',
@@ -3524,6 +3547,8 @@ const resources = {
         thankYou: 'Obrigado pela compra',
         shareReceipt: 'Compartilhar recibo',
         checkoutAction: 'Finalizar',
+        debtLink: 'A crédito →',
+        selectColorHint: '↓ selecione a cor',
       },
       onboarding: {
         step1Title: 'Adicione produtos',
@@ -3951,6 +3976,10 @@ const resources = {
         wrongLanguage: 'A previsão está em outro idioma. Atualize para traduzir.',
         refresh: 'Atualizar',
       },
+      productDetail: {
+        systemAdded: 'Adicionado ao sistema',
+        initialStock: 'Estoque inicial',
+      },
     },
   },
   it: {
@@ -3994,6 +4023,7 @@ const resources = {
         expenses: 'Spese',
         calculator: 'Calcolatrice',
         currency: 'Cambio',
+        clients: 'Clienti',
       },
       expenses: {
         title: 'Gestione spese',
@@ -4065,6 +4095,8 @@ const resources = {
         noBackupYet: 'Ancora nessun backup',
         lastBackupToday: 'Ultimo backup: oggi',
         daysAgo_one: '{{count}} giorno fa',
+        daysAgo_few:  '{{count}} giorni fa',
+        daysAgo_many: '{{count}} giorni fa',
         daysAgo_other: '{{count}} giorni fa',
         backupExport: 'Esporta dati',
         backupImport: 'Importa dati',
@@ -4179,6 +4211,8 @@ const resources = {
         thankYou: 'Grazie per l\'acquisto',
         shareReceipt: 'Condividi scontrino',
         checkoutAction: 'Concludi',
+        debtLink: 'A credito →',
+        selectColorHint: '↓ seleziona colore',
       },
       onboarding: {
         step1Title: 'Aggiungi prodotti',
@@ -4605,6 +4639,10 @@ const resources = {
         noInternet: 'Nessuna connessione. Riprova più tardi.',
         wrongLanguage: 'La previsione è in un\'altra lingua. Aggiorna per tradurla.',
         refresh: 'Aggiorna',
+      },
+      productDetail: {
+        systemAdded: 'Aggiunto al sistema',
+        initialStock: 'Scorta iniziale',
       },
     },
   },
