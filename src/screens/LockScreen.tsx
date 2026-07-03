@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  BackHandler, Animated, Dimensions, Platform, ActivityIndicator
+  BackHandler, Animated, Dimensions, Platform, ActivityIndicator, Alert
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,6 +10,7 @@ import { useAppContext } from '../context/AppContext';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
+import Svg, { Polyline, Line } from 'react-native-svg';
 
 const { width } = Dimensions.get('window');
 const RESET_GRACE_PERIOD_HOURS = 24;
@@ -168,12 +169,19 @@ export default function LockScreen() {
 
   // Pattern Logic
   const [activeDots, setActiveDots] = useState<number[]>([]);
+  const activeDotsRef = useRef<number[]>([]);
+  const [currentPos, setCurrentPos] = useState<{ x: number; y: number } | null>(null);
 
-  const onGesture = Gesture.Pan()
+  useEffect(() => {
+    activeDotsRef.current = activeDots;
+  }, [activeDots]);
+
+  const onGesture = useMemo(() => Gesture.Pan()
     .runOnJS(true)
     .onUpdate((event) => {
       if (lockoutTimer > 0) return;
       const { x, y } = event;
+      setCurrentPos({ x, y });
       const col = Math.floor(x / GRID_SPACING);
       const row = Math.floor(y / GRID_SPACING);
       const index = row * GRID_SIZE + col;
@@ -183,27 +191,42 @@ export default function LockScreen() {
         const dotCenterY = row * GRID_SPACING + GRID_SPACING / 2;
         const dist = Math.sqrt(Math.pow(x - dotCenterX, 2) + Math.pow(y - dotCenterY, 2));
 
-        if (dist < DOT_SIZE * 2 && !activeDots.includes(index)) {
+        if (dist < DOT_SIZE * 2 && !activeDotsRef.current.includes(index)) {
           setActiveDots((prev) => [...prev, index]);
           setError(null);
         }
       }
     })
     .onEnd(async () => {
+      setCurrentPos(null);
       if (lockoutTimer > 0) return;
-      if (activeDots.length > 0) {
-        const isValid = await verifyPattern(activeDots);
+      if (activeDotsRef.current.length > 0) {
+        const isValid = await verifyPattern(activeDotsRef.current);
         if (isValid) {
           await resetAttempts();
           unlock();
         } else {
           setError(t('appLock.wrongPattern'));
           shake();
-          setTimeout(() => setActiveDots([]), 500);
+          setTimeout(() => {
+            setActiveDots([]);
+            setError(null);
+          }, 500);
           await saveAttempts(attempts + 1);
         }
       }
-    });
+    }), []);
+
+  const getDotCenter = (index: number) => {
+    const row = Math.floor(index / GRID_SIZE);
+    const col = index % GRID_SIZE;
+    return {
+      x: col * GRID_SPACING + GRID_SPACING / 2,
+      y: row * GRID_SPACING + GRID_SPACING / 2,
+    };
+  };
+
+  const patternLineColor = error ? '#E53935' : (currentPos ? 'rgba(29, 158, 117, 0.55)' : '#1D9E75');
 
   const renderPinDots = () => {
     return (
@@ -248,6 +271,32 @@ export default function LockScreen() {
       <GestureHandlerRootView style={styles.patternContainer}>
         <GestureDetector gesture={onGesture}>
           <View style={styles.grid}>
+            <Svg style={StyleSheet.absoluteFill}>
+              {activeDots.length > 0 && (
+                <Polyline
+                  points={activeDots.map(i => {
+                    const center = getDotCenter(i);
+                    return `${center.x},${center.y}`;
+                  }).join(' ')}
+                  fill="none"
+                  stroke={patternLineColor}
+                  strokeWidth={4}
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+              )}
+              {currentPos && activeDots.length > 0 && (
+                <Line
+                  x1={getDotCenter(activeDots[activeDots.length - 1]).x}
+                  y1={getDotCenter(activeDots[activeDots.length - 1]).y}
+                  x2={currentPos.x}
+                  y2={currentPos.y}
+                  stroke={patternLineColor}
+                  strokeWidth={4}
+                  strokeLinecap="round"
+                />
+              )}
+            </Svg>
             {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
               <View
                 key={i}
@@ -258,7 +307,7 @@ export default function LockScreen() {
                     styles.dot,
                     {
                       backgroundColor: activeDots.includes(i)
-                        ? (error && activeDots.length > 0 ? '#E53935' : '#1D9E75')
+                        ? patternLineColor
                         : (isDark ? '#333' : '#E0E0E0')
                     }
                   ]}
