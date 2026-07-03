@@ -546,6 +546,7 @@ export default function AddSaleScreen(/* props */) {
     setClientName(''); setClientPhone(''); setClientId(null);
     setShowFullClient(false); setShowNoteInput(false);
     setShowDebtOptions(false);
+    setPaymentType('full');
 
     triggerSaveAnimation();
   };
@@ -866,66 +867,168 @@ export default function AddSaleScreen(/* props */) {
         )}
 
     {/* Payment type selector */}
-    {contextSellerMode === 'retail' && !showDebtOptions ? (
-      <View style={styles.paymentSection}>
-        <Text style={[styles.label, themeStyles.text]}>{t('addSale.paymentLabel')}</Text>
+    <View style={styles.paymentSection}>
+      {contextSellerMode !== 'wholesale' && !showDebtOptions && (
         <TouchableOpacity
-          style={[styles.paymentBtn, isDark ? styles.paymentBtnDark : styles.paymentBtnLight, styles.paymentBtnActive]}
+          style={{ alignSelf: 'flex-end', paddingVertical: 4 }}
           onPress={() => {
-            setPaymentType('full');
-            setShowDebtOptions(false);
+            setShowDebtOptions(true);
+            setPaymentType('debt');
           }}
-        >
-          <Text style={[styles.paymentBtnText, styles.paymentBtnTextActive]}>
-            {t('addSale.paymentFull')}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={{ marginTop: 8, alignSelf: 'flex-start' }}
-          onPress={() => setShowDebtOptions(true)}
         >
           <Text style={{ color: Colors.primary, fontSize: 13 }}>
             {t('addSale.debtLink')}
           </Text>
         </TouchableOpacity>
-      </View>
-    ) : (
-      <View style={styles.paymentSection}>
-        <Text style={[styles.label, themeStyles.text]}>{t('addSale.paymentLabel')}</Text>
-        <View style={styles.paymentRow}>
-          {(['full', 'partial', 'debt'] as const).map((type) => {
-            const labels = {
-              full: t('addSale.paymentFull'),
-              partial: t('addSale.paymentPartial'),
-              debt: t('addSale.paymentDebt')
-            };
-            return (
-              <TouchableOpacity
-                key={type}
-                style={[
-                  styles.paymentBtn,
-                  isDark ? styles.paymentBtnDark : styles.paymentBtnLight,
-                  paymentType === type && styles.paymentBtnActive,
-                ]}
-                onPress={() => {
-                  setPaymentType(type);
-                  if (type === 'full') setShowDebtOptions(false);
-                }}
-              >
-                <Text style={[
-                  styles.paymentBtnText,
-                  paymentType === type && styles.paymentBtnTextActive,
-                ]}>
-                  {labels[type]}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+      )}
 
-        {paymentType === 'full' && (
-          <View style={{ marginTop: Spacing.md }}>
-            {showFullClient ? (
+      {(contextSellerMode === 'wholesale' || showDebtOptions) && (
+        <View>
+          {contextSellerMode === 'wholesale' ? (
+            <>
+              <Text style={[styles.label, themeStyles.text]}>{t('addSale.paymentLabel')}</Text>
+              <View style={styles.paymentRow}>
+                {(['full', 'partial', 'debt'] as const).map((type) => {
+                  const labels = {
+                    full: t('addSale.paymentFull'),
+                    partial: t('addSale.paymentPartial'),
+                    debt: t('addSale.paymentDebt')
+                  };
+                  return (
+                    <TouchableOpacity
+                      key={type}
+                      style={[
+                        styles.paymentBtn,
+                        isDark ? styles.paymentBtnDark : styles.paymentBtnLight,
+                        paymentType === type && styles.paymentBtnActive,
+                      ]}
+                      onPress={() => {
+                        setPaymentType(type);
+                        if (type === 'full') setShowDebtOptions(false);
+                      }}
+                    >
+                      <Text style={[
+                        styles.paymentBtnText,
+                        paymentType === type && styles.paymentBtnTextActive,
+                      ]}>
+                        {labels[type]}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </>
+          ) : (
+            <View style={styles.paymentRow}>
+              {(['partial', 'debt'] as const).map((type) => {
+                const labels = {
+                  partial: t('addSale.paymentPartial'),
+                  debt:    t('addSale.paymentDebt'),
+                };
+                return (
+                  <TouchableOpacity
+                    key={type}
+                    style={[
+                      styles.paymentBtn,
+                      isDark ? styles.paymentBtnDark : styles.paymentBtnLight,
+                      paymentType === type && styles.paymentBtnActive,
+                    ]}
+                    onPress={() => setPaymentType(type)}
+                  >
+                    <Text style={[
+                      styles.paymentBtnText,
+                      paymentType === type && styles.paymentBtnTextActive,
+                    ]}>
+                      {labels[type]}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+
+          {paymentType === 'full' && contextSellerMode === 'wholesale' && (
+            <View style={{ marginTop: Spacing.md }}>
+              {showFullClient ? (
+                <ClientAutocomplete
+                  value={clientName}
+                  phone={clientPhone}
+                  onChange={setClientName}
+                  onChangePhone={setClientPhone}
+                  onSelect={(c) => {
+                    setClientName(c.name);
+                    setClientPhone(c.phone);
+                    setClientId(c.id);
+                  }}
+                />
+              ) : (
+                <TouchableOpacity onPress={() => setShowFullClient(true)} style={styles.addClientBtn}>
+                  <Ionicons name="person-outline" size={18} color={Colors.primary} />
+                  <Text style={styles.addClientBtnText}>{t('addSale.addClientOptional')}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
+          {paymentType === 'partial' && (
+            <TextInput
+              style={[styles.input, themeStyles.input, { marginTop: 8 }]}
+              placeholder={t('addSale.paidNowPlaceholder')}
+              placeholderTextColor={isDark ? '#888' : '#aaa'}
+              keyboardType="numeric"
+              value={paidAmount}
+              onChangeText={setPaidAmount}
+            />
+          )}
+
+          {(paymentType === 'partial' || paymentType === 'debt') && (
+            <View style={{ marginTop: 8, gap: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={[{ fontSize: FontSize.sm, color: '#888', minWidth: 40 }]}>
+                  {t('addSale.dueDateLabel')}
+                </Text>
+                <TextInput
+                  style={[styles.input, themeStyles.input, { flex: 1 }]}
+                  placeholder="ДД.ММ.ГГГГ"
+                  placeholderTextColor={isDark ? '#888' : '#aaa'}
+                  keyboardType="numeric"
+                  value={dueDate}
+                  onChangeText={handleDueDateChange}
+                  maxLength={10}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowDatePicker(true)}
+                  style={{ padding: 10, backgroundColor: isDark ? '#2C2C2E' : '#F2F2F7', borderRadius: 10 }}
+                >
+                  <Ionicons name="calendar-outline" size={22} color={isDark ? '#fff' : '#333'} />
+                </TouchableOpacity>
+              </View>
+
+              {showDatePicker && (
+                <DateTimePicker
+                  value={(() => {
+                    if (!dueDate) return new Date();
+                    const [d, m, y] = dueDate.split('.').map(Number);
+                    if (d && m && y && y > 1000) {
+                      return new Date(y, m - 1, d);
+                    }
+                    return new Date();
+                  })()}
+                  mode="date"
+                  display="default"
+                  minimumDate={new Date()}
+                  onChange={(event: any, selectedDate?: Date) => {
+                    setShowDatePicker(false);
+                    if (selectedDate) {
+                      const d = selectedDate.getDate().toString().padStart(2, '0');
+                      const m = (selectedDate.getMonth() + 1).toString().padStart(2, '0');
+                      const y = selectedDate.getFullYear();
+                      setDueDate(`${d}.${m}.${y}`);
+                    }
+                  }}
+                />
+              )}
+
               <ClientAutocomplete
                 value={clientName}
                 phone={clientPhone}
@@ -937,89 +1040,25 @@ export default function AddSaleScreen(/* props */) {
                   setClientId(c.id);
                 }}
               />
-            ) : (
-              <TouchableOpacity onPress={() => setShowFullClient(true)} style={styles.addClientBtn}>
-                <Ionicons name="person-outline" size={18} color={Colors.primary} />
-                <Text style={styles.addClientBtnText}>{t('addSale.addClientOptional')}</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-
-        {paymentType === 'partial' && (
-          <TextInput
-            style={[styles.input, themeStyles.input, { marginTop: 8 }]}
-            placeholder={t('addSale.paidNowPlaceholder')}
-            placeholderTextColor={isDark ? '#888' : '#aaa'}
-            keyboardType="numeric"
-            value={paidAmount}
-            onChangeText={setPaidAmount}
-          />
-        )}
-
-        {(paymentType === 'partial' || paymentType === 'debt') && (
-          <View style={{ marginTop: 8, gap: 8 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={[{ fontSize: FontSize.sm, color: '#888', minWidth: 40 }]}>
-                {t('addSale.dueDateLabel')}
-              </Text>
-              <TextInput
-                style={[styles.input, themeStyles.input, { flex: 1 }]}
-                placeholder="ДД.ММ.ГГГГ"
-                placeholderTextColor={isDark ? '#888' : '#aaa'}
-                keyboardType="numeric"
-                value={dueDate}
-                onChangeText={handleDueDateChange}
-                maxLength={10}
-              />
-              <TouchableOpacity
-                onPress={() => setShowDatePicker(true)}
-                style={{ padding: 10, backgroundColor: isDark ? '#2C2C2E' : '#F2F2F7', borderRadius: 10 }}
-              >
-                <Ionicons name="calendar-outline" size={22} color={isDark ? '#fff' : '#333'} />
-              </TouchableOpacity>
             </View>
+          )}
 
-            {showDatePicker && (
-              <DateTimePicker
-                value={(() => {
-                  if (!dueDate) return new Date();
-                  const [d, m, y] = dueDate.split('.').map(Number);
-                  if (d && m && y && y > 1000) {
-                    return new Date(y, m - 1, d);
-                  }
-                  return new Date();
-                })()}
-                mode="date"
-                display="default"
-                minimumDate={new Date()}
-                onChange={(event: any, selectedDate?: Date) => {
-                  setShowDatePicker(false);
-                  if (selectedDate) {
-                    const d = selectedDate.getDate().toString().padStart(2, '0');
-                    const m = (selectedDate.getMonth() + 1).toString().padStart(2, '0');
-                    const y = selectedDate.getFullYear();
-                    setDueDate(`${d}.${m}.${y}`);
-                  }
-                }}
-              />
-            )}
-
-            <ClientAutocomplete
-              value={clientName}
-              phone={clientPhone}
-              onChange={setClientName}
-              onChangePhone={setClientPhone}
-              onSelect={(c) => {
-                setClientName(c.name);
-                setClientPhone(c.phone);
-                setClientId(c.id);
+          {contextSellerMode !== 'wholesale' && showDebtOptions && (
+            <TouchableOpacity
+              onPress={() => {
+                setShowDebtOptions(false);
+                setPaymentType('full');
               }}
-            />
-          </View>
-        )}
-      </View>
-    )}
+              style={{ marginTop: 6, alignSelf: 'flex-start' }}
+            >
+              <Text style={{ color: '#999', fontSize: 12 }}>
+                ✕ {t('addSale.paymentFull')}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+    </View>
 
         {/* Предварительный расчёт */}
         {(sellPrice || salePricePlaceholder) && (buyPrice || isSeller) ? (

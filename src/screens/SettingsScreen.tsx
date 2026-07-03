@@ -22,9 +22,13 @@ import { reviewService } from '../services/reviewService';
 import { convertAllAmounts, clearAllData, getProducts, getSalesByPeriod, getExpenses, importBackupData } from '../db/database';
 
 const LANGUAGES = [
-  { code: 'ru', label: 'Русский' },
-  { code: 'tg', label: 'Тоҷикӣ' },
-  { code: 'uz', label: "O'zbek" },
+  { code: 'ru',      label: 'Русский'   },
+  { code: 'tg',      label: 'Тоҷикӣ'   },
+  { code: 'uz',      label: "O'zbek"    },
+  { code: 'uz-Cyrl', label: 'Ўзбекча'  },
+  { code: 'en',      label: 'English'   },
+  { code: 'pt',      label: 'Português' },
+  { code: 'it',      label: 'Italiano'  },
 ];
 
 
