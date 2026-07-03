@@ -24,6 +24,12 @@ export default function StockOperationModal({
   const isDark = resolvedTheme === 'dark';
   const { t } = useTranslation();
 
+  const TYPE_LABELS: Record<string, string> = {
+    stock_in: t('warehouse.stockIn'),
+    waste:    t('warehouse.waste'),
+    correction: t('warehouse.correction'),
+  };
+
   const [type, setType] = useState<'stock_in' | 'waste' | 'correction'>(initialType);
   const [quantity, setQuantity] = useState('');
   const [price, setPrice] = useState('');
@@ -102,8 +108,12 @@ export default function StockOperationModal({
           ]}
           onPress={() => setType(tId)}
         >
-          <Text style={[styles.tabText, type === tId && styles.tabTextActive]}>
-            {t(`warehouse.${tId}`)}
+          <Text style={[
+            styles.tabText,
+            isDark ? styles.tabTextDark : styles.tabTextLight,
+            type === tId && styles.tabTextActive
+          ]}>
+            {TYPE_LABELS[tId]}
           </Text>
         </TouchableOpacity>
       ))}
@@ -120,7 +130,7 @@ export default function StockOperationModal({
           <View style={styles.header}>
             <View>
               <Text style={[styles.title, isDark ? styles.textDark : styles.textLight]}>
-                {t(`warehouse.${type}`)}
+                {TYPE_LABELS[type]}
               </Text>
               <Text style={styles.subtitle}>{product?.name}</Text>
             </View>
@@ -234,7 +244,9 @@ const styles = StyleSheet.create({
   tabLight: { backgroundColor: '#F5F5F5' },
   tabDark: { backgroundColor: '#1E1E1E' },
   tabActive: { backgroundColor: '#1D9E75' },
-  tabText: { fontSize: 13, fontWeight: '500', color: '#666' },
+  tabText:       { fontSize: 13, fontWeight: '500' },
+  tabTextLight:  { color: '#333' },
+  tabTextDark:   { color: '#AAA' },
   tabTextActive: { color: '#fff' },
   label: { fontSize: 14, fontWeight: '600', marginTop: 12, marginBottom: 6 },
   input: { borderRadius: 10, padding: 12, fontSize: 16, borderWidth: 1 },

@@ -252,29 +252,29 @@ export default function HomeScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       {/* Заголовок */}
-      <LinearGradient
-        colors={[Colors.primary, Colors.primaryDark]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.header}
-      >
-        <View style={styles.headerTopRow}>
-          <View style={{ flex: 1 }}>
-            {showGreeting && (
+      {showGreeting && (
+        <LinearGradient
+          colors={[Colors.primary, Colors.primaryDark]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.header}
+        >
+          <View style={styles.headerTopRow}>
+            <View style={{ flex: 1 }}>
               <Text style={styles.headerTitle}>{getGreeting()}</Text>
-            )}
-            <Text style={styles.headerDate}>
-              {new Date().toLocaleDateString(i18n.language === 'tg' ? 'tg-TJ' : i18n.language === 'uz' ? 'uz-UZ' : 'ru-RU', {
-                day: 'numeric', month: 'long', year: 'numeric'
-              })}
-            </Text>
+              <Text style={styles.headerDate}>
+                {new Date().toLocaleDateString(i18n.language === 'tg' ? 'tg-TJ' : i18n.language === 'uz' ? 'uz-UZ' : 'ru-RU', {
+                  day: 'numeric', month: 'long', year: 'numeric'
+                })}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={() => navigation.navigate('News')} style={styles.newsBtn}>
+              <Ionicons name="newspaper-outline" size={22} color="#fff" />
+              {hasUnread && <View style={styles.newsBadgeDot} />}
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity onPress={() => navigation.navigate('News')} style={styles.newsBtn}>
-            <Ionicons name="newspaper-outline" size={22} color="#fff" />
-            {hasUnread && <View style={styles.newsBadgeDot} />}
-          </TouchableOpacity>
-        </View>
-      </LinearGradient>
+        </LinearGradient>
+      )}
 
       <CurrencyConversionBanner />
 

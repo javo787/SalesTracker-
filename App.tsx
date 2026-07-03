@@ -246,6 +246,17 @@ function DrawerNavigator() {
           }}
         />
       )}
+      <Drawer.Screen
+        name="Clients"
+        component={DebtorsScreen}
+        options={{
+          drawerLabel: t('tabs.clients') || 'Клиенты',
+          drawerIcon: ({ color, size }: { color: string; size: number }) => (
+            <Ionicons name="people-outline" size={size || 22} color={color} />
+          ),
+          headerShown: false,
+        }}
+      />
       {FEATURES.WHOLESALE_ENABLED && (
         <Drawer.Screen
           name="Wholesale"

@@ -915,30 +915,31 @@ export default function ProductsScreen() {
                   delayLongPress={500}
                 >
                   <View style={styles.productLeft}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Text style={[styles.productName, themeStyles.text]}>{p.name}</Text>
-                      <TouchableOpacity
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          navigation.navigate('ProductDetail', { product: p });
-                        }}
-                        style={{ padding: 8 }}
-                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                      >
-                        <Ionicons name="information-circle-outline" size={18} color={Colors.primary} />
-                      </TouchableOpacity>
-                    </View>
+                    <Text style={[styles.productName, themeStyles.text]}>{p.name}</Text>
                     <Text style={styles.productPrices}>
                       {isOwner && `${t('addSale.buyPrice')}: ${p.buy_price} ${currency.symbol} · `}{t('addSale.sellPrice')}: {p.sell_price} {currency.symbol}
                     </Text>
                   </View>
                   <View style={styles.productRight}>
-                    <Text style={[
-                      styles.productStock,
-                      { color: p.stock <= 0 ? Colors.danger : p.stock <= (p.min_stock_alert || 0) ? Colors.warning : Colors.primary }
-                    ]}>
-                      {p.stock} {p.base_unit || t('reports.pcs')}
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={[
+                        styles.productStock,
+                        { color: p.stock <= 0 ? Colors.danger : p.stock <= (p.min_stock_alert || 0) ? Colors.warning : Colors.primary }
+                      ]}>
+                        {p.stock} {p.base_unit || t('reports.pcs')}
+                      </Text>
+                      <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={14} color="#aaa" />
+                      <TouchableOpacity
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          navigation.navigate('ProductDetail', { product: p });
+                        }}
+                        style={{ padding: 4 }}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        <Ionicons name="information-circle-outline" size={18} color={Colors.primary} />
+                      </TouchableOpacity>
+                    </View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                       {isOwner && (
                         <Text style={styles.productProfit}>
@@ -955,10 +956,13 @@ export default function ProductsScreen() {
                           });
                         }}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
                       >
                         <Ionicons name="add-circle-outline" size={18} color={Colors.primary} />
+                        <Text style={{ fontSize: 11, color: Colors.primary }}>
+                          {t('products.addVariant')}
+                        </Text>
                       </TouchableOpacity>
-                      <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={14} color="#aaa" />
                     </View>
                   </View>
                 </TouchableOpacity>
