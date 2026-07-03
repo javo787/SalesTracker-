@@ -13,10 +13,11 @@ interface AppLockContextType {
   lockMethod: LockMethod | null;
   biometricEnabled: boolean;
   biometricAvailable: boolean;
-  setupPin: (pin: string) => Promise<void>;
-  setupPattern: (points: number[]) => Promise<void>;
+  setupPin: (pin: string) => Promise<string | null>;
+  setupPattern: (points: number[]) => Promise<string | null>;
   verifyPin: (pin: string) => Promise<boolean>;
   verifyPattern: (points: number[]) => Promise<boolean>;
+  verifyRecoveryCode: (code: string) => Promise<boolean>;
   authenticateWithBiometrics: () => Promise<boolean>;
   disableLock: () => Promise<void>;
   lock: () => void;
@@ -98,7 +99,17 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
     appState.current = nextAppState;
   };
 
-  const getSalt = async (type: 'pin' | 'pattern') => {
+  const generateRecoveryCode = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 8; i++) {
+      if (i === 4) code += '-';
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+  };
+
+  const getSalt = async (type: 'pin' | 'pattern' | 'recovery') => {
     const key = `app_lock_${type}_salt`;
     let salt = await SecureStore.getItemAsync(key);
     if (!salt) {
@@ -109,7 +120,7 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return salt;
   };
 
-  const hashData = async (data: string, type: 'pin' | 'pattern') => {
+  const hashData = async (data: string, type: 'pin' | 'pattern' | 'recovery') => {
     const salt = await getSalt(type);
     const hash = await Crypto.digestStringAsync(
       Crypto.CryptoDigestAlgorithm.SHA256,
@@ -119,15 +130,34 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const setupPin = async (pin: string) => {
+    const isFirstTime = !isLockEnabled;
+    let recoveryCode = null;
+
+    if (isFirstTime) {
+      recoveryCode = generateRecoveryCode();
+      const recoveryHash = await hashData(recoveryCode, 'recovery');
+      await SecureStore.setItemAsync('app_lock_recovery_hash', recoveryHash);
+    }
+
     const hash = await hashData(pin, 'pin');
     await SecureStore.setItemAsync('app_lock_pin_hash', hash);
     await AsyncStorage.setItem('app_lock_enabled', 'true');
     await AsyncStorage.setItem('app_lock_method', 'pin');
     setIsLockEnabled(true);
     setLockMethod('pin');
+    return recoveryCode;
   };
 
   const setupPattern = async (points: number[]) => {
+    const isFirstTime = !isLockEnabled;
+    let recoveryCode = null;
+
+    if (isFirstTime) {
+      recoveryCode = generateRecoveryCode();
+      const recoveryHash = await hashData(recoveryCode, 'recovery');
+      await SecureStore.setItemAsync('app_lock_recovery_hash', recoveryHash);
+    }
+
     const patternStr = points.join('-');
     const hash = await hashData(patternStr, 'pattern');
     await SecureStore.setItemAsync('app_lock_pattern_hash', hash);
@@ -135,6 +165,7 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
     await AsyncStorage.setItem('app_lock_method', 'pattern');
     setIsLockEnabled(true);
     setLockMethod('pattern');
+    return recoveryCode;
   };
 
   const verifyPin = async (pin: string) => {
@@ -149,6 +180,13 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (!storedHash) return false;
     const patternStr = points.join('-');
     const hash = await hashData(patternStr, 'pattern');
+    return hash === storedHash;
+  };
+
+  const verifyRecoveryCode = async (code: string) => {
+    const storedHash = await SecureStore.getItemAsync('app_lock_recovery_hash');
+    if (!storedHash) return false;
+    const hash = await hashData(code, 'recovery');
     return hash === storedHash;
   };
 
@@ -180,11 +218,14 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const disableLock = async () => {
     await SecureStore.deleteItemAsync('app_lock_pin_hash');
     await SecureStore.deleteItemAsync('app_lock_pattern_hash');
+    await SecureStore.deleteItemAsync('app_lock_recovery_hash');
     await SecureStore.deleteItemAsync('app_lock_pin_salt');
     await SecureStore.deleteItemAsync('app_lock_pattern_salt');
+    await SecureStore.deleteItemAsync('app_lock_recovery_salt');
     await AsyncStorage.removeItem('app_lock_enabled');
     await AsyncStorage.removeItem('app_lock_method');
     await AsyncStorage.removeItem('app_lock_biometric_enabled');
+    await AsyncStorage.removeItem('app_lock_reset_requested_at');
     setIsLockEnabled(false);
     setIsLocked(false);
     setLockMethod(null);
@@ -205,6 +246,7 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setupPattern,
       verifyPin,
       verifyPattern,
+      verifyRecoveryCode,
       authenticateWithBiometrics,
       disableLock,
       lock,

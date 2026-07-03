@@ -46,6 +46,7 @@ import NewsScreen from './src/screens/NewsScreen';
 import CustomDrawerContent from './src/components/CustomDrawerContent';
 import LockScreen from './src/screens/LockScreen';
 import AppLockSetupScreen from './src/screens/AppLockSetupScreen';
+import ForgotLockScreen from './src/screens/ForgotLockScreen';
 import DebtorsScreen from './src/screens/DebtorsScreen';
 import SellersScreen from './src/screens/SellersScreen';
 import ProductDetailScreen from './src/screens/ProductDetailScreen';
@@ -391,7 +392,14 @@ function AppContent() {
   }
 
   if (isLockEnabled && isLocked) {
-    return <LockScreen />;
+    return (
+      <NavigationContainer>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="Lock" component={LockScreen} />
+          <Stack.Screen name="ForgotLock" component={ForgotLockScreen} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    );
   }
 
   return (
@@ -442,6 +450,11 @@ function AppContent() {
           name="AppLockSetup"
           component={AppLockSetupScreen}
           options={{ title: t('appLock.title'), headerStyle: { backgroundColor: Colors.primary }, headerTintColor: '#fff' }}
+        />
+        <Stack.Screen
+          name="ForgotLock"
+          component={ForgotLockScreen}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="Debtors"
