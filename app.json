@@ -5,7 +5,9 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "platforms": ["android"],
+    "platforms": [
+      "android"
+    ],
     "scheme": "torgo",
     "android": {
       "package": "com.torgo.app",
@@ -13,7 +15,10 @@
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
-        "android.permission.USE_BIOMETRIC"
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.USE_FINGERPRINT"
       ],
       "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
@@ -45,7 +50,7 @@
       [
         "expo-local-authentication",
         {
-        "faceIDPermission": "Используйте Face ID для быстрой и безопасной разблокировки Torgo"
+          "faceIDPermission": "Используйте Face ID для быстрой и безопасной разблокировки Torgo"
         }
       ],
       [
@@ -81,7 +86,8 @@
         {
           "android": {
             "enableProguardInReleaseBuilds": true,
-            "enableShrinkResourcesInReleaseBuilds": true
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "enableMinifyInReleaseBuilds": true
           }
         }
       ]
@@ -109,11 +115,11 @@
         "lang": "ru"
       }
     },
+    "owner": "javohirbeks-project",
     "extra": {
       "eas": {
-        "projectId": "8faaddbd-db91-4531-9c3e-3faf5cce53aa"
+        "projectId": "9a8cb8e4-5c8c-4147-942b-46ea4c65fb4a"
       }
-    },
-    "owner": "javohirbeks-project"
+    }
   }
 }
