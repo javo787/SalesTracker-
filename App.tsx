@@ -15,6 +15,7 @@ import i18n from './src/i18n/i18n';
 import messaging from '@react-native-firebase/messaging';
 import * as Notifications from 'expo-notifications';
 import * as WebBrowser from 'expo-web-browser';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { adService } from './src/services/adService';
 import { analyticsService } from './src/services/analyticsService';
 import { AppContextProvider, useAppContext } from './src/context/AppContext';
@@ -517,6 +518,10 @@ export default function App() {
       console.error('Failed to initialize database:', e);
       setDbError(e instanceof Error ? e : new Error('Unknown database error'));
     }
+
+    GoogleSignin.configure({
+      webClientId: '265164441201-tqpvcafomc06ekphquf1dk198vrpblha.apps.googleusercontent.com',
+    });
 
     // Parallelize async initialization
     Promise.all([
