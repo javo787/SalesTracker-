@@ -96,7 +96,7 @@ router.get('/referral', authMiddleware, async (req: AuthRequest, res) => {
       referralCode: user?.referralCode,
       referralCount: user?.referralCount,
       // referralLink would depend on your domain/app scheme
-      referralLink: `savdo://register?code=${user?.referralCode}`,
+      referralLink: `torgo://register?code=${user?.referralCode}`,
     });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching referral info' });

@@ -1,7 +1,7 @@
 import React from 'react';
 
 export const metadata = {
-  title: 'SavdoApp — Sales Tracker for Bazaar Traders',
+  title: 'Torgo — Sales Tracker for Bazaar Traders',
   description:
     'Free voice-powered sales tracking app for market traders in Central Asia. Available in Russian, Uzbek, Tajik and English. Works offline.',
 };
@@ -622,7 +622,7 @@ export default function Home() {
       {/* Navbar */}
       <nav className="navbar">
         <div className="container nav-content">
-          <a href="/" className="logo">SavdoApp</a>
+          <a href="/" className="logo">Torgo</a>
           <div className="nav-links">
             <a href="/support" className="nav-link">Support</a>
             <a href="/privacy" className="nav-link">Privacy</a>
@@ -645,7 +645,7 @@ export default function Home() {
           <div className="phone-mockup-wrapper">
             <div className="phone-mockup">
               <div className="phone-header">
-                <span className="phone-header-logo">SavdoApp</span>
+                <span className="phone-header-logo">Torgo</span>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
               </div>
               <div className="phone-stats">
@@ -791,7 +791,7 @@ export default function Home() {
         <div className="container">
           <div className="section-heading-center">
             <h2>Trusted by bazaar traders</h2>
-            <p>Here is what our users say about SavdoApp</p>
+            <p>Here is what our users say about Torgo</p>
           </div>
           <div className="reviews-grid">
             <div className="review-card">
@@ -854,14 +854,14 @@ export default function Home() {
       <footer className="footer">
         <div className="container">
           <div className="footer-row-1">
-            <a href="/" className="footer-logo">SavdoApp</a>
+            <a href="/" className="footer-logo">Torgo</a>
             <div className="footer-links">
               <a href="/privacy" className="footer-link">Privacy Policy</a>
               <a href="/support" className="footer-link">Support</a>
             </div>
           </div>
           <div className="footer-row-2">
-            <p className="footer-copy">© 2025 SavdoApp. Built for bazaar traders of Central Asia.</p>
+            <p className="footer-copy">© 2025 Torgo. Built for bazaar traders of Central Asia.</p>
           </div>
         </div>
       </footer>

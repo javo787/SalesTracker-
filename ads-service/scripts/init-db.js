@@ -29,7 +29,7 @@ async function initDb() {
     const count = await db.collection('direct_ads').countDocuments();
     if (count === 0) {
       await db.collection('direct_ads').insertOne({
-        title: 'Добро пожаловать в SavdoApp!',
+        title: 'Добро пожаловать в Torgo!',
         subtitle: 'Управляйте своим бизнесом эффективно',
         imageUrl: 'https://savdo.app/icon.png',
         targetUrl: 'https://savdo.app',

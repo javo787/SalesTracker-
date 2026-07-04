@@ -50,7 +50,7 @@ app.use('/auth', authLimiter);
 app.use(express.json({ limit: '2mb' })); // reduced from 10mb
 
 // Database connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/savdo')
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/savdo') // Keeping DB name 'savdo' in URI for continuity
   .then(() => console.log('Connected to MongoDB'))
   .catch((err) => console.error('MongoDB connection error:', err));
 

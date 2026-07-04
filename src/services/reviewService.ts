@@ -63,7 +63,7 @@ class ReviewService {
    */
   async openStoreListing() {
     try {
-      const androidPackageName = 'savdo.app';
+      const androidPackageName = 'com.torgo.app';
       const itunesItemId = ''; // Set this to real App Store ID when publishing to iOS
 
       if (Platform.OS === 'ios') {

@@ -1,7 +1,7 @@
 {
-  "name": "savdo-backend",
+  "name": "torgo-backend",
   "version": "1.0.0",
-  "description": "Backend for SavdoApp",
+  "description": "Backend for Torgo",
   "main": "server.ts",
   "scripts": {
     "start": "ts-node server.ts",

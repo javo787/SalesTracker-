@@ -412,7 +412,7 @@ export default function ReportScreen() {
     try {
       // Sheet 1: AI Summary
       const summaryData = [
-        ["Отчёт Saleze"],
+        ["Отчёт Torgo"],
         [getPeriodLabel()],
         [],
         [t('exportSummary.headerRevenue'), `${stats.revenue} ${currency.symbol}`],
@@ -440,7 +440,7 @@ export default function ReportScreen() {
 
       const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
       const base64 = arrayBufferToBase64(buffer);
-      const fileName = `Saleze_AI_${new Date().getTime()}.xlsx`;
+      const fileName = `Torgo_AI_${new Date().getTime()}.xlsx`;
       const filePath = `${FileSystem.cacheDirectory}${fileName}`;
 
       await FileSystem.writeAsStringAsync(filePath, base64, { encoding: FileSystem.EncodingType.Base64 });

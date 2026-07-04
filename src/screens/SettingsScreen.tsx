@@ -303,7 +303,7 @@ export default function SettingsScreen(props: any) {
         expenses: getExpenses(3650),
       };
       const json = JSON.stringify(data, null, 2);
-      const fileName = `saleze_backup_${Date.now()}.json`;
+      const fileName = `torgo_backup_${Date.now()}.json`;
       const filePath = `${FileSystem.cacheDirectory}${fileName}`;
       await FileSystem.writeAsStringAsync(filePath, json, { encoding: FileSystem.EncodingType.UTF8 });
       if (await Sharing.isAvailableAsync()) {

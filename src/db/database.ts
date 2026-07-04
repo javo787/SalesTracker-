@@ -1,7 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 import { notifyLowStock } from '../utils/notifications';
 
-const db = SQLite.openDatabaseSync('savdo.db');
+const db = SQLite.openDatabaseSync('savdo.db'); // Note: Database name remains 'savdo.db' to maintain data continuity.
 
 function nowLocalISO(): string {
   // Возвращает локальное время устройства в формате 'YYYY-MM-DD HH:MM:SS'

@@ -4,7 +4,7 @@ import { api } from './api';
 import { getProducts, getProductsForSync, getSalesByPeriod, getShopSession } from '../db/database';
 import * as SQLite from 'expo-sqlite';
 
-const db = SQLite.openDatabaseSync('savdo.db');
+const db = SQLite.openDatabaseSync('savdo.db'); // Note: Keeping database name 'savdo.db' to avoid data loss as per instructions.
 let isSyncing = false;
 
 // --- Лёгкий pub-sub статуса синхронизации (только для UI-индикатора,

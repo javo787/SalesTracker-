@@ -1,4 +1,4 @@
-# Bug Report — SavdoApp (Nebula)
+# Bug Report — Torgo (Nebula)
 
 **Date:** 2026-06-23
 **Total bugs found:** 35
