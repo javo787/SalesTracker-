@@ -13,8 +13,6 @@
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
-        "android.permission.FOREGROUND_SERVICE",
-        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
         "android.permission.USE_BIOMETRIC"
       ],
       "softwareKeyboardLayoutMode": "pan",
@@ -54,7 +52,8 @@
         "@react-native-google-signin/google-signin",
         {
           "androidClientId": "265164441201-u27ifvp09fl36976hauoh9qv8jeulsv5.apps.googleusercontent.com",
-          "iosUrlScheme": "com.googleusercontent.apps.265164441201-tqpvcafomc06ekphquf1dk198vrpblha"
+          "iosUrlScheme": "com.googleusercontent.apps.265164441201-tqpvcafomc06ekphquf1dk198vrpblha",
+          "webClientId": "265164441201-tqpvcafomc06ekphquf1dk198vrpblha.apps.googleusercontent.com"
         }
       ],
       "@benfurkankilic/expo-yandex-mobile-ads",

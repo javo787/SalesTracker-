@@ -5,19 +5,9 @@ import User from '../models/User';
 import { verifyGoogleToken } from '../utils/googleAuth';
 import { verifyTelegramAuth } from '../utils/telegramAuth';
 import { authMiddleware, AuthRequest } from '../middleware/authMiddleware';
+import { pendingTelegramAuths, cleanupPendingAuths } from '../utils/telegramLoginStore';
 
 const router = express.Router();
-
-// Temporary storage for Telegram auth polling
-const pendingTelegramAuths = new Map<string, { token: string, user: any }>();
-const MAX_PENDING_AUTHS = 100;
-
-function cleanupPendingAuths() {
-  if (pendingTelegramAuths.size > MAX_PENDING_AUTHS) {
-    const keysToDelete = Array.from(pendingTelegramAuths.keys()).slice(0, pendingTelegramAuths.size - MAX_PENDING_AUTHS);
-    keysToDelete.forEach(k => pendingTelegramAuths.delete(k));
-  }
-}
 
 const generateToken = (userId: string) => {
   const JWT_SECRET = process.env.JWT_SECRET;

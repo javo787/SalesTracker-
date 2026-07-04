@@ -1,6 +1,9 @@
 import express, { Request, Response } from 'express';
+import jwt from 'jsonwebtoken';
 import SupportTicket from '../models/SupportTicket';
+import User from '../models/User';
 import { sendMessage } from '../services/telegramBot';
+import { pendingTelegramAuths, cleanupPendingAuths } from '../utils/telegramLoginStore';
 
 const router = express.Router();
 
@@ -114,6 +117,38 @@ router.post('/webhook', async (req: Request, res: Response) => {
     // ── USER: detect language ─────────────────────────────────────────────
     const lang = detectLang(langCode);
     const i18n = BOT_I18N[lang];
+
+    // ── LOGIN: /start <tempToken> from mobile app deep link ────────────────
+    if (text.startsWith('/start ')) {
+      const tempToken = text.slice(7).trim();
+      const telegramId = String(msg.from?.id);
+
+      let user = await User.findOne({ telegramId });
+      if (!user) {
+        user = new User({
+          authProvider: 'telegram',
+          telegramId,
+          telegramUsername: username,
+          name: msg.from?.last_name ? `${firstName} ${msg.from.last_name}` : firstName,
+          referralCode: Math.random().toString(36).substring(2, 8).toUpperCase(),
+        });
+        await user.save();
+      }
+
+      const JWT_SECRET = process.env.JWT_SECRET;
+      if (!JWT_SECRET) {
+        console.error('JWT_SECRET not configured, cannot complete Telegram login');
+        return res.sendStatus(200);
+      }
+      const authToken = jwt.sign({ userId: (user._id as any).toString() }, JWT_SECRET, { expiresIn: '30d' });
+
+      pendingTelegramAuths.set(tempToken, { token: authToken, user });
+      cleanupPendingAuths();
+      setTimeout(() => pendingTelegramAuths.delete(tempToken), 120000);
+
+      await sendMessage(chatId, i18n.start(firstName));
+      return res.sendStatus(200);
+    }
 
     // ── USER: /start command ──────────────────────────────────────────────
     if (text === '/start') {

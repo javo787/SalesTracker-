@@ -9,7 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import { useAppLock } from '../context/AppLockContext';
 import { useAppContext } from '../context/AppContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Google from 'expo-auth-session/providers/google';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { useNavigation } from '@react-navigation/native';
 
 export default function ForgotLockScreen() {
@@ -30,17 +30,6 @@ export default function ForgotLockScreen() {
 
   // Recovery code
   const [recoveryInput, setRecoveryCode] = useState('');
-
-  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
-  });
-
-  useEffect(() => {
-    if (response?.type === 'success') {
-      const { id_token } = response.params;
-      handleGoogleVerify(id_token);
-    }
-  }, [response]);
 
   const handleSuccess = async () => {
     await disableLock();
@@ -65,6 +54,18 @@ export default function ForgotLockScreen() {
       setError(e.message || t('auth.errorInvalid'));
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleGooglePress = async () => {
+    try {
+      await GoogleSignin.hasPlayServices();
+      const userInfo = await GoogleSignin.signIn();
+      const idToken = userInfo.data?.idToken;
+      if (!idToken) throw new Error('No idToken returned from Google Sign-In');
+      await handleGoogleVerify(idToken);
+    } catch (e: any) {
+      setError(e.message || t('auth.errorNetwork'));
     }
   };
 
@@ -123,8 +124,8 @@ export default function ForgotLockScreen() {
           </Text>
           <TouchableOpacity
             style={[styles.btn, styles.googleBtn]}
-            onPress={() => promptAsync()}
-            disabled={isLoading || !request}
+            onPress={handleGooglePress}
+            disabled={isLoading}
           >
             <Ionicons name="logo-google" size={24} color="#000" />
             <Text style={styles.googleBtnText}>Google</Text>
