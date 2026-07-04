@@ -302,7 +302,7 @@ export default function AdminPage() {
 
   return (
     <div style={{ padding: 20, maxWidth: 1000, margin: 'auto', fontFamily: 'sans-serif' }}>
-      <h1>SavdoApp Admin</h1>
+      <h1>Torgo Admin</h1>
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
         <button onClick={() => setActiveTab('direct_ads')} style={{ padding: '10px 15px', backgroundColor: activeTab === 'direct_ads' ? '#1D9E75' : '#ccc', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Прямая реклама</button>

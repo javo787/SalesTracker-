@@ -1,6 +1,6 @@
 export const metadata = {
   title: 'Savdo Ads Service',
-  description: 'Remote Config for SavdoApp Ads',
+  description: 'Remote Config for Torgo Ads',
 }
 
 export default function RootLayout({

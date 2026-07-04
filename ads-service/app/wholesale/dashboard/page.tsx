@@ -57,7 +57,7 @@ function DashboardContent() {
       </div>
 
       <footer style={{ marginTop: 40, textAlign: 'center', color: '#999', fontSize: 12 }}>
-        SavdoApp Wholesale Services
+        Torgo Wholesale Services
       </footer>
     </div>
   );

@@ -7,15 +7,15 @@ export async function generateMetadata({
   searchParams: { lang?: string }
 }): Promise<Metadata> {
   const titles = {
-    en: 'Support — SavdoApp',
-    ru: 'Поддержка — SavdoApp',
-    uz: 'Yordam — SavdoApp',
-    tg: 'Дастгирӣ — SavdoApp',
+    en: 'Support — Torgo',
+    ru: 'Поддержка — Torgo',
+    uz: 'Yordam — Torgo',
+    tg: 'Дастгирӣ — Torgo',
   }
   const lang = (searchParams?.lang ?? 'en') as keyof typeof titles
   return {
     title: titles[lang] ?? titles.en,
-    description: 'SavdoApp Support Center. We are here to help with your questions and issues.',
+    description: 'Torgo Support Center. We are here to help with your questions and issues.',
   }
 }
 
@@ -23,7 +23,7 @@ const translations = {
   en: {
     title: 'Support Center',
     subtext: "We're here to help. Usually reply within 24 hours.",
-    contactBtn: '✉ savdoapp@gmail.com',
+    contactBtn: '✉ support@torgo.app',
     faqHeading: 'Frequently Asked Questions',
     faq: [
       {
@@ -48,7 +48,7 @@ const translations = {
       },
       {
         q: "My voice input is not working. What should I do?",
-        a: "Make sure microphone permission is granted in your device Settings → Apps → SavdoApp → Permissions. Voice input requires an internet connection for AI transcription. If the problem persists, contact us at savdoapp@gmail.com."
+        a: "Make sure microphone permission is granted in your device Settings → Apps → Torgo → Permissions. Voice input requires an internet connection for AI transcription. If the problem persists, contact us at support@torgo.app."
       },
       {
         q: "How do I delete all my data?",
@@ -56,7 +56,7 @@ const translations = {
       },
       {
         q: "Is the app really free?",
-        a: "Yes, SavdoApp is completely free. We show minimal non-intrusive ads to keep the service running. We will never charge you or ask for a subscription."
+        a: "Yes, Torgo is completely free. We show minimal non-intrusive ads to keep the service running. We will never charge you or ask for a subscription."
       }
     ],
     contact: {
@@ -65,7 +65,7 @@ const translations = {
       emailNote: "We respond within 24 hours.",
       telegramTitle: "Telegram Support",
       telegramDesc: "Write to our bot for fast support.",
-      telegramBtn: "Open @SavdoApp_support_bot",
+      telegramBtn: "Open @Torgo_support_bot",
       rateTitle: "Rate & Review",
       rateDesc: "Found a bug? Leave a review on Google Play — we read every one.",
       rateBtn: "Open Google Play"
@@ -78,13 +78,13 @@ const translations = {
     footer: {
       privacy: "Privacy Policy",
       support: "Support",
-      copy: "© 2025 SavdoApp"
+      copy: "© 2025 Torgo"
     }
   },
   ru: {
     title: 'Центр поддержки',
     subtext: 'Мы здесь, чтобы помочь. Обычно отвечаем в течение 24 часов.',
-    contactBtn: '✉ savdoapp@gmail.com',
+    contactBtn: '✉ support@torgo.app',
     faqHeading: 'Часто задаваемые вопросы',
     faq: [
       {
@@ -109,7 +109,7 @@ const translations = {
       },
       {
         q: "Мой голосовой ввод не работает. Что мне делать?",
-        a: "Убедитесь, что разрешение на использование микрофона предоставлено в настройках вашего устройства → Приложения → SavdoApp → Разрешения. Голосовой ввод требует подключения к интернету для расшифровки ИИ. Если проблема сохраняется, свяжитесь с нами по адресу savdoapp@gmail.com."
+        a: "Убедитесь, что разрешение на использование микрофона предоставлено в настройках вашего устройства → Приложения → Torgo → Разрешения. Голосовой ввод требует подключения к интернету для расшифровки ИИ. Если проблема сохраняется, свяжитесь с нами по адресу support@torgo.app."
       },
       {
         q: "Как удалить все мои данные?",
@@ -117,7 +117,7 @@ const translations = {
       },
       {
         q: "Приложение действительно бесплатное?",
-        a: "Да, SavdoApp полностью бесплатно. Мы показываем минимальную ненавязчивую рекламу, чтобы сервис продолжал работать. Мы никогда не будем брать с вас плату или просить подписку."
+        a: "Да, Torgo полностью бесплатно. Мы показываем минимальную ненавязчивую рекламу, чтобы сервис продолжал работать. Мы никогда не будем брать с вас плату или просить подписку."
       }
     ],
     contact: {
@@ -126,7 +126,7 @@ const translations = {
       emailNote: "Мы отвечаем в течение 24 часов.",
       telegramTitle: "Поддержка в Telegram",
       telegramDesc: "Напишите нашему боту — мы ответим быстро.",
-      telegramBtn: "Открыть @SavdoApp_support_bot",
+      telegramBtn: "Открыть @Torgo_support_bot",
       rateTitle: "Оцените нас",
       rateDesc: "Нашли баг? Оставьте отзыв в Google Play — мы читаем каждый из них.",
       rateBtn: "Открыть Google Play"
@@ -139,13 +139,13 @@ const translations = {
     footer: {
       privacy: "Политика конфиденциальности",
       support: "Поддержка",
-      copy: "© 2025 SavdoApp"
+      copy: "© 2025 Torgo"
     }
   },
   uz: {
     title: 'Qo\'llab-quvvatlash markazi',
     subtext: 'Biz yordam berishga tayyormiz. Odatda 24 soat ichida javob beramiz.',
-    contactBtn: '✉ savdoapp@gmail.com',
+    contactBtn: '✉ support@torgo.app',
     faqHeading: 'Ko\'p beriladigan savollar',
     faq: [
       {
@@ -170,7 +170,7 @@ const translations = {
       },
       {
         q: "Ovozli kiritish ishlamayapti. Nima qilishim kerak?",
-        a: "Qurilmangiz sozlamalarida mikrofon ruxsati berilganligiga ishonch hosil qiling: Sozlamalar → Ilovalar → SavdoApp → Ruxsatlar. Ovozli kiritish uchun sun'iy intellekt transkripsiyasi uchun internet ulanishi kerak. Agar muammo davom etsa, biz bilan savdoapp@gmail.com orqali bog'laning."
+        a: "Qurilmangiz sozlamalarida mikrofon ruxsati berilganligiga ishonch hosil qiling: Sozlamalar → Ilovalar → Torgo → Ruxsatlar. Ovozli kiritish uchun sun'iy intellekt transkripsiyasi uchun internet ulanishi kerak. Agar muammo davom etsa, biz bilan support@torgo.app orqali bog'laning."
       },
       {
         q: "Barcha ma'lumotlarimni qanday o'chiraman?",
@@ -178,7 +178,7 @@ const translations = {
       },
       {
         q: "Ilova haqiqatan ham bepulmi?",
-        a: "Ha, SavdoApp mutlaqo bepul. Xizmatni davom ettirish uchun biz minimal darajadagi xalaqit bermaydigan reklamalarni ko'rsatamiz. Biz hech qachon sizdan haq olmaymiz yoki obuna so'ramaymiz."
+        a: "Ha, Torgo mutlaqo bepul. Xizmatni davom ettirish uchun biz minimal darajadagi xalaqit bermaydigan reklamalarni ko'rsatamiz. Biz hech qachon sizdan haq olmaymiz yoki obuna so'ramaymiz."
       }
     ],
     contact: {
@@ -187,7 +187,7 @@ const translations = {
       emailNote: "Biz 24 soat ichida javob beramiz.",
       telegramTitle: "Telegram orqali yordam",
       telegramDesc: "Botimizga yozing — tez javob beramiz.",
-      telegramBtn: "@SavdoApp_support_bot ni ochish",
+      telegramBtn: "@Torgo_support_bot ni ochish",
       rateTitle: "Bizni baholang",
       rateDesc: "Xatolik topdingizmi? Google Play-da sharh qoldiring — biz har birini o'qiymiz.",
       rateBtn: "Google Play-ni ochish"
@@ -200,13 +200,13 @@ const translations = {
     footer: {
       privacy: "Maxfiylik siyosati",
       support: "Yordam",
-      copy: "© 2025 SavdoApp"
+      copy: "© 2025 Torgo"
     }
   },
   tg: {
     title: 'Маркази дастгирӣ',
     subtext: 'Мо барои кӯмак омода ҳастем. Одатан дар давоми 24 соат ҷавоб медиҳем.',
-    contactBtn: '✉ savdoapp@gmail.com',
+    contactBtn: '✉ support@torgo.app',
     faqHeading: 'Саволҳои зиёд додашаванда',
     faq: [
       {
@@ -231,7 +231,7 @@ const translations = {
       },
       {
         q: "Воридоти овозии ман кор намекунад. Чӣ бояд кард?",
-        a: "Боварӣ ҳосил кунед, ки иҷозати микрофон дар танзимоти дастгоҳи шумо дода шудааст: Танзимот → Барномаҳо → SavdoApp → Иҷозатҳо. Воридоти овозӣ барои транскрипсияи интеллекти сунъӣ пайвасти интернетро талаб мекунад. Агар мушкилот боқӣ монад, бо мо тавассути savdoapp@gmail.com тамос гиред."
+        a: "Боварӣ ҳосил кунед, ки иҷозати микрофон дар танзимоти дастгоҳи шумо дода шудааст: Танзимот → Барномаҳо → Torgo → Иҷозатҳо. Воридоти овозӣ барои транскрипсияи интеллекти сунъӣ пайвасти интернетро талаб мекунад. Агар мушкилот боқӣ монад, бо мо тавассути support@torgo.app тамос гиред."
       },
       {
         q: "Чӣ тавр ман ҳама маълумоти худро нест кунам?",
@@ -239,7 +239,7 @@ const translations = {
       },
       {
         q: "Оё барнома воқеан ройгон аст?",
-        a: "Бале, SavdoApp комилан ройгон аст. Мо таблиғоти ҳадди аққал ва безарарро нишон медиҳем, то хидматрасонӣ идома ёбад. Мо ҳеҷ гоҳ аз шумо маблағ талаб намекунем ва обуна намепурсем."
+        a: "Бале, Torgo комилан ройгон аст. Мо таблиғоти ҳадди аққал ва безарарро нишон медиҳем, то хидматрасонӣ идома ёбад. Мо ҳеҷ гоҳ аз шумо маблағ талаб намекунем ва обуна намепурсем."
       }
     ],
     contact: {
@@ -248,7 +248,7 @@ const translations = {
       emailNote: "Мо дар давоми 24 соат ҷавоб медиҳем.",
       telegramTitle: "Дастгирӣ дар Telegram",
       telegramDesc: "Ба бот нависед — мо зуд ҷавоб медиҳем.",
-      telegramBtn: "@SavdoApp_support_bot кушоед",
+      telegramBtn: "@Torgo_support_bot кушоед",
       rateTitle: "Моро арзёбӣ кунед",
       rateDesc: "Хатогие ёфтед? Дар Google Play тақриз гузоред — мо ҳар як тақризро мехонем.",
       rateBtn: "Google Play-ро кушоед"
@@ -261,7 +261,7 @@ const translations = {
     footer: {
       privacy: "Сиёсати махфият",
       support: "Дастгирӣ",
-      copy: "© 2025 SavdoApp"
+      copy: "© 2025 Torgo"
     }
   }
 }
@@ -578,7 +578,7 @@ export default function SupportPage({
       <style dangerouslySetInnerHTML={{ __html: css }} />
       <nav className="navbar">
         <div className="container nav-content">
-          <a href="/" className="logo">SavdoApp</a>
+          <a href="/" className="logo">Torgo</a>
           <div className="nav-links">
             <a href="/privacy" className="nav-link">{t.footer.privacy}</a>
           </div>
@@ -589,7 +589,7 @@ export default function SupportPage({
         <div className="container hero-content">
           <h1>{t.title}</h1>
           <p className="hero-subtext">{t.subtext}</p>
-          <a href="mailto:savdoapp@gmail.com?subject=SavdoApp Support" className="hero-btn">
+          <a href="mailto:support@torgo.app?subject=Torgo Support" className="hero-btn">
             {t.contactBtn}
           </a>
         </div>
@@ -630,7 +630,7 @@ export default function SupportPage({
               </svg>
               <h3>{t.contact.emailTitle}</h3>
               <p>{t.contact.emailDesc}</p>
-              <a href="mailto:savdoapp@gmail.com" className="contact-link">savdoapp@gmail.com</a>
+              <a href="mailto:support@torgo.app" className="contact-link">support@torgo.app</a>
               <span className="contact-note">{t.contact.emailNote}</span>
             </div>
 
@@ -642,7 +642,7 @@ export default function SupportPage({
               <h3>{t.contact.telegramTitle}</h3>
               <p>{t.contact.telegramDesc}</p>
               <a
-                href="https://t.me/SavdoApp_support_bot"
+                href="https://t.me/Torgo_support_bot"
                 className="contact-link"
                 target="_blank"
                 rel="noopener noreferrer"
@@ -693,7 +693,7 @@ export default function SupportPage({
       <footer className="footer">
         <div className="container">
           <div className="footer-top">
-            <a href="/" className="footer-logo">SavdoApp</a>
+            <a href="/" className="footer-logo">Torgo</a>
             <div className="footer-links">
               <a href="/privacy">{t.footer.privacy}</a>
               <a href="/support">{t.footer.support}</a>

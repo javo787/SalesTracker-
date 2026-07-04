@@ -15,7 +15,7 @@
 
 ## How it works
 
-User → @SavdoApp_support_bot → Backend /telegram/webhook →
+User → @Torgo_support_bot → Backend /telegram/webhook →
   1. Auto-reply to user (confirmation)
   2. Forward to ADMIN_TELEGRAM_ID with /reply command hint
 

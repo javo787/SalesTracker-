@@ -1,14 +1,14 @@
 {
   "expo": {
-    "name": "Saleze",
-    "slug": "savdo-app",
+    "name": "Torgo",
+    "slug": "torgo-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "platforms": ["android"],
-    "scheme": "savdo",
+    "scheme": "torgo",
     "android": {
-      "package": "savdo.app",
+      "package": "com.torgo.app",
       "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.RECORD_AUDIO",
@@ -45,7 +45,7 @@
       [
         "expo-local-authentication",
         {
-          "faceIDPermission": "Используйте Face ID для быстрой и безопасной разблокировки Saleze"
+        "faceIDPermission": "Используйте Face ID для быстрой и безопасной разблокировки Torgo"
         }
       ],
       [
@@ -79,7 +79,7 @@
       ]
     ],
     "ios": {
-      "bundleIdentifier": "com.savdo.app",
+      "bundleIdentifier": "com.torgo.app",
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "NSSpeechRecognitionUsageDescription": "Allow $(PRODUCT_NAME) to use speech recognition.",
@@ -95,8 +95,8 @@
         "orientation": "portrait",
         "themeColor": "#1D9E75",
         "backgroundColor": "#1D9E75",
-        "name": "Saleze",
-        "shortName": "Saleze",
+        "name": "Torgo",
+        "shortName": "Torgo",
         "description": "Умный помощник для торговли",
         "lang": "ru"
       }

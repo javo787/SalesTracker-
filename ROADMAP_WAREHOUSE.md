@@ -1,4 +1,4 @@
-# ROADMAP_WAREHOUSE.md — Складской учёт для SavdoApp
+# ROADMAP_WAREHOUSE.md — Складской учёт для Torgo
 
 ## 1. Цель и принципы
 

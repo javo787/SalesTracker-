@@ -51,8 +51,8 @@ async function fetchNewsFromDuckDuckGo(): Promise<TavilyResult[]> {
   // Note: returns limited results but works as fallback
   const query = encodeURIComponent('торговля базар Таджикистан цены 2026');
   const response = await fetch(
-    `https://api.duckduckgo.com/?q=${query}&format=json&t=savdoapp`,
-    { headers: { 'User-Agent': 'SavdoApp/1.0' } }
+    `https://api.duckduckgo.com/?q=${query}&format=json&t=torgo`,
+    { headers: { 'User-Agent': 'Torgo/1.0' } }
   );
   if (!response.ok) return [];
   const data = await response.json();

@@ -8,14 +8,14 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const lang = searchParams?.lang ?? 'en'
   const titles = {
-    en: 'Privacy Policy — SavdoApp',
-    ru: 'Политика конфиденциальности — SavdoApp',
-    uz: 'Maxfiylik siyosati — SavdoApp',
-    tg: 'Сиёсати махфият — SavdoApp',
+    en: 'Privacy Policy — Torgo',
+    ru: 'Политика конфиденциальности — Torgo',
+    uz: 'Maxfiylik siyosati — Torgo',
+    tg: 'Сиёсати махфият — Torgo',
   }
   return {
     title: titles[lang as keyof typeof titles] ?? titles.en,
-    description: 'SavdoApp privacy policy for mobile application users.',
+    description: 'Torgo privacy policy for mobile application users.',
   }
 }
 
@@ -57,7 +57,7 @@ const translations: Record<string, Translation> = {
       service: 'Service',
       purpose: 'Purpose',
       policy: 'Privacy Policy',
-      contactEmail: 'savdoapp@gmail.com',
+      contactEmail: 'support@torgo.app',
       notSold: 'We do NOT sell your data to third parties.',
       revocationNote: 'All permissions can be revoked anytime in device Settings.',
       uninstallNote: 'Uninstalling the app deletes all local data.',
@@ -69,7 +69,7 @@ const translations: Record<string, Translation> = {
     sections: [
       {
         title: '1. Introduction',
-        content: 'SavdoApp ("we", "us") operates the SavdoApp mobile application. This Privacy Policy explains how we collect, use, and protect your information. By using the App, you agree to this policy.',
+        content: 'Torgo ("we", "us") operates the Torgo mobile application. This Privacy Policy explains how we collect, use, and protect your information. By using the App, you agree to this policy.',
       },
       {
         title: '2. Information We Collect',
@@ -104,7 +104,7 @@ const translations: Record<string, Translation> = {
       },
       {
         title: '3. Government and Tax Authorities',
-        content: 'We do not transfer data about your sales, products, or income to tax, law enforcement, or other government authorities. SavdoApp has no technical integration with the state information systems of any country. Access to the synchronized data of your store is only available to you and the team members you have personally invited.',
+        content: 'We do not transfer data about your sales, products, or income to tax, law enforcement, or other government authorities. Torgo has no technical integration with the state information systems of any country. Access to the synchronized data of your store is only available to you and the team members you have personally invited.',
       },
       {
         title: '4. How We Use Your Information',
@@ -185,7 +185,7 @@ const translations: Record<string, Translation> = {
       service: 'Сервис',
       purpose: 'Цель',
       policy: 'Политика конфиденциальности',
-      contactEmail: 'savdoapp@gmail.com',
+      contactEmail: 'support@torgo.app',
       notSold: 'Мы НЕ продаем ваши данные третьим лицам.',
       revocationNote: 'Все разрешения можно отозвать в любое время в настройках устройства.',
       uninstallNote: 'Удаление приложения приводит к удалению всех локальных данных.',
@@ -197,7 +197,7 @@ const translations: Record<string, Translation> = {
     sections: [
       {
         title: '1. Введение',
-        content: 'SavdoApp («мы», «нас») управляет мобильным приложением SavdoApp. Настоящая Политика конфиденциальности объясняет, как мы собираем, используем и защищаем вашу информацию. Используя Приложение, вы соглашаетесь с этой политикой.',
+        content: 'Torgo («мы», «нас») управляет мобильным приложением Torgo. Настоящая Политика конфиденциальности объясняет, как мы собираем, используем и защищаем вашу информацию. Используя Приложение, вы соглашаетесь с этой политикой.',
       },
       {
         title: '2. Информация, которую мы собираем',
@@ -232,7 +232,7 @@ const translations: Record<string, Translation> = {
       },
       {
         title: '3. Государственные и налоговые органы',
-        content: 'Мы не передаём данные о ваших продажах, товарах или доходах налоговым, правоохранительным или иным государственным органам. У SavdoApp нет технической интеграции с государственными информационными системами какой-либо страны. Доступ к синхронизированным данным вашего магазина есть только у вас и у участников вашей команды, которых вы сами пригласили.',
+        content: 'Мы не передаём данные о ваших продажах, товарах или доходах налоговым, правоохранительным или иным государственным органам. У Torgo нет технической интеграции с государственными информационными системами какой-либо страны. Доступ к синхронизированным данным вашего магазина есть только у вас и у участников вашей команды, которых вы сами пригласили.',
       },
       {
         title: '4. Как мы используем вашу информацию',
@@ -313,7 +313,7 @@ const translations: Record<string, Translation> = {
       service: 'Xizmat',
       purpose: 'Maqsad',
       policy: 'Maxfiylik siyosati',
-      contactEmail: 'savdoapp@gmail.com',
+      contactEmail: 'support@torgo.app',
       notSold: 'Biz sizning ma\'lumotlaringizni uchinchi tomonlarga sotmaymiz.',
       revocationNote: 'Barcha ruxsatnomalar istalgan vaqtda qurilma sozlamalarida bekor qilinishi mumkin.',
       uninstallNote: 'Ilovani o\'chirish barcha mahalliy ma\'lumotlarni o\'chirib tashlaydi.',
@@ -325,7 +325,7 @@ const translations: Record<string, Translation> = {
     sections: [
       {
         title: '1. Kirish',
-        content: 'SavdoApp ("biz", "bizga") SavdoApp mobil ilovasini boshqaradi. Ushbu Maxfiylik siyosati sizning ma\'lumotlaringizni qanday to\'plashimiz, ishlatishimiz va himoya qilishimizni tushuntiradi. Ilovadan foydalanish orqali siz ushbu siyosatga rozilik bildirasiz.',
+        content: 'Torgo ("biz", "bizga") Torgo mobil ilovasini boshqaradi. Ushbu Maxfiylik siyosati sizning ma\'lumotlaringizni qanday to\'plashimiz, ishlatishimiz va himoya qilishimizni tushuntiradi. Ilovadan foydalanish orqali siz ushbu siyosatga rozilik bildirasiz.',
       },
       {
         title: '2. Biz to\'playdigan ma\'lumotlar',
@@ -360,7 +360,7 @@ const translations: Record<string, Translation> = {
       },
       {
         title: '3. Davlat va soliq organlari',
-        content: 'Biz sizning savdolaringiz, mahsulotlaringiz yoki daromadlaringiz haqidagi ma\'lumotlarni soliq, huquqni muhofaza qilish yoki boshqa davlat organlariga o\'tkazmaymiz. SavdoApp biron bir mamlakatning davlat axborot tizimlari bilan texnik integratsiyaga ega emas. Do\'koningizning sinxronlashtirilgan ma\'lumotlariga faqat siz va o\'zingiz taklif qilgan jamoa a\'zolari kirish huquqiga ega.',
+        content: 'Biz sizning savdolaringiz, mahsulotlaringiz yoki daromadlaringiz haqidagi ma\'lumotlarni soliq, huquqni muhofaza qilish yoki boshqa davlat organlariga o\'tkazmaymiz. Torgo biron bir mamlakatning davlat axborot tizimlari bilan texnik integratsiyaga ega emas. Do\'koningizning sinxronlashtirilgan ma\'lumotlariga faqat siz va o\'zingiz taklif qilgan jamoa a\'zolari kirish huquqiga ega.',
       },
       {
         title: '4. Ma\'lumotlaringizdan qanday foydalanamiz',
@@ -441,7 +441,7 @@ const translations: Record<string, Translation> = {
       service: 'Хизматрасонӣ',
       purpose: 'Мақсад',
       policy: 'Сиёсати махфият',
-      contactEmail: 'savdoapp@gmail.com',
+      contactEmail: 'support@torgo.app',
       notSold: 'Мо маълумоти шуморо ба шахсони сеюм НАМЕФУРӮШЕМ.',
       revocationNote: 'Ҳама иҷозатҳоро дар ҳар вақт дар Танзимоти дастгоҳ бекор кардан мумкин аст.',
       uninstallNote: 'Нест кардани барнома ҳама маълумоти маҳаллиро нест мекунад.',
@@ -453,7 +453,7 @@ const translations: Record<string, Translation> = {
     sections: [
       {
         title: '1. Муқаддима',
-        content: 'SavdoApp ("мо", "моро") замимаи мобилии SavdoApp-ро идора мекунад. Ин Сиёсати махфият чӣ гуна ҷамъоварӣ, истифода ва ҳифзи маълумоти шуморо шарҳ медиҳад. Бо истифода аз Барнома, шумо ба ин сиёсат розӣ мешавед.',
+        content: 'Torgo ("мо", "моро") замимаи мобилии Torgo-ро идора мекунад. Ин Сиёсати махфият чӣ гуна ҷамъоварӣ, истифода ва ҳифзи маълумоти шуморо шарҳ медиҳад. Бо истифода аз Барнома, шумо ба ин сиёсат розӣ мешавед.',
       },
       {
         title: '2. Маълумоте, ки мо ҷамъ меорем',
@@ -488,7 +488,7 @@ const translations: Record<string, Translation> = {
       },
       {
         title: '3. Мақомоти давлатӣ ва андоз',
-        content: 'Мо маълумотро дар бораи фурӯш, мол ё даромади шумо ба мақомоти андоз, ҳифзи ҳуқуқ ё дигар мақомоти давлатӣ намедиҳем. SavdoApp бо системаҳои иттилоотии давлатии ягон кишвар ҳамгироии техникӣ надорад. Дастрасӣ ба маълумоти ҳамоҳангшудаи дӯкони шумо танҳо барои шумо ва аъзоёни дастае, ки худатон даъват кардаед, дастрас аст.',
+        content: 'Мо маълумотро дар бораи фурӯш, мол ё даромади шумо ба мақомоти андоз, ҳифзи ҳуқуқ ё дигар мақомоти давлатӣ намедиҳем. Torgo бо системаҳои иттилоотии давлатии ягон кишвар ҳамгироии техникӣ надорад. Дастрасӣ ба маълумоти ҳамоҳангшудаи дӯкони шумо танҳо барои шумо ва аъзоёни дастае, ки худатон даъват кардаед, дастрас аст.',
       },
       {
         title: '4. Чӣ тавр мо маълумоти шуморо истифода мебарем',
@@ -770,7 +770,7 @@ export default function PrivacyPage({
       <style dangerouslySetInnerHTML={{ __html: css }} />
       <header className="header">
         <div className="container">
-          <div className="logo">SavdoApp</div>
+          <div className="logo">Torgo</div>
           <div className="tagline">{t.tagline}</div>
           <h1 className="main-heading">{t.heading}</h1>
           <div className="last-updated">{t.lastUpdated}</div>
@@ -901,7 +901,7 @@ export default function PrivacyPage({
 
               {section.title.includes('12.') && (
                 <p className="text">
-                  SavdoApp<br />
+                  Torgo<br />
                   {t.labels.emailLabel}:{' '}
                   <a href={`mailto:${t.labels.contactEmail}`} className="footer-email">
                     {t.labels.contactEmail}
@@ -921,7 +921,7 @@ export default function PrivacyPage({
               {t.labels.contactEmail}
             </a>
           </p>
-          <div className="copyright">© 2025 SavdoApp</div>
+          <div className="copyright">© 2025 Torgo</div>
           <div className="small-note">{t.footerNote}</div>
         </div>
       </footer>

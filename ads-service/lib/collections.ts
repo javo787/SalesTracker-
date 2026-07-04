@@ -1,5 +1,6 @@
 import clientPromise from './mongodb';
 
+// TODO: Consider renaming DB_NAME to 'torgo' after data migration.
 const DB_NAME = process.env.MONGODB_DB_NAME || 'savdo';
 
 export async function getDb() {

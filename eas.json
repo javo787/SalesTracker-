@@ -1,3 +1,4 @@
+// TODO: обновить URL после переименования сервисов на Render/Vercel/Telegram
 {
   "cli": {
     "version": ">= 5.0.0",

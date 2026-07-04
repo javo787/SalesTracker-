@@ -14,6 +14,7 @@ export default cloudinary;
  * @param base64 - full data URI e.g. "data:image/jpeg;base64,..."
  * @param folder - 'savdo/classifieds' | 'savdo/wholesale'
  * @param maxWidthPx - resize on Cloudinary side (saves bandwidth)
+ * TODO: Migrate Cloudinary folders from 'savdo/...' to 'torgo/...'
  */
 export async function uploadImage(
   base64: string,

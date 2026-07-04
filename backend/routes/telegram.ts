@@ -26,11 +26,11 @@ function detectLang(languageCode?: string): SupportLang {
 const BOT_I18N = {
   ru: {
     start: (name: string) =>
-      `👋 Привет, <b>${name}</b>!\n\nДобро пожаловать в поддержку <b>SavdoApp</b>.\n\nОпишите вашу проблему или вопрос — мы ответим в течение 24 часов. 🕐`,
+      `👋 Привет, <b>${name}</b>!\n\nДобро пожаловать в поддержку <b>Torgo</b>.\n\nОпишите вашу проблему или вопрос — мы ответим в течение 24 часов. 🕐`,
     received: (name: string) =>
-      `✅ <b>${name}</b>, ваше сообщение получено!\n\nМы ответим в течение 24 часов. Если вопрос срочный, напишите также на 📧 savdoapp@gmail.com`,
+      `✅ <b>${name}</b>, ваше сообщение получено!\n\nМы ответим в течение 24 часов. Если вопрос срочный, напишите также на 📧 support@torgo.app`,
     adminReply: (text: string) =>
-      `📩 <b>Ответ от поддержки SavdoApp:</b>\n\n${text}`,
+      `📩 <b>Ответ от поддержки Torgo:</b>\n\n${text}`,
     replySent: (chatId: number) =>
       `✅ Ответ отправлен → ${chatId}`,
     replyFormat: `❌ Формат: /reply <chatId> <текст>`,
@@ -38,11 +38,11 @@ const BOT_I18N = {
   },
   uz: {
     start: (name: string) =>
-      `👋 Salom, <b>${name}</b>!\n\n<b>SavdoApp</b> qo'llab-quvvatlash xizmatiga xush kelibsiz.\n\nMuammo yoki savolingizni yozing — 24 soat ichida javob beramiz. 🕐`,
+      `👋 Salom, <b>${name}</b>!\n\n<b>Torgo</b> qo'llab-quvvatlash xizmatiga xush kelibsiz.\n\nMuammo yoki savolingizni yozing — 24 soat ichida javob beramiz. 🕐`,
     received: (name: string) =>
-      `✅ <b>${name}</b>, xabaringiz qabul qilindi!\n\n24 soat ichida javob beramiz. Shoshilinch bo'lsa: 📧 savdoapp@gmail.com`,
+      `✅ <b>${name}</b>, xabaringiz qabul qilindi!\n\n24 soat ichida javob beramiz. Shoshilinch bo'lsa: 📧 support@torgo.app`,
     adminReply: (text: string) =>
-      `📩 <b>SavdoApp qo'llab-quvvatlashidan javob:</b>\n\n${text}`,
+      `📩 <b>Torgo qo'llab-quvvatlashidan javob:</b>\n\n${text}`,
     replySent: (chatId: number) =>
       `✅ Javob yuborildi → ${chatId}`,
     replyFormat: `❌ Format: /reply <chatId> <matn>`,
@@ -50,11 +50,11 @@ const BOT_I18N = {
   },
   tg: {
     start: (name: string) =>
-      `👋 Салом, <b>${name}</b>!\n\nХуш омадед ба дастгирии <b>SavdoApp</b>.\n\nМушкилот ё саволи худро нависед — мо дар давоми 24 соат ҷавоб медиҳем. 🕐`,
+      `👋 Салом, <b>${name}</b>!\n\nХуш омадед ба дастгирии <b>Torgo</b>.\n\nМушкилот ё саволи худро нависед — мо дар давоми 24 соат ҷавоб медиҳем. 🕐`,
     received: (name: string) =>
-      `✅ <b>${name}</b>, паёми шумо қабул шуд!\n\nДар давоми 24 соат ҷавоб медиҳем. Агар таъҷилӣ бошад: 📧 savdoapp@gmail.com`,
+      `✅ <b>${name}</b>, паёми шумо қабул шуд!\n\nДар давоми 24 соат ҷавоб медиҳем. Агар таъҷилӣ бошад: 📧 support@torgo.app`,
     adminReply: (text: string) =>
-      `📩 <b>Ҷавоб аз дастгирии SavdoApp:</b>\n\n${text}`,
+      `📩 <b>Ҷавоб аз дастгирии Torgo:</b>\n\n${text}`,
     replySent: (chatId: number) =>
       `✅ Ҷавоб фиристода шуд → ${chatId}`,
     replyFormat: `❌ Формат: /reply <chatId> <матн>`,
@@ -62,11 +62,11 @@ const BOT_I18N = {
   },
   en: {
     start: (name: string) =>
-      `👋 Hello, <b>${name}</b>!\n\nWelcome to <b>SavdoApp</b> Support.\n\nDescribe your issue or question — we'll reply within 24 hours. 🕐`,
+      `👋 Hello, <b>${name}</b>!\n\nWelcome to <b>Torgo</b> Support.\n\nDescribe your issue or question — we'll reply within 24 hours. 🕐`,
     received: (name: string) =>
-      `✅ <b>${name}</b>, your message has been received!\n\nWe'll reply within 24 hours. For urgent issues: 📧 savdoapp@gmail.com`,
+      `✅ <b>${name}</b>, your message has been received!\n\nWe'll reply within 24 hours. For urgent issues: 📧 support@torgo.app`,
     adminReply: (text: string) =>
-      `📩 <b>Reply from SavdoApp Support:</b>\n\n${text}`,
+      `📩 <b>Reply from Torgo Support:</b>\n\n${text}`,
     replySent: (chatId: number) =>
       `✅ Reply sent → ${chatId}`,
     replyFormat: `❌ Format: /reply <chatId> <text>`,
