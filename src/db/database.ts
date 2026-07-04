@@ -24,7 +24,7 @@ function daysAgoLocalISO(days: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-export function initDatabase() {
+function runMigrations() {
   db.execSync(`
     CREATE TABLE IF NOT EXISTS products (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -325,6 +325,35 @@ export function initDatabase() {
       });
       db.runSync("INSERT INTO app_meta (key, value) VALUES ('tz_migration_v1', 'done')");
     });
+  }
+}
+
+// Схема и миграции выполняются синхронно прямо при загрузке этого модуля —
+// то есть до того, как React успеет смонтировать хотя бы один компонент.
+// Это критично: контексты (ShopContext, и т.п.) читают из БД в своих
+// собственных useEffect при монтировании, а эффекты дочерних компонентов
+// в React срабатывают раньше, чем эффект родителя (App), который вызывал
+// initDatabase() из useEffect. На первом холодном запуске после установки
+// таблицы могли ещё не существовать в момент такого раннего чтения —
+// "no such table: shop_session" и подобные ошибки. Выполняя миграции здесь,
+// на этапе импорта модуля, мы гарантируем, что таблицы уже существуют
+// до того, как какой-либо код (включая контексты) успеет их прочитать,
+// независимо от порядка срабатывания React-эффектов.
+let moduleInitError: Error | null = null;
+try {
+  runMigrations();
+} catch (e) {
+  moduleInitError = e instanceof Error ? e : new Error(String(e));
+  console.error('[database] Migration failed on module load:', e);
+}
+
+// Сохраняем публичную функцию initDatabase() для обратной совместимости:
+// App.tsx вызывает её в useEffect и по результату решает, показывать ли
+// экран ошибки БД (dbError). Миграции уже выполнены выше, здесь только
+// пробрасываем сохранённую ошибку, если она была.
+export function initDatabase() {
+  if (moduleInitError) {
+    throw moduleInitError;
   }
 }
 
