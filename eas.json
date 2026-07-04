@@ -12,7 +12,8 @@
       },
       "env": {
         "EXPO_PUBLIC_ADS_API_URL": "https://savdo-tan.vercel.app",
-        "EXPO_PUBLIC_API_URL": "https://savdoapp.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://savdoapp.onrender.com",
+        "EXPO_PUBLIC_TELEGRAM_BOT_USERNAME": "SavdoApp_support_bot"
       }
     },
     "preview": {
@@ -24,7 +25,8 @@
       "env": {
         "EXPO_PUBLIC_ADS_API_URL": "https://savdo-tan.vercel.app",
         "EXPO_PUBLIC_API_URL": "https://savdoapp.onrender.com",
-        "ORG_GRADLE_PROJECT_reactNativeArchitectures": "arm64-v8a"
+        "ORG_GRADLE_PROJECT_reactNativeArchitectures": "arm64-v8a",
+        "EXPO_PUBLIC_TELEGRAM_BOT_USERNAME": "SavdoApp_support_bot"
       }
     },
     "production": {
@@ -35,7 +37,8 @@
       },
       "env": {
         "EXPO_PUBLIC_ADS_API_URL": "https://savdo-tan.vercel.app",
-        "EXPO_PUBLIC_API_URL": "https://savdoapp.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://savdoapp.onrender.com",
+        "EXPO_PUBLIC_TELEGRAM_BOT_USERNAME": "SavdoApp_support_bot"
       }
     }
   }
