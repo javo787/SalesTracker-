@@ -44,8 +44,8 @@ const LOCALE_MAP: Record<string, string> = {
 };
 
 
-const PRIVACY_POLICY_URL = 'https://savdo-tan.vercel.app/privacy';
-const SUPPORT_URL = 'https://savdo-tan.vercel.app/support';
+const PRIVACY_POLICY_URL = 'https://torgo.vercel.app/privacy';
+const SUPPORT_URL = 'https://torgo.vercel.app/support';
 
 // Иконка в цветном кружке
 function SettingIcon({ name, color }: { name: any; color: string }) {
