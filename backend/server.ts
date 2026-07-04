@@ -16,6 +16,10 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Render всегда работает за reverse-proxy — без этого express-rate-limit
+// видит один и тот же IP для всех клиентов (см. ERR_ERL_UNEXPECTED_X_FORWARDED_FOR в логах Render)
+app.set('trust proxy', 1);
+
 // Middleware
 app.use(helmet());
 
@@ -45,10 +49,25 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   message: { message: 'Too many auth attempts, please try again later.' },
   handler: (req, res, _next, options) => {
-    console.error('[AUTH_LOG][rateLimit:auth] BLOCKED ip=', req.ip, 'method=', req.method, 'path=', req.originalUrl); // AUTH_LOG
+    console.error('[AUTH_LOG][rateLimit:auth] BLOCKED ip=', req.ip, 'path=', req.originalUrl); // AUTH_LOG
     res.status(options.statusCode).json(options.message);
   },
 });
+
+// Отдельный, более щедрый лимитер для поллинга статуса Telegram-логина —
+// это read-only проверка временного токена (не brute-force поверхность),
+// а клиент опрашивает её раз в 2 сек до 30 раз за один вход.
+const telegramCheckLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many auth attempts, please try again later.' },
+});
+
+// Порядок важен: конкретный путь регистрируем ДО общего app.use('/auth', authLimiter),
+// чтобы /auth/telegram/check не попадал под authLimiter.
+app.use('/auth/telegram/check', telegramCheckLimiter);
 app.use('/auth', authLimiter);
 
 app.use(express.json({ limit: '2mb' })); // reduced from 10mb
