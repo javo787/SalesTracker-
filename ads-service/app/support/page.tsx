@@ -65,7 +65,7 @@ const translations = {
       emailNote: "We respond within 24 hours.",
       telegramTitle: "Telegram Support",
       telegramDesc: "Write to our bot for fast support.",
-      telegramBtn: "Open @SavdoApp_support_bot",
+      telegramBtn: "Open @Torgo_support_bot",
       rateTitle: "Rate & Review",
       rateDesc: "Found a bug? Leave a review on Google Play — we read every one.",
       rateBtn: "Open Google Play"
@@ -126,7 +126,7 @@ const translations = {
       emailNote: "Мы отвечаем в течение 24 часов.",
       telegramTitle: "Поддержка в Telegram",
       telegramDesc: "Напишите нашему боту — мы ответим быстро.",
-      telegramBtn: "Открыть @SavdoApp_support_bot",
+      telegramBtn: "Открыть @Torgo_support_bot",
       rateTitle: "Оцените нас",
       rateDesc: "Нашли баг? Оставьте отзыв в Google Play — мы читаем каждый из них.",
       rateBtn: "Открыть Google Play"
@@ -187,7 +187,7 @@ const translations = {
       emailNote: "Biz 24 soat ichida javob beramiz.",
       telegramTitle: "Telegram orqali yordam",
       telegramDesc: "Botimizga yozing — tez javob beramiz.",
-      telegramBtn: "@SavdoApp_support_bot ni ochish",
+      telegramBtn: "@Torgo_support_bot ni ochish",
       rateTitle: "Bizni baholang",
       rateDesc: "Xatolik topdingizmi? Google Play-da sharh qoldiring — biz har birini o'qiymiz.",
       rateBtn: "Google Play-ni ochish"
@@ -248,7 +248,7 @@ const translations = {
       emailNote: "Мо дар давоми 24 соат ҷавоб медиҳем.",
       telegramTitle: "Дастгирӣ дар Telegram",
       telegramDesc: "Ба бот нависед — мо зуд ҷавоб медиҳем.",
-      telegramBtn: "@SavdoApp_support_bot кушоед",
+      telegramBtn: "@Torgo_support_bot кушоед",
       rateTitle: "Моро арзёбӣ кунед",
       rateDesc: "Хатогие ёфтед? Дар Google Play тақриз гузоред — мо ҳар як тақризро мехонем.",
       rateBtn: "Google Play-ро кушоед"
@@ -642,7 +642,7 @@ export default function SupportPage({
               <h3>{t.contact.telegramTitle}</h3>
               <p>{t.contact.telegramDesc}</p>
               <a
-                href="https://t.me/SavdoApp_support_bot"
+                href="https://t.me/Torgo_support_bot"
                 className="contact-link"
                 target="_blank"
                 rel="noopener noreferrer"

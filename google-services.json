@@ -7,6 +7,38 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:265164441201:android:a97860d7d6654dc6127dd0",
+        "android_client_info": {
+          "package_name": "com.torgo.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "265164441201-tqpvcafomc06ekphquf1dk198vrpblha.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCFaCDscBvCCJvZJ-FlVY3snXYRie5dbOQ"
+        },
+        {
+          "current_key": "AIzaSyCr_W7ML7duDysYF_2Dxz79JnInuPvDXmM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "265164441201-tqpvcafomc06ekphquf1dk198vrpblha.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:265164441201:android:68227e80a0d78865127dd0",
         "android_client_info": {
           "package_name": "savdo.app"
@@ -19,6 +51,9 @@
         }
       ],
       "api_key": [
+        {
+          "current_key": "AIzaSyCFaCDscBvCCJvZJ-FlVY3snXYRie5dbOQ"
+        },
         {
           "current_key": "AIzaSyCr_W7ML7duDysYF_2Dxz79JnInuPvDXmM"
         }
