@@ -44,6 +44,10 @@ const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: 'Too many auth attempts, please try again later.' },
+  handler: (req, res, _next, options) => {
+    console.error('[AUTH_LOG][rateLimit:auth] BLOCKED ip=', req.ip, 'method=', req.method, 'path=', req.originalUrl); // AUTH_LOG
+    res.status(options.statusCode).json(options.message);
+  },
 });
 app.use('/auth', authLimiter);
 

@@ -20,6 +20,7 @@ const generateReferralCode = () => {
 };
 
 router.post('/guest', async (req, res) => {
+  console.log('[AUTH_LOG][api:guest] entry'); // AUTH_LOG
   try {
     const name = `Торговец #${Math.floor(1000 + Math.random() * 9000)}`;
     const user = new User({
@@ -29,14 +30,17 @@ router.post('/guest', async (req, res) => {
     });
     await user.save();
     const token = generateToken((user._id as any).toString());
+    console.log('[AUTH_LOG][api:guest] success userId=', user._id); // AUTH_LOG
     res.json({ token, user });
   } catch (error) {
+    console.error('[AUTH_LOG][api:guest] error=', error); // AUTH_LOG
     res.status(500).json({ message: 'Error creating guest' });
   }
 });
 
 router.post('/email/register', async (req, res) => {
   const { email, password, name, referralCode } = req.body;
+  console.log('[AUTH_LOG][api:register] entry email=', email); // AUTH_LOG
 
   if (!email || typeof email !== 'string' || !email.includes('@')) {
     return res.status(400).json({ message: 'Invalid email format' });
@@ -73,37 +77,54 @@ router.post('/email/register', async (req, res) => {
     });
     await user.save();
     const token = generateToken((user._id as any).toString());
+    console.log('[AUTH_LOG][api:register] success userId=', user._id); // AUTH_LOG
     res.json({ token, user });
   } catch (error) {
+    console.error('[AUTH_LOG][api:register] error=', error); // AUTH_LOG
     res.status(500).json({ message: 'Error registering' });
   }
 });
 
 router.post('/email/login', async (req, res) => {
   const { email, password } = req.body;
+  console.log('[AUTH_LOG][api:login] entry email=', email); // AUTH_LOG
   try {
     const user = await User.findOne({ email });
-    if (!user || !user.passwordHash) return res.status(401).json({ message: 'Invalid credentials' });
+    if (!user || !user.passwordHash) {
+      console.log('[AUTH_LOG][api:login] fail: user not found or no passwordHash'); // AUTH_LOG
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
 
     const isMatch = await bcrypt.compare(password, user.passwordHash);
-    if (!isMatch) return res.status(401).json({ message: 'Invalid credentials' });
+    if (!isMatch) {
+      console.log('[AUTH_LOG][api:login] fail: password mismatch'); // AUTH_LOG
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
 
     const token = generateToken((user._id as any).toString());
+    console.log('[AUTH_LOG][api:login] success userId=', user._id); // AUTH_LOG
     res.json({ token, user });
   } catch (error) {
+    console.error('[AUTH_LOG][api:login] error=', error); // AUTH_LOG
     res.status(500).json({ message: 'Error logging in' });
   }
 });
 
 router.post('/google', async (req, res) => {
   const { idToken } = req.body;
+  console.log('[AUTH_LOG][api:google] entry'); // AUTH_LOG
   try {
     const payload = await verifyGoogleToken(idToken);
-    if (!payload) return res.status(400).json({ message: 'Invalid Google token' });
+    if (!payload) {
+      console.log('[AUTH_LOG][api:google] fail: invalid token'); // AUTH_LOG
+      return res.status(400).json({ message: 'Invalid Google token' });
+    }
 
     const { sub: googleId, email, name, picture: avatarUrl } = payload;
+    console.log('[AUTH_LOG][api:google] payload sub=', googleId); // AUTH_LOG
     let user = await User.findOne({ googleId });
     if (!user) {
+      console.log('[AUTH_LOG][api:google] creating new user'); // AUTH_LOG
       user = new User({
         authProvider: 'google',
         googleId,
@@ -113,19 +134,25 @@ router.post('/google', async (req, res) => {
         referralCode: generateReferralCode(),
       });
       await user.save();
+    } else {
+      console.log('[AUTH_LOG][api:google] existing user found'); // AUTH_LOG
     }
     const token = generateToken((user._id as any).toString());
+    console.log('[AUTH_LOG][api:google] success userId=', user._id); // AUTH_LOG
     res.json({ token, user });
   } catch (error) {
+    console.error('[AUTH_LOG][api:google] error=', error); // AUTH_LOG
     res.status(500).json({ message: 'Error with Google auth' });
   }
 });
 
 router.post('/telegram', async (req, res) => {
   const data = req.body;
+  console.log('[AUTH_LOG][api:telegram] entry'); // AUTH_LOG
   const botToken = process.env.TELEGRAM_BOT_TOKEN || '';
   try {
     if (!verifyTelegramAuth(data, botToken)) {
+      console.log('[AUTH_LOG][api:telegram] fail: invalid auth data'); // AUTH_LOG
       return res.status(400).json({ message: 'Invalid Telegram data' });
     }
 
@@ -143,8 +170,10 @@ router.post('/telegram', async (req, res) => {
       await user.save();
     }
     const token = generateToken((user._id as any).toString());
+    console.log('[AUTH_LOG][api:telegram] success userId=', user._id); // AUTH_LOG
     res.json({ token, user });
   } catch (error) {
+    console.error('[AUTH_LOG][api:telegram] error=', error); // AUTH_LOG
     res.status(500).json({ message: 'Error with Telegram auth' });
   }
 });
@@ -152,9 +181,11 @@ router.post('/telegram', async (req, res) => {
 // Telegram Bot Webhook / Callback
 router.post('/telegram/callback', async (req, res) => {
   const { tempToken, ...telegramData } = req.body;
+  console.log('[AUTH_LOG][api:telegram:callback] entry tempToken=', tempToken); // AUTH_LOG
   const botToken = process.env.TELEGRAM_BOT_TOKEN || '';
 
   if (!verifyTelegramAuth(telegramData, botToken)) {
+    console.log('[AUTH_LOG][api:telegram:callback] fail: invalid auth data'); // AUTH_LOG
     return res.status(400).json({ message: 'Invalid data' });
   }
 
@@ -173,6 +204,7 @@ router.post('/telegram/callback', async (req, res) => {
   }
 
   const token = generateToken((user._id as any).toString());
+  console.log('[AUTH_LOG][api:telegram:callback] success userId=', user._id); // AUTH_LOG
   pendingTelegramAuths.set(tempToken, { token, user });
   cleanupPendingAuths();
 
@@ -184,17 +216,21 @@ router.post('/telegram/callback', async (req, res) => {
 
 router.get('/telegram/check', (req, res) => {
   const { token } = req.query;
+  console.log('[AUTH_LOG][api:telegram:check] token=', token); // AUTH_LOG
   const auth = pendingTelegramAuths.get(token as string);
   if (auth) {
+    console.log('[AUTH_LOG][api:telegram:check] found: true, userId=', auth.user._id); // AUTH_LOG
     pendingTelegramAuths.delete(token as string);
     res.json(auth);
   } else {
+    console.log('[AUTH_LOG][api:telegram:check] found: false'); // AUTH_LOG
     res.status(404).json({ message: 'Pending' });
   }
 });
 
 router.post('/convert', authMiddleware, async (req: AuthRequest, res) => {
   const { provider, ...providerData } = req.body;
+  console.log('[AUTH_LOG][api:convert] entry userId=', req.userId, 'provider=', provider); // AUTH_LOG
   try {
     const user = await User.findById(req.userId);
     if (!user || user.authProvider !== 'anonymous') {
@@ -240,8 +276,10 @@ router.post('/convert', authMiddleware, async (req: AuthRequest, res) => {
     }
 
     await user.save();
+    console.log('[AUTH_LOG][api:convert] success'); // AUTH_LOG
     res.json({ user });
   } catch (error) {
+    console.error('[AUTH_LOG][api:convert] error=', error); // AUTH_LOG
     res.status(500).json({ message: 'Error converting account' });
   }
 });

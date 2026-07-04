@@ -21,6 +21,7 @@ class ApiClient {
 
   private async getHeaders() {
     const token = await SecureStore.getItemAsync('auth_token');
+    console.log('[AUTH_LOG][api:headers] token=', token ? `${token.slice(0, 8)}...(len:${token.length})` : 'none'); // AUTH_LOG
     const headers: any = {
       'Content-Type': 'application/json',
     };
@@ -31,12 +32,15 @@ class ApiClient {
   }
 
   private async handleResponse(response: Response) {
+    console.log('[AUTH_LOG][api:response] status=', response.status, 'ok=', response.ok); // AUTH_LOG
     if (response.status === 401) {
+      console.log('[AUTH_LOG][api:response] 401 Unauthorized, token deleted'); // AUTH_LOG
       await SecureStore.deleteItemAsync('auth_token');
       throw new Error('Unauthorized');
     }
     if (response.status === 403) {
       const errorData = await response.json().catch(() => ({}));
+      console.log('[AUTH_LOG][api:response] 403 Forbidden, message=', errorData.message); // AUTH_LOG
       if (errorData.message?.includes('Not a member of any shop')) {
         this.emitRevoked();
         clearShopSession();
@@ -47,6 +51,7 @@ class ApiClient {
     }
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      console.log('[AUTH_LOG][api:response] !ok, message=', errorData.message); // AUTH_LOG
       const error: any = new Error(errorData.message || `Request failed (HTTP ${response.status})`);
       error.status = response.status;
       error.code = errorData.code;
@@ -56,6 +61,7 @@ class ApiClient {
   }
 
   async get<T>(path: string): Promise<T> {
+    console.log('[AUTH_LOG][api:get] path=', path); // AUTH_LOG
     if (!API_URL) throw new Error('API URL not configured');
     const headers = await this.getHeaders();
     const response = await fetch(`${API_URL}${path}`, {
@@ -66,6 +72,7 @@ class ApiClient {
   }
 
   async post<T>(path: string, body: any): Promise<T> {
+    console.log('[AUTH_LOG][api:post] path=', path); // AUTH_LOG
     if (!API_URL) throw new Error('API URL not configured');
     const headers = await this.getHeaders();
     const response = await fetch(`${API_URL}${path}`, {
@@ -77,6 +84,7 @@ class ApiClient {
   }
 
   async patch<T>(path: string, body: any): Promise<T> {
+    console.log('[AUTH_LOG][api:patch] path=', path); // AUTH_LOG
     if (!API_URL) throw new Error('API URL not configured');
     const headers = await this.getHeaders();
     const response = await fetch(`${API_URL}${path}`, {
@@ -88,6 +96,7 @@ class ApiClient {
   }
 
   async delete<T>(path: string): Promise<T> {
+    console.log('[AUTH_LOG][api:delete] path=', path); // AUTH_LOG
     if (!API_URL) throw new Error('API URL not configured');
     const headers = await this.getHeaders();
     const response = await fetch(`${API_URL}${path}`, {

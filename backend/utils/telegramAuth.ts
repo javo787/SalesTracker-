@@ -16,6 +16,7 @@ export function verifyTelegramAuth(data: TelegramAuthData, botToken: string): bo
   // 1. Check auth_date (not older than 24h)
   const now = Math.floor(Date.now() / 1000);
   if (now - data.auth_date > 86400) {
+    console.log('[AUTH_LOG][telegram:verify] fail: auth_date expired delta=', now - data.auth_date); // AUTH_LOG
     return false;
   }
 
@@ -37,5 +38,7 @@ export function verifyTelegramAuth(data: TelegramAuthData, botToken: string): bo
     .update(dataCheckString)
     .digest('hex');
 
-  return hmac === hash;
+  const isValid = hmac === hash;
+  console.log('[AUTH_LOG][telegram:verify] hmac comparison result=', isValid, 'hmac=', hmac.slice(0, 8), 'hash=', hash.slice(0, 8)); // AUTH_LOG
+  return isValid;
 }

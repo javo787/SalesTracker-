@@ -76,6 +76,7 @@ const BOT_I18N = {
 
 // POST /telegram/webhook  — called by Telegram servers
 router.post('/webhook', async (req: Request, res: Response) => {
+  console.log('[AUTH_LOG][telegram:webhook] body=', JSON.stringify(req.body)); // AUTH_LOG
   try {
     const update = req.body;
     if (!update.message) return res.sendStatus(200);
@@ -122,6 +123,7 @@ router.post('/webhook', async (req: Request, res: Response) => {
     if (text.startsWith('/start ')) {
       const tempToken = text.slice(7).trim();
       const telegramId = String(msg.from?.id);
+      console.log('[AUTH_LOG][telegram:webhook:start] tempToken=', tempToken, 'telegramId=', telegramId); // AUTH_LOG
 
       let user = await User.findOne({ telegramId });
       if (!user) {
@@ -132,7 +134,10 @@ router.post('/webhook', async (req: Request, res: Response) => {
           name: msg.from?.last_name ? `${firstName} ${msg.from.last_name}` : firstName,
           referralCode: Math.random().toString(36).substring(2, 8).toUpperCase(),
         });
+        console.log('[AUTH_LOG][telegram:webhook:start] creating new user'); // AUTH_LOG
         await user.save();
+      } else {
+        console.log('[AUTH_LOG][telegram:webhook:start] existing user found userId=', user._id); // AUTH_LOG
       }
 
       const JWT_SECRET = process.env.JWT_SECRET;
@@ -203,8 +208,21 @@ router.get('/webhook/set', async (_req: Request, res: Response) => {
   try {
     const { setWebhook } = await import('../services/telegramBot');
     const webhookUrl = `${process.env.BACKEND_URL}/telegram/webhook`;
+    console.log('[AUTH_LOG][telegram:webhook:set] url=', webhookUrl); // AUTH_LOG
     await setWebhook(webhookUrl);
     res.json({ ok: true, url: webhookUrl });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+router.get('/webhook/info', async (_req: Request, res: Response) => {
+  try {
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    const r = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`);
+    const data = await r.json();
+    console.log('[AUTH_LOG][telegram:webhookInfo]', JSON.stringify(data)); // AUTH_LOG
+    res.json(data);
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
