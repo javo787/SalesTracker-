@@ -1,5 +1,8 @@
 import 'react-native-gesture-handler';
-import { useEffect, useState, useRef } from 'react';
+import * as SplashScreen from 'expo-splash-screen';
+import { useEffect, useState, useRef, useCallback } from 'react';
+
+SplashScreen.preventAutoHideAsync().catch(() => {});
 import { View, ActivityIndicator, TouchableOpacity, Platform, Text, AppState, Alert } from 'react-native';
 import * as NavigationBar from 'expo-navigation-bar';
 import { NavigationContainer, DrawerActions, useNavigationContainerRef } from '@react-navigation/native';
@@ -51,6 +54,7 @@ import ForgotLockScreen from './src/screens/ForgotLockScreen';
 import DebtorsScreen from './src/screens/DebtorsScreen';
 import SellersScreen from './src/screens/SellersScreen';
 import ProductDetailScreen from './src/screens/ProductDetailScreen';
+import AppSplashScreen from './src/components/AppSplashScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -307,7 +311,7 @@ const enableImmersiveMode = async () => {
   }
 };
 
-function AppContent() {
+function AppContent({ onReady }: { onReady: () => void }) {
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
   const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const { isLockEnabled, isLocked, isLoading: isAppLockLoading } = useAppLock();
@@ -383,12 +387,16 @@ function AppContent() {
     }
   };
 
-  if (showOnboarding === null || isAuthLoading || isAppLockLoading || isShopLoading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#1D9E75" />
-      </View>
-    );
+  const isInitializing = showOnboarding === null || isAuthLoading || isAppLockLoading || isShopLoading;
+
+  useEffect(() => {
+    if (!isInitializing) {
+      onReady();
+    }
+  }, [isInitializing, onReady]);
+
+  if (isInitializing) {
+    return null;
   }
 
   if (!isAuthenticated) {
@@ -508,6 +516,12 @@ function AppContent() {
 export default function App() {
   const [isDbReady, setIsDbReady] = useState(false);
   const [dbError, setDbError] = useState<Error | null>(null);
+  const [isAppContentReady, setIsAppContentReady] = useState(false);
+  const [isAppSplashScreenHidden, setIsAppSplashScreenHidden] = useState(false);
+
+  const handleAppContentReady = useCallback(() => {
+    setIsAppContentReady(true);
+  }, []);
 
   useEffect(() => {
     // Initialize database
@@ -552,42 +566,46 @@ export default function App() {
     return () => subscription.remove();
   }, []);
 
-  if (dbError) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-        <Ionicons name="alert-circle-outline" size={64} color="#FF6B6B" />
-        <Text style={{ fontSize: 18, fontWeight: 'bold', marginTop: 16, textAlign: 'center' }}>
-          Ошибка базы данных
-        </Text>
-        <Text style={{ fontSize: 14, color: '#666', marginTop: 8, textAlign: 'center' }}>
-          Не удалось запустить приложение. Пожалуйста, попробуйте перезагрузить его.
-        </Text>
-        <Text style={{ fontSize: 12, color: '#999', marginTop: 16 }}>
-          {dbError.message}
-        </Text>
-      </View>
-    );
-  }
-
-  if (!isDbReady) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#1D9E75" />
-      </View>
-    );
-  }
+  const isAppReady = dbError ? true : (isDbReady && isAppContentReady);
 
   return (
-    <AppContextProvider>
-      <AuthProvider>
-        <ShopProvider>
-          <AppLockProvider>
-            <I18nextProvider i18n={i18n}>
-              <AppContent />
-            </I18nextProvider>
-          </AppLockProvider>
-        </ShopProvider>
-      </AuthProvider>
-    </AppContextProvider>
+    <View style={{ flex: 1 }}>
+      <AppContextProvider>
+        <AuthProvider>
+          <ShopProvider>
+            <AppLockProvider>
+              <I18nextProvider i18n={i18n}>
+                {dbError ? (
+                  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+                    <Ionicons name="alert-circle-outline" size={64} color="#FF6B6B" />
+                    <Text style={{ fontSize: 18, fontWeight: 'bold', marginTop: 16, textAlign: 'center' }}>
+                      Ошибка базы данных
+                    </Text>
+                    <Text style={{ fontSize: 14, color: '#666', marginTop: 8, textAlign: 'center' }}>
+                      Не удалось запустить приложение. Пожалуйста, попробуйте перезагрузить его.
+                    </Text>
+                    <Text style={{ fontSize: 12, color: '#999', marginTop: 16 }}>
+                      {dbError.message}
+                    </Text>
+                  </View>
+                ) : (
+                  <AppContent onReady={handleAppContentReady} />
+                )}
+              </I18nextProvider>
+            </AppLockProvider>
+          </ShopProvider>
+        </AuthProvider>
+      </AppContextProvider>
+
+      {!isAppSplashScreenHidden && (
+        <AppSplashScreen
+          ready={isAppReady}
+          onHidden={() => {
+            setIsAppSplashScreenHidden(true);
+            SplashScreen.hideAsync().catch(() => {});
+          }}
+        />
+      )}
+    </View>
   );
 }
