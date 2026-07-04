@@ -75,27 +75,41 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const createShop = async (name: string) => {
-    const result = await api.post<{
-      shopId: string; shopName: string; role: ShopRole; inviteCode: string;
-    }>('/shop/create', { shopName: name });
+    console.log('[AUTH_LOG][shop:create] entry name=', name); // AUTH_LOG
+    try {
+      const result = await api.post<{
+        shopId: string; shopName: string; role: ShopRole; inviteCode: string;
+      }>('/shop/create', { shopName: name });
+      console.log('[AUTH_LOG][shop:create] success shopId=', result.shopId); // AUTH_LOG
 
-    // Fix Bug 1: Use actual user name from storage
-    const storedUser = await AsyncStorage.getItem('auth_user');
-    const userName = storedUser ? JSON.parse(storedUser).name : result.shopName;
+      // Fix Bug 1: Use actual user name from storage
+      const storedUser = await AsyncStorage.getItem('auth_user');
+      const userName = storedUser ? JSON.parse(storedUser).name : result.shopName;
 
-    persistSession({ ...result, sellerName: userName });
+      persistSession({ ...result, sellerName: userName });
+    } catch (e: any) {
+      console.error('[AUTH_LOG][shop:create] error=', e.message); // AUTH_LOG
+      throw e;
+    }
   };
 
   const joinShop = async (code: string) => {
-    const result = await api.post<{
-      shopId: string; shopName: string; role: ShopRole;
-    }>('/shop/join', { inviteCode: code });
+    console.log('[AUTH_LOG][shop:join] entry code=', code); // AUTH_LOG
+    try {
+      const result = await api.post<{
+        shopId: string; shopName: string; role: ShopRole;
+      }>('/shop/join', { inviteCode: code });
+      console.log('[AUTH_LOG][shop:join] success shopId=', result.shopId); // AUTH_LOG
 
-    // Fix Bug 4: Use actual user name from storage
-    const storedUser = await AsyncStorage.getItem('auth_user');
-    const userName = storedUser ? JSON.parse(storedUser).name : 'Продавец';
+      // Fix Bug 4: Use actual user name from storage
+      const storedUser = await AsyncStorage.getItem('auth_user');
+      const userName = storedUser ? JSON.parse(storedUser).name : 'Продавец';
 
-    persistSession({ ...result, sellerName: userName });
+      persistSession({ ...result, sellerName: userName });
+    } catch (e: any) {
+      console.error('[AUTH_LOG][shop:join] error=', e.message); // AUTH_LOG
+      throw e;
+    }
   };
 
   const refreshShopInfo = async () => {

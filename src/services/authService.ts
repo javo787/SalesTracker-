@@ -9,16 +9,20 @@ WebBrowser.maybeCompleteAuthSession();
 
 export const AuthService = {
   async saveAuthData(result: AuthResult) {
+    console.log('[AUTH_LOG][service:save] userId=', result.user._id, 'token=', result.token ? `${result.token.slice(0, 8)}...(len:${result.token.length})` : 'none'); // AUTH_LOG
     await SecureStore.setItemAsync('auth_token', result.token);
     await AsyncStorage.setItem('auth_user', JSON.stringify(result.user));
   },
 
   async loginAsGuest(): Promise<AuthResult> {
+    console.log('[AUTH_LOG][service:loginAsGuest] entry'); // AUTH_LOG
     try {
       const result = await api.post<AuthResult>('/auth/guest', {});
+      console.log('[AUTH_LOG][service:loginAsGuest] success'); // AUTH_LOG
       await this.saveAuthData(result);
       return result;
-    } catch (e) {
+    } catch (e: any) {
+      console.error('[AUTH_LOG][service:loginAsGuest] error=', e.message, 'falling back to local guest'); // AUTH_LOG
       // Fallback to local guest if offline
       const localGuest: AuthResult = {
         token: 'local_guest_token',
@@ -38,13 +42,17 @@ export const AuthService = {
   },
 
   async loginWithEmail(email: string, password: string): Promise<AuthResult> {
+    console.log('[AUTH_LOG][service:loginWithEmail] entry email=', email); // AUTH_LOG
     const result = await api.post<AuthResult>('/auth/email/login', { email, password });
+    console.log('[AUTH_LOG][service:loginWithEmail] success'); // AUTH_LOG
     await this.saveAuthData(result);
     return result;
   },
 
   async registerWithEmail(email: string, password: string, name: string, referralCode?: string): Promise<AuthResult> {
+    console.log('[AUTH_LOG][service:registerWithEmail] entry email=', email); // AUTH_LOG
     const result = await api.post<AuthResult>('/auth/email/register', { email, password, name, referralCode });
+    console.log('[AUTH_LOG][service:registerWithEmail] success'); // AUTH_LOG
     await this.saveAuthData(result);
     return result;
   },
@@ -54,6 +62,7 @@ export const AuthService = {
     const botUsername = process.env.EXPO_PUBLIC_TELEGRAM_BOT_USERNAME;
     const url = `https://t.me/${botUsername}?start=${tempToken}`;
 
+    console.log('[AUTH_LOG][service:telegram] bot=', botUsername, 'url=', url); // AUTH_LOG
     await WebBrowser.openBrowserAsync(url);
 
     return new Promise((resolve, reject) => {
@@ -62,8 +71,10 @@ export const AuthService = {
       const interval = setInterval(async () => {
         if (settled) return;
         try {
+          console.log('[AUTH_LOG][service:telegram] polling attempt=', attempts); // AUTH_LOG
           const result = await api.get<AuthResult>(`/auth/telegram/check?token=${tempToken}`);
           if (settled) return;
+          console.log('[AUTH_LOG][service:telegram] poll success'); // AUTH_LOG
           settled = true;
           clearInterval(interval);
           await this.saveAuthData(result);
@@ -72,6 +83,7 @@ export const AuthService = {
           attempts++;
           if (attempts > 30 || settled) {
             if (!settled) {
+              console.error('[AUTH_LOG][service:telegram] poll timeout (attempts)'); // AUTH_LOG
               settled = true;
               clearInterval(interval);
               reject(new Error('Telegram auth timeout'));
@@ -83,6 +95,7 @@ export const AuthService = {
       // Safety: clear interval after 70s even if something goes wrong
       setTimeout(() => {
         if (!settled) {
+          console.error('[AUTH_LOG][service:telegram] poll timeout (safety)'); // AUTH_LOG
           settled = true;
           clearInterval(interval);
           reject(new Error('Telegram auth timeout'));
@@ -92,6 +105,7 @@ export const AuthService = {
   },
 
   async logout() {
+    console.log('[AUTH_LOG][service:logout] entry'); // AUTH_LOG
     await SecureStore.deleteItemAsync('auth_token');
     await AsyncStorage.removeItem('auth_user');
   },

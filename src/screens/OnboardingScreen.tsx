@@ -105,18 +105,22 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
     }
 
     if (step.isRoleStep) {
+      console.log('[AUTH_LOG][onboarding:next] roleStep selectedRole=', selectedRole); // AUTH_LOG
       if (!selectedRole) { setRoleError(t('onboarding.errorSelectRole')); return; }
       setRoleLoading(true);
       setRoleError('');
       try {
         if (selectedRole === 'owner') {
+          console.log('[AUTH_LOG][onboarding:next] creating shop=', shopNameInput.trim()); // AUTH_LOG
           if (!shopNameInput.trim()) { setRoleError(t('onboarding.errorShopName')); setRoleLoading(false); return; }
           await createShop(shopNameInput.trim());
         } else {
+          console.log('[AUTH_LOG][onboarding:next] joining shop with code=', inviteCodeInput.trim().toUpperCase()); // AUTH_LOG
           if (inviteCodeInput.length < 6) { setRoleError(t('onboarding.errorInviteCode')); setRoleLoading(false); return; }
           await joinShop(inviteCodeInput.trim().toUpperCase());
         }
       } catch (e: any) {
+        console.error('[AUTH_LOG][onboarding:next] roleStep error=', e.message); // AUTH_LOG
         setRoleError(e.message || t('onboarding.errorGeneric'));
         setRoleLoading(false);
         return;
