@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>ANDROID_CLIENT_ID</key>
-	<string>265164441201-u27ifvp09fl36976hauoh9qv8jeulsv5.apps.googleusercontent.com</string>
+	<string>265164441201-qef7tvcu6krlto4q7kl97al02slfhn3u.apps.googleusercontent.com</string>
 	<key>API_KEY</key>
 	<string>AIzaSyAYayEMpDn8mbCY0ngoRb15M-PebvuCPq4</string>
 	<key>GCM_SENDER_ID</key>
@@ -11,7 +11,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>savdo.app</string>
+	<string>com.torgo.app</string>
 	<key>PROJECT_ID</key>
 	<string>savdoapp-83d7c</string>
 	<key>STORAGE_BUCKET</key>
@@ -27,6 +27,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:265164441201:ios:d755b6523a87afb0127dd0</string>
+	<string>1:265164441201:ios:14894badd7d0c66b127dd0</string>
 </dict>
 </plist>
