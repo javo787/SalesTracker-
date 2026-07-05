@@ -61,43 +61,45 @@ export const AuthService = {
     const tempToken = Math.random().toString(36).substring(7);
     const botUsername = process.env.EXPO_PUBLIC_TELEGRAM_BOT_USERNAME;
     const url = `https://t.me/${botUsername}?start=${tempToken}`;
-
     console.log('[AUTH_LOG][service:telegram] bot=', botUsername, 'url=', url); // AUTH_LOG
     await WebBrowser.openBrowserAsync(url);
 
     return new Promise((resolve, reject) => {
-      let attempts = 0;
       let settled = false;
-      const interval = setInterval(async () => {
+      let attempts = 0;
+
+      const tryFinish = async () => {
         if (settled) return;
         try {
-          console.log('[AUTH_LOG][service:telegram] polling attempt=', attempts); // AUTH_LOG
           const result = await api.get<AuthResult>(`/auth/telegram/check?token=${tempToken}`);
-          if (settled) return;
-          console.log('[AUTH_LOG][service:telegram] poll success'); // AUTH_LOG
           settled = true;
-          clearInterval(interval);
+          clearInterval(intervalId);
+          clearTimeout(timeoutId);
+          linkingSub.remove();
           await this.saveAuthData(result);
           resolve(result);
         } catch (e) {
-          attempts++;
-          if (attempts > 30 || settled) {
-            if (!settled) {
-              console.error('[AUTH_LOG][service:telegram] poll timeout (attempts)'); // AUTH_LOG
-              settled = true;
-              clearInterval(interval);
-              reject(new Error('Telegram auth timeout'));
-            }
-          }
+          // ещё не готово — интервал попробует снова
         }
+      };
+
+      const intervalId = setInterval(() => {
+        attempts++;
+        tryFinish();
+        if (attempts >= 30) clearInterval(intervalId);
       }, 2000);
 
-      // Safety: clear interval after 70s even if something goes wrong
-      setTimeout(() => {
+      // Мгновенное завершение по нажатию кнопки "Открыть Torgo" в боте
+      const linkingSub = Linking.addEventListener('url', (event) => {
+        if (event.url.startsWith('torgo://telegram-auth-success')) {
+          tryFinish();
+        }
+      });
+
+      const timeoutId = setTimeout(() => {
         if (!settled) {
-          console.error('[AUTH_LOG][service:telegram] poll timeout (safety)'); // AUTH_LOG
-          settled = true;
-          clearInterval(interval);
+          clearInterval(intervalId);
+          linkingSub.remove();
           reject(new Error('Telegram auth timeout'));
         }
       }, 70000);

@@ -34,6 +34,8 @@ const BOT_I18N = {
     replySent: (chatId: number) =>
       `✅ Ответ отправлен → ${chatId}`,
     replyFormat: `❌ Формат: /reply <chatId> <текст>`,
+    loginSuccess: (name: string) =>
+      `✅ <b>${name}</b>, вход выполнен!\n\nНажмите кнопку ниже, чтобы вернуться в приложение Torgo.`,
     unknown: `❓ Напишите нам ваш вопрос — мы обязательно ответим.`,
   },
   uz: {
@@ -46,6 +48,8 @@ const BOT_I18N = {
     replySent: (chatId: number) =>
       `✅ Javob yuborildi → ${chatId}`,
     replyFormat: `❌ Format: /reply <chatId> <matn>`,
+    loginSuccess: (name: string) =>
+      `✅ <b>${name}</b>, kirish muvaffaqiyatli amalga oshirildi!\n\nIlovaga qaytish uchun quyidagi tugmani bosing.`,
     unknown: `❓ Savolingizni yozing — albatta javob beramiz.`,
   },
   tg: {
@@ -58,6 +62,8 @@ const BOT_I18N = {
     replySent: (chatId: number) =>
       `✅ Ҷавоб фиристода шуд → ${chatId}`,
     replyFormat: `❌ Формат: /reply <chatId> <матн>`,
+    loginSuccess: (name: string) =>
+      `✅ <b>${name}</b>, ворид ба система анҷом ёфт!\n\nБарои бозгашт ба барнома тугмаи зеринро пахш кунед.`,
     unknown: `❓ Саволи худро нависед — мо ҷавоб медиҳем.`,
   },
   en: {
@@ -70,13 +76,15 @@ const BOT_I18N = {
     replySent: (chatId: number) =>
       `✅ Reply sent → ${chatId}`,
     replyFormat: `❌ Format: /reply <chatId> <text>`,
+    loginSuccess: (name: string) =>
+      `✅ <b>${name}</b>, you're logged in!\n\nTap the button below to return to the Torgo app.`,
     unknown: `❓ Send us your question — we'll get back to you.`,
   },
 };
 
 // POST /telegram/webhook  — called by Telegram servers
 router.post('/webhook', async (req: Request, res: Response) => {
-  console.log('[AUTH_LOG][telegram:webhook] body=', JSON.stringify(req.body)); // AUTH_LOG
+  console.log('[AUTH_LOG][telegram:webhook] incoming:', JSON.stringify(req.body)); // AUTH_LOG
   try {
     const update = req.body;
     if (!update.message) return res.sendStatus(200);
@@ -87,16 +95,19 @@ router.post('/webhook', async (req: Request, res: Response) => {
     const username: string | undefined = msg.from?.username;
     const firstName: string = msg.from?.first_name || 'User';
     const langCode: string | undefined = msg.from?.language_code;
-    const adminId = Number(process.env.ADMIN_TELEGRAM_ID);
+    const adminIds = (process.env.ADMIN_TELEGRAM_ID || '')
+      .split(',')
+      .map(id => Number(id.trim()))
+      .filter(id => Number.isFinite(id) && id !== 0);
 
     // ── ADMIN: /reply command ─────────────────────────────────────────────
-    if (chatId === adminId && text.startsWith('/reply ')) {
+    if (adminIds.includes(chatId) && text.startsWith('/reply ')) {
       const parts = text.slice(7).split(' ');
       const targetChatId = Number(parts[0]);
       const replyText = parts.slice(1).join(' ');
 
       if (!targetChatId || !replyText) {
-        await sendMessage(adminId, BOT_I18N.ru.replyFormat);
+        await sendMessage(chatId, BOT_I18N.ru.replyFormat);
         return res.sendStatus(200);
       }
 
@@ -111,7 +122,7 @@ router.post('/webhook', async (req: Request, res: Response) => {
       );
 
       await sendMessage(targetChatId, i18n.adminReply(replyText));
-      await sendMessage(adminId, BOT_I18N.ru.replySent(targetChatId));
+      await sendMessage(chatId, BOT_I18N.ru.replySent(targetChatId));
       return res.sendStatus(200);
     }
 
@@ -151,7 +162,9 @@ router.post('/webhook', async (req: Request, res: Response) => {
       cleanupPendingAuths();
       setTimeout(() => pendingTelegramAuths.delete(tempToken), 120000);
 
-      await sendMessage(chatId, i18n.start(firstName));
+      await sendMessage(chatId, i18n.loginSuccess(firstName), {
+        inline_keyboard: [[{ text: '🔙 Открыть Torgo', url: 'torgo://telegram-auth-success' }]],
+      });
       return res.sendStatus(200);
     }
 
@@ -184,17 +197,23 @@ router.post('/webhook', async (req: Request, res: Response) => {
 
     await sendMessage(chatId, i18n.received(firstName));
 
-    // Forward to admin (always in Russian for admin convenience)
+    // Forward to admins (always in Russian for admin convenience)
     const userTag = username ? `@${username}` : `#${chatId}`;
     const langLabel = { ru: '🇷🇺', uz: '🇺🇿', tg: '🇹🇯', en: '🇬🇧' }[lang];
-    await sendMessage(
-      adminId,
-      `📨 <b>Новый тикет поддержки</b>\n\n` +
-      `👤 ${firstName} (${userTag}) ${langLabel}\n` +
-      `🆔 <code>${chatId}</code>\n\n` +
-      `💬 ${text}\n\n` +
-      `▶ <i>/reply ${chatId} &lt;ответ&gt;</i>`
-    );
+    for (const id of adminIds) {
+      try {
+        await sendMessage(
+          id,
+          `📨 <b>Новый тикет поддержки</b>\n\n` +
+          `👤 ${firstName} (${userTag}) ${langLabel}\n` +
+          `🆔 <code>${chatId}</code>\n\n` +
+          `💬 ${text}\n\n` +
+          `▶ <i>/reply ${chatId} &lt;ответ&gt;</i>`
+        );
+      } catch (err) {
+        console.error('[AUTH_LOG][telegram:adminForward] failed id=', id, err); // AUTH_LOG
+      }
+    }
 
     res.sendStatus(200);
   } catch (err) {
