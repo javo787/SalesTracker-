@@ -56,8 +56,10 @@ export default function CurrencyStepSelector({ selectedCode, onSelect }: Currenc
 
       <ScrollView
         style={styles.scrollArea}
-        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={true}
         keyboardShouldPersistTaps="handled"
+        nestedScrollEnabled
       >
         {priorityCurrencies.length > 0 && (
           <View style={styles.grid}>
@@ -108,7 +110,7 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
     flex: 1,
-    maxHeight: 400,
+    marginBottom: 20,
   },
   searchContainer: {
     flexDirection: 'row',
@@ -127,6 +129,9 @@ const styles = StyleSheet.create({
   },
   scrollArea: {
     flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 12,
   },
   grid: {
     flexDirection: 'row',
