@@ -1,16 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  Dimensions, SafeAreaView, TextInput, ActivityIndicator,
-  Image, ImageSourcePropType, Animated
+  TextInput, ActivityIndicator,
+  Image, ImageSourcePropType, Animated,
+  useWindowDimensions, KeyboardAvoidingView, Platform
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import { useAppContext } from '../context/AppContext';
 import { useShop } from '../context/ShopContext';
-
-const { width } = Dimensions.get('window');
-const illustrationSize = Math.min(width * 0.72, 300);
 
 interface OnboardingScreenProps {
   onFinish: () => void;
@@ -18,6 +17,9 @@ interface OnboardingScreenProps {
 
 export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const illustrationSize = Math.min(width * 0.72, 300);
 
   const STEPS = [
     {
@@ -137,17 +139,21 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { flex: 1 }]}>
-      <View style={styles.progressTrack}>
-        <Animated.View
-          style={[
-            styles.progressFill,
-            { width: progressWidth, backgroundColor: step.color }
-          ]}
-        />
-      </View>
-      <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
-        {step.isSellerModeStep ? (
+    <View style={[styles.container, { flex: 1, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <View style={[styles.progressTrack, { marginTop: Math.max(12, insets.top > 0 ? 12 : 20) }]}>
+          <Animated.View
+            style={[
+              styles.progressFill,
+              { width: progressWidth, backgroundColor: step.color }
+            ]}
+          />
+        </View>
+        <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
+          {step.isSellerModeStep ? (
           <View style={selectionStyles.container}>
             <TouchableOpacity
               style={[
@@ -222,17 +228,21 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
             {roleError ? <Text style={roleStyles.errorText}>{roleError}</Text> : null}
             {roleLoading && <ActivityIndicator color="#534AB7" style={{ marginTop: 10 }} />}
           </View>
-        ) : (
-          <View style={[styles.iconContainer, { backgroundColor: step.color + '15' }]}>
-            <Image source={step.image} style={styles.illustrationImage} resizeMode="contain" />
-          </View>
-        )}
+          ) : (
+            <View style={[styles.iconContainer, {
+              backgroundColor: step.color + '15',
+              width: illustrationSize,
+              height: illustrationSize
+            }]}>
+              <Image source={step.image} style={styles.illustrationImage} resizeMode="contain" />
+            </View>
+          )}
 
-        <Text style={styles.title}>{step.title}</Text>
-        <Text style={styles.description}>{step.description}</Text>
-      </Animated.View>
+          <Text style={styles.title}>{step.title}</Text>
+          <Text style={styles.description}>{step.description}</Text>
+        </Animated.View>
 
-      <View style={styles.buttonContainer}>
+        <View style={[styles.buttonContainer, { paddingBottom: Math.max(insets.bottom, 16) + 8 }]}>
         {currentStep > 0 && (
           <TouchableOpacity
             style={styles.backButton}
@@ -241,22 +251,23 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
             <Text style={styles.backButtonText}>{t('onboarding.backBtn')}</Text>
           </TouchableOpacity>
         )}
-        <TouchableOpacity
-          style={[
-            styles.button,
-            { backgroundColor: step.color },
-            ((step.isSellerModeStep && !selectedMode) || (step.isRoleStep && !selectedRole) || roleLoading) && { opacity: 0.5 }
-          ]}
-          onPress={handleNext}
-          disabled={(step.isSellerModeStep && !selectedMode) || (step.isRoleStep && !selectedRole) || roleLoading}
-          activeOpacity={0.82}
-        >
-          <Text style={styles.buttonText}>
-            {currentStep === STEPS.length - 1 ? t('onboarding.startBtn') : t('onboarding.nextBtn')}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </SafeAreaView>
+          <TouchableOpacity
+            style={[
+              styles.button,
+              { backgroundColor: step.color },
+              ((step.isSellerModeStep && !selectedMode) || (step.isRoleStep && !selectedRole) || roleLoading) && { opacity: 0.5 }
+            ]}
+            onPress={handleNext}
+            disabled={(step.isSellerModeStep && !selectedMode) || (step.isRoleStep && !selectedRole) || roleLoading}
+            activeOpacity={0.82}
+          >
+            <Text style={styles.buttonText}>
+              {currentStep === STEPS.length - 1 ? t('onboarding.startBtn') : t('onboarding.nextBtn')}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -273,8 +284,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40
   },
   iconContainer: {
-    width: illustrationSize,
-    height: illustrationSize,
     borderRadius: 24,
     alignSelf: 'center',
     alignItems: 'center',
@@ -303,7 +312,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     gap: 12,
     width: '100%',
-    justifyContent: 'center'
+    justifyContent: 'center',
+    marginTop: 16,
   },
   button: {
     flex: 1,
@@ -343,7 +353,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#EEE',
     borderRadius: 2,
     marginHorizontal: 20,
-    marginTop: 12,
     overflow: 'hidden',
     alignSelf: 'stretch'
   },
