@@ -9,7 +9,6 @@ export type CurrencyDef = {
 export const ALL_CURRENCIES: CurrencyDef[] = [
   // ── Приоритетные ──────────────────────────
   { code:'USD', label:'Доллар США',          symbol:'$',      country:'🇺🇸 США',            priority:true },
-  { code:'EUR', label:'Евро',                symbol:'€',      country:'🇪🇺 Европа',          priority:true },
   { code:'TJS', label:'Сомони',              symbol:'сом.',   country:'🇹🇯 Таджикистан',     priority:true },
   { code:'UZS', label:'Узбекский сум',       symbol:'сум',    country:'🇺🇿 Узбекистан',      priority:true },
   { code:'RUB', label:'Российский рубль',    symbol:'₽',      country:'🇷🇺 Россия',          priority:true },
@@ -28,6 +27,7 @@ export const ALL_CURRENCIES: CurrencyDef[] = [
   { code:'CNY', label:'Китайский юань',      symbol:'¥',      country:'🇨🇳 Китай' },
   { code:'CZK', label:'Чешская крона',       symbol:'Kč',     country:'🇨🇿 Чехия' },
   { code:'DKK', label:'Датская крона',       symbol:'kr',     country:'🇩🇰 Дания' },
+  { code:'EUR', label:'Евро',                symbol:'€',      country:'🇪🇺 Европа' },
   { code:'EGP', label:'Египетский фунт',     symbol:'E£',     country:'🇪🇬 Египет' },
   { code:'GBP', label:'Британский фунт',     symbol:'£',      country:'🇬🇧 Великобритания' },
   { code:'GEL', label:'Грузинский лари',     symbol:'₾',      country:'🇬🇪 Грузия' },
