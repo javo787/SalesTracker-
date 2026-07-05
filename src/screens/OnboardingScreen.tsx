@@ -92,8 +92,10 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
 
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const progressAnim = useRef(new Animated.Value(0)).current;
+  const totalStepsRef = useRef(STEPS.length);
 
   const goToStep = (nextStep: number) => {
+    totalStepsRef.current = STEPS.length;
     Animated.timing(fadeAnim, {
       toValue: 0,
       duration: 150,
@@ -117,7 +119,7 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
   }, [currentStep]);
 
   const progressWidth = progressAnim.interpolate({
-    inputRange: [0, STEPS.length],
+    inputRange: [0, totalStepsRef.current],
     outputRange: ['0%', '100%'],
   });
   const [shopNameInput, setShopNameInput] = useState('');
@@ -243,7 +245,7 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
                   style={roleStyles.input}
                   placeholder={t('debt.placeholderShopName')}
                   value={shopNameInput}
-                  onChangeText={setShopNameInput}
+                  onChangeText={(v) => { setShopNameInput(v); if (roleError) setRoleError(''); }}
                   autoFocus
                 />
               </View>
@@ -256,7 +258,7 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
                   style={roleStyles.input}
                   placeholder={t('debt.placeholderInviteCode')}
                   value={inviteCodeInput}
-                  onChangeText={setInviteCodeInput}
+                  onChangeText={(v) => { setInviteCodeInput(v); if (roleError) setRoleError(''); }}
                   autoCapitalize="characters"
                   maxLength={6}
                   autoFocus
