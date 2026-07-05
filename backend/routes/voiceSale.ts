@@ -1,7 +1,7 @@
 import express, { Response } from 'express';
 import multer from 'multer';
 import { authMiddleware, AuthRequest, requireShop } from '../middleware/authMiddleware';
-import { fetchGeminiWithRotation, GEMINI_MODELS, parseGeminiJSON } from '../utils/gemini';
+import { fetchGeminiWithRotation, GEMINI_MODELS, parseGeminiJSON, normalizeVoiceSaleResult } from '../utils/gemini';
 import { transcribeAudio } from '../utils/transcribe';
 import axios from 'axios';
 
@@ -100,8 +100,8 @@ router.post('/', authMiddleware, requireShop, (req, res, next) => {
       }
     }, { signal: controller.signal });
 
-    if (!geminiResponse.ok && geminiResponse.status === 503) {
-       console.warn(`[voice-sale] level 1 primary exhausted → level 1 fallback (${GEMINI_MODELS.LEVEL_1_FALLBACK})`);
+    if (!geminiResponse.ok) {
+       console.warn(`[voice-sale] level 1 primary failed (status ${geminiResponse.status}) → trying fallback model (${GEMINI_MODELS.LEVEL_1_FALLBACK})`, JSON.stringify(geminiResponse.data).substring(0, 500));
        geminiResponse = await fetchGeminiWithRotation(GEMINI_MODELS.LEVEL_1_FALLBACK, {
          contents: [{
            parts: [
@@ -162,6 +162,21 @@ router.post('/', authMiddleware, requireShop, (req, res, next) => {
       }
     }, { signal: controller.signal });
 
+    if (!geminiResponse.ok) {
+       console.warn(`[voice-sale] level 2 primary failed (status ${geminiResponse.status}) → trying fallback model (${GEMINI_MODELS.LEVEL_1_FALLBACK})`, JSON.stringify(geminiResponse.data).substring(0, 500));
+       geminiResponse = await fetchGeminiWithRotation(GEMINI_MODELS.LEVEL_1_FALLBACK, {
+         contents: [{
+           parts: [
+             { text: promptWithHint + `\n\nTRANSCRIPT: "${transcript}"` }
+           ]
+         }],
+         generationConfig: {
+           response_mime_type: "application/json",
+           response_schema: RESPONSE_SCHEMA
+         }
+       }, { signal: controller.signal });
+    }
+
     if (geminiResponse.ok) {
       const result = parseGeminiJSON(geminiResponse.data);
       if (result) {
@@ -195,9 +210,10 @@ router.post('/', authMiddleware, requireShop, (req, res, next) => {
         if (groqResponse.status === 200) {
           const content = groqResponse.data.choices?.[0]?.message?.content;
           const result = JSON.parse(content);
-          if (result && Array.isArray(result.items)) {
+          if (result) {
+            const normalized = normalizeVoiceSaleResult(result);
             clearTimeout(timeoutId);
-            return res.json({ ...result, transcript, source: 'whisper_groq' });
+            return res.json({ ...normalized, transcript, source: 'whisper_groq' });
           }
         }
       } catch (e) {
