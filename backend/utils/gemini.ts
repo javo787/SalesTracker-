@@ -15,7 +15,7 @@ export const GEMINI_MODELS = {
 /**
  * Executes a Gemini request with round-robin key rotation and model fallback.
  */
-export async function fetchGeminiWithRotation(model: string, payload: any) {
+export async function fetchGeminiWithRotation(model: string, payload: any, options: { signal?: AbortSignal, timeout?: number } = {}) {
   if (GEMINI_API_KEYS.length === 0) {
     throw new Error('config_error: No Gemini API keys found');
   }
@@ -28,6 +28,8 @@ export async function fetchGeminiWithRotation(model: string, payload: any) {
       const response = await axios.post(url, payload, {
         headers: { 'Content-Type': 'application/json' },
         validateStatus: () => true,
+        signal: options.signal,
+        timeout: options.timeout || 15000,
       });
 
       if (response.status === 429 || response.status === 403) {
@@ -59,7 +61,16 @@ export function parseGeminiJSON(resData: any) {
     const cleanText = rawText.replace(/```json|```/g, '').trim();
     const parsed = JSON.parse(cleanText);
     if (parsed && Array.isArray(parsed.items)) {
-      parsed.items = parsed.items.filter((it: any) => it && it.product_name);
+      // Only drop items that are completely empty or invalid.
+      // Keep items with product_name even if price/qty is 0,
+      // and keep items that need confirmation regardless of which field is empty.
+      parsed.items = parsed.items.filter((it: any) => {
+        if (!it) return false;
+        const hasName = typeof it.product_name === 'string' && it.product_name.trim().length > 0;
+        const hasPrice = typeof it.sell_price === 'number' && it.sell_price > 0;
+        const hasQty = typeof it.quantity === 'number' && it.quantity > 0;
+        return hasName || hasPrice || hasQty || it.needs_confirmation === true;
+      });
       return parsed;
     }
   } catch (e) {

@@ -64,11 +64,17 @@ export default function AddExpenseModal({ visible, onClose, onSuccess }: AddExpe
   };
 
   const handleVoiceResult = (result: VoiceSaleResult) => {
-    const text = result.transcript || result.items[0]?.product_name || '';
+    const item = result.items[0];
+    const text = result.transcript || item?.product_name || '';
     setDescription(text);
-    const extracted = extractAmountFromText(text);
-    if (extracted !== null) {
-      setAmount(String(extracted));
+
+    if (item?.sell_price && item.sell_price > 0) {
+      setAmount(String(item.sell_price));
+    } else {
+      const extracted = extractAmountFromText(text);
+      if (extracted !== null) {
+        setAmount(String(extracted));
+      }
     }
   };
 
