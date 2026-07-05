@@ -18,6 +18,12 @@
         "android.permission.USE_BIOMETRIC",
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
         "android.permission.USE_FINGERPRINT"
       ],
       "softwareKeyboardLayoutMode": "pan",
@@ -27,7 +33,7 @@
       }
     },
     "updates": {
-      "url": "https://u.expo.dev/617f1baa-d4b4-4221-b3f6-f9b321325ec0"
+      "url": "https://u.expo.dev/9a8cb8e4-5c8c-4147-942b-46ea4c65fb4a"
     },
     "runtimeVersion": "1.0.0",
     "plugins": [
