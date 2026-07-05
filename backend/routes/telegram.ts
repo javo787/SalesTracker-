@@ -195,9 +195,15 @@ router.post('/webhook', async (req: Request, res: Response) => {
       cleanupPendingAuths();
       setTimeout(() => pendingTelegramAuths.delete(tempToken), 120000);
 
-      await sendMessage(chatId, i18n.loginSuccess(firstName), {
-        inline_keyboard: [[{ text: '🔙 Открыть Torgo', url: 'torgo://telegram-auth-success' }]],
-      });
+      const baseUrl = process.env.BACKEND_URL || 'https://savdoapp.onrender.com';
+      try {
+        await sendMessage(chatId, i18n.loginSuccess(firstName), {
+          inline_keyboard: [[{ text: '🔙 Открыть Torgo', url: `${baseUrl}/telegram/go/telegram-auth-success` }]],
+        });
+      } catch (sendErr) {
+        console.error('[telegram:webhook] Failed to send loginSuccess message:', sendErr);
+        // Do not fail the webhook if message sending fails, the login is already stored
+      }
       return res.sendStatus(200);
     }
 
@@ -275,6 +281,26 @@ router.get('/webhook/info', async (_req: Request, res: Response) => {
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
+});
+
+/**
+ * GET /telegram/go/:target — HTTPS redirect to the app's deep link.
+ * Necessary because Telegram Bot API does not accept custom URL schemes
+ * (only http/https/tg://) in inline keyboard button URLs.
+ */
+router.get('/go/:target', (req: Request, res: Response) => {
+  const target = req.params.target;
+  const allowed = new Set(['telegram-auth-success']); // whitelist
+  if (!allowed.has(target)) {
+    return res.status(404).send('Not found');
+  }
+  res.send(`<!DOCTYPE html>
+<html>
+  <head><meta http-equiv="refresh" content="0;url=torgo://${target}" /></head>
+  <body>
+    <p>Возвращаемся в приложение… Если не открылось автоматически, <a href="torgo://${target}">нажмите здесь</a>.</p>
+  </body>
+</html>`);
 });
 
 export default router;
