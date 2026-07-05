@@ -66,17 +66,6 @@
       "@react-native-firebase/analytics",
       "@react-native-firebase/messaging",
       [
-        "expo-splash-screen",
-        {
-          "android": {
-            "backgroundColor": "#1D9E75"
-          },
-          "ios": {
-            "backgroundColor": "#1D9E75"
-          }
-        }
-      ],
-      [
         "expo-build-properties",
         {
           "android": {
