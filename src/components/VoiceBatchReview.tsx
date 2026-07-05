@@ -96,7 +96,7 @@ export default function VoiceBatchReview({ result, onConfirm, onCancel }: VoiceB
                 <View style={styles.inputWrapper}>
                   <TextInput
                     style={[styles.fieldInput, isDark && styles.textDark]}
-                    value={item.sell_price.toString()}
+                    value={(item.sell_price ?? 0).toString()}
                     onChangeText={(val) => handleUpdateItem(index, 'sell_price', parseFloat(val) || 0)}
                     keyboardType="numeric"
                   />
@@ -108,7 +108,7 @@ export default function VoiceBatchReview({ result, onConfirm, onCancel }: VoiceB
                 <Text style={styles.fieldLabel}>{t('addSale.quantity')}</Text>
                 <TextInput
                   style={[styles.fieldInput, isDark && styles.textDark]}
-                  value={item.quantity.toString()}
+                  value={(item.quantity ?? 0).toString()}
                   onChangeText={(val) => handleUpdateItem(index, 'quantity', parseFloat(val) || 0)}
                   keyboardType="numeric"
                 />
