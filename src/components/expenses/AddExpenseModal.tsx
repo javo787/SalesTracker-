@@ -17,6 +17,7 @@ import { useAppContext } from '../../context/AppContext';
 import { ExpenseType, ExpenseCategory } from '../../types/expense';
 import CategoryPicker from './CategoryPicker';
 import VoiceRecorder from '../VoiceRecorder';
+import { VoiceSaleResult } from '../../types/voiceSale';
 import { useExpenses } from '../../hooks/useExpenses';
 import { analyticsService } from '../../services/analyticsService';
 
@@ -62,7 +63,8 @@ export default function AddExpenseModal({ visible, onClose, onSuccess }: AddExpe
     return null;
   };
 
-  const handleTranscript = (text: string) => {
+  const handleVoiceResult = (result: VoiceSaleResult) => {
+    const text = result.transcript || result.items[0]?.product_name || '';
     setDescription(text);
     const extracted = extractAmountFromText(text);
     if (extracted !== null) {
@@ -181,7 +183,7 @@ export default function AddExpenseModal({ visible, onClose, onSuccess }: AddExpe
             />
 
             <View style={styles.voiceSection}>
-               <VoiceRecorder onTranscript={handleTranscript} />
+               <VoiceRecorder onResult={handleVoiceResult} />
                <Text style={styles.voiceHint}>{t('expenses.voiceHint')}</Text>
             </View>
 

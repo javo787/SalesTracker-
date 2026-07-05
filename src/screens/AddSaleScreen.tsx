@@ -15,6 +15,8 @@ import { toISODate } from '../utils/dateUtils';
 import { analyticsService } from '../services/analyticsService';
 import { reviewService } from '../services/reviewService';
 import VoiceRecorder from '../components/VoiceRecorder';
+import VoiceBatchReview from '../components/VoiceBatchReview';
+import { VoiceSaleResult, VoiceSaleItem } from '../types/voiceSale';
 import { useAppContext } from '../context/AppContext';
 import { useShop } from '../context/ShopContext';
 import { useAuth } from '../context/AuthContext';
@@ -297,83 +299,50 @@ export default function AddSaleScreen(/* props */) {
   }, [route.params, navigation]);
 
 
-  const handleTranscript = (text: string) => {
-    setVoiceText(text);
-    if (text) analyzeWithAI(text);
-  };
+  const [voiceResult, setVoiceResult] = useState<VoiceSaleResult | null>(null);
 
-  const analyzeWithAI = async (text: string) => {
-    const proxyUrl = process.env.EXPO_PUBLIC_ADS_API_URL;
-    if (!proxyUrl) {
-      Alert.alert(t('common.error'), t('addSale.errorGemini'));
-      return;
-    }
+  const handleVoiceResult = (result: VoiceSaleResult) => {
+    analyticsService.logEvent('ai_usage', {
+      type: 'voice_sale',
+      language: result.language_detected,
+      source: result.source,
+      itemsCount: result.items.length
+    });
 
-    const cacheKey = `ai_cache_${text.trim().toLowerCase()}`;
-
-    try {
-      const cached = await AsyncStorage.getItem(cacheKey);
-      if (cached) {
-        const { data, timestamp } = JSON.parse(cached);
-        if (Date.now() - timestamp < CACHE_TTL) {
-          console.log('Using cached Gemini response');
-          applyAIResult(data);
-          return;
-        }
-      }
-    } catch (e) {
-      console.warn('Cache read error', e);
-    }
-
-    setProcessing(true);
-    analyticsService.logEvent('ai_usage', { type: 'voice_sale', language: language });
-    try {
-      const geminiResponse = await fetch(`${proxyUrl}/api/proxy/gemini`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: `Act as a professional retail assistant for merchants in Central Asia (Tajikistan/Uzbekistan).\nYour task is to accurately extract sales data from voice transcripts.\n\nTRANSCRIPT: "${text}"\n\nRULES:\n1. Identify product name, sale price (sell_price), purchase price (buy_price), and quantity.\n2. If the user mentions total "revenue" (выручка/савдо) and "profit" (прибыль/фоида), include them.\n3. Handle multilingual input (Russian, Tajik, Uzbek).\n4. Return ONLY a pure JSON object. No markdown, no explanations.\n\nJSON STRUCTURE:\n{\n  "product_name": string (capitalized),\n  "sell_price": number (0 if unknown),\n  "buy_price": number (0 if unknown),\n  "quantity": number (1 if unknown),\n  "revenue": number (0 if unknown),\n  "profit": number (0 if unknown)\n}` }] }]
-        }),
-      });
-
-      if (!geminiResponse.ok) {
-        throw new Error(`Proxy error: ${geminiResponse.status}`);
-      }
-      const data = await geminiResponse.json();
-      const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-      const parsed = JSON.parse(rawText.replace(/```json|```/g, '').trim());
-
-      // Сохраняем в кеш
-      try {
-        await AsyncStorage.setItem(cacheKey, JSON.stringify({
-          data: parsed,
-          timestamp: Date.now()
-        }));
-      } catch (e) {
-        console.warn('Cache write error', e);
-      }
-
-      applyAIResult(parsed);
-    } catch (e) {
-      Alert.alert(t('common.error'), t('addSale.errorAI'));
-    } finally {
-      setProcessing(false);
+    if (result.items.length === 1) {
+      applyAIResult(result.items[0]);
+      if (result.transcript) setVoiceText(result.transcript);
+      setShowVoiceBar(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } else {
+      setVoiceResult(result);
     }
   };
 
-  const applyAIResult = (parsed: { product_name: string; sell_price: number; buy_price: number; quantity: number; revenue: number; profit: number }) => {
-    if (parsed.product_name) setProductName(parsed.product_name);
-    if (parsed.sell_price > 0) setSellPrice(String(parsed.sell_price));
-    if (parsed.buy_price > 0) setBuyPrice(String(parsed.buy_price));
-    if (parsed.quantity > 0) setQuantity(String(parsed.quantity));
+  const applyAIResult = (item: VoiceSaleItem) => {
+    if (item.product_name) setProductName(item.product_name);
+    if (item.sell_price > 0) setSellPrice(String(item.sell_price));
+    if (item.buy_price > 0) setBuyPrice(String(item.buy_price));
+    if (item.quantity > 0) setQuantity(String(item.quantity));
+  };
 
-    if (parsed.revenue > 0 && parsed.profit > 0 && parsed.sell_price === 0) {
-      const qty = parsed.quantity > 0.01 ? parsed.quantity : 1;
-      const calcBuy = (parsed.revenue - parsed.profit) / qty;
-      setSellPrice(String(parsed.revenue / qty));
-      setBuyPrice(String(Math.max(0, calcBuy)));
-      setProductName(parsed.product_name || t('addSale.defaultProductName'));
-    }
+  const handleBatchConfirm = (items: VoiceSaleItem[]) => {
+    const newCartItems: CartItem[] = items.map(it => ({
+      id: Math.random().toString(36).substring(2, 9),
+      product: null,
+      productId: null,
+      productName: it.product_name,
+      quantity: it.quantity,
+      sellPrice: it.sell_price,
+      buyPrice: it.buy_price,
+      note: '',
+      unitLabel: `${it.quantity} шт`
+    }));
+
+    setCartItems(prev => [...prev, ...newCartItems]);
+    setVoiceResult(null);
+    setShowVoiceBar(false);
+    triggerSaveAnimation();
   };
 
   const handleSave = async () => {
@@ -579,25 +548,30 @@ export default function AddSaleScreen(/* props */) {
                   </TouchableOpacity>
                 </View>
 
-                <VoiceRecorder
-                  onTranscript={(text) => {
-                    handleTranscript(text);
-                    // Мы не закрываем автоматически, чтобы пользователь видел результат AI
-                  }}
-                />
+                {voiceResult ? (
+                   <VoiceBatchReview
+                      result={voiceResult}
+                      onConfirm={handleBatchConfirm}
+                      onCancel={() => setVoiceResult(null)}
+                   />
+                ) : (
+                  <>
+                    <VoiceRecorder onResult={handleVoiceResult} />
 
-                {voiceText ? (
-                  <View style={[styles.voiceResult, themeStyles.voiceResult]}>
-                    <Text style={styles.voiceResultLabel}>{t('addSale.recognized')}:</Text>
-                    <Text style={[styles.voiceResultText, themeStyles.text]}>"{voiceText}"</Text>
-                  </View>
-                ) : null}
+                    {voiceText ? (
+                      <View style={[styles.voiceResult, themeStyles.voiceResult]}>
+                        <Text style={styles.voiceResultLabel}>{t('addSale.recognized')}:</Text>
+                        <Text style={[styles.voiceResultText, themeStyles.text]}>"{voiceText}"</Text>
+                      </View>
+                    ) : null}
 
-                {processing && (
-                  <View style={styles.processingRow}>
-                    <ActivityIndicator size="small" color="#1D9E75" />
-                    <Text style={styles.processingText}>{t('addSale.aiProcessing')}</Text>
-                  </View>
+                    {processing && (
+                      <View style={styles.processingRow}>
+                        <ActivityIndicator size="small" color="#1D9E75" />
+                        <Text style={styles.processingText}>{t('addSale.aiProcessing')}</Text>
+                      </View>
+                    )}
+                  </>
                 )}
               </View>
             </TouchableWithoutFeedback>

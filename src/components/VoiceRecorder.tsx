@@ -19,15 +19,17 @@ import {
 } from 'expo-audio';
 import * as FileSystem from 'expo-file-system/legacy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { useAppContext } from '../context/AppContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
+import { VoiceSaleResult } from '../types/voiceSale';
 
 // ─────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────
 interface VoiceRecorderProps {
-  onTranscript: (text: string) => void;
+  onResult: (result: VoiceSaleResult) => void;
   onClose?: () => void;
 }
 
@@ -175,7 +177,7 @@ async function safeStopRecorder(
 // ─────────────────────────────────────────────
 // Component
 // ─────────────────────────────────────────────
-export default function VoiceRecorder({ onTranscript, onClose }: VoiceRecorderProps) {
+export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps) {
   const { t } = useTranslation();
   const { resolvedTheme, currency, language } = useAppContext(); const isDark = resolvedTheme === "dark";
   const recorder = useAudioRecorder(recordingOptions);
@@ -233,10 +235,10 @@ export default function VoiceRecorder({ onTranscript, onClose }: VoiceRecorderPr
       abortRef.current = new AbortController();
 
       try {
-        const apiUrl = process.env.EXPO_PUBLIC_ADS_API_URL;
+        const apiUrl = process.env.EXPO_PUBLIC_API_URL;
 
         const transcribeUrl = apiUrl
-          ? `${apiUrl}/api/proxy/transcribe`
+          ? `${apiUrl}/voice-sale`
           : GROQ_API_URL;
 
         const ext = uri.split('.').pop()?.toLowerCase() ?? 'm4a';
@@ -265,6 +267,10 @@ export default function VoiceRecorder({ onTranscript, onClose }: VoiceRecorderPr
         // FileSystem.uploadAsync — единственный надёжный способ отправить
         // бинарный файл в React Native / Hermes без Blob API
         const uploadHeaders: Record<string, string> = {};
+        const token = await SecureStore.getItemAsync('auth_token');
+        if (token) {
+          uploadHeaders['Authorization'] = `Bearer ${token}`;
+        }
 
         const result = await FileSystem.uploadAsync(transcribeUrl, uri, {
           fieldName: 'file',
@@ -287,8 +293,14 @@ export default function VoiceRecorder({ onTranscript, onClose }: VoiceRecorderPr
           body = { message: result.body };
         }
 
+        if (result.status === 401) {
+          await SecureStore.deleteItemAsync('auth_token');
+          throw new Error('Сессия истекла. Пожалуйста, войдите снова.');
+        }
+
         if (result.status === 429) {
-          throw new Error('Превышен лимит запросов Groq. Попробуйте через минуту.');
+          const retryAfter = body?.retryAfterSeconds ? ` через ${body.retryAfterSeconds} сек.` : ' через минуту.';
+          throw new Error(`Слишком много попыток. Попробуйте${retryAfter}`);
         }
 
         if (result.status !== 200 && result.status !== 201) {
@@ -296,12 +308,22 @@ export default function VoiceRecorder({ onTranscript, onClose }: VoiceRecorderPr
           throw new Error(`[${result.status}] ${detail}`);
         }
 
-        const text: string = body?.text ?? '';
-        if (!text.trim()) {
-          throw new Error('Речь не распознана. Говорите громче или ближе к микрофону.');
+        if (transcribeUrl.includes('voice-sale')) {
+          onResult(body as VoiceSaleResult);
+        } else {
+          // Legacy Groq path
+          const text: string = body?.text ?? '';
+          if (!text.trim()) {
+            throw new Error('Речь не распознана. Говорите громче или ближе к микрофону.');
+          }
+          onResult({
+            items: [{ product_name: text, sell_price: 0, buy_price: 0, quantity: 1, needs_confirmation: true }],
+            language_detected: 'unknown',
+            truncated: false,
+            transcript: text,
+            source: 'transcript_only'
+          });
         }
-
-        onTranscript(text);
       } catch (err: any) {
         if (err?.name === 'AbortError') return;
         if (unmountedRef.current) return;
@@ -314,7 +336,7 @@ export default function VoiceRecorder({ onTranscript, onClose }: VoiceRecorderPr
         abortRef.current = null;
       }
     },
-    [language, onTranscript, voiceLang]
+    [onResult, voiceLang]
   );
 
   // ── Stop recording (core logic) ──────────────
@@ -478,15 +500,25 @@ export default function VoiceRecorder({ onTranscript, onClose }: VoiceRecorderPr
   }, []);
 
   // ── Hint text ────────────────────────────────
-  const hintText = showWarning
-    ? '⏱️ Запись остановится через 5 сек'
-    : isRecording
-    ? '🔴 Отпустите, чтобы завершить'
-    : isProcessing
-    ? '🔄 Распознаём речь...'
-    : isStarting
-    ? '⏳ Подготовка...'
-    : '🎙️ Зажмите и говорите';
+  const [hintText, setHintText] = useState('🎙️ Зажмите и говорите');
+
+  useEffect(() => {
+    if (showWarning) {
+      setHintText('⏱️ Запись остановится через 5 сек');
+    } else if (isRecording) {
+      setHintText('🔴 Отпустите, чтобы завершить');
+    } else if (isProcessing) {
+      setHintText(t('addSale.stepRecognizing'));
+      const timer = setTimeout(() => {
+         setHintText(t('addSale.stepAnalyzing'));
+      }, 3000);
+      return () => clearTimeout(timer);
+    } else if (isStarting) {
+      setHintText('⏳ Подготовка...');
+    } else {
+      setHintText('🎙️ Зажмите и говорите');
+    }
+  }, [showWarning, isRecording, isProcessing, isStarting, t]);
 
   // ── Render ───────────────────────────────────
   return (
@@ -719,4 +751,4 @@ const styles = StyleSheet.create({
   hintDark: {
     color: '#ccc',
   },
-}); 
+});

@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { useAppContext } from '../../context/AppContext';
 import { addStockIn, addStockWaste, addStockCorrection } from '../../db/database';
 import VoiceRecorder from '../VoiceRecorder';
+import { VoiceSaleResult } from '../../types/voiceSale';
 
 interface StockOperationModalProps {
   visible: boolean;
@@ -91,9 +92,9 @@ export default function StockOperationModal({
     onClose();
   };
 
-  const handleTranscript = (text: string) => {
+  const handleVoiceResult = (result: VoiceSaleResult) => {
+    const text = result.transcript || result.items[0]?.product_name || '';
     setNote(text);
-    // Simple extraction logic can be added here or relied on AI structure
   };
 
   const renderTabs = () => (
@@ -212,7 +213,7 @@ export default function StockOperationModal({
             />
 
             <View style={styles.voiceSection}>
-               <VoiceRecorder onTranscript={handleTranscript} />
+               <VoiceRecorder onResult={handleVoiceResult} />
             </View>
 
             <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
