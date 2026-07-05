@@ -51,15 +51,33 @@ export default function AppSplashScreen({ ready, onHidden }: Props) {
   }));
 
   return (
-    <View style={[StyleSheet.absoluteFill, { zIndex: 10 }]} pointerEvents="none">
-      <Animated.View style={[StyleSheet.absoluteFill, style]}>
+    <View
+      style={[
+        StyleSheet.absoluteFill,
+        { zIndex: 10, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+      ]}
+      pointerEvents="none"
+    >
+      <Animated.View style={[styles.logoBox, style]}>
         <Image
           source={require('../../assets/splash.png')}
           resizeMode="contain"
-          style={StyleSheet.absoluteFill}
+          style={styles.logoImage}
         />
       </Animated.View>
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: Colors.primary, zIndex: -1 }]} />
     </View>
   );
 }
+
+const IMAGE_ASPECT_RATIO = 768 / 1376; // ширина / высота assets/splash.png
+
+const styles = StyleSheet.create({
+  logoBox: {
+    width: '55%',
+    aspectRatio: IMAGE_ASPECT_RATIO,
+  },
+  logoImage: {
+    width: '100%',
+    height: '100%',
+  },
+});
