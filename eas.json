@@ -41,5 +41,14 @@
         "EXPO_PUBLIC_TELEGRAM_BOT_USERNAME": "Torgo_support_bot"
       }
     }
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "serviceAccountKeyPath": "./google-play-service-account.json",
+        "track": "alpha",
+        "releaseStatus": "completed"
+      }
+    }
   }
 }

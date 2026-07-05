@@ -5,3 +5,4 @@ dist/
 .env.local
 .next/
 *.log
+google-play-service-account.json 
