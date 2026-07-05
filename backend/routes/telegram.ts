@@ -101,15 +101,15 @@ router.post('/webhook', async (req: Request, res: Response) => {
       .filter(id => Number.isFinite(id) && id !== 0);
 
     // ── ADMIN: /reply command ─────────────────────────────────────────────
-    if (adminIds.includes(chatId) && text.startsWith('/reply ')) {
-      const parts = text.slice(7).split(' ');
-      const targetChatId = Number(parts[0]);
-      const replyText = parts.slice(1).join(' ');
+   const replyMatch = text.match(/^\/reply(?:@\w+)?\s+(\S+)\s+([\s\S]+)/);
+   if (adminIds.includes(chatId) && replyMatch) {
+   const targetChatId = Number(replyMatch[1]);
+   const replyText = replyMatch[2];
 
-      if (!targetChatId || !replyText) {
-        await sendMessage(chatId, BOT_I18N.ru.replyFormat);
-        return res.sendStatus(200);
-      }
+    if (!targetChatId || !replyText) {
+    await sendMessage(chatId, BOT_I18N.ru.replyFormat);
+    return res.sendStatus(200);
+    }
 
       // Find user's language from saved ticket
       const ticket = await SupportTicket.findOne({ chatId: targetChatId });
