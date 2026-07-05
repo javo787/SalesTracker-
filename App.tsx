@@ -9,7 +9,7 @@ import { NavigationContainer, DrawerActions, useNavigationContainerRef } from '@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createDrawerNavigator } from '@react-navigation/drawer';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { I18nextProvider, useTranslation } from 'react-i18next';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initDatabase, getOverdueDebts } from './src/db/database';
@@ -569,43 +569,45 @@ export default function App() {
   const isAppReady = dbError ? true : (isDbReady && isAppContentReady);
 
   return (
-    <View style={{ flex: 1 }}>
-      <AppContextProvider>
-        <AuthProvider>
-          <ShopProvider>
-            <AppLockProvider>
-              <I18nextProvider i18n={i18n}>
-                {dbError ? (
-                  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-                    <Ionicons name="alert-circle-outline" size={64} color="#FF6B6B" />
-                    <Text style={{ fontSize: 18, fontWeight: 'bold', marginTop: 16, textAlign: 'center' }}>
-                      Ошибка базы данных
-                    </Text>
-                    <Text style={{ fontSize: 14, color: '#666', marginTop: 8, textAlign: 'center' }}>
-                      Не удалось запустить приложение. Пожалуйста, попробуйте перезагрузить его.
-                    </Text>
-                    <Text style={{ fontSize: 12, color: '#999', marginTop: 16 }}>
-                      {dbError.message}
-                    </Text>
-                  </View>
-                ) : (
-                  <AppContent onReady={handleAppContentReady} />
-                )}
-              </I18nextProvider>
-            </AppLockProvider>
-          </ShopProvider>
-        </AuthProvider>
-      </AppContextProvider>
+    <SafeAreaProvider>
+      <View style={{ flex: 1 }}>
+        <AppContextProvider>
+          <AuthProvider>
+            <ShopProvider>
+              <AppLockProvider>
+                <I18nextProvider i18n={i18n}>
+                  {dbError ? (
+                    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+                      <Ionicons name="alert-circle-outline" size={64} color="#FF6B6B" />
+                      <Text style={{ fontSize: 18, fontWeight: 'bold', marginTop: 16, textAlign: 'center' }}>
+                        Ошибка базы данных
+                      </Text>
+                      <Text style={{ fontSize: 14, color: '#666', marginTop: 8, textAlign: 'center' }}>
+                        Не удалось запустить приложение. Пожалуйста, попробуйте перезагрузить его.
+                      </Text>
+                      <Text style={{ fontSize: 12, color: '#999', marginTop: 16 }}>
+                        {dbError.message}
+                      </Text>
+                    </View>
+                  ) : (
+                    <AppContent onReady={handleAppContentReady} />
+                  )}
+                </I18nextProvider>
+              </AppLockProvider>
+            </ShopProvider>
+          </AuthProvider>
+        </AppContextProvider>
 
-      {!isAppSplashScreenHidden && (
-        <AppSplashScreen
-          ready={isAppReady}
-          onHidden={() => {
-            setIsAppSplashScreenHidden(true);
-            SplashScreen.hideAsync().catch(() => {});
-          }}
-        />
-      )}
-    </View>
+        {!isAppSplashScreenHidden && (
+          <AppSplashScreen
+            ready={isAppReady}
+            onHidden={() => {
+              setIsAppSplashScreenHidden(true);
+              SplashScreen.hideAsync().catch(() => {});
+            }}
+          />
+        )}
+      </View>
+    </SafeAreaProvider>
   );
 }
