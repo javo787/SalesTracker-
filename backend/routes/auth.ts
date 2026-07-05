@@ -10,6 +10,7 @@ import { verifyTelegramAuth } from '../utils/telegramAuth';
 import { sendMessage } from '../services/telegramBot';
 import { authMiddleware, AuthRequest } from '../middleware/authMiddleware';
 import { pendingTelegramAuths, cleanupPendingAuths } from '../utils/telegramLoginStore';
+import { deleteUserAccount } from '../utils/accountDeletion';
 
 const router = express.Router();
 
@@ -259,27 +260,11 @@ router.post('/convert', authMiddleware, async (req: AuthRequest, res) => {
 
 router.delete('/account', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const userId = req.userId;
-
-    const ownedShop = await ShopMember.findOne({ userId, role: 'owner', isActive: true });
-    if (ownedShop) {
-      const otherMembers = await ShopMember.countDocuments({
-        shopId: ownedShop.shopId,
-        userId: { $ne: userId },
-        isActive: true,
-      });
-      if (otherMembers > 0) {
-        return res.status(409).json({
-          message: 'Вы владелец магазина с активными сотрудниками. Для удаления аккаунта сначала передайте владение или обратитесь в поддержку: support@torgo.app',
-        });
-      }
-      // Владелец без сотрудников — магазин удаляется вместе с аккаунтом
-      await Shop.deleteOne({ _id: ownedShop.shopId });
+    if (!req.userId) return res.status(401).json({ message: 'Unauthorized' });
+    const result = await deleteUserAccount(req.userId);
+    if (!result.ok) {
+      return res.status(409).json({ message: result.message + ' Либо обратитесь в поддержку: support@torgo.app' });
     }
-
-    await ShopMember.deleteMany({ userId });
-    await User.deleteOne({ _id: userId });
-
     res.json({ ok: true });
   } catch (err) {
     console.error('Account deletion error:', err);

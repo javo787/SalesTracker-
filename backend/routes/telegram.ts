@@ -2,7 +2,9 @@ import express, { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import SupportTicket from '../models/SupportTicket';
 import User from '../models/User';
+import AccountDeletionRequest from '../models/AccountDeletionRequest';
 import { sendMessage } from '../services/telegramBot';
+import { deleteUserAccount } from '../utils/accountDeletion';
 import { pendingTelegramAuths, cleanupPendingAuths } from '../utils/telegramLoginStore';
 
 const router = express.Router();
@@ -122,6 +124,41 @@ router.post('/webhook', async (req: Request, res: Response) => {
 
       await sendMessage(targetChatId, i18n.adminReply(replyText));
       await sendMessage(chatId, BOT_I18N.ru.replySent(targetChatId));
+      return res.sendStatus(200);
+    }
+
+    // ── ADMIN: /deleteuser command ──────────────────────────────────────────
+    if (adminIds.includes(chatId) && text.startsWith('/deleteuser ')) {
+      const identifier = text.slice('/deleteuser '.length).trim();
+
+      if (!identifier) {
+        await sendMessage(chatId, '❌ Формат: /deleteuser <email|@telegram_username|telegramId>');
+        return res.sendStatus(200);
+      }
+
+      const cleanIdentifier = identifier.replace(/^@/, '');
+      const targetUser = await User.findOne({
+        $or: [
+          { email: identifier },
+          { telegramUsername: cleanIdentifier },
+          { telegramId: identifier },
+        ],
+      });
+
+      if (!targetUser) {
+        await sendMessage(chatId, `❌ Пользователь не найден: ${identifier}`);
+        return res.sendStatus(200);
+      }
+
+      const result = await deleteUserAccount((targetUser._id as any).toString());
+
+      if (!result.ok) {
+        await sendMessage(chatId, `⚠️ Не удалось удалить ${identifier}: ${result.message}`);
+        return res.sendStatus(200);
+      }
+
+      await AccountDeletionRequest.updateMany({ identifier }, { status: 'done' });
+      await sendMessage(chatId, `✅ Аккаунт удалён: ${identifier}`);
       return res.sendStatus(200);
     }
 
