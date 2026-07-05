@@ -95,6 +95,13 @@ export default function StockOperationModal({
   const handleVoiceResult = (result: VoiceSaleResult) => {
     const text = result.transcript || result.items[0]?.product_name || '';
     setNote(text);
+    const item = result.items[0];
+    if (item?.quantity && item.quantity > 0) {
+      setQuantity(String(item.quantity));
+    }
+    if (type === 'stock_in' && item?.buy_price && item.buy_price > 0) {
+      setPrice(String(item.buy_price));
+    }
   };
 
   const renderTabs = () => (

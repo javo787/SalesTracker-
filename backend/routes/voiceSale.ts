@@ -49,11 +49,25 @@ If there are clearly more than 8 items in the speech, include only the first 8 a
 
 Handle multilingual input (Russian, Tajik, Uzbek). Possible accents, noise, or mixing of languages.
 
+If buy_price is not mentioned, set it to 0. If quantity is not mentioned, set it to 1.
+Do not guess or invent numeric values that were not stated or clearly implied.
+
 Return ONLY a pure JSON object according to the schema.`;
 
-router.post('/', authMiddleware, requireShop, upload.single('file'), async (req: AuthRequest, res: Response) => {
+router.post('/', authMiddleware, requireShop, (req, res, next) => {
+  upload.single('file')(req, res, (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ error: 'file_too_large', maxSizeMb: 8 });
+      }
+      return res.status(400).json({ error: 'upload_error', detail: err.message });
+    }
+    next();
+  });
+}, async (req: AuthRequest, res: Response) => {
   const shopId = req.shopId;
   const userId = req.userId;
+  const { language, prompt } = req.body;
 
   if (!req.file) {
     return res.status(400).json({ error: 'missing_file' });
@@ -67,12 +81,16 @@ router.post('/', authMiddleware, requireShop, upload.single('file'), async (req:
     const base64Audio = req.file.buffer.toString('base64');
     const mimeType = req.file.mimetype || 'audio/m4a';
 
+    const promptWithHint = language
+      ? SYSTEM_PROMPT + `\n\nDetected app language hint: ${language}. Prioritize this language when transcribing/parsing unless audio clearly indicates otherwise.`
+      : SYSTEM_PROMPT;
+
     // LEVEL 1: Gemini Audio
     console.log(`[voice-sale] Level 1: Gemini Audio (${GEMINI_MODELS.LEVEL_1})`, { shopId, userId });
     let geminiResponse = await fetchGeminiWithRotation(GEMINI_MODELS.LEVEL_1, {
       contents: [{
         parts: [
-          { text: SYSTEM_PROMPT },
+          { text: promptWithHint },
           { inline_data: { mime_type: mimeType, data: base64Audio } }
         ]
       }],
@@ -80,14 +98,14 @@ router.post('/', authMiddleware, requireShop, upload.single('file'), async (req:
         response_mime_type: "application/json",
         response_schema: RESPONSE_SCHEMA
       }
-    });
+    }, { signal: controller.signal });
 
     if (!geminiResponse.ok && geminiResponse.status === 503) {
        console.warn(`[voice-sale] level 1 primary exhausted → level 1 fallback (${GEMINI_MODELS.LEVEL_1_FALLBACK})`);
        geminiResponse = await fetchGeminiWithRotation(GEMINI_MODELS.LEVEL_1_FALLBACK, {
          contents: [{
            parts: [
-             { text: SYSTEM_PROMPT },
+             { text: promptWithHint },
              { inline_data: { mime_type: mimeType, data: base64Audio } }
            ]
          }],
@@ -95,14 +113,18 @@ router.post('/', authMiddleware, requireShop, upload.single('file'), async (req:
            response_mime_type: "application/json",
            response_schema: RESPONSE_SCHEMA
          }
-       });
+       }, { signal: controller.signal });
     }
 
     if (geminiResponse.ok) {
       const result = parseGeminiJSON(geminiResponse.data);
       if (result) {
         clearTimeout(timeoutId);
-        return res.json({ ...result, source: 'gemini_audio' });
+        return res.json({
+          ...result,
+          source: 'gemini_audio',
+          transcript: result.transcript || result.items[0]?.product_name || ''
+        });
       }
     }
 
@@ -110,7 +132,12 @@ router.post('/', authMiddleware, requireShop, upload.single('file'), async (req:
     console.warn('[voice-sale] Level 1 failed → Level 2: Whisper + Gemini Text', { shopId });
     let transcript = '';
     try {
-      const whisperResult = await transcribeAudio(req.file.buffer, req.file.originalname, req.file.mimetype);
+      const whisperResult = await transcribeAudio(
+        req.file.buffer,
+        req.file.originalname,
+        req.file.mimetype,
+        { signal: controller.signal, language, prompt }
+      );
       transcript = whisperResult.text;
     } catch (e) {
       console.error('[voice-sale] Whisper failed', e);
@@ -126,14 +153,14 @@ router.post('/', authMiddleware, requireShop, upload.single('file'), async (req:
     geminiResponse = await fetchGeminiWithRotation(GEMINI_MODELS.LEVEL_1, {
       contents: [{
         parts: [
-          { text: SYSTEM_PROMPT + `\n\nTRANSCRIPT: "${transcript}"` }
+          { text: promptWithHint + `\n\nTRANSCRIPT: "${transcript}"` }
         ]
       }],
       generationConfig: {
         response_mime_type: "application/json",
         response_schema: RESPONSE_SCHEMA
       }
-    });
+    }, { signal: controller.signal });
 
     if (geminiResponse.ok) {
       const result = parseGeminiJSON(geminiResponse.data);
@@ -151,7 +178,7 @@ router.post('/', authMiddleware, requireShop, upload.single('file'), async (req:
         const groqResponse = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
           model: 'llama-3.3-70b-versatile',
           messages: [
-            { role: 'system', content: SYSTEM_PROMPT },
+            { role: 'system', content: promptWithHint },
             { role: 'user', content: transcript }
           ],
           response_format: { type: "json_object" },
@@ -161,6 +188,7 @@ router.post('/', authMiddleware, requireShop, upload.single('file'), async (req:
             'Content-Type': 'application/json',
             Authorization: `Bearer ${groqApiKey}`,
           },
+          signal: controller.signal,
           timeout: 10000
         });
 

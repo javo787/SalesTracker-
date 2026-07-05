@@ -336,7 +336,7 @@ export default function AddSaleScreen(/* props */) {
       sellPrice: it.sell_price,
       buyPrice: it.buy_price,
       note: '',
-      unitLabel: `${it.quantity} шт`
+      unitLabel: `${it.quantity} ${t('warehouse.unitBase')}`
     }));
 
     setCartItems(prev => [...prev, ...newCartItems]);
