@@ -27,13 +27,11 @@ export default function AuthScreen() {
   const [referralCode, setReferralCode] = useState('');
 
   const handleGoogleAuth = async (idToken: string) => {
-    console.log('[AUTH_LOG][google:auth] entry'); // AUTH_LOG
     setIsLoading(true);
     setError(null);
     try {
       await loginWithGoogle(idToken);
     } catch (e: any) {
-      console.error('[AUTH_LOG][google:auth] error=', e.message); // AUTH_LOG
       setError(e.message || t('auth.errorNetwork'));
     } finally {
       setIsLoading(false);
@@ -41,29 +39,23 @@ export default function AuthScreen() {
   };
 
   const handleGooglePress = async () => {
-    console.log('[AUTH_LOG][google:press] checking play services'); // AUTH_LOG
     try {
       await GoogleSignin.hasPlayServices();
       const userInfo = await GoogleSignin.signIn();
       const idToken = userInfo.data?.idToken;
-      console.log('[AUTH_LOG][google:press] idToken=', idToken ? `${idToken.slice(0, 8)}...(len:${idToken.length})` : 'none'); // AUTH_LOG
       if (!idToken) throw new Error('No idToken returned from Google Sign-In');
       await handleGoogleAuth(idToken);
     } catch (e: any) {
-      console.error('[AUTH_LOG][google:press] error=', e.message); // AUTH_LOG
       setError(e.message || t('auth.errorNetwork'));
     }
   };
 
   const handleTelegramAuth = async () => {
-    console.log('[AUTH_LOG][telegram:auth] entry'); // AUTH_LOG
     setIsLoading(true);
     setError(null);
     try {
       await loginWithTelegram();
-      console.log('[AUTH_LOG][telegram:auth] success'); // AUTH_LOG
     } catch (e: any) {
-      console.error('[AUTH_LOG][telegram:auth] error=', e.message); // AUTH_LOG
       setError(e.message || t('auth.errorNetwork'));
     } finally {
       setIsLoading(false);
@@ -71,7 +63,6 @@ export default function AuthScreen() {
   };
 
   const handleAuth = async () => {
-    console.log('[AUTH_LOG][email:auth] entry isLogin=', isLogin); // AUTH_LOG
     setIsLoading(true);
     setError(null);
     try {
@@ -81,7 +72,6 @@ export default function AuthScreen() {
         await registerWithEmail(email, password, name, referralCode);
       }
     } catch (e: any) {
-      console.error('[AUTH_LOG][email:auth] error=', e.message); // AUTH_LOG
       setError(e.message || t('auth.errorInvalid'));
     } finally {
       setIsLoading(false);
@@ -89,13 +79,10 @@ export default function AuthScreen() {
   };
 
   const handleGuest = async () => {
-    console.log('[AUTH_LOG][guest:auth] entry'); // AUTH_LOG
     setIsLoading(true);
     try {
       await loginAsGuest();
-      console.log('[AUTH_LOG][guest:auth] success'); // AUTH_LOG
     } catch (e: any) {
-      console.error('[AUTH_LOG][guest:auth] error=', e.message); // AUTH_LOG
       setError(e.message);
     } finally {
       setIsLoading(false);

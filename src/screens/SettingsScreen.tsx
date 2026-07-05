@@ -15,6 +15,7 @@ import Constants from 'expo-constants';
 import { Ionicons } from '@expo/vector-icons';
 import { analyticsService } from '../services/analyticsService';
 import { useAppContext } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { useShop } from '../context/ShopContext';
 import { useAppLock } from '../context/AppLockContext';
 import { getConversionRate } from '../utils/currencyRates';
@@ -141,6 +142,8 @@ export default function SettingsScreen(props: any) {
     showGreeting, setShowGreeting, showDailyTip, setShowDailyTip
   } = useAppContext();
 
+  const { deleteAccount } = useAuth();
+
   const insets = useSafeAreaInsets();
   const [currencyExpanded, setCurrencyExpanded] = useState(false);
   const [currencySearch, setCurrencySearch] = useState('');
@@ -264,6 +267,40 @@ export default function SettingsScreen(props: any) {
       setLoadingRate(false);
       Alert.alert(t('common.error'), t('settings.currencyConvertError'));
     }
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Удалить аккаунт?',
+      'Это действие необратимо. Все ваши данные будут удалены.',
+      [
+        { text: 'Отмена', style: 'cancel' },
+        {
+          text: 'Удалить',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Вы уверены?',
+              'Аккаунт и данные будут удалены навсегда.',
+              [
+                { text: 'Отмена', style: 'cancel' },
+                {
+                  text: 'Да, удалить',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      await deleteAccount();
+                    } catch (err: any) {
+                      Alert.alert('Ошибка', err.message || 'Не удалось удалить аккаунт');
+                    }
+                  },
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
   };
 
   const handleClearDataAlert = () => {
@@ -820,21 +857,26 @@ export default function SettingsScreen(props: any) {
       </SettingGroup>
 
       {/* ── ОПАСНАЯ ЗОНА ── */}
-      {isOwner && (
-        <>
-          <SectionLabel label={t('settings.dangerZone')} isDark={isDark} />
-          <SettingGroup isDark={isDark}>
-            <SettingRow
-              icon="trash-outline"
-              iconColor="#FF3B30"
-              label={t('settings.clearData')}
-              isDark={isDark}
-              isLast
-              onPress={handleClearDataAlert}
-            />
-          </SettingGroup>
-        </>
-      )}
+      <SectionLabel label={t('settings.dangerZone')} isDark={isDark} />
+      <SettingGroup isDark={isDark}>
+        {isOwner && (
+          <SettingRow
+            icon="trash-outline"
+            iconColor="#FF3B30"
+            label={t('settings.clearData')}
+            isDark={isDark}
+            onPress={handleClearDataAlert}
+          />
+        )}
+        <SettingRow
+          icon="person-remove-outline"
+          iconColor="#FF3B30"
+          label={t('common.delete')}
+          isDark={isDark}
+          isLast
+          onPress={handleDeleteAccount}
+        />
+      </SettingGroup>
 
       <View style={{ height: 48 }} />
     </ScrollView>

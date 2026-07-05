@@ -35,3 +35,5 @@ The following block in `backend/server.ts` should be reverted manually or review
 
 The new route in `backend/routes/telegram.ts`:
 - `GET /telegram/webhook/info` was added for diagnostics and will be removed by the command above (leaving an empty function body or causing a syntax error if not careful). It is recommended to manually delete this route block if it is no longer needed.
+
+## Статус: логи удалены 15.10.2025
