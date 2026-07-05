@@ -6,6 +6,5 @@ export function cleanupPendingAuths() {
     const initialSize = pendingTelegramAuths.size;
     const keysToDelete = Array.from(pendingTelegramAuths.keys()).slice(0, pendingTelegramAuths.size - MAX_PENDING_AUTHS);
     keysToDelete.forEach(k => pendingTelegramAuths.delete(k));
-    console.log('[AUTH_LOG][telegram:store:cleanup] size=', initialSize, 'deleted=', keysToDelete.length); // AUTH_LOG
   }
 }
