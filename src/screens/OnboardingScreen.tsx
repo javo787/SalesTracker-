@@ -1,8 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   TextInput, ActivityIndicator,
-  Image, ImageSourcePropType, Animated,
+  Image, Animated,
   useWindowDimensions, KeyboardAvoidingView, Platform
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,53 +10,83 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import { useAppContext } from '../context/AppContext';
 import { useShop } from '../context/ShopContext';
+import CurrencyStepSelector from '../components/onboarding/CurrencyStepSelector';
+
+interface OnboardingStep {
+  title: string;
+  description: string;
+  image: any;
+  color: string;
+  isSellerModeStep?: boolean;
+  isRoleStep?: boolean;
+  isCurrencyStep?: boolean;
+}
 
 interface OnboardingScreenProps {
   onFinish: () => void;
 }
 
 export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const illustrationSize = Math.min(width * 0.72, 300);
 
-  const STEPS = [
-    {
-      title: t('onboarding.step1Title'),
-      description: t('onboarding.step1Desc'),
-      image: require('../../assets/onboarding/step1.png'),
-      color: '#1D9E75'
-    },
-    {
-      title: t('onboarding.step2Title'),
-      description: t('onboarding.step2Desc'),
-      image: require('../../assets/onboarding/step2.png'),
-      color: '#0C447C'
-    },
-    {
-      title: t('onboarding.step3Title'),
-      description: t('onboarding.step3Desc'),
-      image: require('../../assets/onboarding/step3.png'),
-      color: '#854F0B',
-      isSellerModeStep: true,
-    },
-    {
-      title: t('onboarding.step4Title'),
-      description: t('onboarding.step4Desc'),
-      image: require('../../assets/onboarding/step4.png'),
-      color: '#534AB7',
-      isRoleStep: true,
-    },
-    {
+  const [selectedMode, setSelectedMode] = useState<'retail' | 'wholesale' | null>(null);
+  const [selectedRole, setSelectedRole] = useState<'owner' | 'seller' | null>(null);
+  const [selectedCurrencyCode, setSelectedCurrencyCode] = useState<string | null>(null);
+
+  const STEPS: OnboardingStep[] = useMemo(() => {
+    const baseSteps: OnboardingStep[] = [
+      {
+        title: t('onboarding.step1Title'),
+        description: t('onboarding.step1Desc'),
+        image: require('../../assets/onboarding/step1.png'),
+        color: '#1D9E75'
+      },
+      {
+        title: t('onboarding.step2Title'),
+        description: t('onboarding.step2Desc'),
+        image: require('../../assets/onboarding/step2.png'),
+        color: '#0C447C'
+      },
+      {
+        title: t('onboarding.step3Title'),
+        description: t('onboarding.step3Desc'),
+        image: require('../../assets/onboarding/step3.png'),
+        color: '#854F0B',
+        isSellerModeStep: true,
+      },
+      {
+        title: t('onboarding.step4Title'),
+        description: t('onboarding.step4Desc'),
+        image: require('../../assets/onboarding/step4.png'),
+        color: '#534AB7',
+        isRoleStep: true,
+      },
+    ];
+
+    if (selectedRole === 'owner') {
+      baseSteps.push({
+        title: t('onboarding.currencyTitle'),
+        description: t('onboarding.currencyDesc'),
+        image: null as any,
+        color: '#0E7C66',
+        isCurrencyStep: true,
+      });
+    }
+
+    baseSteps.push({
       title: t('onboarding.step5Title'),
       description: t('onboarding.step5Desc'),
       image: require('../../assets/onboarding/step5.png'),
       color: '#3B6D11'
-    }
-  ];
+    });
 
-  const { setSellerMode } = useAppContext();
+    return baseSteps;
+  }, [selectedRole, t]);
+
+  const { setSellerMode, setCurrency } = useAppContext();
   const { createShop, joinShop } = useShop();
   const [currentStep, setCurrentStep] = useState(0);
 
@@ -90,15 +120,23 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
     inputRange: [0, STEPS.length],
     outputRange: ['0%', '100%'],
   });
-  const [selectedMode, setSelectedMode] = useState<'retail' | 'wholesale' | null>(null);
-
-  const [selectedRole, setSelectedRole] = useState<'owner' | 'seller' | null>(null);
   const [shopNameInput, setShopNameInput] = useState('');
   const [inviteCodeInput, setInviteCodeInput] = useState('');
   const [roleLoading, setRoleLoading] = useState(false);
   const [roleError, setRoleError] = useState('');
 
-  const step = STEPS[currentStep];
+  const step = STEPS[currentStep] || STEPS[STEPS.length - 1];
+
+  useEffect(() => {
+    if (step?.isCurrencyStep && !selectedCurrencyCode) {
+      const lang = i18n.language.split('-')[0];
+      const defaultByLang: Record<string, string> = {
+        tg: 'TJS', uz: 'UZS', ru: 'TJS',
+        en: 'USD', pt: 'USD', it: 'USD', es: 'USD',
+      };
+      setSelectedCurrencyCode(defaultByLang[lang] || 'TJS');
+    }
+  }, [currentStep, step, i18n.language, selectedCurrencyCode]);
 
   const handleNext = async () => {
     if (step.isSellerModeStep) {
@@ -124,6 +162,11 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
         return;
       }
       setRoleLoading(false);
+    }
+
+    if (step.isCurrencyStep) {
+      if (!selectedCurrencyCode) return;
+      await setCurrency(selectedCurrencyCode);
     }
 
     if (currentStep < STEPS.length - 1) {
@@ -224,6 +267,11 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
             {roleError ? <Text style={roleStyles.errorText}>{roleError}</Text> : null}
             {roleLoading && <ActivityIndicator color="#534AB7" style={{ marginTop: 10 }} />}
           </View>
+          ) : step.isCurrencyStep ? (
+            <CurrencyStepSelector
+              selectedCode={selectedCurrencyCode}
+              onSelect={setSelectedCurrencyCode}
+            />
           ) : (
             <View style={[styles.iconContainer, {
               backgroundColor: step.color + '15',
@@ -251,10 +299,18 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
             style={[
               styles.button,
               { backgroundColor: step.color },
-              ((step.isSellerModeStep && !selectedMode) || (step.isRoleStep && !selectedRole) || roleLoading) && { opacity: 0.5 }
+              ((step.isSellerModeStep && !selectedMode) ||
+               (step.isRoleStep && !selectedRole) ||
+               (step.isCurrencyStep && !selectedCurrencyCode) ||
+               roleLoading) && { opacity: 0.5 }
             ]}
             onPress={handleNext}
-            disabled={(step.isSellerModeStep && !selectedMode) || (step.isRoleStep && !selectedRole) || roleLoading}
+            disabled={
+              (step.isSellerModeStep && !selectedMode) ||
+              (step.isRoleStep && !selectedRole) ||
+              (step.isCurrencyStep && !selectedCurrencyCode) ||
+              roleLoading
+            }
             activeOpacity={0.82}
           >
             <Text style={styles.buttonText}>
