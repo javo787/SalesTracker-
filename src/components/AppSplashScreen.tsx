@@ -55,7 +55,7 @@ export default function AppSplashScreen({ ready, onHidden }: Props) {
       <Animated.View style={[StyleSheet.absoluteFill, style]}>
         <Image
           source={require('../../assets/splash.png')}
-          resizeMode="cover"
+          resizeMode="contain"
           style={StyleSheet.absoluteFill}
         />
       </Animated.View>
