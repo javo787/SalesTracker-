@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   TextInput,
   ScrollView,
+  LayoutChangeEvent,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -19,6 +20,10 @@ interface CurrencyStepSelectorProps {
 export default function CurrencyStepSelector({ selectedCode, onSelect }: CurrencyStepSelectorProps) {
   const { t, i18n } = useTranslation();
   const [search, setSearch] = useState('');
+  const [gridWidth, setGridWidth] = useState(0);
+
+  const CARD_GAP = 12;
+  const cardWidth = gridWidth > 0 ? (gridWidth - CARD_GAP) / 2 : undefined;
 
   const filteredCurrencies = ALL_CURRENCIES.filter(curr => {
     const query = search.toLowerCase();
@@ -62,12 +67,13 @@ export default function CurrencyStepSelector({ selectedCode, onSelect }: Currenc
         nestedScrollEnabled
       >
         {priorityCurrencies.length > 0 && (
-          <View style={styles.grid}>
+          <View style={styles.grid} onLayout={(e: LayoutChangeEvent) => setGridWidth(e.nativeEvent.layout.width)}>
             {priorityCurrencies.map(curr => (
               <TouchableOpacity
                 key={curr.code}
                 style={[
                   styles.priorityCard,
+                  cardWidth ? { width: cardWidth } : null,
                   selectedCode === curr.code && styles.priorityCardActive
                 ]}
                 onPress={() => onSelect(curr.code)}
@@ -140,7 +146,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   priorityCard: {
-    width: '48%',
+    width: '48%', // fallback до первого onLayout-измерения; далее перекрывается точной пиксельной шириной
     backgroundColor: '#FFF',
     borderWidth: 2,
     borderColor: '#EEE',
