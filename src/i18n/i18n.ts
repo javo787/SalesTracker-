@@ -242,6 +242,9 @@ const resources = {
         fillManually: 'Заполнить вручную',
         checkPrice: 'Проверьте значение',
         addAllBtn: 'Добавить все ({{count}})',
+        linkedTo: 'Связано с товаром: {{name}}',
+        smartMatchLimitReached: 'Сегодня закончились умные подборы (3/3). Premium — безлимитно',
+        aiMatched: 'AI подобрал: {{name}}',
       },
       onboarding: {
         step1Title: 'Добавьте товары',
@@ -928,6 +931,9 @@ const resources = {
         fillManually: 'Дастӣ пур кунед',
         checkPrice: 'Қиматро тафтиш кунед',
         addAllBtn: 'Ҳамаро илова кунед ({{count}})',
+        linkedTo: 'Ба мол вобаста шуд: {{name}}',
+        smartMatchLimitReached: 'Имрӯз интихоби ҳушманд ба охир расид (3/3). Premium — номаҳдуд',
+        aiMatched: 'AI интихоб кард: {{name}}',
       },
       onboarding: {
         step1Title: 'Молҳоро илова кунед',
@@ -1614,6 +1620,9 @@ const resources = {
         fillManually: 'Fill manually',
         checkPrice: 'Check value',
         addAllBtn: 'Add all ({{count}})',
+        linkedTo: 'Linked to product: {{name}}',
+        smartMatchLimitReached: 'Smart match limit reached today (3/3). Premium is unlimited',
+        aiMatched: 'AI matched: {{name}}',
       },
       onboarding: {
         step1Title: 'Add Products',
@@ -2295,6 +2304,9 @@ const resources = {
         fillManually: "Qo'lda to'ldirish",
         checkPrice: 'Qiymatni tekshiring',
         addAllBtn: 'Barchasini qoʻshish ({{count}})',
+        linkedTo: 'Mahsulotga bog\'landi: {{name}}',
+        smartMatchLimitReached: 'Bugun aqlli tanlovlar tugadi (3/3). Premium — cheksiz',
+        aiMatched: 'AI tanlab berdi: {{name}}',
       },
       onboarding: {
         step1Title: 'Mahsulotlarni qo‘shing',
@@ -2981,6 +2993,9 @@ const resources = {
         fillManually: 'Қўлда тўлдириш',
         checkPrice: 'Қийматни текширинг',
         addAllBtn: 'Барчасини қўшиш ({{count}})',
+        linkedTo: 'Маҳсулотга боғланди: {{name}}',
+        smartMatchLimitReached: 'Бугун ақлли танловлар тугади (3/3). Premium — чексиз',
+        aiMatched: 'AI танлаб берди: {{name}}',
       },
       onboarding: {
         step1Title: 'Маҳсулотларни қўшинг',
@@ -3667,6 +3682,9 @@ const resources = {
         fillManually: 'Preencher manualmente',
         checkPrice: 'Verifique o valor',
         addAllBtn: 'Adicionar todos ({{count}})',
+        linkedTo: 'Vinculado ao produto: {{name}}',
+        smartMatchLimitReached: 'Limite de busca inteligente atingido hoje (3/3). Premium es ilimitado',
+        aiMatched: 'IA encontrou: {{name}}',
       },
       onboarding: {
         step1Title: 'Adicione produtos',
@@ -4353,6 +4371,9 @@ const resources = {
         fillManually: 'Compila manualmente',
         checkPrice: 'Controlla il valore',
         addAllBtn: 'Aggiungi tutti ({{count}})',
+        linkedTo: 'Collegato al prodotto: {{name}}',
+        smartMatchLimitReached: 'Limite abbinamenti intelligenti raggiunto (3/3). Premium è illimitato',
+        aiMatched: 'IA ha abbinato: {{name}}',
       },
       onboarding: {
         step1Title: 'Aggiungi prodotti',
@@ -5037,6 +5058,9 @@ const resources = {
         fillManually: 'Llenar manualmente',
         checkPrice: 'Verifique el valor',
         addAllBtn: 'Agregar todos ({{count}})',
+        linkedTo: 'Vinculado al producto: {{name}}',
+        smartMatchLimitReached: 'Límite de búsqueda inteligente agotado hoy (3/3). Premium es ilimitado',
+        aiMatched: 'IA encontró: {{name}}',
       },
       onboarding: {
         step1Title: "Agrega productos",

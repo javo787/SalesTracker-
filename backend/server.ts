@@ -11,6 +11,7 @@ import shopRoutes from './routes/shop';
 import notificationRoutes from './routes/notifications';
 import telegramRoutes from './routes/telegram';
 import voiceSaleRoutes from './routes/voiceSale';
+import voiceDisambiguateRoutes from './routes/voiceDisambiguate';
 
 dotenv.config();
 
@@ -73,11 +74,20 @@ const voiceSaleLimiter = rateLimit({
   message: { message: 'Слишком много голосовых запросов, подождите минуту.' },
 });
 
+const voiceDisambiguateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Слишком много запросов, подождите минуту.' },
+});
+
 // Порядок важен: конкретный путь регистрируем ДО общего app.use('/auth', authLimiter),
 // чтобы /auth/telegram/check не попадал под authLimiter.
 app.use('/auth/telegram/check', telegramCheckLimiter);
 app.use('/auth', authLimiter);
 app.use('/voice-sale', voiceSaleLimiter);
+app.use('/voice-disambiguate', voiceDisambiguateLimiter);
 
 app.use(express.json({ limit: '2mb' })); // reduced from 10mb
 
@@ -94,6 +104,7 @@ app.use('/shop', shopRoutes);
 app.use('/notifications', notificationRoutes);
 app.use('/telegram', telegramRoutes);
 app.use('/voice-sale', voiceSaleRoutes);
+app.use('/voice-disambiguate', voiceDisambiguateRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

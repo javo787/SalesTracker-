@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,12 @@ import { useTranslation } from 'react-i18next';
 import { VoiceSaleItem, VoiceSaleResult } from '../types/voiceSale';
 import { Colors, Radius, Shadow, FontSize, Spacing } from '../constants/theme';
 import { useAppContext } from '../context/AppContext';
+import { getProducts } from '../db/database';
+import { matchProductByName, ProductMatchResult } from '../utils/productMatching';
+import { AutocompleteResult } from '../types/product';
+import { VariantPicker } from './sales/VariantPicker';
+import { SmartMatchQuotaService } from '../services/SmartMatchQuotaService';
+import { api } from '../services/api';
 
 interface VoiceBatchReviewProps {
   result: VoiceSaleResult;
@@ -22,21 +28,114 @@ interface VoiceBatchReviewProps {
 
 export default function VoiceBatchReview({ result, onConfirm, onCancel }: VoiceBatchReviewProps) {
   const { t } = useTranslation();
-  const { resolvedTheme, currency } = useAppContext();
+  const { resolvedTheme, currency, isPremium } = useAppContext();
   const isDark = resolvedTheme === 'dark';
 
   const [items, setItems] = useState<VoiceSaleItem[]>(
-    result.items.map(item => ({ ...item, id: Math.random().toString(36).substr(2, 9) } as any))
+    result.items.map(item => ({ ...item, id: Math.random().toString(36).substring(2, 11) } as any))
   );
+
+  const [matchResults, setMatchResults] = useState<Record<number, ProductMatchResult>>({});
+  const [smartLimitReached, setSmartLimitReached] = useState(false);
+
+  useEffect(() => {
+    const catalog = getProducts();
+    const results: Record<number, ProductMatchResult> = {};
+
+    // Initial local matching
+    items.forEach((item, idx) => {
+      const match = matchProductByName(item.product_name, catalog as any);
+      results[idx] = match;
+      if (match.confidence === 'exact' || match.confidence === 'fuzzy_confident') {
+        item.matchedProductId = match.match?.id ? parseInt(match.match.id) : null;
+        item.matchConfidence = match.confidence;
+      }
+    });
+    setMatchResults(results);
+    setItems([...items]);
+
+    // Try AI disambiguation for ambiguous items
+    const tryAI = async () => {
+      if (!result.transcript) return;
+
+      let canUseSmart = await SmartMatchQuotaService.canUseSmartMatch(isPremium);
+      if (!canUseSmart) {
+        setSmartLimitReached(true);
+        return;
+      }
+
+      for (let i = 0; i < items.length; i++) {
+        const m = results[i];
+        if (m && m.confidence === 'ambiguous' && m.candidates.length > 0) {
+          try {
+            const data: any = await api.post('/voice-disambiguate', {
+              transcript: result.transcript,
+              candidates: m.candidates.map(c => ({
+                id: c.id, name: c.name, color: c.color, size: c.article, price: c.lastSalePrice
+              })),
+            });
+
+            await SmartMatchQuotaService.consumeUsage();
+
+            if (data.matched_candidate_id && data.confidence === 'high') {
+              const picked = m.candidates.find(c => c.id === String(data.matched_candidate_id));
+              if (picked) {
+                const updatedMatch: ProductMatchResult = {
+                  confidence: 'ai_matched',
+                  match: picked,
+                  candidates: m.candidates
+                };
+                setMatchResults(prev => ({ ...prev, [i]: updatedMatch }));
+                setItems(prev => {
+                  const copy = [...prev];
+                  copy[i].matchedProductId = parseInt(picked.id!);
+                  copy[i].matchConfidence = 'ai_matched';
+                  return copy;
+                });
+              }
+            }
+
+            // Check quota again after each usage
+            canUseSmart = await SmartMatchQuotaService.canUseSmartMatch(isPremium);
+            if (!canUseSmart) {
+              setSmartLimitReached(true);
+              break;
+            }
+          } catch (e) {
+            console.warn('[voice-disambiguate] batch error:', e);
+          }
+        }
+      }
+    };
+
+    tryAI();
+  }, []);
 
   const handleUpdateItem = (index: number, field: keyof VoiceSaleItem, value: any) => {
     const newItems = [...items];
     newItems[index] = { ...newItems[index], [field]: value };
+
+    if (field === 'product_name') {
+      const catalog = getProducts();
+      const match = matchProductByName(value, catalog as any);
+      setMatchResults(prev => ({ ...prev, [index]: match }));
+
+      newItems[index].matchedProductId = (match.confidence === 'exact' || match.confidence === 'fuzzy_confident')
+        ? (match.match?.id ? parseInt(match.match.id) : null)
+        : null;
+      newItems[index].matchConfidence = match.confidence;
+    }
+
     setItems(newItems);
   };
 
   const handleRemoveItem = (index: number) => {
     setItems(items.filter((_, i) => i !== index));
+  };
+
+  const handleVariantSelected = (index: number, product: AutocompleteResult) => {
+    handleUpdateItem(index, 'matchedProductId' as any, product.id ? parseInt(product.id) : null);
+    setMatchResults(prev => ({ ...prev, [index]: { confidence: 'exact', match: product, candidates: [] } }));
   };
 
   const total = items.reduce((acc, item) => acc + (item.sell_price * item.quantity), 0);
@@ -114,6 +213,37 @@ export default function VoiceBatchReview({ result, onConfirm, onCancel }: VoiceB
                 />
               </View>
             </View>
+
+            {matchResults[index]?.confidence === 'exact' || matchResults[index]?.confidence === 'fuzzy_confident' ? (
+              <Text style={styles.matchBadge}>✓ {t('addSale.linkedTo', { name: matchResults[index].match?.name })}</Text>
+            ) : null}
+
+            {matchResults[index]?.confidence === 'ai_matched' ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={[styles.matchBadge, { color: Colors.primary }]}>🤖 {t('addSale.aiMatched', { name: matchResults[index].match?.name })}</Text>
+                <TouchableOpacity
+                  onPress={() => setMatchResults(prev => ({ ...prev, [index]: { ...prev[index], confidence: 'ambiguous' } }))}
+                  style={{ marginTop: Spacing.sm }}
+                >
+                  <Text style={{ fontSize: 10, color: '#888', textDecorationLine: 'underline' }}>{t('common.edit')}</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
+            {matchResults[index]?.confidence === 'ambiguous' ? (
+              <View>
+                <VariantPicker
+                  candidates={matchResults[index].candidates}
+                  isDark={isDark}
+                  onSelect={(product) => handleVariantSelected(index, product)}
+                />
+                {smartLimitReached && !isPremium && (
+                  <Text style={{ fontSize: 10, color: '#999', marginTop: 4 }}>
+                    {t('addSale.smartMatchLimitReached')}
+                  </Text>
+                )}
+              </View>
+            ) : null}
 
             {item.needs_confirmation && (
               <View style={styles.warningRow}>
@@ -267,6 +397,12 @@ const styles = StyleSheet.create({
   },
   textDark: {
     color: '#eee',
+  },
+  matchBadge: {
+    fontSize: FontSize.xs,
+    color: '#34C759',
+    marginTop: Spacing.sm,
+    fontWeight: '500',
   },
   transcriptOnlyCard: {
     backgroundColor: '#fff',

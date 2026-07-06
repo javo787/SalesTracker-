@@ -4,6 +4,8 @@ export interface VoiceSaleItem {
   buy_price: number;
   quantity: number;
   needs_confirmation: boolean;
+  matchedProductId?: number | null;
+  matchConfidence?: 'exact' | 'fuzzy_confident' | 'ambiguous' | 'none' | 'ai_matched';
 }
 
 export interface VoiceSaleResult {
