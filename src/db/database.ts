@@ -1,5 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 import { notifyLowStock } from '../utils/notifications';
+import { AutocompleteResult } from '../types/product';
 
 const db = SQLite.openDatabaseSync('savdo.db'); // Note: Database name remains 'savdo.db' to maintain data continuity.
 
@@ -1142,6 +1143,54 @@ export function getUnregisteredProductsFromHistory() {
     GROUP BY product_name
     ORDER BY sales_count DESC
   `);
+}
+
+export function findProductByExactName(name: string): AutocompleteResult | null {
+  const trimmedName = name.trim();
+  if (!trimmedName) return null;
+
+  const matches = db.getAllSync(`
+    SELECT
+      CAST(p.id AS TEXT) as id,
+      p.name,
+      'catalog' as source,
+      p.buy_price as purchasePrice,
+      (SELECT s.sell_price FROM sales s WHERE s.product_id = p.id ORDER BY s.created_at DESC LIMIT 1) as lastSalePrice,
+      (SELECT COUNT(*) FROM sales s WHERE s.product_id = p.id) as salesCount,
+      (SELECT MAX(s.created_at) FROM sales s WHERE s.product_id = p.id) as lastSoldAt,
+      p.base_unit, p.has_packages, p.package_name, p.units_per_package, p.is_continuous, p.stock,
+      p.article, p.color,
+      CASE WHEN p.color IS NOT NULL AND p.color != ''
+           THEN p.name || ' · ' || p.color
+           ELSE p.name
+      END AS displayName
+    FROM products p
+    WHERE p.name = ? COLLATE NOCASE AND p.is_deleted = 0
+  `, [trimmedName]) as any[];
+
+  if (matches.length !== 1) {
+    return null;
+  }
+
+  const p = matches[0];
+  return {
+    id: p.id,
+    name: p.displayName,
+    source: 'catalog',
+    purchasePrice: p.purchasePrice,
+    lastSalePrice: p.lastSalePrice,
+    salesCount: p.salesCount,
+    lastSoldAt: p.lastSoldAt,
+    base_unit: p.base_unit,
+    has_packages: p.has_packages,
+    package_name: p.package_name,
+    units_per_package: p.units_per_package,
+    is_continuous: p.is_continuous,
+    stock: p.stock,
+    article: p.article,
+    color: p.color,
+    baseName: p.name
+  };
 }
 
 export function getClientDebtHistory(clientId: number) {
