@@ -244,6 +244,7 @@ const resources = {
         addAllBtn: 'Добавить все ({{count}})',
         linkedTo: 'Связано с товаром: {{name}}',
         smartMatchLimitReached: 'Сегодня закончились умные подборы (3/3). Premium — безлимитно',
+        smartMatchRemaining: 'Осталось умных подборов сегодня: {{count}}/3',
         aiMatched: 'AI подобрал: {{name}}',
       },
       onboarding: {
@@ -933,6 +934,7 @@ const resources = {
         addAllBtn: 'Ҳамаро илова кунед ({{count}})',
         linkedTo: 'Ба мол вобаста шуд: {{name}}',
         smartMatchLimitReached: 'Имрӯз интихоби ҳушманд ба охир расид (3/3). Premium — номаҳдуд',
+        smartMatchRemaining: 'Интихоби ҳушманди боқимонда барои имрӯз: {{count}}/3',
         aiMatched: 'AI интихоб кард: {{name}}',
       },
       onboarding: {
@@ -1622,6 +1624,7 @@ const resources = {
         addAllBtn: 'Add all ({{count}})',
         linkedTo: 'Linked to product: {{name}}',
         smartMatchLimitReached: 'Smart match limit reached today (3/3). Premium is unlimited',
+        smartMatchRemaining: 'Smart matches remaining today: {{count}}/3',
         aiMatched: 'AI matched: {{name}}',
       },
       onboarding: {
@@ -2306,6 +2309,7 @@ const resources = {
         addAllBtn: 'Barchasini qoʻshish ({{count}})',
         linkedTo: 'Mahsulotga bog\'landi: {{name}}',
         smartMatchLimitReached: 'Bugun aqlli tanlovlar tugadi (3/3). Premium — cheksiz',
+        smartMatchRemaining: 'Bugungi aqlli tanlovlar qoldi: {{count}}/3',
         aiMatched: 'AI tanlab berdi: {{name}}',
       },
       onboarding: {
@@ -2995,6 +2999,7 @@ const resources = {
         addAllBtn: 'Барчасини қўшиш ({{count}})',
         linkedTo: 'Маҳсулотга боғланди: {{name}}',
         smartMatchLimitReached: 'Бугун ақлли танловлар тугади (3/3). Premium — чексиз',
+        smartMatchRemaining: 'Бугунги ақлли танловлар қолди: {{count}}/3',
         aiMatched: 'AI танлаб берди: {{name}}',
       },
       onboarding: {
@@ -3684,6 +3689,7 @@ const resources = {
         addAllBtn: 'Adicionar todos ({{count}})',
         linkedTo: 'Vinculado ao produto: {{name}}',
         smartMatchLimitReached: 'Limite de busca inteligente atingido hoje (3/3). Premium es ilimitado',
+        smartMatchRemaining: 'Buscas inteligentes restantes hoje: {{count}}/3',
         aiMatched: 'IA encontrou: {{name}}',
       },
       onboarding: {
@@ -4373,6 +4379,7 @@ const resources = {
         addAllBtn: 'Aggiungi tutti ({{count}})',
         linkedTo: 'Collegato al prodotto: {{name}}',
         smartMatchLimitReached: 'Limite abbinamenti intelligenti raggiunto (3/3). Premium è illimitato',
+        smartMatchRemaining: 'Abbinamenti intelligenti rimasti oggi: {{count}}/3',
         aiMatched: 'IA ha abbinato: {{name}}',
       },
       onboarding: {
