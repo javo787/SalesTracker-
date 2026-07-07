@@ -572,6 +572,8 @@ const resources = {
         noNews: 'Новости обновляются каждое утро в 6:00',
         refreshing: 'Обновление новостей...',
         source: 'Источник: {{name}}',
+        today: 'Сегодня',
+        yesterday: 'Вчера',
       },
       appLock: {
         title: 'Защита приложения',
@@ -1262,6 +1264,8 @@ const resources = {
         noNews: 'Хабарҳо ҳар субҳ соати 6:00 нав карда мешаванд',
         refreshing: 'Навсозии хабарҳо...',
         source: 'Манбаъ: {{name}}',
+        today: 'Имрӯз',
+        yesterday: 'Дирӯз',
       },
       appLock: {
         title: 'Ҳифзи барнома',
@@ -1952,6 +1956,8 @@ const resources = {
         noNews: 'News are updated every morning at 6:00',
         refreshing: 'Updating news...',
         source: 'Source: {{name}}',
+        today: 'Today',
+        yesterday: 'Yesterday',
       },
       appLock: {
         title: 'App Lock',
@@ -2637,6 +2643,8 @@ const resources = {
         noNews: 'Yangiliklar har kuni ertalab soat 6:00 da yangilanadi',
         refreshing: 'Yangiliklar yangilanmoqda...',
         source: 'Manba: {{name}}',
+        today: 'Bugun',
+        yesterday: 'Kecha',
       },
       appLock: {
         title: 'Ilova himoyasi',
@@ -3327,6 +3335,8 @@ const resources = {
         noNews: 'Янгиликлар ҳар куни эрталаб соат 6:00 да янгиланади',
         refreshing: 'Янгиликлар янгиланмоқда...',
         source: 'Манба: {{name}}',
+        today: 'Бугун',
+        yesterday: 'Кеча',
       },
       appLock: {
         title: 'Илова ҳимояси',
@@ -4017,6 +4027,8 @@ const resources = {
         noNews: 'Notícias atualizadas todos os dias às 6:00',
         refreshing: 'Atualizando notícias...',
         source: 'Fonte: {{name}}',
+        today: 'Hoje',
+        yesterday: 'Ontem',
       },
       appLock: {
         title: 'Proteção do app',
@@ -4707,6 +4719,8 @@ const resources = {
         noNews: 'Notizie aggiornate ogni mattina alle 6:00',
         refreshing: 'Aggiornamento notizie...',
         source: 'Fonte: {{name}}',
+        today: 'Oggi',
+        yesterday: 'Ieri',
       },
       appLock: {
         title: 'Protezione app',
@@ -5393,7 +5407,9 @@ const resources = {
         readMore: "Leer más",
         noNews: "Noticias actualizadas todos los días a las 6:00",
         refreshing: "Actualizando noticias...",
-        source: "Fuente: {{name}}"
+        source: "Fuente: {{name}}",
+        today: "Hoy",
+        yesterday: "Ayer"
       },
       appLock: {
         title: "Protección de la app",
