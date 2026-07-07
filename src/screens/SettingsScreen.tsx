@@ -47,6 +47,7 @@ const LOCALE_MAP: Record<string, string> = {
 
 const PRIVACY_POLICY_URL = 'https://torgo.vercel.app/privacy';
 const SUPPORT_URL = 'https://torgo.vercel.app/support';
+const TUTORIALS_URL = 'https://youtube.com/@torgo-salestracker';
 
 // Иконка в цветном кружке
 function SettingIcon({ name, color }: { name: any; color: string }) {
@@ -145,6 +146,7 @@ export default function SettingsScreen(props: any) {
   const { deleteAccount } = useAuth();
 
   const insets = useSafeAreaInsets();
+  const [languageExpanded, setLanguageExpanded] = useState(false);
   const [currencyExpanded, setCurrencyExpanded] = useState(false);
   const [currencySearch, setCurrencySearch] = useState('');
   const { isLockEnabled, setIsSystemDialogOpen } = useAppLock();
@@ -487,22 +489,50 @@ export default function SettingsScreen(props: any) {
       {/* ── ЯЗЫК ── */}
       <SectionLabel label={t('settings.language')} isDark={isDark} />
       <SettingGroup isDark={isDark}>
-        {LANGUAGES.map((lang, i) => (
-          <SettingRow
-            key={lang.code}
-            icon="language-outline"
-            iconColor="#5856D6"
-            label={lang.label}
-            isDark={isDark}
-            isLast={i === LANGUAGES.length - 1}
-            onPress={() => setLanguage(lang.code)}
-            right={
-              language === lang.code ? (
-                <Ionicons name="checkmark" size={18} color="#1D9E75" />
-              ) : null
-            }
-          />
-        ))}
+        {/* Строка-аккордеон — всегда видна */}
+        <SettingRow
+          icon="language-outline"
+          iconColor="#5856D6"
+          label={t('settings.language')}
+          sublabel={LANGUAGES.find(l => l.code === language)?.label}
+          isDark={isDark}
+          isLast={!languageExpanded}
+          onPress={() => setLanguageExpanded(prev => !prev)}
+          right={
+            <Ionicons
+              name={languageExpanded ? 'chevron-up' : 'chevron-down'}
+              size={16}
+              color={isDark ? '#555' : '#CCC'}
+            />
+          }
+        />
+
+        {languageExpanded && (
+          <View style={{
+            borderTopWidth: StyleSheet.hairlineWidth,
+            borderTopColor: isDark ? '#2A2A2A' : '#F0F0F0',
+          }}>
+            {LANGUAGES.map((lang, i) => (
+              <SettingRow
+                key={lang.code}
+                icon="language-outline"
+                iconColor="#5856D6"
+                label={lang.label}
+                isDark={isDark}
+                isLast={i === LANGUAGES.length - 1}
+                onPress={() => {
+                  setLanguage(lang.code);
+                  setLanguageExpanded(false);
+                }}
+                right={
+                  language === lang.code ? (
+                    <Ionicons name="checkmark" size={18} color="#1D9E75" />
+                  ) : null
+                }
+              />
+            ))}
+          </View>
+        )}
       </SettingGroup>
 
       {/* ── ВАЛЮТА ── */}
@@ -831,6 +861,14 @@ export default function SettingsScreen(props: any) {
               : 'en';
             Linking.openURL(`${SUPPORT_URL}?lang=${lang}`);
           }}
+        />
+        <SettingRow
+          icon="logo-youtube"
+          iconColor="#FF0000"
+          label={t('settings.tutorials')}
+          sublabel={t('settings.tutorialsSublabel')}
+          isDark={isDark}
+          onPress={() => Linking.openURL(TUTORIALS_URL)}
         />
         <SettingRow
           icon="document-text-outline"
