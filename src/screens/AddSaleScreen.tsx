@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { addSale, addSaleWithSeller, getProducts, upsertClient, addDebt, updateDebtNotificationId, addOrderWithItems } from '../db/database';
+import { addSale, addSaleWithSeller, getProducts, upsertClient, addDebt, updateDebtNotificationId, addOrderWithItems, findProductByExactName } from '../db/database';
 import { scheduleDebtReminder } from '../utils/notifications';
 import { toISODate } from '../utils/dateUtils';
 import { analyticsService } from '../services/analyticsService';
@@ -17,10 +17,6 @@ import { reviewService } from '../services/reviewService';
 import VoiceRecorder from '../components/VoiceRecorder';
 import VoiceBatchReview from '../components/VoiceBatchReview';
 import { VoiceSaleResult, VoiceSaleItem } from '../types/voiceSale';
-import { matchProductByName, ProductMatchResult } from '../utils/productMatching';
-import { SmartMatchQuotaService } from '../services/SmartMatchQuotaService';
-import { api } from '../services/api';
-import { VariantPicker } from '../components/sales/VariantPicker';
 import { useAppContext } from '../context/AppContext';
 import { useShop } from '../context/ShopContext';
 import { useAuth } from '../context/AuthContext';
@@ -54,7 +50,6 @@ export default function AddSaleScreen(/* props */) {
   const userId = user?._id || 'guest';
 
   const [selectedProduct, setSelectedProduct] = useState<AutocompleteResult | null>(null);
-  const [ambiguousCandidates, setAmbiguousCandidates] = useState<AutocompleteResult[]>([]);
   const [productName, setProductName] = useState('');
   const [sellPrice, setSellPrice] = useState('');
   const [buyPrice, setBuyPrice] = useState('');
@@ -315,7 +310,7 @@ export default function AddSaleScreen(/* props */) {
     });
 
     if (result.items.length === 1) {
-      await applyAIResult(result.items[0], result.transcript);
+      await applyAIResult(result.items[0]);
       if (result.transcript) setVoiceText(result.transcript);
       setShowVoiceBar(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -324,85 +319,63 @@ export default function AddSaleScreen(/* props */) {
     }
   };
 
-  const resolveAmbiguity = async (
-    itemName: string,
-    transcript: string | undefined,
-    match: ProductMatchResult
-  ): Promise<{ productId: number | null; confidence: string }> => {
-    if (match.confidence !== 'ambiguous' || match.candidates.length === 0) {
-      return { productId: null, confidence: match.confidence };
-    }
-
-    const canUseSmart = await SmartMatchQuotaService.canUseSmartMatch(isPremium);
-
-    if (canUseSmart && transcript) {
-      try {
-        const data: any = await api.post('/voice-disambiguate', {
-          transcript,
-          candidates: match.candidates.map(c => ({
-            id: c.id, name: c.name, color: c.color, size: c.article, price: c.lastSalePrice
-          })),
-        });
-        await SmartMatchQuotaService.consumeUsage();
-
-        if (data.matched_candidate_id && data.confidence === 'high') {
-          return { productId: parseInt(data.matched_candidate_id), confidence: 'ai_matched' };
-        }
-      } catch (e) {
-        console.warn('[voice-disambiguate] fallback to local picker', e);
-      }
-    }
-
-    // Лимит исчерпан или AI не уверен → локальный пикер (UI решает через needsVariantPick)
-    return { productId: null, confidence: 'ambiguous' };
-  };
-
-  const applyAIResult = async (item: VoiceSaleItem, transcript?: string) => {
+  const applyAIResult = async (item: VoiceSaleItem) => {
     if (item.product_name) setProductName(item.product_name);
     if (item.sell_price > 0) setSellPrice(String(item.sell_price));
     if (item.buy_price > 0) setBuyPrice(String(item.buy_price));
     if (item.quantity > 0) setQuantity(String(item.quantity));
 
-    const catalog = getProducts();
-    const match = matchProductByName(item.product_name, catalog as any);
+    const matchedProduct = findProductByExactName(item.product_name);
 
-    if (match.confidence === 'exact' || match.confidence === 'fuzzy_confident') {
-      setSelectedProduct(match.match);
-    } else if (match.confidence === 'ambiguous') {
-      const resolved = await resolveAmbiguity(item.product_name, transcript, match);
-      if (resolved.productId) {
-        const picked = match.candidates.find(c => c.id === String(resolved.productId));
-        if (picked) setSelectedProduct(picked);
-      } else {
-        setAmbiguousCandidates(match.candidates);
+    if (matchedProduct) {
+      setProductName(matchedProduct.name);
+      setSelectedProduct(matchedProduct);
+      setSalePricePlaceholder(matchedProduct.lastSalePrice);
+      // Если AI не вернул цену закупки, берем из каталога
+      if (!(item.buy_price > 0)) {
+        setBuyPrice(String(matchedProduct.purchasePrice));
       }
+    } else {
+      setSelectedProduct(null);
+      setSalePricePlaceholder(null);
     }
   };
 
   const handleBatchConfirm = (items: VoiceSaleItem[]) => {
     const catalog = getProducts();
     const newCartItems: CartItem[] = items.map(it => {
-      const match = matchProductByName(it.product_name, catalog as any);
-      let linkedProduct = (match.confidence === 'exact' || match.confidence === 'fuzzy_confident')
-        ? match.match
-        : null;
+      // 1. Try exact name match
+      let matchedProduct = findProductByExactName(it.product_name);
 
-      // Позиция уже разрешена вручную (VariantPicker) или через AI в VoiceBatchReview —
-      // matchedProductId есть, но matchProductByName выше этого не знает. Достаём товар из каталога.
-      if (!linkedProduct && it.matchedProductId) {
-        const found = (catalog as any[]).find(p => p.id === it.matchedProductId);
-        if (found) linkedProduct = found;
+      // 2. Fallback to manually/fuzzy matched ID from VoiceBatchReview if exact name match failed
+      let productId = matchedProduct?.id ? parseInt(matchedProduct.id) : (it.matchedProductId ?? null);
+
+      if (!matchedProduct && productId) {
+        const found = (catalog as any[]).find(p => p.id === productId);
+        if (found) {
+          matchedProduct = {
+            id: String(found.id),
+            name: found.name,
+            source: 'catalog',
+            purchasePrice: found.buy_price,
+            lastSalePrice: found.sell_price,
+            salesCount: 0,
+            lastSoldAt: null,
+            base_unit: found.base_unit,
+            has_packages: found.has_packages,
+            package_name: found.package_name,
+            units_per_package: found.units_per_package,
+          };
+        }
       }
 
-      const resolvedProductId = linkedProduct?.id
-        ? parseInt(linkedProduct.id)
-        : (it.matchedProductId ?? null);
+      const productName = matchedProduct ? matchedProduct.name : it.product_name;
 
       return {
         id: Math.random().toString(36).substring(2, 9),
-        product: linkedProduct,
-        productId: resolvedProductId,
-        productName: it.product_name,
+        product: matchedProduct,
+        productId: productId,
+        productName: productName,
         quantity: it.quantity,
         sellPrice: it.sell_price,
         buyPrice: it.buy_price,
@@ -753,7 +726,6 @@ export default function AddSaleScreen(/* props */) {
             setProductName(text);
             setSelectedProduct(null);
             setSalePricePlaceholder(null);
-            setAmbiguousCandidates([]);
           }}
           onSelect={(product) => {
             setProductName(product.name);
@@ -761,21 +733,9 @@ export default function AddSaleScreen(/* props */) {
             setSellPrice(''); // Reset entered price
             setSalePricePlaceholder(product.lastSalePrice);
             setSelectedProduct(product);
-            setAmbiguousCandidates([]);
             setTimeout(() => quantityInputRef.current?.focus(), 100);
           }}
         />
-
-        {ambiguousCandidates.length > 0 && !selectedProduct && (
-          <VariantPicker
-            candidates={ambiguousCandidates}
-            isDark={isDark}
-            onSelect={(product) => {
-              setSelectedProduct(product);
-              setAmbiguousCandidates([]);
-            }}
-          />
-        )}
 
         {selectedProduct !== null && selectedProduct.color && selectedProduct.color !== '' && (
           <View style={{
