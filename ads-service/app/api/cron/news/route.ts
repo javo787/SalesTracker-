@@ -12,20 +12,29 @@ interface TavilyResult {
   score: number;
 }
 
-async function fetchNewsFromTavily(): Promise<TavilyResult[]> {
+// Тир 1: региональные источники на таджикском/узбекском/русском — наивысший приоритет.
+const REGIONAL_DOMAINS = ['asia-plus.tj', 'avesta.tj', 'news.tj', 'kun.uz', 'gazeta.uz', 'daryo.uz', 'sputnik-tj.com', 'khovar.tj'];
+// Тир 3: англоязычные источники — последний резерв, используется, только если
+// региональных материалов недостаточно (см. fetchNewsTiered).
+const ENGLISH_FALLBACK_DOMAINS = ['reuters.com', 'bloomberg.com', 'tradingeconomics.com'];
+const MIN_ARTICLES_TARGET = 4;
+
+async function tavilySearch(query: string, domains: string[] | undefined, maxResults: number): Promise<TavilyResult[]> {
   const apiKey = process.env.TAVILY_API_KEY;
   if (!apiKey) throw new Error('TAVILY_API_KEY not set');
+
+  const body: Record<string, unknown> = {
+    api_key: apiKey,
+    query,
+    search_depth: 'basic',
+    max_results: maxResults,
+  };
+  if (domains?.length) body.include_domains = domains;
 
   const response = await fetch('https://api.tavily.com/search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      api_key: apiKey,
-      query: 'Таджикистан Узбекистан Китай таможня пошлины импорт курс юаня сомони сум стройматериалы текстиль одежда 2026',
-      search_depth: 'basic',
-      max_results: 12,
-      include_domains: ['asia-plus.tj', 'avesta.tj', 'news.tj', 'kun.uz', 'gazeta.uz', 'daryo.uz', 'sputnik-tj.com', 'khovar.tj'],
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) throw new Error(`Tavily error: ${response.status}`);
@@ -33,38 +42,67 @@ async function fetchNewsFromTavily(): Promise<TavilyResult[]> {
   return data.results || [];
 }
 
+// Приоритет источников: тадж./узб./рус. региональные сайты → более широкий
+// поиск на русском без ограничения по доменам → англоязычные источники
+// (только если первых двух тиров не хватило). Раньше при сбое Tavily мы
+// падали сразу на DuckDuckGo Instant Answer, который отдаёт нерелевантные
+// англоязычные "мгновенные ответы" — отсюда и жалоба "источники только на
+// английском". Теперь английский — осознанный последний резерв, а не
+// случайный побочный эффект слабого фолбэка.
+async function fetchNewsTiered(): Promise<{ results: TavilyResult[]; tier: string }> {
+  const regionalQuery = 'Таджикистан Узбекистан Китай таможня пошлины импорт курс юаня сомони сум стройматериалы текстиль одежда 2026';
+
+  let regional: TavilyResult[] = [];
+  try {
+    regional = await tavilySearch(regionalQuery, REGIONAL_DOMAINS, 12);
+  } catch (err) {
+    console.warn('Tavily regional search failed:', err);
+  }
+  if (regional.length >= MIN_ARTICLES_TARGET) {
+    return { results: regional, tier: 'regional' };
+  }
+
+  let broad: TavilyResult[] = [];
+  try {
+    broad = await tavilySearch(regionalQuery, undefined, 12);
+  } catch (err) {
+    console.warn('Tavily broad search failed:', err);
+  }
+  const combined = [...regional, ...broad.filter(r => !regional.some(a => a.url === r.url))];
+  if (combined.length > 0) {
+    // Есть хоть что-то региональное/русскоязычное — используем его,
+    // до английского не опускаемся, даже если статей меньше MIN_ARTICLES_TARGET.
+    return { results: combined, tier: regional.length ? 'regional+broad' : 'broad' };
+  }
+
+  // Регионалка и широкий русский поиск дали 0 результатов — только тогда
+  // подключаем англоязычные источники как последний резерв.
+  try {
+    const englishQuery = 'Tajikistan Uzbekistan China customs duties yuan exchange rate construction materials textile 2026';
+    const english = await tavilySearch(englishQuery, ENGLISH_FALLBACK_DOMAINS, 12);
+    return { results: english, tier: english.length ? 'english_fallback' : 'none' };
+  } catch (err) {
+    console.warn('Tavily English fallback failed:', err);
+    return { results: [], tier: 'none' };
+  }
+}
+
 interface RecentArticle {
   url: string;
   title_ru: string;
 }
 
-async function getRecentlyPublished(daysBack: number = 3): Promise<RecentArticle[]> {
+// Окно дедупликации совпадает с окном показа ленты клиенту (7 дней, см.
+// /api/news), чтобы одна и та же тема не всплывала повторно, пока статья
+// ещё видна пользователю.
+const DEDUP_WINDOW_DAYS = 7;
+
+async function getRecentlyPublished(daysBack: number = DEDUP_WINDOW_DAYS): Promise<RecentArticle[]> {
   const col = await getNewsCollection();
   const docs = await col.find({}).sort({ generatedAt: -1 }).limit(daysBack).toArray();
   return docs.flatMap((d: any) =>
     (d.articles || []).map((a: any) => ({ url: a.url, title_ru: a.title_ru }))
   );
-}
-
-async function fetchNewsFromDuckDuckGo(): Promise<TavilyResult[]> {
-  // DuckDuckGo Instant Answer — free, no key required
-  // Note: returns limited results but works as fallback
-  const query = encodeURIComponent('торговля базар Таджикистан цены 2026');
-  const response = await fetch(
-    `https://api.duckduckgo.com/?q=${query}&format=json&t=torgo`,
-    { headers: { 'User-Agent': 'Torgo/1.0' } }
-  );
-  if (!response.ok) return [];
-  const data = await response.json();
-  const results: TavilyResult[] = [];
-  if (data.RelatedTopics) {
-    for (const topic of data.RelatedTopics.slice(0, 5)) {
-      if (topic.FirstURL && topic.Text) {
-        results.push({ title: topic.Text, url: topic.FirstURL, content: topic.Text, score: 0.5 });
-      }
-    }
-  }
-  return results;
 }
 
 async function processWithGroq(
@@ -81,7 +119,7 @@ async function processWithGroq(
     .join('\n---\n');
 
   const avoidBlock = recentArticles.length > 0
-    ? `\n\nЭТИ ТЕМЫ УЖЕ БЫЛИ ОПУБЛИКОВАНЫ ЗА ПОСЛЕДНИЕ ${recentArticles.length > 0 ? '3' : '0'} ДНЯ — НЕ ВЫБИРАЙ ИХ ПОВТОРНО, даже если новость пришла из другого источника и про то же событие (например "курс юаня снова растёт" — если уже было "курс юаня растёт", это дубль):\n${recentArticles.map(a => `- ${a.title_ru}`).join('\n')}`
+    ? `\n\nЭТИ ТЕМЫ УЖЕ БЫЛИ ОПУБЛИКОВАНЫ ЗА ПОСЛЕДНИЕ ${DEDUP_WINDOW_DAYS} ДНЕЙ — НЕ ВЫБИРАЙ ИХ ПОВТОРНО, даже если новость пришла из другого источника и про то же событие (например "курс юаня снова растёт" — если уже было "курс юаня растёт", это дубль):\n${recentArticles.map(a => `- ${a.title_ru}`).join('\n')}`
     : '';
 
   const prompt = `Ты помощник для двух конкретных групп базарных торговцев Таджикистана:
@@ -107,9 +145,11 @@ ${context}
     "title_ru": "заголовок на русском",
     "title_tg": "заголовок на таджикском",
     "title_uz": "заголовок на узбекском",
+    "title_en": "заголовок на английском",
     "summary_ru": "ДВА предложения на русском: 1) что произошло, 2) конкретный совет повелительным наклонением (закупайте сейчас / повысьте цену / отложите закуп / следите за курсом)",
     "summary_tg": "ДВА предложения на таджикском по той же структуре: факт + совет",
     "summary_uz": "ДВА предложения на узбекском по той же структуре: факт + совет",
+    "summary_en": "ДВА предложения на английском по той же структуре: факт + совет",
     "url": "оригинальная ссылка",
     "source": "название источника",
     "category": "customs|currency|logistics|construction_materials|textile|fuel|general",
@@ -168,21 +208,17 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: 'Already generated for today', date: todayStr });
     }
 
-    // 1. Fetch raw news
-    let rawArticles: TavilyResult[] = [];
-    try {
-      rawArticles = await fetchNewsFromTavily();
-    } catch (tavilyErr) {
-      console.warn('Tavily failed, trying DuckDuckGo:', tavilyErr);
-      rawArticles = await fetchNewsFromDuckDuckGo();
-    }
+    // 1. Fetch raw news — приоритет: региональные (тг/уз/ру) источники →
+    // широкий русскоязычный поиск → английские источники как последний резерв
+    const { results: tieredResults, tier } = await fetchNewsTiered();
+    let rawArticles: TavilyResult[] = tieredResults;
 
     if (rawArticles.length === 0) {
       return NextResponse.json({ error: 'No articles fetched from any source' }, { status: 503 });
     }
 
-    // Дедупликация: убираем статьи, ссылки на которые уже публиковались за последние 3 дня
-    const recentArticles = await getRecentlyPublished(3);
+    // Дедупликация: убираем статьи, ссылки на которые уже публиковались за последнюю неделю
+    const recentArticles = await getRecentlyPublished();
     const recentUrls = new Set(recentArticles.map(a => a.url));
     rawArticles = rawArticles.filter(a => !recentUrls.has(a.url));
 
@@ -200,6 +236,7 @@ export async function GET(request: Request) {
       generatedAt: new Date(),
       model,
       rawCount: rawArticles.length,
+      sourceTier: tier, // для отладки: 'regional' | 'regional+broad' | 'broad' | 'english_fallback' | 'none'
     };
 
     await col.updateOne(

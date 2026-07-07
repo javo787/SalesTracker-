@@ -10,14 +10,15 @@ export default function NewsPreviewCard() {
   const { t, i18n } = useTranslation();
   const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
   const navigation = useNavigation<any>();
-  const lang = i18n.language as 'ru' | 'tg' | 'uz';
+  const lang = i18n.language as 'ru' | 'tg' | 'uz' | 'en';
 
   const { news, loading } = useNews();
 
   if (loading || !news || news.articles.length === 0) return null;
 
   const article = news.articles[0];
-  const title = article[`title_${lang}`] || article.title_ru;
+  // Приоритет языков: таджикский → узбекский → русский → английский (см. NewsCard.tsx)
+  const title = article[`title_${lang}`] || article.title_tg || article.title_uz || article.title_ru || article.title_en;
 
   return (
     <TouchableOpacity

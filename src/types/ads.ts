@@ -61,13 +61,18 @@ export interface NewsArticle {
   title_ru: string;
   title_tg: string;
   title_uz: string;
+  title_en?: string;
   summary_ru: string;
   summary_tg: string;
   summary_uz: string;
+  summary_en?: string;
   url: string;
   source: string;
   category: 'customs' | 'currency' | 'logistics' | 'construction_materials' | 'textile' | 'fuel' | 'general';
   relevanceScore: number;
+  // Дата дня, в который статья была сгенерирована (проставляется бэкендом
+  // при склейке недельной ленты в /api/news). Для старых кэшей может отсутствовать.
+  date?: string;
 }
 
 export interface NewsFeed {

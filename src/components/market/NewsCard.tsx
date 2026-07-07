@@ -12,10 +12,13 @@ interface Props {
 export default function NewsCard({ article }: Props) {
   const { t, i18n } = useTranslation();
   const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
-  const lang = i18n.language as 'ru' | 'tg' | 'uz';
+  const lang = i18n.language as 'ru' | 'tg' | 'uz' | 'en';
 
-  const title = article[`title_${lang}`] || article.title_ru;
-  const summary = article[`summary_${lang}`] || article.summary_ru;
+  // Приоритет языков для Центральной Азии: таджикский → узбекский → русский → английский.
+  // Если для текущего языка интерфейса перевода нет (например lang='es'/'pt'/'it'),
+  // используем этот каскад вместо жёсткого fallback на русский.
+  const title = article[`title_${lang}`] || article.title_tg || article.title_uz || article.title_ru || article.title_en;
+  const summary = article[`summary_${lang}`] || article.summary_tg || article.summary_uz || article.summary_ru || article.summary_en;
 
   const getCategoryIcon = (cat: string) => {
     switch (cat) {
@@ -40,7 +43,10 @@ export default function NewsCard({ article }: Props) {
           <Ionicons name={getCategoryIcon(article.category)} size={16} color="#1D9E75" />
           <Text style={styles.source}>{article.source}</Text>
         </View>
-        <Ionicons name="open-outline" size={16} color="#888" />
+        <View style={styles.categoryInfo}>
+          {article.date ? <Text style={styles.source}>{article.date}</Text> : null}
+          <Ionicons name="open-outline" size={16} color="#888" />
+        </View>
       </View>
 
       <Text style={[styles.title, isDark ? styles.textWhite : styles.textBlack]}>
