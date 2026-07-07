@@ -24,6 +24,7 @@ import { VariantPicker } from '../components/sales/VariantPicker';
 import { useAppContext } from '../context/AppContext';
 import { useShop } from '../context/ShopContext';
 import { useAuth } from '../context/AuthContext';
+import { useFieldChain } from '../hooks/useFieldChain';
 import ClientAutocomplete from '../components/debt/ClientAutocomplete';
 import ExpensesView from '../components/expenses/ExpensesView';
 import { ProductAutocomplete } from '../components/sales/ProductAutocomplete';
@@ -101,6 +102,17 @@ export default function AddSaleScreen(/* props */) {
   const [showFullClient, setShowFullClient] = useState(false);
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [maskBuyPrice, setMaskBuyPrice] = useState(true);
+
+  const fields = [
+    { ref: productInputRef, visible: true },
+    { ref: sellPriceRef, visible: true },
+    { ref: buyPriceRef, visible: isOwner && !(maskBuyPrice && selectedProduct) },
+    { ref: quantityInputRef, visible: true },
+    { ref: noteRef, visible: showNoteInput || note !== '' },
+  ];
+
+  const { getSubmitHandler, getReturnKeyType } = useFieldChain(fields, () => handleSave());
+
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const opacityAnim = useRef(new Animated.Value(1)).current;
 
@@ -762,8 +774,10 @@ export default function AddSaleScreen(/* props */) {
             setSalePricePlaceholder(product.lastSalePrice);
             setSelectedProduct(product);
             setAmbiguousCandidates([]);
-            setTimeout(() => quantityInputRef.current?.focus(), 100);
+            setTimeout(() => getSubmitHandler(0)(), 100);
           }}
+          returnKeyType={getReturnKeyType(0)}
+          onSubmitEditing={getSubmitHandler(0)}
         />
 
         {ambiguousCandidates.length > 0 && !selectedProduct && (
@@ -806,8 +820,8 @@ export default function AddSaleScreen(/* props */) {
               keyboardType="numeric"
               value={sellPrice}
               onChangeText={setSellPrice}
-              returnKeyType="next"
-              onSubmitEditing={() => isOwner ? buyPriceRef.current?.focus() : quantityInputRef.current?.focus()}
+              returnKeyType={getReturnKeyType(1)}
+              onSubmitEditing={getSubmitHandler(1)}
               blurOnSubmit={false}
             />
           </View>
@@ -834,8 +848,8 @@ export default function AddSaleScreen(/* props */) {
                   keyboardType="numeric"
                   value={buyPrice}
                   onChangeText={setBuyPrice}
-                  returnKeyType="next"
-                  onSubmitEditing={() => quantityInputRef.current?.focus()}
+                  returnKeyType={getReturnKeyType(2)}
+                  onSubmitEditing={getSubmitHandler(2)}
                   blurOnSubmit={false}
                 />
               )}
@@ -876,8 +890,8 @@ export default function AddSaleScreen(/* props */) {
             keyboardType="numeric"
             value={quantity}
             onChangeText={setQuantity}
-            returnKeyType="next"
-            onSubmitEditing={() => noteRef.current?.focus()}
+            returnKeyType={getReturnKeyType(3)}
+            onSubmitEditing={getSubmitHandler(3)}
             blurOnSubmit={false}
           />
           {selectedProduct?.has_packages === 1 && selectedProduct?.is_continuous !== 1 && quantity !== '' && (
@@ -911,7 +925,8 @@ export default function AddSaleScreen(/* props */) {
               value={note}
               onChangeText={setNote}
               multiline
-              returnKeyType="done"
+              returnKeyType={getReturnKeyType(4)}
+              onSubmitEditing={getSubmitHandler(4)}
               blurOnSubmit={true}
               autoFocus={showNoteInput}
               onBlur={() => {

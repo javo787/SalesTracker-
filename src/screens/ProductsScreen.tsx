@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
-  TouchableOpacity, TextInput, Alert, RefreshControl, Modal, ActivityIndicator
+  TouchableOpacity, TextInput, Alert, RefreshControl, Modal, ActivityIndicator, Keyboard
 } from 'react-native';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -14,6 +14,7 @@ import { useShop } from '../context/ShopContext';
 import { analyticsService } from '../services/analyticsService';
 import { useAppContext } from '../context/AppContext';
 import { useExpenses } from '../hooks/useExpenses';
+import { useFieldChain } from '../hooks/useFieldChain';
 import StockOperationModal from '../components/stock/StockOperationModal';
 import StockHistorySheet from '../components/stock/StockHistorySheet';
 import { ProductAutocomplete } from '../components/sales/ProductAutocomplete';
@@ -32,6 +33,19 @@ export default function ProductsScreen() {
   const [showForm, setShowForm] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+
+  // Form refs
+  const nameRef = useRef<any>(null);
+  const categoryRef = useRef<TextInput>(null);
+  const buyPriceRef = useRef<TextInput>(null);
+  const sellPriceRef = useRef<TextInput>(null);
+  const stockRef = useRef<TextInput>(null);
+  const minStockAlertRef = useRef<TextInput>(null);
+  const articleRef = useRef<TextInput>(null);
+  const colorRef = useRef<TextInput>(null);
+  const baseUnitRef = useRef<TextInput>(null);
+  const packageNameRef = useRef<TextInput>(null);
+  const unitsPerPackageRef = useRef<TextInput>(null);
 
   // Form fields
   const [name, setName] = useState('');
@@ -83,6 +97,22 @@ export default function ProductsScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
 
   const [pendingSales, setPendingSales] = useState<any[]>([]);
+
+  const fields = [
+    { ref: nameRef, visible: true },
+    { ref: categoryRef, visible: true },
+    { ref: buyPriceRef, visible: true },
+    { ref: sellPriceRef, visible: true },
+    { ref: stockRef, visible: true },
+    { ref: minStockAlertRef, visible: true },
+    { ref: articleRef, visible: showAdvanced },
+    { ref: colorRef, visible: showAdvanced && showColorPicker },
+    { ref: baseUnitRef, visible: showAdvanced },
+    { ref: packageNameRef, visible: showAdvanced && hasPackages },
+    { ref: unitsPerPackageRef, visible: showAdvanced && hasPackages },
+  ];
+
+  const { getSubmitHandler, getReturnKeyType } = useFieldChain(fields, () => Keyboard.dismiss());
 
   const loadProducts = () => {
     const allProds = getProducts() as any[];
@@ -513,11 +543,14 @@ export default function ProductsScreen() {
           <Text style={[styles.label, themeStyles.text]}>{t('addSale.productName')} *</Text>
           <View style={{ zIndex: 3000, overflow: 'visible' }}>
             <ProductAutocomplete
+              ref={nameRef}
               inputStyle={[styles.input, themeStyles.input]}
               placeholder={t('addSale.productPlaceholder')}
               placeholderTextColor={isDark ? '#888' : '#aaa'}
               value={name}
               onChange={setName}
+              returnKeyType={getReturnKeyType(0)}
+              onSubmitEditing={getSubmitHandler(0)}
               onSelect={(p) => {
                 setName(p.name);
                 if (p.source === 'catalog' && p.id) {
@@ -559,6 +592,7 @@ export default function ProductsScreen() {
               <Text style={[styles.label, themeStyles.text]}>{t('products.category')}</Text>
               <View style={{ zIndex: 2000 }}>
                 <TextInput
+                  ref={categoryRef}
                   style={[styles.input, themeStyles.input]}
                   placeholder={t('products.categoryPlaceholder')}
                   placeholderTextColor={isDark ? '#888' : '#aaa'}
@@ -569,6 +603,9 @@ export default function ProductsScreen() {
                   }}
                   onFocus={() => setShowCategoryDropdown(true)}
                   onBlur={() => setTimeout(() => setShowCategoryDropdown(false), 200)}
+                  returnKeyType={getReturnKeyType(1)}
+                  onSubmitEditing={getSubmitHandler(1)}
+                  blurOnSubmit={false}
                 />
                 {showCategoryDropdown && (
                   <View style={[styles.categoryDropdown, themeStyles.card]}>
@@ -611,23 +648,31 @@ export default function ProductsScreen() {
             <View style={styles.half}>
               <Text style={[styles.label, themeStyles.text]}>{t('addSale.buyPrice')} *</Text>
               <TextInput
+                ref={buyPriceRef}
                 style={[styles.input, themeStyles.input]}
                 placeholder="0"
                 placeholderTextColor={isDark ? '#888' : '#aaa'}
                 keyboardType="numeric"
                 value={buyPrice}
                 onChangeText={setBuyPrice}
+                returnKeyType={getReturnKeyType(2)}
+                onSubmitEditing={getSubmitHandler(2)}
+                blurOnSubmit={false}
               />
             </View>
             <View style={styles.half}>
               <Text style={[styles.label, themeStyles.text]}>{t('addSale.sellPrice')} *</Text>
               <TextInput
+                ref={sellPriceRef}
                 style={[styles.input, themeStyles.input]}
                 placeholder="0"
                 placeholderTextColor={isDark ? '#888' : '#aaa'}
                 keyboardType="numeric"
                 value={sellPrice}
                 onChangeText={setSellPrice}
+                returnKeyType={getReturnKeyType(3)}
+                onSubmitEditing={getSubmitHandler(3)}
+                blurOnSubmit={false}
               />
             </View>
           </View>
@@ -636,23 +681,31 @@ export default function ProductsScreen() {
             <View style={styles.half}>
               <Text style={[styles.label, themeStyles.text]}>{t('products.stock')} ({baseUnit})</Text>
               <TextInput
+                ref={stockRef}
                 style={[styles.input, themeStyles.input]}
                 placeholder="0"
                 placeholderTextColor={isDark ? '#888' : '#aaa'}
                 keyboardType="numeric"
                 value={stock}
                 onChangeText={setStock}
+                returnKeyType={getReturnKeyType(4)}
+                onSubmitEditing={getSubmitHandler(4)}
+                blurOnSubmit={false}
               />
             </View>
             <View style={styles.half}>
               <Text style={[styles.label, themeStyles.text]}>{t('products.minStock')}</Text>
               <TextInput
+                ref={minStockAlertRef}
                 style={[styles.input, themeStyles.input]}
                 placeholder="0"
                 placeholderTextColor={isDark ? '#888' : '#aaa'}
                 keyboardType="numeric"
                 value={minStockAlert}
                 onChangeText={setMinStockAlert}
+                returnKeyType={getReturnKeyType(5)}
+                onSubmitEditing={getSubmitHandler(5)}
+                blurOnSubmit={false}
               />
             </View>
           </View>
@@ -669,11 +722,15 @@ export default function ProductsScreen() {
             <View style={styles.advancedForm}>
               <Text style={[styles.label, themeStyles.text]}>{t('products.article')}</Text>
               <TextInput
+                ref={articleRef}
                 style={[styles.input, themeStyles.input]}
                 placeholder="6593"
                 placeholderTextColor={isDark ? '#888' : '#aaa'}
                 value={article}
                 onChangeText={setArticle}
+                returnKeyType={getReturnKeyType(6)}
+                onSubmitEditing={getSubmitHandler(6)}
+                blurOnSubmit={false}
               />
 
               {color !== '' ? (
@@ -713,11 +770,15 @@ export default function ProductsScreen() {
               {showColorPicker && (
                 <View style={{ marginTop: color === '' ? 12 : 0 }}>
                   <TextInput
+                    ref={colorRef}
                     style={[styles.input, themeStyles.input]}
                     placeholder="Другой цвет..."
                     placeholderTextColor={isDark ? '#888' : '#aaa'}
                     value={PRESET_COLORS.some(c => c.label === color) ? '' : color}
                     onChangeText={setColor}
+                    returnKeyType={getReturnKeyType(7)}
+                    onSubmitEditing={getSubmitHandler(7)}
+                    blurOnSubmit={false}
                   />
 
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
@@ -758,11 +819,15 @@ export default function ProductsScreen() {
 
               <Text style={[styles.label, themeStyles.text]}>{t('products.baseUnit')}</Text>
               <TextInput
+                ref={baseUnitRef}
                 style={[styles.input, themeStyles.input]}
                 placeholder={t('products.unitPlaceholder')}
                 placeholderTextColor={isDark ? '#888' : '#aaa'}
                 value={baseUnit}
                 onChangeText={setBaseUnit}
+                returnKeyType={getReturnKeyType(8)}
+                onSubmitEditing={getSubmitHandler(8)}
+                blurOnSubmit={false}
               />
 
               <TouchableOpacity
@@ -786,22 +851,30 @@ export default function ProductsScreen() {
                   <View style={styles.half}>
                     <Text style={[styles.label, themeStyles.text]}>{t('products.packageName')}</Text>
                     <TextInput
+                      ref={packageNameRef}
                       style={[styles.input, themeStyles.input]}
                       placeholder={t('products.packageNamePlaceholder')}
                       placeholderTextColor={isDark ? '#888' : '#aaa'}
                       value={packageName}
                       onChangeText={setPackageName}
+                      returnKeyType={getReturnKeyType(9)}
+                      onSubmitEditing={getSubmitHandler(9)}
+                      blurOnSubmit={false}
                     />
                   </View>
                   <View style={styles.half}>
                     <Text style={[styles.label, themeStyles.text]}>{t('products.unitsPerPackage')}</Text>
                     <TextInput
+                      ref={unitsPerPackageRef}
                       style={[styles.input, themeStyles.input]}
                       placeholder="1"
                       placeholderTextColor={isDark ? '#888' : '#aaa'}
                       keyboardType="numeric"
                       value={unitsPerPackage}
                       onChangeText={setUnitsPerPackage}
+                      returnKeyType={getReturnKeyType(10)}
+                      onSubmitEditing={getSubmitHandler(10)}
+                      blurOnSubmit={false}
                     />
                   </View>
                 </View>
