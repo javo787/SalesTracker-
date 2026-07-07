@@ -73,25 +73,23 @@ export function matchProductByName(
     return { confidence: 'none', match: null, candidates: [] };
   }
 
-  // 3. Группируем по baseName/article, чтобы понять — это один товар
-  //    или несколько вариантов (цвет/размер) одного базового товара.
+  // 3. closeMatches — всё, что близко к лучшему результату (окно 0.05).
   const topScore = scored[0].score;
   const closeMatches = scored.filter(s => s.score >= topScore - 0.05).map(s => s.product);
 
-  const distinctBaseNames = new Set(
-    closeMatches.map(p => (p.baseName || p.name).toLowerCase().trim())
-  );
-
-  if (topScore >= CONFIDENT_THRESHOLD && distinctBaseNames.size === 1 && closeMatches.length === 1) {
+  // Ровно одно уверенное совпадение — автолинк без вопросов.
+  if (topScore >= CONFIDENT_THRESHOLD && closeMatches.length === 1) {
     return { confidence: 'fuzzy_confident', match: closeMatches[0], candidates: [] };
   }
 
-  // Один базовый товар, но несколько вариантов (цвет/размер) — неоднозначность
-  if (distinctBaseNames.size >= 1 && closeMatches.length > 1) {
+  // 2+ похожих кандидата — неоднозначность. Если они делят один article
+  // (варианты одного товара по цвету/размеру), это даже лучший случай для UI:
+  // кандидаты явно относятся к одному товару, порядок сортировки не важен.
+  if (closeMatches.length > 1) {
     return { confidence: 'ambiguous', match: null, candidates: closeMatches.slice(0, 8) };
   }
 
-  // Несколько разных товаров с похожим счётом — тоже неоднозначность
+  // Единственный кандидат, но score ниже порога уверенности — тоже требует подтверждения.
   if (topScore >= POSSIBLE_THRESHOLD) {
     return { confidence: 'ambiguous', match: null, candidates: scored.slice(0, 8).map(s => s.product) };
   }

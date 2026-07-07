@@ -37,8 +37,11 @@ export default function VoiceBatchReview({ result, onConfirm, onCancel }: VoiceB
 
   const [matchResults, setMatchResults] = useState<Record<number, ProductMatchResult>>({});
   const [smartLimitReached, setSmartLimitReached] = useState(false);
+  const [remainingQuota, setRemainingQuota] = useState<number | null>(null);
 
   useEffect(() => {
+    SmartMatchQuotaService.getRemainingToday(isPremium).then(setRemainingQuota);
+
     const catalog = getProducts();
     const results: Record<number, ProductMatchResult> = {};
 
@@ -76,6 +79,7 @@ export default function VoiceBatchReview({ result, onConfirm, onCancel }: VoiceB
             });
 
             await SmartMatchQuotaService.consumeUsage();
+            setRemainingQuota(prev => prev !== null ? Math.max(0, prev - 1) : prev);
 
             if (data.matched_candidate_id && data.confidence === 'high') {
               const picked = m.candidates.find(c => c.id === String(data.matched_candidate_id));
@@ -147,6 +151,11 @@ export default function VoiceBatchReview({ result, onConfirm, onCancel }: VoiceB
           <Text style={[styles.title, isDark && styles.textDark]}>
             {t('addSale.itemsRecognized', { count: items.length })}
           </Text>
+          {!isPremium && remainingQuota !== null && (
+            <Text style={{ fontSize: FontSize.xs, color: '#999', marginBottom: Spacing.sm }}>
+              {t('addSale.smartMatchRemaining', { count: remainingQuota })}
+            </Text>
+          )}
           {result.truncated && (
             <Text style={styles.truncatedNotice}>{t('addSale.truncatedNotice')}</Text>
           )}

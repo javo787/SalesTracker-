@@ -306,7 +306,7 @@ export default function AddSaleScreen(/* props */) {
 
   const [voiceResult, setVoiceResult] = useState<VoiceSaleResult | null>(null);
 
-  const handleVoiceResult = (result: VoiceSaleResult) => {
+  const handleVoiceResult = async (result: VoiceSaleResult) => {
     analyticsService.logEvent('ai_usage', {
       type: 'voice_sale',
       language: result.language_detected,
@@ -315,7 +315,7 @@ export default function AddSaleScreen(/* props */) {
     });
 
     if (result.items.length === 1) {
-      applyAIResult(result.items[0], result.transcript);
+      await applyAIResult(result.items[0], result.transcript);
       if (result.transcript) setVoiceText(result.transcript);
       setShowVoiceBar(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -383,14 +383,25 @@ export default function AddSaleScreen(/* props */) {
     const catalog = getProducts();
     const newCartItems: CartItem[] = items.map(it => {
       const match = matchProductByName(it.product_name, catalog as any);
-      const linkedProduct = (match.confidence === 'exact' || match.confidence === 'fuzzy_confident')
+      let linkedProduct = (match.confidence === 'exact' || match.confidence === 'fuzzy_confident')
         ? match.match
         : null;
+
+      // Позиция уже разрешена вручную (VariantPicker) или через AI в VoiceBatchReview —
+      // matchedProductId есть, но matchProductByName выше этого не знает. Достаём товар из каталога.
+      if (!linkedProduct && it.matchedProductId) {
+        const found = (catalog as any[]).find(p => p.id === it.matchedProductId);
+        if (found) linkedProduct = found;
+      }
+
+      const resolvedProductId = linkedProduct?.id
+        ? parseInt(linkedProduct.id)
+        : (it.matchedProductId ?? null);
 
       return {
         id: Math.random().toString(36).substring(2, 9),
         product: linkedProduct,
-        productId: linkedProduct?.id ? parseInt(linkedProduct.id) : (it.matchedProductId ?? null),
+        productId: resolvedProductId,
         productName: it.product_name,
         quantity: it.quantity,
         sellPrice: it.sell_price,
