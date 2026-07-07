@@ -43,10 +43,7 @@ export default function NewsCard({ article }: Props) {
           <Ionicons name={getCategoryIcon(article.category)} size={16} color="#1D9E75" />
           <Text style={styles.source}>{article.source}</Text>
         </View>
-        <View style={styles.categoryInfo}>
-          {article.date ? <Text style={styles.source}>{article.date}</Text> : null}
-          <Ionicons name="open-outline" size={16} color="#888" />
-        </View>
+        <Ionicons name="open-outline" size={16} color="#888" />
       </View>
 
       <Text style={[styles.title, isDark ? styles.textWhite : styles.textBlack]}>
