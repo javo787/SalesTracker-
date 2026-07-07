@@ -25,6 +25,8 @@ interface Props {
   containerStyle?: any;
   placeholder?: string;
   placeholderTextColor?: string;
+  returnKeyType?: TextInput['props']['returnKeyType'];
+  onSubmitEditing?: () => void;
 }
 
 export const ProductAutocomplete = React.forwardRef<any, Props>(({
@@ -35,6 +37,8 @@ export const ProductAutocomplete = React.forwardRef<any, Props>(({
   containerStyle,
   placeholder,
   placeholderTextColor,
+  returnKeyType,
+  onSubmitEditing,
 }, ref) => {
   const { resolvedTheme, currency } = useAppContext();
   const isDark = resolvedTheme === 'dark';
@@ -118,6 +122,9 @@ export const ProductAutocomplete = React.forwardRef<any, Props>(({
         onBlur={onBlur}
         placeholder={placeholder}
         placeholderTextColor={placeholderTextColor}
+        returnKeyType={returnKeyType}
+        onSubmitEditing={onSubmitEditing}
+        blurOnSubmit={false}
       />
 
       {isOpen && results.length > 0 && (
