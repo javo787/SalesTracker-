@@ -394,6 +394,53 @@ export function addProduct(
   }
 }
 
+// Поля товара, изменения которых фиксируются в истории редактирования
+const EDIT_TRACKED_FIELDS = [
+  'name', 'category', 'buy_price', 'sell_price', 'stock', 'min_stock_alert',
+  'base_unit', 'article', 'color', 'package_name', 'units_per_package', 'is_continuous',
+] as const;
+
+function normalizeEditVal(v: any): string | number {
+  if (v === undefined || v === null) return '';
+  if (typeof v === 'number') return v;
+  return String(v).trim();
+}
+
+export type ProductEditDiffEntry = { field: string; old: any; new: any };
+
+// Пишет запись в stock_movements (type='edit') с структурированным описанием
+// изменений — если поля товара реально изменились. Не должна ломать основное
+// обновление товара при любой внутренней ошибке.
+function logProductEditHistory(before: any, after: Record<string, any>) {
+  try {
+    const diff: ProductEditDiffEntry[] = [];
+    for (const field of EDIT_TRACKED_FIELDS) {
+      // Поля упаковки не считаем изменившимися, если упаковки не использовались ни до, ни после
+      if ((field === 'package_name' || field === 'units_per_package') && !before.has_packages && !after.has_packages) {
+        continue;
+      }
+      const oldVal = normalizeEditVal(before[field]);
+      const newVal = normalizeEditVal(after[field]);
+      if (oldVal !== newVal) {
+        diff.push({ field, old: before[field], new: after[field] });
+      }
+    }
+    if (diff.length === 0) return;
+
+    const stockChanged = diff.some(d => d.field === 'stock');
+    const quantityChange = stockChanged ? (Number(after.stock) - Number(before.stock)) : 0;
+
+    const movementId = typeof crypto !== 'undefined' && (crypto as any).randomUUID ? (crypto as any).randomUUID() : Math.random().toString(36).substring(2, 15);
+
+    db.runSync(
+      'INSERT INTO stock_movements (id, product_id, type, quantity_change, price_per_unit, note, created_at, synced) VALUES (?, ?, ?, ?, ?, ?, ?, 0)',
+      [movementId, before.id, 'edit', quantityChange, null, JSON.stringify(diff), nowLocalISO()]
+    );
+  } catch (e) {
+    console.error('Error logging product edit history:', e);
+  }
+}
+
 export function updateProduct(
   id: number,
   name: string,
@@ -411,6 +458,8 @@ export function updateProduct(
   color: string | null = null
 ) {
   try {
+    const before = db.getFirstSync('SELECT * FROM products WHERE id = ?', [id]) as any;
+
     const result = db.runSync(
       `UPDATE products SET
         name = ?, buy_price = ?, sell_price = ?, stock = ?, min_stock_alert = ?,
@@ -420,6 +469,16 @@ export function updateProduct(
       WHERE id = ?`,
       [name, buyPrice, sellPrice, stock, minStockAlert, baseUnit, hasPackages, packageName, unitsPerPackage, category, nowLocalISO(), isContinuous, article, color, id]
     );
+
+    if (before) {
+      logProductEditHistory(before, {
+        id, name, category, buy_price: buyPrice, sell_price: sellPrice, stock,
+        min_stock_alert: minStockAlert, base_unit: baseUnit, has_packages: hasPackages,
+        package_name: packageName, units_per_package: unitsPerPackage,
+        is_continuous: isContinuous, article, color,
+      });
+    }
+
     if (stock <= minStockAlert && minStockAlert > 0) {
       notifyLowStock(name, stock);
     }

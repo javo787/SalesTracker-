@@ -18,11 +18,11 @@ import {
   getDebtsByProductId,
   getProductExpenses,
   recordDebtPayment,
-  updateProduct,
   deleteSale,
   getProducts
 } from '../db/database';
 import StockOperationModal from '../components/stock/StockOperationModal';
+import EditProductModal from '../components/products/EditProductModal';
 
 const ProductDetailScreen = () => {
   const route = useRoute<any>();
@@ -43,9 +43,7 @@ const ProductDetailScreen = () => {
   const [expenses, setExpenses] = useState<{ total: number; count: number }>({ total: 0, count: 0 });
   const [stats, setStats] = useState<any>(null);
 
-  const [editPriceMode, setEditPriceMode] = useState(false);
-  const [newSellPrice, setNewSellPrice] = useState(String(initialProduct.sell_price));
-  const [newBuyPrice, setNewBuyPrice] = useState(String(initialProduct.buy_price));
+  const [editModalVisible, setEditModalVisible] = useState(false);
 
   const [opModalVisible, setOpModalVisible] = useState(false);
   const [opType, setOpType] = useState<'stock_in' | 'waste' | 'correction'>('stock_in');
@@ -110,32 +108,32 @@ const ProductDetailScreen = () => {
     );
   };
 
-  const handleSavePrices = () => {
-    const sPrice = parseFloat(newSellPrice);
-    const bPrice = parseFloat(newBuyPrice);
+  const EDIT_FIELD_LABELS: Record<string, string> = {
+    name: t('addSale.productName'),
+    category: t('products.category'),
+    buy_price: t('addSale.buyPrice'),
+    sell_price: t('addSale.sellPrice'),
+    stock: t('products.stock'),
+    min_stock_alert: t('products.minStock'),
+    base_unit: t('products.baseUnit'),
+    article: t('products.article'),
+    color: t('products.color'),
+    package_name: t('products.packageName'),
+    units_per_package: t('products.unitsPerPackage'),
+    is_continuous: t('products.isContinuous'),
+  };
 
-    if (isNaN(sPrice) || isNaN(bPrice)) {
-      Alert.alert('Ошибка', 'Введите корректные цены');
-      return;
-    }
+  const formatDiffValue = (field: string, val: any) => {
+    if (field === 'is_continuous') return val ? 'Да' : 'Нет';
+    if (val === null || val === undefined || val === '') return '—';
+    return String(val);
+  };
 
-    updateProduct(
-      product.id,
-      product.name,
-      bPrice,
-      sPrice,
-      product.stock,
-      product.min_stock_alert,
-      product.base_unit,
-      product.has_packages,
-      product.package_name,
-      product.units_per_package,
-      product.category
-    );
-
-    setProduct({ ...product, sell_price: sPrice, buy_price: bPrice });
-    setEditPriceMode(false);
-    Alert.alert('Успешно', 'Цены обновлены');
+  const handleProductSaved = (updated: any) => {
+    setProduct(updated);
+    setEditModalVisible(false);
+    loadData();
+    Alert.alert('Успешно', 'Товар обновлён');
   };
 
   const avgDailySales = useMemo(() => {
@@ -197,56 +195,31 @@ const ProductDetailScreen = () => {
             </View>
           </View>
 
-          {!editPriceMode ? (
-            <View style={styles.priceRow}>
-              <View style={styles.breakevenInfo}>
-                <Text style={styles.priceInfoText}>
-                  Закупка: <Text style={styles.bold}>{product.buy_price}</Text> ·
-                  Продажа: <Text style={styles.bold}>{product.sell_price}</Text> ·
-                  Маржа: <Text style={styles.bold}>{product.buy_price > 0 ? Math.round(((product.sell_price - product.buy_price) / product.buy_price) * 100) : 0}%</Text>
-                </Text>
-                <Text style={styles.minPriceText}>Мин. цена: {minPrice} {currency.symbol}</Text>
-              </View>
-              {isOwner && (
-                <TouchableOpacity onPress={() => setEditPriceMode(true)} style={styles.editBtn}>
-                  <Ionicons name="pencil" size={20} color="#fff" />
-                </TouchableOpacity>
-              )}
+          <View style={styles.priceRow}>
+            <View style={styles.breakevenInfo}>
+              <Text style={styles.priceInfoText}>
+                Закупка: <Text style={styles.bold}>{product.buy_price}</Text> ·
+                Продажа: <Text style={styles.bold}>{product.sell_price}</Text> ·
+                Маржа: <Text style={styles.bold}>{product.buy_price > 0 ? Math.round(((product.sell_price - product.buy_price) / product.buy_price) * 100) : 0}%</Text>
+              </Text>
+              <Text style={styles.minPriceText}>Мин. цена: {minPrice} {currency.symbol}</Text>
             </View>
-          ) : (
-            <View style={styles.editPriceContainer}>
-              <View style={styles.editInputs}>
-                <View style={styles.editInputGroup}>
-                  <Text style={styles.editLabel}>Закупка</Text>
-                  <TextInput
-                    style={styles.editInput}
-                    value={newBuyPrice}
-                    onChangeText={setNewBuyPrice}
-                    keyboardType="numeric"
-                  />
-                </View>
-                <View style={styles.editInputGroup}>
-                  <Text style={styles.editLabel}>Продажа</Text>
-                  <TextInput
-                    style={styles.editInput}
-                    value={newSellPrice}
-                    onChangeText={setNewSellPrice}
-                    keyboardType="numeric"
-                  />
-                </View>
-              </View>
-              <View style={styles.editActions}>
-                <TouchableOpacity onPress={() => setEditPriceMode(false)} style={styles.cancelEditBtn}>
-                  <Text style={styles.cancelEditText}>Отмена</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={handleSavePrices} style={styles.saveEditBtn}>
-                  <Text style={styles.saveEditText}>Сохранить</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
+            {isOwner && (
+              <TouchableOpacity onPress={() => setEditModalVisible(true)} style={styles.editBtn}>
+                <Ionicons name="pencil" size={20} color="#fff" />
+                <Text style={styles.editBtnText}>Редактировать</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       </View>
+
+      <EditProductModal
+        visible={editModalVisible}
+        product={product}
+        onClose={() => setEditModalVisible(false)}
+        onSaved={handleProductSaved}
+      />
 
       <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Section B: KPI Cards */}
@@ -493,6 +466,12 @@ const ProductDetailScreen = () => {
                   if (item.type === 'stock_in') { icon = 'arrow-down-circle'; color = '#2ECC71'; }
                   if (item.type === 'waste') { icon = 'trash-outline'; color = '#FF6B6B'; }
                   if (item.type === 'correction') { icon = 'sync-outline'; color = '#FFA726'; }
+                  if (item.type === 'edit') { icon = 'create-outline'; color = '#5B8DEF'; }
+
+                  let editDiff: { field: string; old: any; new: any }[] | null = null;
+                  if (item.type === 'edit' && item.note) {
+                    try { editDiff = JSON.parse(item.note); } catch { editDiff = null; }
+                  }
 
                   return (
                     <View key={idx} style={[styles.historyRow, { borderBottomColor: themeStyles.border }]}>
@@ -502,14 +481,33 @@ const ProductDetailScreen = () => {
                       <View style={styles.historyInfo}>
                         <Text style={[styles.historyDate, { color: themeStyles.text }]}>
                           {new Date(item.created_at.replace(' ', 'T')).toLocaleDateString('ru-RU')}
+                          {'  '}
+                          <Text style={{ fontSize: 11, color: '#888' }}>
+                            {new Date(item.created_at.replace(' ', 'T')).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                          </Text>
                         </Text>
-                        <Text style={[styles.historyQty, { color: themeStyles.text, fontWeight: 'bold' }]}>
-                          {item.quantity_change > 0 ? '+' : ''}{item.quantity_change} {product.base_unit}
-                        </Text>
-                        {item.price_per_unit > 0 && (
-                          <Text style={styles.historyPrices}>Цена: {item.price_per_unit} {currency.symbol}</Text>
+
+                        {item.type === 'edit' ? (
+                          editDiff && editDiff.length > 0 ? (
+                            editDiff.map((d, i) => (
+                              <Text key={i} style={[styles.historyQty, { color: themeStyles.text, fontWeight: '600', fontSize: 13 }]}>
+                                {EDIT_FIELD_LABELS[d.field] || d.field}: {formatDiffValue(d.field, d.old)} → {formatDiffValue(d.field, d.new)}
+                              </Text>
+                            ))
+                          ) : (
+                            item.note && <Text style={styles.historyNote}>{item.note}</Text>
+                          )
+                        ) : (
+                          <>
+                            <Text style={[styles.historyQty, { color: themeStyles.text, fontWeight: 'bold' }]}>
+                              {item.quantity_change > 0 ? '+' : ''}{item.quantity_change} {product.base_unit}
+                            </Text>
+                            {item.price_per_unit > 0 && (
+                              <Text style={styles.historyPrices}>Цена: {item.price_per_unit} {currency.symbol}</Text>
+                            )}
+                            {item.note && <Text style={styles.historyNote}>{item.note}</Text>}
+                          </>
                         )}
-                        {item.note && <Text style={styles.historyNote}>{item.note}</Text>}
                       </View>
                     </View>
                   );
@@ -1059,56 +1057,18 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   editBtn: {
-    padding: Spacing.sm,
-  },
-  editPriceContainer: {
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    padding: Spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
     borderRadius: Radius.md,
   },
-  editInputs: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-    marginBottom: Spacing.md,
-  },
-  editInputGroup: {
-    flex: 1,
-  },
-  editLabel: {
+  editBtnText: {
     color: '#fff',
     fontSize: FontSize.xs,
-    marginBottom: 4,
-    opacity: 0.8,
-  },
-  editInput: {
-    backgroundColor: '#fff',
-    borderRadius: Radius.sm,
-    padding: Spacing.sm,
-    fontSize: FontSize.md,
-    color: '#000',
-  },
-  editActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: Spacing.md,
-  },
-  cancelEditBtn: {
-    padding: Spacing.sm,
-  },
-  cancelEditText: {
-    color: '#fff',
-    fontSize: FontSize.md,
-  },
-  saveEditBtn: {
-    backgroundColor: '#fff',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.sm,
-  },
-  saveEditText: {
-    color: Colors.primary,
-    fontWeight: 'bold',
-    fontSize: FontSize.md,
+    fontWeight: '600',
   },
   scrollContent: {
     flex: 1,
