@@ -2,10 +2,52 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { marketService } from '../services/marketService';
 import { NewsFeed } from '../types/ads';
-import { notifyImportantNews } from '../utils/notifications';
+import { notifyImportantNews, notifyImportantNewsBatch } from '../utils/notifications';
 
 const CACHE_KEY = 'news_cache';
 const CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours
+
+// Модульный (не per-hook-instance) флаг: useNews() монтируется параллельно в
+// нескольких местах (NewsPreviewCard на главном экране, NewsScreen,
+// useNewsUnread для бейджа) — без этого флага два параллельных вызова могли
+// оба прочитать AsyncStorage "notified" ДО того, как один из них его обновит,
+// и оба отправить пуш по одной и той же статье. Флаг общий на всё
+// приложение, поэтому вынесен из тела useNews() наружу.
+let notifyCheckInFlight = false;
+
+async function checkAndNotifyImportant(newsFeed: NewsFeed | null) {
+  if (!newsFeed) return;
+  if (notifyCheckInFlight) return; // кто-то другой уже проверяет прямо сейчас — не дублируем
+  notifyCheckInFlight = true;
+  try {
+    const notifiedKey = 'news_notified_urls';
+    const notifiedRaw = await AsyncStorage.getItem(notifiedKey);
+    const notified: string[] = notifiedRaw ? JSON.parse(notifiedRaw) : [];
+
+    const important = newsFeed.articles.filter((a: any) =>
+      a.relevanceScore >= 9 &&
+      ['customs', 'currency'].includes(a.category) &&
+      !notified.includes(a.url)
+    );
+
+    if (important.length === 0) return;
+
+    // Одно уведомление на всю пачку новых важных новостей, а не цикл с
+    // отдельным пушем на каждую — раньше именно это и раздражало
+    // пользователя при накоплении бэклога за несколько дней без захода в
+    // приложение.
+    if (important.length === 1) {
+      await notifyImportantNews(important[0].title_ru, important[0].url);
+    } else {
+      await notifyImportantNewsBatch(important.length, important[0].url);
+    }
+
+    const updated = [...notified, ...important.map((a: any) => a.url)];
+    await AsyncStorage.setItem(notifiedKey, JSON.stringify(updated.slice(-30)));
+  } finally {
+    notifyCheckInFlight = false;
+  }
+}
 
 export function useNews() {
   const [news, setNews] = useState<NewsFeed | null>(null);
@@ -18,28 +60,6 @@ export function useNews() {
   useEffect(() => {
     return () => { mountedRef.current = false; };
   }, []);
-
-  const checkAndNotifyImportant = async (newsFeed: NewsFeed | null) => {
-    if (!newsFeed) return;
-    const notifiedKey = 'news_notified_urls';
-    const notifiedRaw = await AsyncStorage.getItem(notifiedKey);
-    const notified: string[] = notifiedRaw ? JSON.parse(notifiedRaw) : [];
-
-    const important = newsFeed.articles.filter((a: any) =>
-      a.relevanceScore >= 9 &&
-      ['customs', 'currency'].includes(a.category) &&
-      !notified.includes(a.url)
-    );
-
-    for (const article of important) {
-      await notifyImportantNews(article.title_ru, article.url);
-      notified.push(article.url);
-    }
-
-    if (important.length > 0) {
-      await AsyncStorage.setItem(notifiedKey, JSON.stringify(notified.slice(-30)));
-    }
-  };
 
   const fetchNews = useCallback(async (isRefresh = false) => {
     if (isFetchingRef.current) {
