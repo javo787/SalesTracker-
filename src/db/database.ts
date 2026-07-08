@@ -297,6 +297,30 @@ function runMigrations() {
     });
   }
 
+  const schemaV6MigrationDone = db.getFirstSync(
+    "SELECT value FROM app_meta WHERE key = 'schema_v6'"
+  ) as { value: string } | null;
+
+  if (!schemaV6MigrationDone) {
+    db.withTransactionSync(() => {
+      const cols = db.getAllSync("PRAGMA table_info(products)") as any[];
+      if (!cols.some(c => c.name === 'initial_stock')) {
+        db.execSync("ALTER TABLE products ADD COLUMN initial_stock REAL");
+      }
+      if (!cols.some(c => c.name === 'initial_buy_price')) {
+        db.execSync("ALTER TABLE products ADD COLUMN initial_buy_price REAL");
+      }
+      // Бэкфилл для уже существующих товаров: точной истории у нас нет,
+      // поэтому фиксируем текущие значения как отправную точку — дальше они статичны.
+      db.execSync(`
+        UPDATE products
+        SET initial_stock = stock, initial_buy_price = buy_price
+        WHERE initial_stock IS NULL
+      `);
+      db.runSync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_v6', 'done')");
+    });
+  }
+
   // Migration: shop_session table
   db.execSync(`
     CREATE TABLE IF NOT EXISTS shop_session (
@@ -380,9 +404,9 @@ export function addProduct(
         name, buy_price, sell_price, stock, min_stock_alert,
         base_unit, has_packages, package_name, units_per_package,
         category, updated_at, synced, is_deleted, created_at, is_continuous,
-        article, color
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?)`,
-      [name, buyPrice, sellPrice, stock, minStockAlert, baseUnit, hasPackages, packageName, unitsPerPackage, category, now, now, isContinuous, article, color]
+        article, color, initial_stock, initial_buy_price
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?)`,
+      [name, buyPrice, sellPrice, stock, minStockAlert, baseUnit, hasPackages, packageName, unitsPerPackage, category, now, now, isContinuous, article, color, stock, buyPrice]
     );
     if (stock <= minStockAlert && minStockAlert > 0) {
       notifyLowStock(name, stock);
