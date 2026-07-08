@@ -75,7 +75,12 @@ export async function fetchGeminiWithRotation(model: string, payload: any, optio
 
   let lastError: any;
 
-  for (const key of GEMINI_API_KEYS) {
+  for (let i = 0; i < GEMINI_API_KEYS.length; i++) {
+    const key = GEMINI_API_KEYS[i];
+    // DEBUGLOG: не логируем сам ключ, только позицию в ротации — безопасность.
+    const keyLabel = `key#${i + 1}/${GEMINI_API_KEYS.length}`;
+    const startedAt = Date.now();
+
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
       const response = await axios.post(url, payload, {
@@ -84,10 +89,26 @@ export async function fetchGeminiWithRotation(model: string, payload: any, optio
         signal: options.signal,
         timeout: options.timeout || 15000,
       });
+      const latencyMs = Date.now() - startedAt;
 
       if (response.status === 429 || response.status === 403) {
-        console.warn(`[Gemini Rotation] Key failed with ${response.status}, trying next...`);
+        // DEBUGLOG
+        console.warn(
+          `[Gemini Rotation] ${keyLabel} model=${model} status=${response.status} (${latencyMs}ms) → next key`,
+          JSON.stringify(response.data)?.substring(0, 300)
+        );
         continue;
+      }
+
+      if (response.status < 200 || response.status >= 300) {
+        // DEBUGLOG
+        console.error(
+          `[Gemini Rotation] ${keyLabel} model=${model} non-2xx status=${response.status} (${latencyMs}ms)`,
+          JSON.stringify(response.data)?.substring(0, 500)
+        );
+      } else {
+        // DEBUGLOG
+        console.log(`[Gemini Rotation] ${keyLabel} model=${model} OK (${latencyMs}ms)`);
       }
 
       return {
@@ -97,10 +118,18 @@ export async function fetchGeminiWithRotation(model: string, payload: any, optio
       };
     } catch (err: any) {
       lastError = err;
+      const latencyMs = Date.now() - startedAt;
+      const isAbort = err.name === 'AbortError' || err.name === 'CanceledError';
+      // DEBUGLOG
+      console.error(
+        `[Gemini Rotation] ${keyLabel} model=${model} threw ${isAbort ? 'ABORT/TIMEOUT' : err.name} (${latencyMs}ms): ${err.message}`
+      );
       continue;
     }
   }
 
+  // DEBUGLOG
+  console.error(`[Gemini Rotation] ALL KEYS EXHAUSTED model=${model}`, lastError?.message);
   return {
     ok: false,
     status: 503,
