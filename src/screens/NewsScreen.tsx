@@ -5,9 +5,9 @@ import {
   StyleSheet,
   SectionList,
   RefreshControl,
-  SafeAreaView,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppContext } from '../context/AppContext';
@@ -83,7 +83,7 @@ export default function NewsScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, isDark ? styles.bgDark : styles.bgLight]}>
+    <SafeAreaView style={[styles.container, isDark ? styles.bgDark : styles.bgLight]} edges={['top', 'left', 'right']}>
       {loading && !refreshing ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color="#1D9E75" />

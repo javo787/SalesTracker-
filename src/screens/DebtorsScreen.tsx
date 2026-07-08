@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '../context/AppContext';
@@ -25,6 +26,7 @@ interface ClientSearchResult { id: number; name: string; phone?: string; }
 
 export default function DebtorsScreen() {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const { isOwner } = useShop();
   const { resolvedTheme, currency } = useAppContext();
   const isDark = resolvedTheme === 'dark';
@@ -305,6 +307,7 @@ export default function DebtorsScreen() {
 
   return (
     <View style={[styles.container, themeStyles.container]}>
+      <View style={{ height: Math.max(insets.top, 16) + 8 }} />
       {/* Screen tab switcher */}
       <View style={clientStyles.screenTabRow}>
         <TouchableOpacity
