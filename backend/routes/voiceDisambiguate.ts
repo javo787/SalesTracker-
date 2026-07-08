@@ -7,7 +7,7 @@ const router = express.Router();
 const RESPONSE_SCHEMA = {
   type: "object",
   properties: {
-    matched_candidate_id: { type: ["string", "null"] },
+    matched_candidate_id: { type: "string", nullable: true },
     confidence: { type: "string", enum: ["high", "low", "none"] }
   },
   required: ["matched_candidate_id", "confidence"]
@@ -44,11 +44,16 @@ router.post('/', authMiddleware, requireShop, async (req: AuthRequest, res: Resp
     }, {});
 
     if (!geminiResponse.ok) {
+      console.error('[voice-disambiguate] Gemini failure', {
+        status: geminiResponse.status,
+        data: geminiResponse.data,
+      });
       return res.status(502).json({ error: 'gemini_unavailable' });
     }
 
-    const result = parseGeminiJSON(geminiResponse.data);
+    const result = parseGeminiJSON(geminiResponse.data, false);
     if (!result) {
+      console.error('[voice-disambiguate] parse_failed, raw response:', JSON.stringify(geminiResponse.data));
       return res.status(502).json({ error: 'parse_failed' });
     }
 
