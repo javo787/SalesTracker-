@@ -439,16 +439,14 @@ const ProductDetailScreen = () => {
                       <Text style={{ fontSize: 12, color: '#888' }}>
                         {t('productDetail.initialStock')}:{' '}
                         <Text style={{ color: isDark ? '#CCC' : '#333', fontWeight: '500' }}>
-                          {stockMovements.length === 0
-                            ? `${product.stock} ${product.base_unit || t('reports.pcs')}`
-                            : '—'}
+                          {product.initial_stock != null ? product.initial_stock : product.stock} {product.base_unit || t('reports.pcs')}
                         </Text>
                       </Text>
-                      {product.buy_price > 0 && (
+                      {(product.initial_buy_price ?? product.buy_price) > 0 && (
                         <Text style={{ fontSize: 12, color: '#888' }}>
                           {t('addSale.buyPrice')}:{' '}
                           <Text style={{ color: isDark ? '#CCC' : '#333', fontWeight: '500' }}>
-                            {product.buy_price} {currency.symbol}
+                            {product.initial_buy_price != null ? product.initial_buy_price : product.buy_price} {currency.symbol}
                           </Text>
                         </Text>
                       )}
