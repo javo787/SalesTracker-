@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useShop } from '../context/ShopContext';
 import { api } from '../services/api';
@@ -15,6 +16,7 @@ import { ShopMember, SellerStats } from '../types/auth';
 
 export default function SellersScreen() {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const { inviteCode, regenerateInviteCode, shopId, isOwner, role, transferOwnership, leaveShop } = useShop();
   const { resolvedTheme, currency } = useAppContext();
@@ -227,6 +229,7 @@ export default function SellersScreen() {
       style={[styles.container, themeStyles.container]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
+      <View style={{ height: Math.max(insets.top, 16) + 8 }} />
       <View style={styles.header}>
         <Text style={[styles.title, themeStyles.text]}>{t('sellers.teamTitle') || 'Команда'}</Text>
         <View style={styles.periodRow}>
@@ -364,7 +367,7 @@ const darkStyles = StyleSheet.create({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   centered: { justifyContent: 'center', alignItems: 'center' },
-  header: { padding: 20, paddingTop: 20 },
+  header: { padding: 20 },
   title: { fontSize: 24, fontWeight: 'bold', marginBottom: 15 },
   errorText: { fontSize: 16, marginTop: 15, marginBottom: 20, textAlign: 'center', opacity: 0.7 },
   retryBtn: { paddingVertical: 12, paddingHorizontal: 30, borderRadius: 12 },

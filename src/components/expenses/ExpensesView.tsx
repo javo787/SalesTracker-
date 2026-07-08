@@ -114,6 +114,7 @@ export default function ExpensesView() {
         style={styles.container}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
+        <View style={{ height: Math.max(insets.top, 16) + 8 }} />
         {/* Summary Cards */}
         <View style={styles.summaryRow}>
           <View style={[styles.summaryCard, isDark ? styles.cardDark : styles.cardLight]}>

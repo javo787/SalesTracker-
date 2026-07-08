@@ -3,6 +3,7 @@ import {
   View, Text, ScrollView, StyleSheet,
   TouchableOpacity, TextInput, ActivityIndicator, RefreshControl
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getBaseRates, FALLBACK_RATES } from '../utils/currencyRates';
 import UniversalBanner from '../components/ads/UniversalBanner';
 import { useAppContext } from '../context/AppContext';
@@ -29,6 +30,7 @@ const TO_OPTIONS   = ['TJS', 'USD', 'RUB', 'CNY', 'UZS', 'KZT', 'EUR', 'KGS'];
 
 export default function CurrencyScreen() {
   const { resolvedTheme } = useAppContext();
+  const insets = useSafeAreaInsets();
   const isDark = resolvedTheme === 'dark';
   const themeStyles = isDark ? darkStyles : lightStyles;
   const [rates, setRates]           = useState<Record<string, number>>(FALLBACK_RATES);
@@ -92,6 +94,7 @@ export default function CurrencyScreen() {
       style={[styles.container, themeStyles.container]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
+      <View style={{ height: Math.max(insets.top, 16) + 8 }} />
       {/* Шапка с быстрыми карточками */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
