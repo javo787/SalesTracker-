@@ -94,6 +94,7 @@ export default function ReportScreen() {
 
   const [stats, setStats] = useState({ revenue: 0, profit: 0, count: 0 });
   const [expenseTotal, setExpenseTotal] = useState(0);
+  const [operationalExpenseTotal, setOperationalExpenseTotal] = useState(0);
   const [sales, setSales] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [filterText, setFilterText] = useState('');
@@ -107,12 +108,14 @@ export default function ReportScreen() {
       setSales(getSalesByPeriod(0, range.from, range.to).filter((s: any) => isOwner || s.seller_id === userId));
       const expStats = getExpenseStats(0, range.from, range.to);
       setExpenseTotal(isOwner ? expStats.total : 0);
+      setOperationalExpenseTotal(isOwner ? expStats.operational : 0);
     } else {
       const days = typeof p === 'number' ? p : 1;
       setStats(isOwner ? getStats(days) : getMyStats(userId, days));
       setSales(getSalesByPeriod(days).filter((s: any) => isOwner || s.seller_id === userId));
       const expStats = getExpenseStats(days);
       setExpenseTotal(isOwner ? expStats.total : 0);
+      setOperationalExpenseTotal(isOwner ? expStats.operational : 0);
     }
   }, [isOwner, user, isGuest]);
 
@@ -377,7 +380,7 @@ export default function ReportScreen() {
         totalRevenue: stats.revenue,
         totalProfit: stats.profit,
         totalExpenses: expenseTotal,
-        netProfit: stats.profit - expenseTotal,
+        netProfit: stats.revenue - expenseTotal,
         averageMargin: parseFloat(margin),
         totalTransactions: stats.count,
         topProducts: topList.map((p: any) => ({
@@ -418,7 +421,7 @@ export default function ReportScreen() {
         [t('exportSummary.headerRevenue'), `${stats.revenue} ${currency.symbol}`],
         [t('exportSummary.headerProfit'), `${stats.profit} ${currency.symbol}`],
         [t('exportSummary.headerExpenses'), `${expenseTotal} ${currency.symbol}`],
-        [t('exportSummary.headerNet'), `${stats.profit - expenseTotal} ${currency.symbol}`],
+        [t('exportSummary.headerNet'), `${stats.revenue - expenseTotal} ${currency.symbol}`],
         [],
         [t('exportSummary.headerAnalysis')],
         [summary],
@@ -699,11 +702,19 @@ export default function ReportScreen() {
             {isOwner && (
               <>
                 <TouchableOpacity
+                  style={[styles.statCard, { backgroundColor: '#3B6D11' }]}
+                  onPress={() => navigation.navigate('Expenses')}
+                >
+                  <Text style={styles.statLabel}>{t('reports.salesProfit')}</Text>
+                  <Text style={styles.statValue}>{(stats.profit - operationalExpenseTotal).toLocaleString()}</Text>
+                  <Text style={styles.statCurrency}>{currency.symbol}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
                   style={[styles.statCard, { backgroundColor: '#0C447C' }]}
                   onPress={() => navigation.navigate('Expenses')}
                 >
                   <Text style={styles.statLabel}>{t('reports.netProfit')}</Text>
-                  <Text style={styles.statValue}>{(stats.profit - expenseTotal).toLocaleString()}</Text>
+                  <Text style={styles.statValue}>{(stats.revenue - expenseTotal).toLocaleString()}</Text>
                   <Text style={styles.statCurrency}>{currency.symbol}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -716,7 +727,7 @@ export default function ReportScreen() {
                 </TouchableOpacity>
               </>
             )}
-            <View style={[styles.statCard, { backgroundColor: '#854F0B', width: isOwner ? '47%' : '100%' }]}>
+            <View style={[styles.statCard, { backgroundColor: '#854F0B', width: '100%' }]}>
               <Text style={styles.statLabel}>{t('home.salesCount')}</Text>
               <Text style={styles.statValue}>{stats.count}</Text>
               <Text style={styles.statCurrency}>{t('reports.pcs')}</Text>

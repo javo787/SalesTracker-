@@ -959,7 +959,7 @@ export function getAnnualStats() {
       profit: s?.profit || 0,
       salesCount: s?.salesCount || 0,
       expenses: e?.total || 0,
-      netProfit: (s?.profit || 0) - (e?.total || 0),
+      netProfit: (s?.revenue || 0) - (e?.total || 0),
     });
   }
 
@@ -1002,7 +1002,7 @@ export function getAnnualStats() {
       profit: totals?.profit || 0,
       salesCount: totals?.salesCount || 0,
       expenses: totalExpenses?.total || 0,
-      netProfit: (totals?.profit || 0) - (totalExpenses?.total || 0),
+      netProfit: (totals?.revenue || 0) - (totalExpenses?.total || 0),
     }
   };
 }
