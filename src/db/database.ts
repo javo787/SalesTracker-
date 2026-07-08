@@ -827,7 +827,13 @@ export function addExpense(
   }
 }
 
-export function getExpenses(days: number = 1) {
+export function getExpenses(days: number = 1, fromDate?: string, toDate?: string) {
+  if (fromDate && toDate) {
+    return db.getAllSync(
+      "SELECT * FROM expenses WHERE date(created_at) >= date(?) AND date(created_at) <= date(?) ORDER BY created_at DESC",
+      [fromDate, toDate]
+    );
+  }
   return db.getAllSync(
     "SELECT * FROM expenses WHERE created_at >= ? ORDER BY created_at DESC",
     [daysAgoLocalISO(days)]
