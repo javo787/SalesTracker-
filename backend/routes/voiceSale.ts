@@ -32,9 +32,10 @@ const RESPONSE_SCHEMA = {
       }
     },
     language_detected: { type: "string", enum: ["ru", "tg", "uz", "unknown"] },
-    truncated: { type: "boolean" }
+    truncated: { type: "boolean" },
+    transcript: { type: "string" }
   },
-  required: ["items", "language_detected", "truncated"]
+  required: ["items", "language_detected", "truncated", "transcript"]
 };
 
 const SYSTEM_PROMPT = `Act as a professional retail assistant for merchants in Central Asia (Tajikistan/Uzbekistan).
@@ -52,7 +53,26 @@ Handle multilingual input (Russian, Tajik, Uzbek). Possible accents, noise, or m
 If buy_price is not mentioned, set it to 0. If quantity is not mentioned, set it to 1.
 Do not guess or invent numeric values that were not stated or clearly implied.
 
+Also return the field 'transcript' with your best plain-text transcription of what was said, in the original language(s) spoken, even if some words are unclear.
+
 Return ONLY a pure JSON object according to the schema.`;
+
+/**
+ * If Gemini returned an empty product_name (often happens with poor
+ * whisper transcription of Tajik/Uzbek words), we use the raw transcript
+ * as a draft name and explicitly ask the user to verify it.
+ */
+function applyEmptyNameFallback(result: any, transcript?: string) {
+  if (!transcript?.trim() || !Array.isArray(result?.items)) return result;
+
+  result.items = result.items.map((item: any) => {
+    if (!item.product_name?.trim()) {
+      return { ...item, product_name: transcript.trim(), needs_confirmation: true };
+    }
+    return item;
+  });
+  return result;
+}
 
 router.post('/', authMiddleware, requireShop, (req, res, next) => {
   upload.single('file')(req, res, (err) => {
@@ -119,11 +139,12 @@ router.post('/', authMiddleware, requireShop, (req, res, next) => {
     if (geminiResponse.ok) {
       const result = parseGeminiJSON(geminiResponse.data);
       if (result) {
+        applyEmptyNameFallback(result, result.transcript);
         clearTimeout(timeoutId);
         return res.json({
           ...result,
           source: 'gemini_audio',
-          transcript: result.transcript || result.items[0]?.product_name || ''
+          transcript: result.transcript || ''
         });
       }
     }
@@ -180,6 +201,8 @@ router.post('/', authMiddleware, requireShop, (req, res, next) => {
     if (geminiResponse.ok) {
       const result = parseGeminiJSON(geminiResponse.data);
       if (result) {
+        console.log(`[voice-sale] whisper transcript: "${transcript}"`, { shopId });
+        applyEmptyNameFallback(result, transcript);
         clearTimeout(timeoutId);
         return res.json({ ...result, transcript, source: 'whisper_gemini' });
       }
@@ -211,7 +234,9 @@ router.post('/', authMiddleware, requireShop, (req, res, next) => {
           const content = groqResponse.data.choices?.[0]?.message?.content;
           const result = JSON.parse(content);
           if (result) {
+            console.log(`[voice-sale] whisper transcript: "${transcript}"`, { shopId });
             const normalized = normalizeVoiceSaleResult(result);
+            applyEmptyNameFallback(normalized, transcript);
             clearTimeout(timeoutId);
             return res.json({ ...normalized, transcript, source: 'whisper_groq' });
           }
