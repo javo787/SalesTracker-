@@ -53,6 +53,36 @@ export async function notifyImportantNews(titleRu: string, articleUrl: string) {
   });
 }
 
+// Русское склонение "новость/новости/новостей" по числу — для сводного
+// уведомления ниже.
+function pluralizeNews(count: number): string {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod100 >= 11 && mod100 <= 14) return 'новостей';
+  if (mod10 === 1) return 'новость';
+  if (mod10 >= 2 && mod10 <= 4) return 'новости';
+  return 'новостей';
+}
+
+// Одно сводное уведомление на НЕСКОЛЬКО новых важных новостей сразу — вместо
+// отдельного пуша на каждую статью. Актуально, когда пользователь не заходил
+// в приложение несколько дней и за это время накопилось 2+ важных новости:
+// раньше это означало 2-3 отдельных уведомления подряд. articleUrl — ссылка
+// первой статьи из пачки, куда ведёт тап по уведомлению.
+export async function notifyImportantNewsBatch(count: number, articleUrl: string) {
+  const enabled = await AsyncStorage.getItem('app_notifications_enabled');
+  if (enabled === 'false') return;
+
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: '📰 Важные новости',
+      body: `${count} ${pluralizeNews(count)} о таможне и курсе валют — стоит посмотреть`,
+      data: { url: articleUrl, type: 'news' },
+    },
+    trigger: null,
+  });
+}
+
 export async function registerFCMToken(): Promise<void> {
   try {
     const authStatus = await messaging().requestPermission();
