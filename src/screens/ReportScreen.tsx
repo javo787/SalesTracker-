@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
   TouchableOpacity, RefreshControl, Alert, TextInput, Modal, ActivityIndicator
@@ -12,7 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as XLSX from 'xlsx';
-import { getStats, getSalesByPeriod, deleteSale, getExpenseStats, getMyStats } from '../db/database';
+import { getStats, getSalesByPeriod, deleteSale, getExpenseStats, getExpenses, getMyStats } from '../db/database';
 import { arrayBufferToBase64 } from '../utils/excelUtils';
 import { useAppContext } from '../context/AppContext';
 import { useShop } from '../context/ShopContext';
@@ -95,6 +95,8 @@ export default function ReportScreen() {
   const [stats, setStats] = useState({ revenue: 0, profit: 0, count: 0 });
   const [expenseTotal, setExpenseTotal] = useState(0);
   const [operationalExpenseTotal, setOperationalExpenseTotal] = useState(0);
+  const [expenses, setExpenses] = useState<any[]>([]);
+  const [chartMetric, setChartMetric] = useState<'revenue' | 'salesProfit' | 'netProfit'>('revenue');
   const [sales, setSales] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [filterText, setFilterText] = useState('');
@@ -109,6 +111,7 @@ export default function ReportScreen() {
       const expStats = getExpenseStats(0, range.from, range.to);
       setExpenseTotal(isOwner ? expStats.total : 0);
       setOperationalExpenseTotal(isOwner ? expStats.operational : 0);
+      setExpenses(isOwner ? getExpenses(0, range.from, range.to) as any[] : []);
     } else {
       const days = typeof p === 'number' ? p : 1;
       setStats(isOwner ? getStats(days) : getMyStats(userId, days));
@@ -116,6 +119,7 @@ export default function ReportScreen() {
       const expStats = getExpenseStats(days);
       setExpenseTotal(isOwner ? expStats.total : 0);
       setOperationalExpenseTotal(isOwner ? expStats.operational : 0);
+      setExpenses(isOwner ? getExpenses(days) as any[] : []);
     }
   }, [isOwner, user, isGuest]);
 
@@ -217,17 +221,45 @@ export default function ReportScreen() {
     s.product_name.toLowerCase().includes(filterText.toLowerCase())
   );
 
-  // Подготовка данных для графика
-  const chartData = sales.reduce((acc: any, sale: any) => {
-    const date = new Date(sale.created_at).toLocaleDateString(i18n.language === 'tg' ? 'tg-TJ' : i18n.language === 'uz' ? 'uz-UZ' : 'ru-RU', { day: 'numeric', month: 'short' });
-    const existing = acc.find((d: any) => d.label === date);
-    if (existing) {
-      existing.value += sale.sell_price * sale.quantity;
+  // Подготовка данных для графика — в зависимости от выбранной метрики (тап по карточке)
+  const dayKey = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const dayLabel = (dateStr: string) =>
+    new Date(dateStr).toLocaleDateString(i18n.language === 'tg' ? 'tg-TJ' : i18n.language === 'uz' ? 'uz-UZ' : 'ru-RU', { day: 'numeric', month: 'short' });
+
+  const chartData = useMemo(() => {
+    const map = new Map<string, { label: string; value: number }>();
+    const add = (dateStr: string, delta: number) => {
+      const key = dayKey(dateStr);
+      const existing = map.get(key);
+      if (existing) {
+        existing.value += delta;
+      } else {
+        map.set(key, { label: dayLabel(dateStr), value: delta });
+      }
+    };
+
+    if (chartMetric === 'revenue') {
+      sales.forEach((s: any) => add(s.created_at, s.sell_price * s.quantity));
+    } else if (chartMetric === 'salesProfit') {
+      sales.forEach((s: any) => add(s.created_at, s.profit));
+      expenses.filter((e: any) => e.type === 'operational').forEach((e: any) => add(e.created_at, -e.amount));
     } else {
-      acc.push({ label: date, value: sale.sell_price * sale.quantity });
+      sales.forEach((s: any) => add(s.created_at, s.sell_price * s.quantity));
+      expenses.forEach((e: any) => add(e.created_at, -e.amount));
     }
-    return acc;
-  }, []).reverse();
+
+    return Array.from(map.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, v]) => v);
+  }, [sales, expenses, chartMetric, i18n.language]);
+
+  const chartMetricLabel = chartMetric === 'revenue'
+    ? t('common.revenue')
+    : chartMetric === 'salesProfit' ? t('reports.salesProfit') : t('reports.netProfit');
+  const chartMetricColor = chartMetric === 'revenue' ? '#1D9E75' : chartMetric === 'salesProfit' ? '#3B6D11' : '#0C447C';
 
   const exportToCSV = async () => {
     if (sales.length === 0) {
@@ -675,13 +707,13 @@ export default function ReportScreen() {
           {/* График тренда */}
           {chartData.length > 0 && (
             <View style={[styles.section, themeStyles.card]}>
-              <Text style={[styles.sectionTitle, themeStyles.text]}>{t('reports.trend')}</Text>
+              <Text style={[styles.sectionTitle, themeStyles.text]}>{chartMetricLabel}</Text>
               <BarChart
                 data={chartData}
                 barWidth={period === 30 ? 8 : 22}
                 noOfSections={3}
                 barBorderRadius={4}
-                frontColor="#1D9E75"
+                frontColor={chartMetricColor}
                 yAxisThickness={0}
                 xAxisThickness={0}
                 hideRules
@@ -694,24 +726,27 @@ export default function ReportScreen() {
 
           {/* Главные цифры */}
           <View style={styles.statsGrid}>
-            <View style={[styles.statCard, { backgroundColor: '#1D9E75', width: isOwner ? '47%' : '100%' }]}>
+            <TouchableOpacity
+              style={[styles.statCard, { backgroundColor: '#1D9E75', width: isOwner ? '47%' : '100%' }, chartMetric === 'revenue' && styles.statCardActive]}
+              onPress={() => setChartMetric('revenue')}
+            >
               <Text style={styles.statLabel}>{t('common.revenue')}</Text>
               <Text style={styles.statValue}>{stats.revenue.toLocaleString()}</Text>
               <Text style={styles.statCurrency}>{currency.symbol}</Text>
-            </View>
+            </TouchableOpacity>
             {isOwner && (
               <>
                 <TouchableOpacity
-                  style={[styles.statCard, { backgroundColor: '#3B6D11' }]}
-                  onPress={() => navigation.navigate('Expenses')}
+                  style={[styles.statCard, { backgroundColor: '#3B6D11' }, chartMetric === 'salesProfit' && styles.statCardActive]}
+                  onPress={() => setChartMetric('salesProfit')}
                 >
                   <Text style={styles.statLabel}>{t('reports.salesProfit')}</Text>
                   <Text style={styles.statValue}>{(stats.profit - operationalExpenseTotal).toLocaleString()}</Text>
                   <Text style={styles.statCurrency}>{currency.symbol}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.statCard, { backgroundColor: '#0C447C' }]}
-                  onPress={() => navigation.navigate('Expenses')}
+                  style={[styles.statCard, { backgroundColor: '#0C447C' }, chartMetric === 'netProfit' && styles.statCardActive]}
+                  onPress={() => setChartMetric('netProfit')}
                 >
                   <Text style={styles.statLabel}>{t('reports.netProfit')}</Text>
                   <Text style={styles.statValue}>{(stats.revenue - expenseTotal).toLocaleString()}</Text>
@@ -727,11 +762,6 @@ export default function ReportScreen() {
                 </TouchableOpacity>
               </>
             )}
-            <View style={[styles.statCard, { backgroundColor: '#854F0B', width: '100%' }]}>
-              <Text style={styles.statLabel}>{t('home.salesCount')}</Text>
-              <Text style={styles.statValue}>{stats.count}</Text>
-              <Text style={styles.statCurrency}>{t('reports.pcs')}</Text>
-            </View>
           </View>
 
           {/* Топ товары */}
@@ -1109,6 +1139,9 @@ const styles = StyleSheet.create({
   statCard: {
     width: '47%', borderRadius: Radius.lg, padding: Spacing.lg,
     ...Shadow.lg,
+  },
+  statCardActive: {
+    borderWidth: 2, borderColor: '#fff',
   },
   statLabel: { fontSize: FontSize.sm, color: 'rgba(255,255,255,0.8)', marginBottom: Spacing.xs },
   statValue: { fontSize: FontSize.xxl, fontWeight: 'bold', color: '#fff' },
