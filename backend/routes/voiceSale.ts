@@ -97,6 +97,12 @@ router.post('/', authMiddleware, requireShop, (req, res, next) => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 25000);
 
+  const pipelineStart = Date.now();
+  const logStep = (step: string, extra: Record<string, any> = {}) => {
+    console.log(`[voice-sale] ${step}`, { shopId, elapsedMs: Date.now() - pipelineStart, ...extra });
+  };
+  logStep('pipeline_start');
+
   try {
     const base64Audio = req.file.buffer.toString('base64');
     const mimeType = req.file.mimetype || 'audio/m4a';
@@ -116,12 +122,15 @@ router.post('/', authMiddleware, requireShop, (req, res, next) => {
       }],
       generationConfig: {
         response_mime_type: "application/json",
-        response_schema: RESPONSE_SCHEMA
+        response_schema: RESPONSE_SCHEMA,
+        thinkingConfig: { thinkingLevel: "low" }
       }
     }, { signal: controller.signal });
 
+    logStep('level1_primary_response', { ok: geminiResponse.ok, status: geminiResponse.status });
+
     if (!geminiResponse.ok) {
-       console.warn(`[voice-sale] level 1 primary failed (status ${geminiResponse.status}) → trying fallback model (${GEMINI_MODELS.LEVEL_1_FALLBACK})`, JSON.stringify(geminiResponse.data).substring(0, 500));
+       logStep('level1_fallback_triggered', { primaryStatus: geminiResponse.status });
        geminiResponse = await fetchGeminiWithRotation(GEMINI_MODELS.LEVEL_1_FALLBACK, {
          contents: [{
            parts: [
@@ -131,14 +140,20 @@ router.post('/', authMiddleware, requireShop, (req, res, next) => {
          }],
          generationConfig: {
            response_mime_type: "application/json",
-           response_schema: RESPONSE_SCHEMA
+           response_schema: RESPONSE_SCHEMA,
+           thinkingConfig: { thinkingLevel: "low" }
          }
        }, { signal: controller.signal });
+       logStep('level1_fallback_response', { ok: geminiResponse.ok, status: geminiResponse.status });
     }
 
     if (geminiResponse.ok) {
       const result = parseGeminiJSON(geminiResponse.data);
       if (result) {
+        logStep('level1_success', {
+          itemsCount: result.items?.length,
+          hasEmptySellPrice: result.items?.some((i: any) => !i.sell_price)
+        });
         applyEmptyNameFallback(result, result.transcript);
         clearTimeout(timeoutId);
         return res.json({
@@ -149,8 +164,10 @@ router.post('/', authMiddleware, requireShop, (req, res, next) => {
       }
     }
 
+    logStep('level1_failed_no_result');
+
     // LEVEL 2: Whisper -> Gemini Text
-    console.warn('[voice-sale] Level 1 failed → Level 2: Whisper + Gemini Text', { shopId });
+    logStep('level2_start');
     let transcript = '';
     try {
       const whisperResult = await transcribeAudio(
@@ -160,6 +177,7 @@ router.post('/', authMiddleware, requireShop, (req, res, next) => {
         { signal: controller.signal, language, prompt }
       );
       transcript = whisperResult.text;
+      logStep('whisper_success', { transcriptLength: transcript.length, transcriptPreview: transcript.slice(0, 80) });
     } catch (e) {
       console.error('[voice-sale] Whisper failed', e);
       clearTimeout(timeoutId);
@@ -179,12 +197,15 @@ router.post('/', authMiddleware, requireShop, (req, res, next) => {
       }],
       generationConfig: {
         response_mime_type: "application/json",
-        response_schema: RESPONSE_SCHEMA
+        response_schema: RESPONSE_SCHEMA,
+        thinkingConfig: { thinkingLevel: "low" }
       }
     }, { signal: controller.signal });
 
+    logStep('level2_primary_response', { ok: geminiResponse.ok, status: geminiResponse.status });
+
     if (!geminiResponse.ok) {
-       console.warn(`[voice-sale] level 2 primary failed (status ${geminiResponse.status}) → trying fallback model (${GEMINI_MODELS.LEVEL_1_FALLBACK})`, JSON.stringify(geminiResponse.data).substring(0, 500));
+       logStep('level2_fallback_triggered', { primaryStatus: geminiResponse.status });
        geminiResponse = await fetchGeminiWithRotation(GEMINI_MODELS.LEVEL_1_FALLBACK, {
          contents: [{
            parts: [
@@ -193,15 +214,20 @@ router.post('/', authMiddleware, requireShop, (req, res, next) => {
          }],
          generationConfig: {
            response_mime_type: "application/json",
-           response_schema: RESPONSE_SCHEMA
+           response_schema: RESPONSE_SCHEMA,
+           thinkingConfig: { thinkingLevel: "low" }
          }
        }, { signal: controller.signal });
+       logStep('level2_fallback_response', { ok: geminiResponse.ok, status: geminiResponse.status });
     }
 
     if (geminiResponse.ok) {
       const result = parseGeminiJSON(geminiResponse.data);
       if (result) {
-        console.log(`[voice-sale] whisper transcript: "${transcript}"`, { shopId });
+        logStep('level2_success', {
+          itemsCount: result.items?.length,
+          hasEmptySellPrice: result.items?.some((i: any) => !i.sell_price)
+        });
         applyEmptyNameFallback(result, transcript);
         clearTimeout(timeoutId);
         return res.json({ ...result, transcript, source: 'whisper_gemini' });
@@ -209,7 +235,7 @@ router.post('/', authMiddleware, requireShop, (req, res, next) => {
     }
 
     // LEVEL 3: Whisper -> Groq Llama
-    console.warn('[voice-sale] Level 2 failed → Level 3: Whisper + Groq Llama', { shopId });
+    logStep('level3_start');
     const groqApiKey = process.env.GROQ_API_KEY;
     if (groqApiKey) {
       try {
@@ -234,8 +260,11 @@ router.post('/', authMiddleware, requireShop, (req, res, next) => {
           const content = groqResponse.data.choices?.[0]?.message?.content;
           const result = JSON.parse(content);
           if (result) {
-            console.log(`[voice-sale] whisper transcript: "${transcript}"`, { shopId });
             const normalized = normalizeVoiceSaleResult(result);
+            logStep('level3_success', {
+              itemsCount: normalized.items?.length,
+              hasEmptySellPrice: normalized.items?.some((i: any) => !i.sell_price)
+            });
             applyEmptyNameFallback(normalized, transcript);
             clearTimeout(timeoutId);
             return res.json({ ...normalized, transcript, source: 'whisper_groq' });
@@ -247,7 +276,7 @@ router.post('/', authMiddleware, requireShop, (req, res, next) => {
     }
 
     // LEVEL 4: Transcript Only
-    console.warn('[voice-sale] Level 3 failed → Level 4: Transcript Only', { shopId });
+    logStep('level4_transcript_only', { transcriptLength: transcript.length });
     clearTimeout(timeoutId);
     return res.json({
       items: [{
@@ -265,6 +294,7 @@ router.post('/', authMiddleware, requireShop, (req, res, next) => {
 
   } catch (error: any) {
     clearTimeout(timeoutId);
+    logStep('pipeline_error', { errorName: error.name, errorMessage: error.message });
     if (error.name === 'AbortError') {
       return res.status(504).json({ error: 'pipeline_timeout' });
     }
