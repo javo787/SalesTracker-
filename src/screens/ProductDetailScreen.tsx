@@ -197,12 +197,20 @@ const ProductDetailScreen = () => {
 
           <View style={styles.priceRow}>
             <View style={styles.breakevenInfo}>
-              <Text style={styles.priceInfoText}>
-                Закупка: <Text style={styles.bold}>{product.buy_price}</Text> ·
-                Продажа: <Text style={styles.bold}>{product.sell_price}</Text> ·
-                Маржа: <Text style={styles.bold}>{product.buy_price > 0 ? Math.round(((product.sell_price - product.buy_price) / product.buy_price) * 100) : 0}%</Text>
-              </Text>
-              <Text style={styles.minPriceText}>Мин. цена: {minPrice} {currency.symbol}</Text>
+              {isOwner ? (
+                <>
+                  <Text style={styles.priceInfoText}>
+                    Закупка: <Text style={styles.bold}>{product.buy_price}</Text> ·
+                    Продажа: <Text style={styles.bold}>{product.sell_price}</Text> ·
+                    Маржа: <Text style={styles.bold}>{product.buy_price > 0 ? Math.round(((product.sell_price - product.buy_price) / product.buy_price) * 100) : 0}%</Text>
+                  </Text>
+                  <Text style={styles.minPriceText}>Мин. цена: {minPrice} {currency.symbol}</Text>
+                </>
+              ) : (
+                <Text style={styles.priceInfoText}>
+                  Продажа: <Text style={styles.bold}>{product.sell_price}</Text> {currency.symbol}
+                </Text>
+              )}
             </View>
             {isOwner && (
               <TouchableOpacity onPress={() => setEditModalVisible(true)} style={styles.editBtn}>
@@ -442,7 +450,7 @@ const ProductDetailScreen = () => {
                           {product.initial_stock != null ? product.initial_stock : product.stock} {product.base_unit || t('reports.pcs')}
                         </Text>
                       </Text>
-                      {(product.initial_buy_price ?? product.buy_price) > 0 && (
+                      {isOwner && (product.initial_buy_price ?? product.buy_price) > 0 && (
                         <Text style={{ fontSize: 12, color: '#888' }}>
                           {t('addSale.buyPrice')}:{' '}
                           <Text style={{ color: isDark ? '#CCC' : '#333', fontWeight: '500' }}>
@@ -486,22 +494,30 @@ const ProductDetailScreen = () => {
                         </Text>
 
                         {item.type === 'edit' ? (
-                          editDiff && editDiff.length > 0 ? (
-                            editDiff.map((d, i) => (
-                              <Text key={i} style={[styles.historyQty, { color: themeStyles.text, fontWeight: '600', fontSize: 13 }]}>
-                                {EDIT_FIELD_LABELS[d.field] || d.field}: {formatDiffValue(d.field, d.old)} → {formatDiffValue(d.field, d.new)}
-                              </Text>
-                            ))
-                          ) : (
-                            item.note && <Text style={styles.historyNote}>{item.note}</Text>
-                          )
+                          (() => {
+                            const visibleDiff = isOwner
+                              ? editDiff
+                              : editDiff?.filter(d => d.field !== 'buy_price');
+                            return visibleDiff && visibleDiff.length > 0 ? (
+                              visibleDiff.map((d, i) => (
+                                <Text key={i} style={[styles.historyQty, { color: themeStyles.text, fontWeight: '600', fontSize: 13 }]}>
+                                  {EDIT_FIELD_LABELS[d.field] || d.field}: {formatDiffValue(d.field, d.old)} → {formatDiffValue(d.field, d.new)}
+                                </Text>
+                              ))
+                            ) : (
+                              item.note && <Text style={styles.historyNote}>{item.note}</Text>
+                            );
+                          })()
                         ) : (
                           <>
                             <Text style={[styles.historyQty, { color: themeStyles.text, fontWeight: 'bold' }]}>
                               {item.quantity_change > 0 ? '+' : ''}{item.quantity_change} {product.base_unit}
                             </Text>
-                            {item.price_per_unit > 0 && (
+                            {isOwner && item.price_per_unit > 0 && (
                               <Text style={styles.historyPrices}>Цена: {item.price_per_unit} {currency.symbol}</Text>
+                            )}
+                            {isOwner && item.seller_name && (
+                              <Text style={styles.sellerName}>Продавец: {item.seller_name}</Text>
                             )}
                             {item.note && <Text style={styles.historyNote}>{item.note}</Text>}
                           </>
