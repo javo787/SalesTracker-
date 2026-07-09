@@ -12,6 +12,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as Sharing from 'expo-sharing';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
+import { useShop } from '../context/ShopContext';
 import { useAppContext } from '../context/AppContext';
 import { useAppLock } from '../context/AppLockContext';
 import RegistrationPromptModal from '../components/RegistrationPromptModal';
@@ -28,6 +29,8 @@ export default function ProfileScreen() {
   const { resolvedTheme, currency, sellerMode } = useAppContext(); const isDark = resolvedTheme === "dark";
   const { user, logout, isGuest, updateProfile, convertGuestAccount } = useAuth();
   const { setIsSystemDialogOpen } = useAppLock();
+
+  const { isSeller, shopName, leaveShop } = useShop();
 
   const [stats, setStats] = useState<ProfileStats | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -183,6 +186,27 @@ export default function ProfileScreen() {
       });
       setTimeout(() => setIsSystemDialogOpen(false), 1000);
     }
+  };
+
+  const handleLeaveShop = () => {
+    Alert.alert(
+      t('sellers.leaveShopTitle') || 'Покинуть магазин',
+      t('sellers.leaveShopConfirm') || 'Вы уверены, что хотите покинуть магазин?',
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('common.delete'),
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await leaveShop();
+            } catch (e: any) {
+              Alert.alert(t('common.error'), e.message);
+            }
+          }
+        }
+      ]
+    );
   };
 
   const themeStyles = isDark ? darkStyles : lightStyles;
@@ -360,6 +384,20 @@ export default function ProfileScreen() {
           <Text style={[styles.friendsCount, { color: '#1D9E75' }]}>{user?.referralCount || 0}</Text>
         </View>
       </View>
+
+      {isSeller && shopName && (
+        <View style={[styles.card, themeStyles.card]}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="storefront-outline" size={20} color="#1D9E75" />
+            <Text style={[styles.cardTitle, themeStyles.text]}>{t('sellers.myShop') || 'Мой магазин'}</Text>
+          </View>
+          <Text style={[styles.cardDesc, themeStyles.text]}>{shopName}</Text>
+          <TouchableOpacity style={[styles.card, themeStyles.card, styles.logoutBtn, { marginTop: 12 }]} onPress={handleLeaveShop}>
+            <Ionicons name="exit-outline" size={20} color="#E53935" />
+            <Text style={styles.logoutText}>{t('sellers.leaveShopBtn') || 'Покинуть магазин'}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Account Actions */}
       <TouchableOpacity style={[styles.card, themeStyles.card, styles.logoutBtn]} onPress={logout}>
