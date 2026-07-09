@@ -1,4 +1,15 @@
 import axios from 'axios';
+import { notifyAdmin } from '../services/telegramBot';
+
+const ALERT_COOLDOWN_MS = 10 * 60 * 1000; // 10 минут
+const lastAlertAt: Record<string, number> = {};
+
+function alertOnce(key: string, text: string) {
+  const now = Date.now();
+  if (now - (lastAlertAt[key] || 0) < ALERT_COOLDOWN_MS) return;
+  lastAlertAt[key] = now;
+  notifyAdmin(text);
+}
 
 const GEMINI_API_KEYS = [
   process.env.GEMINI_API_KEY,
@@ -77,8 +88,9 @@ export async function fetchGeminiWithRotation(model: string, payload: any, optio
 
   for (let i = 0; i < GEMINI_API_KEYS.length; i++) {
     const key = GEMINI_API_KEYS[i];
+    const index = i + 1;
     // DEBUGLOG: не логируем сам ключ, только позицию в ротации — безопасность.
-    const keyLabel = `key#${i + 1}/${GEMINI_API_KEYS.length}`;
+    const keyLabel = `key#${index}/${GEMINI_API_KEYS.length}`;
     const startedAt = Date.now();
 
     try {
@@ -91,8 +103,20 @@ export async function fetchGeminiWithRotation(model: string, payload: any, optio
       });
       const latencyMs = Date.now() - startedAt;
 
-      if (response.status === 429 || response.status === 403) {
-        console.warn(`[Gemini Rotation] Key failed with ${response.status}, trying next...`);
+      if (response.status === 401 || response.status === 403) {
+        console.warn(`[Gemini Rotation] Key #${index} failed with ${response.status}, trying next...`, {
+          model,
+          errorBody: response.data,
+        });
+        alertOnce(
+          `key-auth-fail-${index}`,
+          `⚠️ <b>Gemini ключ #${index} не работает</b>\nМодель: ${model}\nСтатус: ${response.status}\n${response.data?.error?.message || ''}`
+        );
+        continue;
+      }
+
+      if (response.status === 429) {
+        console.warn(`[Gemini Rotation] Key #${index} rate-limited (429), trying next...`);
         continue;
       }
 
@@ -124,8 +148,13 @@ export async function fetchGeminiWithRotation(model: string, payload: any, optio
   console.error('[Gemini Rotation] All keys exhausted', {
     model,
     keysCount: GEMINI_API_KEYS.length,
-    lastError: lastError?.message,
+    lastErrorMessage: lastError?.message,
+    lastErrorCode: lastError?.code,
   });
+  alertOnce(
+    'all-keys-exhausted',
+    `🔴 <b>Все ключи Gemini не работают!</b>\nМодель: ${model}\nКлючей сконфигурировано: ${GEMINI_API_KEYS.length}\nПоследняя ошибка: ${lastError?.message || 'н/д'}`
+  );
   return {
     ok: false,
     status: 503,
