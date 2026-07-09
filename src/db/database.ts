@@ -376,6 +376,25 @@ function runMigrations() {
     });
   }
 
+  {
+    const schemaV7MigrationDone = db.getFirstSync(
+      "SELECT value FROM app_meta WHERE key = 'schema_v7'"
+    ) as { value: string } | null;
+
+    if (!schemaV7MigrationDone) {
+      db.withTransactionSync(() => {
+        const movementCols = db.getAllSync("PRAGMA table_info(stock_movements)") as any[];
+        if (!movementCols.some(c => c.name === 'seller_id')) {
+          db.execSync("ALTER TABLE stock_movements ADD COLUMN seller_id TEXT");
+        }
+        if (!movementCols.some(c => c.name === 'seller_name')) {
+          db.execSync("ALTER TABLE stock_movements ADD COLUMN seller_name TEXT");
+        }
+        db.runSync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_v7', 'done')");
+      });
+    }
+  }
+
   // Migration: shop_session table
   db.execSync(`
     CREATE TABLE IF NOT EXISTS shop_session (
@@ -643,7 +662,9 @@ export function addStockIn(
   quantity: number,        // в единицах, указанных unitType
   pricePerUnit: number,    // цена за единицу, указанную unitType
   unitType: 'base' | 'package',
-  note: string = ''
+  note: string = '',
+  sellerId: string | null = null,
+  sellerName: string | null = null
 ): void {
   const product = db.getFirstSync('SELECT stock, buy_price, units_per_package FROM products WHERE id = ?', [productId]) as any;
   if (!product) return;
@@ -666,8 +687,8 @@ export function addStockIn(
       [qtyBase, newBuyPrice, now, productId]
     );
     db.runSync(
-      'INSERT INTO stock_movements (id, product_id, type, quantity_change, price_per_unit, note, created_at, synced) VALUES (?, ?, ?, ?, ?, ?, ?, 0)',
-      [movementId, productId, 'stock_in', qtyBase, pricePerUnitBase, note, now]
+      'INSERT INTO stock_movements (id, product_id, type, quantity_change, price_per_unit, note, created_at, synced, seller_id, seller_name) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)',
+      [movementId, productId, 'stock_in', qtyBase, pricePerUnitBase, note, now, sellerId, sellerName]
     );
   });
 }

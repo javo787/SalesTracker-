@@ -620,18 +620,19 @@ const ProductDetailScreen = () => {
           <Text style={styles.fabBtnText}>Продать</Text>
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={styles.fabBtn}
+          onPress={() => {
+            setOpType('stock_in');
+            setOpModalVisible(true);
+          }}
+        >
+          <Ionicons name="add-circle-outline" size={24} color={Colors.primary} />
+          <Text style={styles.fabBtnText}>Приём</Text>
+        </TouchableOpacity>
+
         {isOwner && (
           <>
-            <TouchableOpacity
-              style={styles.fabBtn}
-              onPress={() => {
-                setOpType('stock_in');
-                setOpModalVisible(true);
-              }}
-            >
-              <Ionicons name="add-circle-outline" size={24} color={Colors.primary} />
-              <Text style={styles.fabBtnText}>Приём</Text>
-            </TouchableOpacity>
             <TouchableOpacity
               style={styles.fabBtn}
               onPress={() => {
