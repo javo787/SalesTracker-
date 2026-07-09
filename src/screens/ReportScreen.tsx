@@ -705,24 +705,41 @@ export default function ReportScreen() {
       ) : (
         <>
           {/* График тренда */}
-          {chartData.length > 0 && (
-            <View style={[styles.section, themeStyles.card]}>
-              <Text style={[styles.sectionTitle, themeStyles.text]}>{chartMetricLabel}</Text>
-              <BarChart
-                data={chartData}
-                barWidth={period === 30 ? 8 : 22}
-                noOfSections={3}
-                barBorderRadius={4}
-                frontColor={chartMetricColor}
-                yAxisThickness={0}
-                xAxisThickness={0}
-                hideRules
-                yAxisTextStyle={{ color: '#999', fontSize: 10 }}
-                xAxisLabelTextStyle={{ color: '#999', fontSize: 10 }}
-                isAnimated
-              />
-            </View>
-          )}
+          {chartData.length > 0 && (() => {
+            // Библиотека сама считает шаг сетки от положительного максимума. Если данных
+            // с плюсом почти нет (например, «Чистая прибыль» ушла в минус), автоматический
+            // шаг получается крошечным относительно реального минимума — и число секций
+            // ниже нуля улетает в десятки, раздувая высоту графика до нескольких экранов.
+            // Поэтому считаем шаг и границы сами — от фактических данных, а не от «подушки».
+            const chartValues = chartData.map((d: any) => d.value);
+            const chartMaxVal = Math.max(0, ...chartValues);
+            const chartMinVal = Math.min(0, ...chartValues);
+            const chartScale = Math.max(chartMaxVal, Math.abs(chartMinVal), 1);
+            const chartStepValue = chartScale / 3;
+
+            return (
+              <View style={[styles.section, themeStyles.card]}>
+                <Text style={[styles.sectionTitle, themeStyles.text]}>{chartMetricLabel}</Text>
+                <BarChart
+                  data={chartData}
+                  barWidth={period === 30 ? 8 : 22}
+                  noOfSections={3}
+                  barBorderRadius={4}
+                  frontColor={chartMetricColor}
+                  yAxisThickness={0}
+                  xAxisThickness={0}
+                  hideRules
+                  yAxisTextStyle={{ color: '#999', fontSize: 10 }}
+                  xAxisLabelTextStyle={{ color: '#999', fontSize: 10 }}
+                  isAnimated
+                  maxValue={chartMaxVal > 0 ? chartMaxVal : chartStepValue * 3}
+                  stepValue={chartStepValue}
+                  negativeStepValue={chartStepValue}
+                  mostNegativeValue={chartMinVal}
+                />
+              </View>
+            );
+          })()}
 
           {/* Главные цифры */}
           <View style={styles.statsGrid}>
