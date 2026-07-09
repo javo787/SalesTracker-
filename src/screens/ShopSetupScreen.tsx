@@ -52,14 +52,14 @@ export default function ShopSetupScreen() {
             style={[roleStyles.roleBtn, selectedRole === 'owner' && roleStyles.roleBtnActive]}
             onPress={() => { setSelectedRole('owner'); setError(''); }}
           >
-            <Text style={roleStyles.roleEmoji}>👑</Text>
+            <Ionicons name="storefront-outline" size={32} color={Colors.primary} style={roleStyles.roleEmoji} />
             <Text style={[roleStyles.roleText, selectedRole === 'owner' && roleStyles.roleTextActive]}>Я владелец</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[roleStyles.roleBtn, selectedRole === 'seller' && roleStyles.roleBtnActive]}
             onPress={() => { setSelectedRole('seller'); setError(''); }}
           >
-            <Text style={roleStyles.roleEmoji}>🧑‍💼</Text>
+            <Ionicons name="person-outline" size={32} color={Colors.primary} style={roleStyles.roleEmoji} />
             <Text style={[roleStyles.roleText, selectedRole === 'seller' && roleStyles.roleTextActive]}>Я продавец</Text>
           </TouchableOpacity>
         </View>
@@ -127,7 +127,7 @@ const roleStyles = StyleSheet.create({
   roleRow: { flexDirection: 'row', gap: 12, marginBottom: 30 },
   roleBtn: { flex: 1, padding: 20, borderRadius: 16, borderWidth: 2, borderColor: '#F0F0F0', alignItems: 'center', backgroundColor: '#FAFAFA' },
   roleBtnActive: { borderColor: '#534AB7', backgroundColor: '#F5F4FF' },
-  roleEmoji: { fontSize: 32, marginBottom: 10 },
+  roleEmoji: { marginBottom: 10 },
   roleText: { fontSize: 14, fontWeight: '600', color: '#666' },
   roleTextActive: { color: '#534AB7' },
   inputGroup: { width: '100%' },
