@@ -1,11 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState } from 'react-native';
 import { api } from './api';
-import { getProducts, getProductsForSync, getSalesByPeriod, getShopSession } from '../db/database';
+import { getProducts, getProductsForSync, getSalesByPeriod, getShopSession, getUnsyncedSales } from '../db/database';
 import * as SQLite from 'expo-sqlite';
 
 const db = SQLite.openDatabaseSync('savdo.db'); // Note: Keeping database name 'savdo.db' to avoid data loss as per instructions.
 let isSyncing = false;
+let pushTimeout: NodeJS.Timeout | null = null;
 
 // --- Лёгкий pub-sub статуса синхронизации (только для UI-индикатора,
 // на логику push/pull не влияет) ---
@@ -39,16 +40,29 @@ export const SyncService = {
     setSyncingStatus(true);
     try {
       const isOwner = session.role === 'owner';
+      const salesToSend = getUnsyncedSales();
+      const productsToSend = isOwner ? getProductsForSync() : [];
+
       const payload: any = {
-        sales: getSalesByPeriod(3650),
+        sales: salesToSend,
       };
 
       if (isOwner) {
-        payload.products = getProductsForSync();
+        payload.products = productsToSend;
       }
 
       const result = await api.post<{ syncedAt: string }>('/sync/push', payload);
       await AsyncStorage.setItem('last_sync_at', result.syncedAt);
+
+      // Locally mark the successfully pushed items as synced
+      db.withTransactionSync(() => {
+        for (const s of salesToSend as any[]) {
+          db.runSync('UPDATE sales SET synced = 1 WHERE id = ?', [s.id]);
+        }
+        for (const p of productsToSend as any[]) {
+          db.runSync('UPDATE products SET synced = 1 WHERE id = ?', [p.id]);
+        }
+      });
     } catch (error) {
       console.warn('Sync push failed:', error);
     } finally {
@@ -67,11 +81,15 @@ export const SyncService = {
     setSyncingStatus(true);
     try {
       const isOwner = session.role === 'owner';
+      const lastPullAsOf = await AsyncStorage.getItem('last_pull_asOf');
+      const url = lastPullAsOf ? `/sync/pull?since=${encodeURIComponent(lastPullAsOf)}` : '/sync/pull';
+
       const data = await api.get<{
         products: any[];
         sales: any[];
         role: string;
-      }>('/sync/pull');
+        asOf: string;
+      }>(url);
 
       // Products sync
       for (const p of data.products) {
@@ -121,8 +139,8 @@ export const SyncService = {
           db.runSync(
             `INSERT INTO sales (
               id, product_id, product_name, quantity, sell_price, buy_price, profit,
-              note, stock_updated, created_at, seller_id, seller_name, stock_warning
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              note, stock_updated, created_at, seller_id, seller_name, stock_warning, synced
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
             [
               s.localId, s.product_id, s.product_name, s.quantity,
               s.sell_price,
@@ -133,7 +151,14 @@ export const SyncService = {
               s.stock_warning ? 1 : 0
             ]
           );
+        } else {
+          // Keep local sync status clean
+          db.runSync('UPDATE sales SET synced = 1 WHERE id = ?', [s.localId]);
         }
+      }
+
+      if (data.asOf) {
+        await AsyncStorage.setItem('last_pull_asOf', data.asOf);
       }
     } catch (error) {
       console.warn('Sync pull failed:', error);
@@ -142,15 +167,30 @@ export const SyncService = {
     }
   },
 
+  pushDebounced() {
+    if (pushTimeout) {
+      clearTimeout(pushTimeout);
+    }
+    pushTimeout = setTimeout(() => {
+      SyncService.push().catch(err => {
+        console.warn('Debounced push failed:', err);
+      });
+    }, 4000); // 4 seconds debounce
+  },
+
   initAutoSync() {
     AppState.addEventListener('change', async (nextAppState) => {
       const syncEnabled = await AsyncStorage.getItem('sync_enabled');
       if (syncEnabled === 'false') return;
 
       if (nextAppState === 'active') {
-        this.pull().then(() => this.push());
+        SyncService.pull().then(() => SyncService.push());
       } else if (nextAppState === 'background') {
-        this.push();
+        if (pushTimeout) {
+          clearTimeout(pushTimeout);
+          pushTimeout = null;
+        }
+        SyncService.push();
       }
     });
   },

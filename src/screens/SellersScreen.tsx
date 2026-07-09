@@ -198,6 +198,29 @@ export default function SellersScreen() {
     return (now.getTime() - lastDate.getTime()) < 5 * 60 * 1000;
   };
 
+  const formatRelativeTime = (dateStr: string | null | undefined) => {
+    if (!dateStr) return t('sellers.neverSynced') || 'никогда';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return t('sellers.neverSynced') || 'никогда';
+
+    const diffMs = Date.now() - d.getTime();
+    const diffSec = Math.floor(diffMs / 1000);
+    const diffMin = Math.floor(diffSec / 60);
+    const diffHr = Math.floor(diffMin / 60);
+    const diffDays = Math.floor(diffHr / 24);
+
+    if (diffSec < 30) {
+      return t('sellers.justNow') || 'только что';
+    }
+    if (diffMin < 60) {
+      return t('sellers.minsAgo', { count: diffMin }) || `${diffMin} мин назад`;
+    }
+    if (diffHr < 24) {
+      return t('sellers.hrsAgo', { count: diffHr }) || `${diffHr} ч назад`;
+    }
+    return t('sellers.daysAgo', { count: diffDays }) || `${diffDays} дн назад`;
+  };
+
   if (loading && !refreshing) {
     return (
       <View style={[styles.container, themeStyles.container, styles.centered]}>
@@ -265,6 +288,9 @@ export default function SellersScreen() {
                   <Text style={[styles.memberName, themeStyles.text]}>{member.displayName}</Text>
                   <Text style={[styles.memberSub, themeStyles.memberSub]}>
                     {memberStats?.salesCount || 0} {t('home.salesCount').toLowerCase()} • {online ? (t('sellers.online') || 'онлайн') : t('sellers.lastActive', { time: new Date(member.lastActiveAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) })}
+                  </Text>
+                  <Text style={[styles.memberSub, themeStyles.memberSub, { marginTop: 2, fontSize: 11 }]}>
+                    {t('products.lastUpdate')}: {formatRelativeTime(member.lastSyncAt)}
                   </Text>
                 </View>
                 <View style={styles.revenueWrap}>
