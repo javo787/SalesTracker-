@@ -6,6 +6,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useAppContext } from '../../context/AppContext';
+import { useShop } from '../../context/ShopContext';
+import { useAuth } from '../../context/AuthContext';
+import { api } from '../../services/api';
 import { addStockIn, addStockWaste, addStockCorrection } from '../../db/database';
 import VoiceRecorder from '../VoiceRecorder';
 import { VoiceSaleResult } from '../../types/voiceSale';
@@ -24,12 +27,22 @@ export default function StockOperationModal({
   const { resolvedTheme, currency } = useAppContext();
   const isDark = resolvedTheme === 'dark';
   const { t } = useTranslation();
+  const { isOwner, role, sellerName } = useShop();
+  const { user } = useAuth();
+
+  const currentSellerId = user?._id || null;
+  const currentSellerName = sellerName || user?.name || null;
 
   const TYPE_LABELS: Record<string, string> = {
     stock_in: t('warehouse.stockIn'),
     waste:    t('warehouse.waste'),
     correction: t('warehouse.correction'),
   };
+
+  // Продавцу доступен только приём товара — списание и сверку делает владелец
+  const availableTypes = (isOwner
+    ? ['stock_in', 'waste', 'correction']
+    : ['stock_in']) as ('stock_in' | 'waste' | 'correction')[];
 
   const [type, setType] = useState<'stock_in' | 'waste' | 'correction'>(initialType);
   const [quantity, setQuantity] = useState('');
@@ -39,15 +52,20 @@ export default function StockOperationModal({
 
   useEffect(() => {
     if (visible) {
-      setType(initialType);
+      setType(isOwner ? initialType : 'stock_in');
       setQuantity('');
       setPrice('');
       setUnitType('base');
       setNote('');
     }
-  }, [visible, initialType]);
+  }, [visible, initialType, isOwner]);
 
   const handleSave = () => {
+    if (!isOwner && type !== 'stock_in') {
+      Alert.alert(t('common.error'), t('sellers.ownerOnly') || 'Доступно только владельцу магазина');
+      return;
+    }
+
     const qty = parseFloat(quantity);
     if (isNaN(qty) || qty <= 0) {
       Alert.alert(t('common.error'), t('warehouse.amount'));
@@ -60,7 +78,17 @@ export default function StockOperationModal({
         Alert.alert(t('common.error'), t('addSale.buyPrice'));
         return;
       }
-      addStockIn(product.id, qty, p, unitType, note);
+      addStockIn(product.id, qty, p, unitType, note, currentSellerId, currentSellerName);
+
+      if (role === 'seller') {
+        api.post('/stock/receipt-log', {
+          productName: product.name,
+          quantity: qty,
+          unit: unitType === 'package' ? (product.package_name || null) : (product.base_unit || null),
+          pricePerUnit: p,
+          note,
+        }).catch(() => {});
+      }
     } else if (type === 'waste') {
       if (qty > product.stock) {
         Alert.alert(
@@ -106,7 +134,7 @@ export default function StockOperationModal({
 
   const renderTabs = () => (
     <View style={styles.tabs}>
-      {(['stock_in', 'waste', 'correction'] as const).map((tId) => (
+      {availableTypes.map((tId) => (
         <TouchableOpacity
           key={tId}
           style={[
@@ -148,7 +176,7 @@ export default function StockOperationModal({
           </View>
 
           <ScrollView style={styles.form} keyboardShouldPersistTaps="handled">
-            {renderTabs()}
+            {availableTypes.length > 1 && renderTabs()}
 
             <Text style={[styles.label, isDark ? styles.textDark : styles.textLight]}>
               {type === 'correction' ? t('warehouse.actualStock') : t('warehouse.amount')}
