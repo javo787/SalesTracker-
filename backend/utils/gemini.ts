@@ -7,6 +7,10 @@ const GEMINI_API_KEYS = [
   process.env.GEMINI_API_KEY_3,
 ].filter(Boolean) as string[];
 
+console.log(`[Gemini Config] Loaded ${GEMINI_API_KEYS.length} key(s)`, {
+  keyPreviews: GEMINI_API_KEYS.map(k => k.slice(0, 4) + '...' + k.slice(-4)),
+});
+
 export const GEMINI_MODELS = {
   LEVEL_1: 'gemini-3-flash-preview',
   LEVEL_1_FALLBACK: 'gemini-flash-latest',
@@ -75,12 +79,7 @@ export async function fetchGeminiWithRotation(model: string, payload: any, optio
 
   let lastError: any;
 
-  for (let i = 0; i < GEMINI_API_KEYS.length; i++) {
-    const key = GEMINI_API_KEYS[i];
-    // DEBUGLOG: не логируем сам ключ, только позицию в ротации — безопасность.
-    const keyLabel = `key#${i + 1}/${GEMINI_API_KEYS.length}`;
-    const startedAt = Date.now();
-
+  for (const [index, key] of GEMINI_API_KEYS.entries()) {
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
       const response = await axios.post(url, payload, {
@@ -89,18 +88,20 @@ export async function fetchGeminiWithRotation(model: string, payload: any, optio
         signal: options.signal,
         timeout: options.timeout || 15000,
       });
-      const latencyMs = Date.now() - startedAt;
 
       if (response.status === 429 || response.status === 403) {
-        console.warn(`[Gemini Rotation] Key failed with ${response.status}, trying next...`);
+        console.warn(`[Gemini Rotation] Key #${index} failed with ${response.status}, trying next...`, {
+          model,
+          errorBody: response.data,
+        });
         continue;
       }
 
       if (response.status < 200 || response.status >= 300) {
-        console.error(`[Gemini Rotation] Non-2xx response`, {
+        console.error(`[Gemini Rotation] Key #${index} non-2xx response`, {
           model,
           status: response.status,
-          data: response.data,
+          errorBody: response.data,
         });
       }
 
@@ -110,13 +111,12 @@ export async function fetchGeminiWithRotation(model: string, payload: any, optio
         data: response.data,
       };
     } catch (err: any) {
+      console.error(`[Gemini Rotation] Key #${index} threw an error`, {
+        model,
+        message: err.message,
+        code: err.code,
+      });
       lastError = err;
-      const latencyMs = Date.now() - startedAt;
-      const isAbort = err.name === 'AbortError' || err.name === 'CanceledError';
-      // DEBUGLOG
-      console.error(
-        `[Gemini Rotation] ${keyLabel} model=${model} threw ${isAbort ? 'ABORT/TIMEOUT' : err.name} (${latencyMs}ms): ${err.message}`
-      );
       continue;
     }
   }
@@ -124,7 +124,8 @@ export async function fetchGeminiWithRotation(model: string, payload: any, optio
   console.error('[Gemini Rotation] All keys exhausted', {
     model,
     keysCount: GEMINI_API_KEYS.length,
-    lastError: lastError?.message,
+    lastErrorMessage: lastError?.message,
+    lastErrorCode: lastError?.code,
   });
   return {
     ok: false,
