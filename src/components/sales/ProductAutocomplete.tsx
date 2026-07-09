@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useAppContext } from '../../context/AppContext';
+import { useShop } from '../../context/ShopContext';
 import { useAutocomplete } from '../../hooks/useAutocomplete';
 import { AutocompleteResult } from '../../types/product';
 import { searchProductsForAutocomplete } from '../../db/database';
@@ -43,6 +44,7 @@ export const ProductAutocomplete = React.forwardRef<any, Props>(({
   const { resolvedTheme, currency } = useAppContext();
   const isDark = resolvedTheme === 'dark';
   const { t } = useTranslation();
+  const { isOwner } = useShop();
 
   const fetchFn = (q: string) => searchProductsForAutocomplete(q) as AutocompleteResult[];
   const fetchTop = () => searchProductsForAutocomplete('') as AutocompleteResult[];
@@ -104,9 +106,11 @@ export const ProductAutocomplete = React.forwardRef<any, Props>(({
             baseStyle={StyleSheet.flatten([styles.itemName, isDark ? styles.textDark : styles.textLight])}
           />
         </View>
-        <Text style={styles.itemPrice}>
-          {item.purchasePrice} {currency.symbol}
-        </Text>
+        {isOwner && (
+          <Text style={styles.itemPrice}>
+            {item.purchasePrice} {currency.symbol}
+          </Text>
+        )}
       </TouchableOpacity>
     );
   };
