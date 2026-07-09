@@ -33,7 +33,7 @@ async function generateInviteCode(): Promise<string> {
 // POST /shop/create — owner creates a shop
 router.post('/create', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const existing = await ShopMember.findOne({ userId: req.userId });
+    const existing = await ShopMember.findOne({ userId: req.userId, isActive: true });
     if (existing) return res.status(409).json({ message: 'Already a member of a shop' });
 
     const { shopName } = req.body;
@@ -74,7 +74,7 @@ router.post('/create', authMiddleware, async (req: AuthRequest, res) => {
 // POST /shop/join — seller joins via invite code
 router.post('/join', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const existing = await ShopMember.findOne({ userId: req.userId });
+    const existing = await ShopMember.findOne({ userId: req.userId, isActive: true });
     if (existing) return res.status(409).json({ message: 'Already a member of a shop' });
 
     const { inviteCode } = req.body;
