@@ -4,7 +4,7 @@ export interface IShop extends Document {
   name: string;
   ownerId: mongoose.Types.ObjectId;
   inviteCode: string;       // 6 symbols A-Z0-9, unique
-  inviteCodeExpiresAt?: Date; // null = eternal
+  inviteCodeExpiresAt?: Date; // код действителен 7 дней с момента (пере)генерации
   isActive: boolean;
   createdAt: Date;
 }

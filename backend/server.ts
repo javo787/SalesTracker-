@@ -82,10 +82,20 @@ const voiceDisambiguateLimiter = rateLimit({
   message: { message: 'Слишком много запросов, подождите минуту.' },
 });
 
+// Строгий лимит на вступление по инвайт-коду — защита от перебора 6-символьного кода.
+const shopJoinLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 8,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Слишком много попыток вступить в магазин. Попробуйте позже.' },
+});
+
 // Порядок важен: конкретный путь регистрируем ДО общего app.use('/auth', authLimiter),
 // чтобы /auth/telegram/check не попадал под authLimiter.
 app.use('/auth/telegram/check', telegramCheckLimiter);
 app.use('/auth', authLimiter);
+app.use('/shop/join', shopJoinLimiter); // ДО app.use('/shop', shopRoutes) ниже
 app.use('/voice-sale', voiceSaleLimiter);
 app.use('/voice-disambiguate', voiceDisambiguateLimiter);
 
