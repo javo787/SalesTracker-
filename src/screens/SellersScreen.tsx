@@ -35,10 +35,10 @@ export default function SellersScreen() {
     try {
       setLoadError(false);
       const [membersData, statsData] = await Promise.all([
-        api.get<ShopMember[]>('/shop/members'),
+        api.get<{ members: ShopMember[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>('/shop/members?limit=100'),
         api.get<{ period: string, stats: SellerStats[] }>(`/shop/seller-stats?period=${period}`)
       ]);
-      setMembers(membersData);
+      setMembers(membersData.members);
       setStats(statsData.stats);
     } catch (e) {
       console.error('Failed to load sellers:', e);

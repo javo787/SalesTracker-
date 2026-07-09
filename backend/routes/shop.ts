@@ -3,6 +3,7 @@ import Shop from '../models/Shop';
 import ShopMember from '../models/ShopMember';
 import Sale from '../models/Sale';
 import User from '../models/User';
+import ShopAuditLog from '../models/ShopAuditLog';
 import { authMiddleware, requireShop, requireOwner, AuthRequest } from '../middleware/authMiddleware';
 import mongoose from 'mongoose';
 
@@ -42,11 +43,13 @@ router.post('/create', authMiddleware, async (req: AuthRequest, res) => {
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     const inviteCode = await generateInviteCode();
+    const INVITE_CODE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 дней
 
     const shop = await Shop.create({
       name: shopName.trim(),
       ownerId: req.userId,
       inviteCode,
+      inviteCodeExpiresAt: new Date(Date.now() + INVITE_CODE_TTL_MS),
     });
 
     await ShopMember.create({
@@ -78,10 +81,16 @@ router.post('/join', authMiddleware, async (req: AuthRequest, res) => {
     if (!inviteCode?.trim()) return res.status(400).json({ message: 'Invite code is required' });
 
     const shop = await Shop.findOne({ inviteCode: inviteCode.toUpperCase().trim(), isActive: true });
-    if (!shop) return res.status(404).json({ message: 'Invalid or expired invite code' });
+    if (!shop) {
+      return res.status(404).json({
+        message: 'Неверный код приглашения. Возможно, владелец уже перевыпустил его — уточните актуальный код.',
+      });
+    }
 
     if (shop.inviteCodeExpiresAt && shop.inviteCodeExpiresAt < new Date()) {
-      return res.status(410).json({ message: 'Invite code has expired. Ask the owner for a new one.' });
+      return res.status(410).json({
+        message: 'Срок действия кода истёк. Попросите владельца магазина перевыпустить код.',
+      });
     }
 
     const user = await User.findById(req.userId);
@@ -93,6 +102,13 @@ router.post('/join', authMiddleware, async (req: AuthRequest, res) => {
       role: 'seller',
       displayName: user.name,
     });
+
+    ShopAuditLog.create({
+      shopId: shop._id,
+      actorUserId: req.userId,
+      actorName: user.name,
+      action: 'member_joined',
+    }).catch(e => console.error('Audit log error (member_joined):', e));
 
     res.status(200).json({
       shopId: shop._id,
@@ -130,9 +146,18 @@ router.get('/info', authMiddleware, requireShop, async (req: AuthRequest, res) =
 // GET /shop/members — list of sellers (owner only)
 router.get('/members', authMiddleware, requireShop, requireOwner, async (req: AuthRequest, res) => {
   try {
+    const page = Math.max(parseInt(req.query.page as string) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 100);
+    const skip = (page - 1) * limit;
+
+    const totalCount = await ShopMember.countDocuments({ shopId: req.shopId });
+
     const members = await ShopMember.find({ shopId: req.shopId })
       .select('userId displayName role isActive joinedAt lastActiveAt')
       .populate('userId', 'lastSyncAt')
+      .sort({ joinedAt: 1 })
+      .skip(skip)
+      .limit(limit)
       .lean();
 
     const todayStr = localDateString(new Date());
@@ -173,7 +198,10 @@ router.get('/members', authMiddleware, requireShop, requireOwner, async (req: Au
       };
     });
 
-    res.json(mappedMembers);
+    res.json({
+      members: mappedMembers,
+      pagination: { page, limit, total: totalCount, totalPages: Math.ceil(totalCount / limit) },
+    });
   } catch (error) {
     console.error('Fetch members error:', error);
     res.status(500).json({ message: 'Error fetching members' });
@@ -211,6 +239,22 @@ router.patch('/members/:userId/role', authMiddleware, requireShop, requireOwner,
       await Shop.findByIdAndUpdate(req.shopId, { ownerId: userId }, { session });
     });
 
+    let actorName = req.sellerName;
+    if (!actorName) {
+      const u = await User.findById(req.userId);
+      actorName = u ? u.name : 'Unknown';
+    }
+
+    ShopAuditLog.create({
+      shopId: req.shopId,
+      actorUserId: req.userId,
+      actorName,
+      action: 'ownership_transferred',
+      targetUserId: new mongoose.Types.ObjectId(userId),
+      targetName: targetMember.displayName,
+      metadata: { previousOwnerId: req.userId },
+    }).catch(e => console.error('Audit log error (ownership_transferred):', e));
+
     res.json({
       message: 'Ownership transferred successfully',
       newOwnerId: userId,
@@ -243,6 +287,20 @@ router.post('/leave', authMiddleware, requireShop, async (req: AuthRequest, res)
         member.isActive = false;
         await member.save();
         await Shop.findByIdAndUpdate(req.shopId, { isActive: false });
+
+        let actorName = req.sellerName;
+        if (!actorName) {
+          const u = await User.findById(req.userId);
+          actorName = u ? u.name : 'Unknown';
+        }
+
+        ShopAuditLog.create({
+          shopId: req.shopId,
+          actorUserId: req.userId,
+          actorName,
+          action: 'member_left',
+        }).catch(e => console.error('Audit log error (member_left - owner):', e));
+
         return res.json({ message: 'Shop archived' });
       }
     }
@@ -250,6 +308,20 @@ router.post('/leave', authMiddleware, requireShop, async (req: AuthRequest, res)
     // Regular seller leaving
     member.isActive = false;
     await member.save();
+
+    let actorName = req.sellerName;
+    if (!actorName) {
+      const u = await User.findById(req.userId);
+      actorName = u ? u.name : 'Unknown';
+    }
+
+    ShopAuditLog.create({
+      shopId: req.shopId,
+      actorUserId: req.userId,
+      actorName,
+      action: 'member_left',
+    }).catch(e => console.error('Audit log error (member_left):', e));
+
     res.json({ message: 'You have left the shop' });
   } catch (error) {
     console.error('Leave shop error:', error);
@@ -269,6 +341,21 @@ router.delete('/members/:userId', authMiddleware, requireShop, requireOwner, asy
     member.isActive = false;
     await member.save();
 
+    let actorName = req.sellerName;
+    if (!actorName) {
+      const u = await User.findById(req.userId);
+      actorName = u ? u.name : 'Unknown';
+    }
+
+    ShopAuditLog.create({
+      shopId: req.shopId,
+      actorUserId: req.userId,
+      actorName,
+      action: 'member_removed',
+      targetUserId: new mongoose.Types.ObjectId(userId),
+      targetName: member.displayName,
+    }).catch(e => console.error('Audit log error (member_removed):', e));
+
     res.json({ message: 'Member deactivated successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Error removing member' });
@@ -279,8 +366,27 @@ router.delete('/members/:userId', authMiddleware, requireShop, requireOwner, asy
 router.post('/regenerate-code', authMiddleware, requireShop, requireOwner, async (req: AuthRequest, res) => {
   try {
     const newCode = await generateInviteCode();
-    await Shop.findByIdAndUpdate(req.shopId, { inviteCode: newCode });
-    res.json({ inviteCode: newCode });
+    const INVITE_CODE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+    const expiresAt = new Date(Date.now() + INVITE_CODE_TTL_MS);
+    await Shop.findByIdAndUpdate(req.shopId, {
+      inviteCode: newCode,
+      inviteCodeExpiresAt: expiresAt,
+    });
+
+    let actorName = req.sellerName;
+    if (!actorName) {
+      const u = await User.findById(req.userId);
+      actorName = u ? u.name : 'Unknown';
+    }
+
+    ShopAuditLog.create({
+      shopId: req.shopId,
+      actorUserId: req.userId,
+      actorName,
+      action: 'invite_code_regenerated',
+    }).catch(e => console.error('Audit log error (invite_code_regenerated):', e));
+
+    res.json({ inviteCode: newCode, expiresAt });
   } catch (error) {
     res.status(500).json({ message: 'Error regenerating invite code' });
   }
@@ -323,6 +429,20 @@ router.get('/seller-stats', authMiddleware, requireShop, requireOwner, async (re
     res.json({ period, stats });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching seller stats' });
+  }
+});
+
+// GET /shop/audit-log — лента событий команды (owner only)
+router.get('/audit-log', authMiddleware, requireShop, requireOwner, async (req: AuthRequest, res) => {
+  try {
+    const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 30, 1), 100);
+    const logs = await ShopAuditLog.find({ shopId: req.shopId })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+    res.json(logs);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching audit log' });
   }
 });
 
