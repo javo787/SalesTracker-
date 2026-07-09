@@ -127,7 +127,11 @@ router.post('/', authMiddleware, requireShop, (req, res, next) => {
       }
     }, { signal: controller.signal });
 
-    logStep('level1_primary_response', { ok: geminiResponse.ok, status: geminiResponse.status });
+    logStep('level1_primary_response', {
+      ok: geminiResponse.ok,
+      status: geminiResponse.status,
+      errorBody: geminiResponse.ok ? undefined : geminiResponse.data,
+    });
 
     if (!geminiResponse.ok) {
        logStep('level1_fallback_triggered', { primaryStatus: geminiResponse.status });
@@ -144,7 +148,11 @@ router.post('/', authMiddleware, requireShop, (req, res, next) => {
            thinkingConfig: { thinkingLevel: "low" }
          }
        }, { signal: controller.signal });
-       logStep('level1_fallback_response', { ok: geminiResponse.ok, status: geminiResponse.status });
+       logStep('level1_fallback_response', {
+         ok: geminiResponse.ok,
+         status: geminiResponse.status,
+         errorBody: geminiResponse.ok ? undefined : geminiResponse.data,
+       });
     }
 
     if (geminiResponse.ok) {
@@ -202,7 +210,11 @@ router.post('/', authMiddleware, requireShop, (req, res, next) => {
       }
     }, { signal: controller.signal });
 
-    logStep('level2_primary_response', { ok: geminiResponse.ok, status: geminiResponse.status });
+    logStep('level2_primary_response', {
+      ok: geminiResponse.ok,
+      status: geminiResponse.status,
+      errorBody: geminiResponse.ok ? undefined : geminiResponse.data,
+    });
 
     if (!geminiResponse.ok) {
        logStep('level2_fallback_triggered', { primaryStatus: geminiResponse.status });
@@ -218,7 +230,11 @@ router.post('/', authMiddleware, requireShop, (req, res, next) => {
            thinkingConfig: { thinkingLevel: "low" }
          }
        }, { signal: controller.signal });
-       logStep('level2_fallback_response', { ok: geminiResponse.ok, status: geminiResponse.status });
+       logStep('level2_fallback_response', {
+         ok: geminiResponse.ok,
+         status: geminiResponse.status,
+         errorBody: geminiResponse.ok ? undefined : geminiResponse.data,
+       });
     }
 
     if (geminiResponse.ok) {
