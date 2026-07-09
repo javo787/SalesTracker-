@@ -377,11 +377,11 @@ function runMigrations() {
   }
 
   {
-    const schemaV7MigrationDone = db.getFirstSync(
-      "SELECT value FROM app_meta WHERE key = 'schema_v7'"
+    const schemaV8MigrationDone = db.getFirstSync(
+      "SELECT value FROM app_meta WHERE key = 'schema_v8'"
     ) as { value: string } | null;
 
-    if (!schemaV7MigrationDone) {
+    if (!schemaV8MigrationDone) {
       db.withTransactionSync(() => {
         const movementCols = db.getAllSync("PRAGMA table_info(stock_movements)") as any[];
         if (!movementCols.some(c => c.name === 'seller_id')) {
@@ -390,7 +390,7 @@ function runMigrations() {
         if (!movementCols.some(c => c.name === 'seller_name')) {
           db.execSync("ALTER TABLE stock_movements ADD COLUMN seller_name TEXT");
         }
-        db.runSync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_v7', 'done')");
+        db.runSync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_v8', 'done')");
       });
     }
   }
