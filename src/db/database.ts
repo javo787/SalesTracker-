@@ -68,6 +68,7 @@ function runMigrations() {
       stock_updated INTEGER DEFAULT 0,
       created_at TEXT,
       is_pending_review INTEGER DEFAULT 0,
+      synced INTEGER DEFAULT 0,
       FOREIGN KEY (product_id) REFERENCES products(id)
     );
 
@@ -249,6 +250,7 @@ function runMigrations() {
           remote_id TEXT,
           order_id INTEGER,
           is_pending_review INTEGER DEFAULT 0,
+          synced INTEGER DEFAULT 0,
           FOREIGN KEY (product_id) REFERENCES products(id)
         );
       `);
@@ -318,6 +320,59 @@ function runMigrations() {
         WHERE initial_stock IS NULL
       `);
       db.runSync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_v6', 'done')");
+    });
+  }
+
+  const schemaV7MigrationDone = db.getFirstSync(
+    "SELECT value FROM app_meta WHERE key = 'schema_v7'"
+  ) as { value: string } | null;
+
+  if (!schemaV7MigrationDone) {
+    db.withTransactionSync(() => {
+      // Recreate sales table to add synced column and make sure schema is clean
+      db.execSync(`
+        CREATE TABLE sales_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          product_id INTEGER,
+          product_name TEXT,
+          quantity INTEGER DEFAULT 1,
+          sell_price REAL NOT NULL,
+          buy_price REAL,
+          profit REAL,
+          note TEXT,
+          stock_updated INTEGER DEFAULT 0,
+          created_at TEXT,
+          seller_id TEXT,
+          seller_name TEXT,
+          stock_warning INTEGER DEFAULT 0,
+          remote_id TEXT,
+          order_id INTEGER,
+          is_pending_review INTEGER DEFAULT 0,
+          synced INTEGER DEFAULT 0,
+          FOREIGN KEY (product_id) REFERENCES products(id)
+        );
+      `);
+
+      const columns = [
+        'id', 'product_id', 'product_name', 'quantity', 'sell_price', 'buy_price',
+        'profit', 'note', 'stock_updated', 'created_at', 'seller_id', 'seller_name',
+        'stock_warning', 'remote_id', 'order_id', 'is_pending_review'
+      ];
+
+      const tableInfo = db.getAllSync("PRAGMA table_info(sales)") as any[];
+      const existingCols = columns.filter(c => tableInfo.some(ti => ti.name === c));
+      const colsStr = existingCols.join(', ');
+
+      db.execSync(`INSERT INTO sales_new (${colsStr}) SELECT ${colsStr} FROM sales`);
+      db.execSync('DROP TABLE sales');
+      db.execSync('ALTER TABLE sales_new RENAME TO sales');
+
+      // Recreate indexes
+      db.execSync('CREATE INDEX IF NOT EXISTS idx_sales_product_id ON sales(product_id)');
+      db.execSync('CREATE INDEX IF NOT EXISTS idx_sales_product_name ON sales(product_name)');
+      db.execSync('CREATE INDEX IF NOT EXISTS idx_sales_created_at ON sales(created_at)');
+
+      db.runSync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_v7', 'done')");
     });
   }
 
@@ -547,9 +602,17 @@ export function getProducts() {
   return db.getAllSync('SELECT * FROM products WHERE is_deleted = 0 ORDER BY name ASC');
 }
 
-export function getProductsForSync() {
-  // Returns ALL products including soft-deleted ones, for sync purposes
+export function getUnsyncedSales() {
+  return db.getAllSync('SELECT * FROM sales WHERE synced = 0 ORDER BY created_at ASC');
+}
+
+export function getAllProductsForSync() {
   return db.getAllSync('SELECT * FROM products ORDER BY name ASC');
+}
+
+export function getProductsForSync() {
+  // Returns unsynced products including soft-deleted ones, for sync purposes
+  return db.getAllSync('SELECT * FROM products WHERE synced = 0 ORDER BY name ASC');
 }
 
 export function getDistinctCategories(): string[] {

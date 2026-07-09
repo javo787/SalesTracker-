@@ -97,7 +97,7 @@ router.post('/push', authMiddleware, requireShop, async (req: AuthRequest, res) 
             // Still decrement stock (it might go negative)
             await Product.findOneAndUpdate(
               { shopId: shopObjectId, localId: s.product_id },
-              { $inc: { stock: -s.quantity } }
+              { $inc: { stock: -s.quantity }, $set: { updated_at: new Date().toISOString() } }
             );
           }
         }
@@ -116,12 +116,17 @@ router.post('/push', authMiddleware, requireShop, async (req: AuthRequest, res) 
 router.get('/pull', authMiddleware, requireShop, async (req: AuthRequest, res) => {
   const shopObjectId = new mongoose.Types.ObjectId(req.shopId!);
   const isOwner = req.role === 'owner';
+  const { since } = req.query;
+  const asOf = new Date().toISOString();
 
   try {
     // Products: everyone gets them, but buy_price is owner only
-    // Products: everyone gets them, but buy_price is owner only
     // Include all products including deleted ones for sync purposes
-    const productsRaw = await Product.find({ shopId: shopObjectId }).lean();
+    const productQuery: any = { shopId: shopObjectId };
+    if (since) {
+      productQuery.updated_at = { $gte: since as string };
+    }
+    const productsRaw = await Product.find(productQuery).lean();
 
     const products = productsRaw.map((p: any) => {
       if (!isOwner) {
@@ -139,6 +144,9 @@ router.get('/pull', authMiddleware, requireShop, async (req: AuthRequest, res) =
     if (!isOwner) {
       salesQuery.sellerId = new mongoose.Types.ObjectId(req.userId!);
     }
+    if (since) {
+      salesQuery.created_at = { $gte: since as string };
+    }
 
     const salesRaw = await Sale.find(salesQuery).lean();
 
@@ -151,7 +159,7 @@ router.get('/pull', authMiddleware, requireShop, async (req: AuthRequest, res) =
       return s;
     });
 
-    res.json({ products, sales, role: req.role, shopId: req.shopId });
+    res.json({ products, sales, role: req.role, shopId: req.shopId, asOf });
   } catch (error) {
     console.error('Pull error:', error);
     res.status(500).json({ message: 'Error during pull sync' });

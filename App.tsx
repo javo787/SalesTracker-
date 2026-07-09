@@ -14,6 +14,7 @@ import { I18nextProvider, useTranslation } from 'react-i18next';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initDatabase, getOverdueDebts } from './src/db/database';
 import { requestPermissions, showRemoteNotification, notifyOverdueDebts, registerFCMToken, setupPushHandlers } from './src/utils/notifications';
+import { SyncService } from './src/services/syncService';
 import i18n from './src/i18n/i18n';
 import messaging from '@react-native-firebase/messaging';
 import * as Notifications from 'expo-notifications';
@@ -321,6 +322,11 @@ function AppContent({ onReady }: { onReady: () => void }) {
 
   const { currency } = useAppContext();
   const { hasShop, isLoading: isShopLoading, shopRevoked, setShopRevoked } = useShop();
+
+  useEffect(() => {
+    // Initialize auto sync (push/pull delta trigger listeners) at app startup
+    SyncService.initAutoSync();
+  }, []);
 
   useEffect(() => {
     if (shopRevoked) {

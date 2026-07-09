@@ -132,6 +132,7 @@ router.get('/members', authMiddleware, requireShop, requireOwner, async (req: Au
   try {
     const members = await ShopMember.find({ shopId: req.shopId })
       .select('userId displayName role isActive joinedAt lastActiveAt')
+      .populate('userId', 'lastSyncAt')
       .lean();
 
     const todayStr = localDateString(new Date());
@@ -152,19 +153,27 @@ router.get('/members', authMiddleware, requireShop, requireOwner, async (req: Au
       },
     ]);
 
-    const statsMap = new Map(stats.map(s => [s._id.toString(), s]));
+    const statsMap = new Map(stats.map(s => [s._id ? s._id.toString() : '', s]));
 
-    const sellersWithStats = members.map((m) => {
-      const s = statsMap.get(m.userId.toString());
+    const mappedMembers = members.map((m: any) => {
+      const stringId = m.userId && m.userId._id ? m.userId._id.toString() : String(m.userId);
+      const s = statsMap.get(stringId);
+      const lastSyncAt = m.userId && typeof m.userId === 'object' ? m.userId.lastSyncAt : null;
       return {
-        ...m,
-        isSelf: m.userId.toString() === req.userId,
+        userId: stringId,
+        displayName: m.displayName,
+        role: m.role,
+        isActive: m.isActive,
+        joinedAt: m.joinedAt,
+        lastActiveAt: m.lastActiveAt,
+        lastSyncAt: lastSyncAt ? lastSyncAt.toISOString ? lastSyncAt.toISOString() : String(lastSyncAt) : null,
+        isSelf: stringId === req.userId,
         todayRevenue: s?.todayRevenue || 0,
         todaySalesCount: s?.todaySalesCount || 0,
       };
     });
 
-    res.json(sellersWithStats);
+    res.json(mappedMembers);
   } catch (error) {
     console.error('Fetch members error:', error);
     res.status(500).json({ message: 'Error fetching members' });

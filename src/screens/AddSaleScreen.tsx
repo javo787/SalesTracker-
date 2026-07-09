@@ -14,6 +14,7 @@ import { scheduleDebtReminder } from '../utils/notifications';
 import { toISODate } from '../utils/dateUtils';
 import { analyticsService } from '../services/analyticsService';
 import { reviewService } from '../services/reviewService';
+import { SyncService } from '../services/syncService';
 import VoiceRecorder from '../components/VoiceRecorder';
 import VoiceBatchReview from '../components/VoiceBatchReview';
 import { VoiceSaleResult, VoiceSaleItem } from '../types/voiceSale';
@@ -562,6 +563,9 @@ export default function AddSaleScreen(/* props */) {
       payment_type: paymentType,
     });
     reviewService.incrementSalesAndCheck();
+
+    // Trigger background auto sync with debounce
+    SyncService.pushDebounced();
 
     const savedItems = finalItems; // те же позиции что идут в БД
     const savedTotal = savedItems.reduce(
