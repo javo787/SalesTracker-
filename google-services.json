@@ -18,15 +18,7 @@
           "client_type": 1,
           "android_info": {
             "package_name": "com.torgo.app",
-            "certificate_hash": "60876435b7f6ac9688da454263d6cfda03f2e258"
-          }
-        },
-        {
-          "client_id": "265164441201-ch6r4k5jggf82o7a4jr61drh35m16f2s.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.torgo.app",
-            "certificate_hash": "9d86f6125b3b452cec5c78bec2c3b68cdf57ea4d"
+            "certificate_hash": "339729db937ccd915387dea08883f295fc73dd4f"
           }
         },
         {
