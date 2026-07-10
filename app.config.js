@@ -1,18 +1,18 @@
-{
-  "expo": {
-    "name": "Torgo",
-    "slug": "torgo-app",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "platforms": [
+module.exports = ({ config }) => ({
+  expo: {
+    name: "Torgo",
+    slug: "torgo-app",
+    version: "1.0.0",
+    orientation: "portrait",
+    icon: "./assets/icon.png",
+    platforms: [
       "android"
     ],
-    "scheme": "torgo",
-    "android": {
-      "package": "com.torgo.app",
-      "googleServicesFile": "./google-services.json",
-      "permissions": [
+    scheme: "torgo",
+    android: {
+      package: "com.torgo.app",
+      googleServicesFile: "./google-services.json",
+      permissions: [
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.USE_BIOMETRIC",
@@ -20,17 +20,22 @@
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
         "android.permission.USE_FINGERPRINT"
       ],
-      "softwareKeyboardLayoutMode": "pan",
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon-fg.png",
-        "backgroundColor": "#1D9E75"
+      softwareKeyboardLayoutMode: "pan",
+      adaptiveIcon: {
+        foregroundImage: "./assets/adaptive-icon-fg.png",
+        backgroundColor: "#1D9E75"
+      },
+      config: {
+        googleMaps: {
+          apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_ANDROID
+        }
       }
     },
-    "updates": {
-      "url": "https://u.expo.dev/9a8cb8e4-5c8c-4147-942b-46ea4c65fb4a"
+    updates: {
+      url: "https://u.expo.dev/9a8cb8e4-5c8c-4147-942b-46ea4c65fb4a"
     },
-    "runtimeVersion": "1.0.0",
-    "plugins": [
+    runtimeVersion: "1.0.0",
+    plugins: [
       [
         "expo-audio",
         {
@@ -77,34 +82,34 @@
         }
       ]
     ],
-    "ios": {
-      "bundleIdentifier": "com.torgo.app",
-      "googleServicesFile": "./GoogleService-Info.plist",
-      "infoPlist": {
+    ios: {
+      bundleIdentifier: "com.torgo.app",
+      googleServicesFile: "./GoogleService-Info.plist",
+      infoPlist: {
         "NSSpeechRecognitionUsageDescription": "Allow $(PRODUCT_NAME) to use speech recognition.",
         "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to use the microphone."
       }
     },
-    "web": {
-      "favicon": "./assets/favicon.png",
-      "bundler": "metro",
-      "pwa": {
-        "enabled": true,
-        "display": "standalone",
-        "orientation": "portrait",
-        "themeColor": "#1D9E75",
-        "backgroundColor": "#1D9E75",
-        "name": "Torgo",
-        "shortName": "Torgo",
-        "description": "Умный помощник для торговли",
-        "lang": "ru"
+    web: {
+      favicon: "./assets/favicon.png",
+      bundler: "metro",
+      pwa: {
+        enabled: true,
+        display: "standalone",
+        orientation: "portrait",
+        themeColor: "#1D9E75",
+        backgroundColor: "#1D9E75",
+        name: "Torgo",
+        shortName: "Torgo",
+        description: "Умный помощник для торговли",
+        lang: "ru"
       }
     },
-    "owner": "javohirbeks-project",
-    "extra": {
-      "eas": {
-        "projectId": "9a8cb8e4-5c8c-4147-942b-46ea4c65fb4a"
+    owner: "javohirbeks-project",
+    extra: {
+      eas: {
+        projectId: "9a8cb8e4-5c8c-4147-942b-46ea4c65fb4a"
       }
     }
   }
-}
+});
