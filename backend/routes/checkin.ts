@@ -1,10 +1,20 @@
 import express from 'express';
-import { authMiddleware, requireShop, AuthRequest } from '../middleware/authMiddleware';
+import mongoose from 'mongoose';
+import { authMiddleware, requireShop, requireOwner, AuthRequest } from '../middleware/authMiddleware';
 import Shop from '../models/Shop';
 import ShiftCheckIn from '../models/ShiftCheckIn';
+import ShopMember from '../models/ShopMember';
+import ShopAuditLog from '../models/ShopAuditLog';
 import { hashNfcTagUid } from '../utils/hash';
 
 const router = express.Router();
+
+function localDateString(d: Date): string {
+  // Tajikistan/Uzbekistan is UTC+5.
+  // We add 5 hours to the UTC date to get the local date string.
+  const localDate = new Date(d.getTime() + 5 * 60 * 60 * 1000);
+  return localDate.toISOString().split('T')[0];
+}
 
 // Helper to compute haversine distance in meters
 function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -185,6 +195,197 @@ router.get('/today', authMiddleware, requireShop, async (req: AuthRequest, res) 
   } catch (error) {
     console.error('Fetch check-in today error:', error);
     res.status(500).json({ message: 'Error fetching today check-in record' });
+  }
+});
+
+// PATCH /shop/checkin/:userId/manual-confirm — Manual confirm check-in (owner only)
+router.patch('/:userId/manual-confirm', authMiddleware, requireShop, requireOwner, async (req: AuthRequest, res) => {
+  try {
+    const { userId } = req.params;
+    const { localDate } = req.body;
+
+    if (!localDate || typeof localDate !== 'string') {
+      return res.status(400).json({ message: 'localDate is required' });
+    }
+
+    // Restriction: only allow this for localDate within the last 7 days (reject older dates with 400 'DATE_TOO_OLD')
+    const targetDate = new Date(localDate);
+    if (isNaN(targetDate.getTime())) {
+      return res.status(400).json({ message: 'Invalid localDate format' });
+    }
+
+    const todayStr = localDateString(new Date());
+    const todayDate = new Date(todayStr);
+
+    const diffMs = todayDate.getTime() - targetDate.getTime();
+    const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+
+    if (diffDays > 7 || diffDays < 0) {
+      return res.status(400).json({ code: 'DATE_TOO_OLD', message: 'Date is too old or in the future' });
+    }
+
+    const targetMember = await ShopMember.findOne({ shopId: req.shopId, userId, isActive: true });
+    if (!targetMember) {
+      return res.status(404).json({ message: 'Shop member not found' });
+    }
+
+    const shop = await Shop.findById(req.shopId);
+    if (!shop) {
+      return res.status(404).json({ message: 'Shop not found' });
+    }
+
+    let record = await ShiftCheckIn.findOne({
+      shopId: req.shopId,
+      userId,
+      localDate,
+    });
+
+    const checkInSettings = shop.checkInSettings;
+    const requiredMethodsCount = checkInSettings?.verificationMode === 'two_factor' ? 2 : 1;
+
+    if (!record) {
+      record = new ShiftCheckIn({
+        shopId: req.shopId,
+        userId,
+        sellerName: targetMember.displayName,
+        localDate,
+        methodsUsed: [],
+        status: 'confirmed',
+        requiredMethodsCount,
+        ownerOverride: true,
+        overrideBy: new mongoose.Types.ObjectId(req.userId),
+        overrideAt: new Date(),
+      });
+    } else {
+      record.status = 'confirmed';
+      record.ownerOverride = true;
+      record.overrideBy = new mongoose.Types.ObjectId(req.userId);
+      record.overrideAt = new Date();
+    }
+
+    await record.save();
+
+    // Log to ShopAuditLog with action 'checkin_manual_override'
+    await ShopAuditLog.create({
+      shopId: req.shopId,
+      actorUserId: req.userId,
+      actorName: req.sellerName || 'Owner',
+      action: 'checkin_manual_override',
+      targetUserId: new mongoose.Types.ObjectId(userId),
+      targetName: targetMember.displayName,
+      metadata: { localDate },
+    }).catch(e => console.error('Audit log error (checkin_manual_override):', e));
+
+    return res.status(200).json(record);
+  } catch (error) {
+    console.error('Manual confirm error:', error);
+    res.status(500).json({ message: 'Internal server error during manual confirmation' });
+  }
+});
+
+// GET /shop/checkin/history — Get check-in history for all active shop members (owner only)
+router.get('/history', authMiddleware, requireShop, requireOwner, async (req: AuthRequest, res) => {
+  try {
+    const { period = 'week', startDate } = req.query;
+
+    const start = startDate && typeof startDate === 'string' ? new Date(startDate) : new Date();
+    if (isNaN(start.getTime())) {
+      return res.status(400).json({ message: 'Invalid startDate' });
+    }
+
+    const todayStr = startDate && typeof startDate === 'string' ? startDate : localDateString(start);
+    const today = new Date(todayStr);
+
+    let fromDateStr: string;
+    let datesToFill: string[] = [];
+
+    if (period === 'week') {
+      // 7 days ago including today
+      const datesList: string[] = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i);
+        datesList.push(localDateString(d));
+      }
+      fromDateStr = datesList[0];
+      datesToFill = datesList;
+    } else if (period === 'month') {
+      // Current month's days from day 1 to today
+      const datesList: string[] = [];
+      const dayCount = today.getDate();
+      for (let i = dayCount - 1; i >= 0; i--) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i);
+        datesList.push(localDateString(d));
+      }
+      fromDateStr = todayStr.substring(0, 8) + '01';
+      datesToFill = datesList;
+    } else {
+      return res.status(400).json({ message: 'Invalid period parameter' });
+    }
+
+    // Find active shop members with role 'seller', and the owner if they are marked as checking in
+    const activeMembers = await ShopMember.find({
+      shopId: req.shopId,
+      isActive: true,
+    }).select('userId displayName role').lean();
+
+    // Fetch ShiftCheckIn records for this period
+    const checkIns = await ShiftCheckIn.find({
+      shopId: req.shopId,
+      localDate: { $in: datesToFill },
+    }).lean();
+
+    // Map of ShiftCheckIn records by key "userId:localDate"
+    const checkInMap = new Map<string, typeof checkIns[0]>();
+    const usersWhoCheckedIn = new Set<string>();
+
+    for (const ci of checkIns) {
+      const uId = ci.userId.toString();
+      checkInMap.set(`${uId}:${ci.localDate}`, ci);
+      usersWhoCheckedIn.add(uId);
+    }
+
+    const finalMembersList = activeMembers.filter(member => {
+      if (member.role === 'seller') return true;
+      if (member.role === 'owner') {
+        // Only include owner if they actually checked in at least once in this period
+        return usersWhoCheckedIn.has(member.userId.toString());
+      }
+      return false;
+    });
+
+    const result = finalMembersList.map(member => {
+      const uId = member.userId.toString();
+      const days = datesToFill.map(date => {
+        const record = checkInMap.get(`${uId}:${date}`);
+        if (!record) {
+          return {
+            localDate: date,
+            status: 'missing',
+            methodsUsed: [],
+            ownerOverride: false,
+          };
+        }
+        return {
+          localDate: date,
+          status: record.status,
+          methodsUsed: record.methodsUsed || [],
+          ownerOverride: record.ownerOverride || false,
+        };
+      });
+
+      return {
+        userId: uId,
+        sellerName: member.displayName,
+        days,
+      };
+    });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('Check-in history error:', error);
+    res.status(500).json({ message: 'Internal server error fetching check-in history' });
   }
 });
 

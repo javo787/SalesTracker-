@@ -13,6 +13,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Colors, Shadow } from '../constants/theme';
 import { useAppContext } from '../context/AppContext';
 import { ShopMember, SellerStats } from '../types/auth';
+import { todayLocalDate } from '../db/database';
 
 export default function SellersScreen() {
   const { t } = useTranslation();
@@ -25,6 +26,7 @@ export default function SellersScreen() {
 
   const [members, setMembers] = useState<ShopMember[]>([]);
   const [stats, setStats] = useState<SellerStats[]>([]);
+  const [checkInHistory, setCheckInHistory] = useState<any[]>([]);
   const [period, setPeriod] = useState<'today' | 'week' | 'month'>('today');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -34,12 +36,14 @@ export default function SellersScreen() {
     if (!isOwner) return;
     try {
       setLoadError(false);
-      const [membersData, statsData] = await Promise.all([
+      const [membersData, statsData, checkInData] = await Promise.all([
         api.get<{ members: ShopMember[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>('/shop/members?limit=100'),
-        api.get<{ period: string, stats: SellerStats[] }>(`/shop/seller-stats?period=${period}`)
+        api.get<{ period: string, stats: SellerStats[] }>(`/shop/seller-stats?period=${period}`),
+        api.get<any[]>('/shop/checkin/history?period=week').catch(() => [])
       ]);
       setMembers(membersData.members);
       setStats(statsData.stats);
+      setCheckInHistory(checkInData);
     } catch (e) {
       console.error('Failed to load sellers:', e);
       setLoadError(true);
@@ -292,6 +296,73 @@ export default function SellersScreen() {
                   <Text style={[styles.memberSub, themeStyles.memberSub, { marginTop: 2, fontSize: 11 }]}>
                     {t('products.lastUpdate')}: {formatRelativeTime(member.lastSyncAt)}
                   </Text>
+
+                  {/* Today Presence Check-in Badge */}
+                  {(() => {
+                    const todayStr = todayLocalDate();
+                    const userRecord = checkInHistory.find((h: any) => h.userId === member.userId);
+                    const todayEntry = userRecord?.days?.find((d: any) => d.localDate === todayStr);
+
+                    if (!todayEntry || todayEntry.status === 'missing') {
+                      return (
+                        <TouchableOpacity
+                          style={styles.badgeBtn}
+                          onPress={() => (navigation as any).navigate('CheckInHistory', { userId: member.userId, sellerName: member.displayName })}
+                        >
+                          <View style={[styles.inlineBadge, { backgroundColor: '#EF5350' }]}>
+                            <Text style={styles.badgeText}>❌ {t('checkIn.statusMissingLabel', 'не отмечен')}</Text>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    }
+
+                    if (todayEntry.status === 'partial') {
+                      const methodNames = (todayEntry.methodsUsed || []).map((m: any) => m.method.toUpperCase()).join(', ');
+                      return (
+                        <TouchableOpacity
+                          style={styles.badgeBtn}
+                          onPress={() => (navigation as any).navigate('CheckInHistory', { userId: member.userId, sellerName: member.displayName })}
+                        >
+                          <View style={[styles.inlineBadge, { backgroundColor: '#FFA726' }]}>
+                            <Text style={styles.badgeText}>
+                              ⚠️ {t('checkIn.statusPartial', 'частично')}{methodNames ? ` (${methodNames})` : ''}
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    }
+
+                    if (todayEntry.status === 'confirmed') {
+                      if (todayEntry.ownerOverride) {
+                        return (
+                          <TouchableOpacity
+                            style={styles.badgeBtn}
+                            onPress={() => (navigation as any).navigate('CheckInHistory', { userId: member.userId, sellerName: member.displayName })}
+                          >
+                            <View style={[styles.inlineBadge, { backgroundColor: '#42A5F5', opacity: 0.85 }]}>
+                              <Text style={styles.badgeText}>🛡️ {t('checkIn.statusOverrideBadge', 'подтверждено владельцем')}</Text>
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      }
+
+                      const firstMethod = todayEntry.methodsUsed?.[0];
+                      const timeStr = firstMethod ? new Date(firstMethod.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+                      const methodStr = firstMethod ? firstMethod.method.toUpperCase() : '';
+                      return (
+                        <TouchableOpacity
+                          style={styles.badgeBtn}
+                          onPress={() => (navigation as any).navigate('CheckInHistory', { userId: member.userId, sellerName: member.displayName })}
+                        >
+                          <View style={[styles.inlineBadge, { backgroundColor: '#1D9E75' }]}>
+                            <Text style={styles.badgeText}>✅ {timeStr} · {methodStr}</Text>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    }
+
+                    return null;
+                  })()}
                 </View>
                 <View style={styles.revenueWrap}>
                   <Text style={[styles.revenue, themeStyles.text]}>
@@ -393,6 +464,9 @@ const darkStyles = StyleSheet.create({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   centered: { justifyContent: 'center', alignItems: 'center' },
+  badgeBtn: { alignSelf: 'flex-start', marginTop: 6 },
+  inlineBadge: { paddingVertical: 4, paddingHorizontal: 8, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  badgeText: { color: '#FFF', fontSize: 11, fontWeight: 'bold' },
   header: { padding: 20 },
   title: { fontSize: 24, fontWeight: 'bold', marginBottom: 15 },
   errorText: { fontSize: 16, marginTop: 15, marginBottom: 20, textAlign: 'center', opacity: 0.7 },
