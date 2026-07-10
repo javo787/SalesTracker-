@@ -6,6 +6,7 @@ import User from '../models/User';
 import ShopAuditLog from '../models/ShopAuditLog';
 import { authMiddleware, requireShop, requireOwner, AuthRequest } from '../middleware/authMiddleware';
 import mongoose from 'mongoose';
+import crypto from 'crypto';
 
 const router = express.Router();
 
@@ -443,6 +444,226 @@ router.get('/audit-log', authMiddleware, requireShop, requireOwner, async (req: 
     res.json(logs);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching audit log' });
+  }
+});
+
+// GET /shop/checkin-settings — get presence check-in settings (owner only)
+router.get('/checkin-settings', authMiddleware, requireShop, requireOwner, async (req: AuthRequest, res) => {
+  try {
+    const shop = await Shop.findById(req.shopId);
+    if (!shop) return res.status(404).json({ message: 'Shop not found' });
+
+    const settings = shop.checkInSettings || {
+      enabled: false,
+      verificationMode: 'any',
+      gps: { enabled: false, latitude: null, longitude: null, radiusMeters: 100 },
+      nfc: { enabled: false, tagUidHash: null, registeredAt: null },
+      qr: { enabled: false, currentToken: null, rotation: 'static', tokenGeneratedAt: null }
+    };
+
+    const nfcRegistered = !!(settings.nfc && settings.nfc.tagUidHash);
+
+    const sanitizedSettings = {
+      enabled: settings.enabled,
+      verificationMode: settings.verificationMode,
+      gps: {
+        enabled: settings.gps?.enabled ?? false,
+        latitude: settings.gps?.latitude ?? null,
+        longitude: settings.gps?.longitude ?? null,
+        radiusMeters: settings.gps?.radiusMeters ?? 100,
+      },
+      nfc: {
+        enabled: settings.nfc?.enabled ?? false,
+        registeredAt: settings.nfc?.registeredAt ?? null,
+        nfcRegistered,
+      },
+      qr: {
+        enabled: settings.qr?.enabled ?? false,
+        currentToken: settings.qr?.currentToken ?? null,
+        rotation: settings.qr?.rotation ?? 'static',
+        tokenGeneratedAt: settings.qr?.tokenGeneratedAt ?? null,
+      },
+    };
+
+    res.json(sanitizedSettings);
+  } catch (error) {
+    console.error('Fetch check-in settings error:', error);
+    res.status(500).json({ message: 'Error fetching check-in settings' });
+  }
+});
+
+// PATCH /shop/checkin-settings — update presence check-in settings (owner only)
+router.patch('/checkin-settings', authMiddleware, requireShop, requireOwner, async (req: AuthRequest, res) => {
+  try {
+    const { enabled, verificationMode, gps, nfc, qr } = req.body;
+
+    const shop = await Shop.findById(req.shopId);
+    if (!shop) return res.status(404).json({ message: 'Shop not found' });
+
+    if (!shop.checkInSettings) {
+      shop.checkInSettings = {
+        enabled: false,
+        verificationMode: 'any',
+        gps: { enabled: false, latitude: null, longitude: null, radiusMeters: 100 },
+        nfc: { enabled: false, tagUidHash: null, registeredAt: null },
+        qr: { enabled: false, currentToken: null, rotation: 'static', tokenGeneratedAt: null }
+      };
+    }
+
+    if (enabled !== undefined) shop.checkInSettings.enabled = !!enabled;
+
+    if (gps) {
+      if (gps.enabled !== undefined) shop.checkInSettings.gps.enabled = !!gps.enabled;
+      if (gps.latitude !== undefined) shop.checkInSettings.gps.latitude = gps.latitude;
+      if (gps.longitude !== undefined) shop.checkInSettings.gps.longitude = gps.longitude;
+      if (gps.radiusMeters !== undefined) {
+        const allowedRadius = [50, 100, 150, 200];
+        if (!allowedRadius.includes(gps.radiusMeters)) {
+          return res.status(400).json({ message: 'Invalid radiusMeters. Must be one of [50, 100, 150, 200]' });
+        }
+        shop.checkInSettings.gps.radiusMeters = gps.radiusMeters;
+      }
+    }
+
+    if (nfc) {
+      if (nfc.enabled !== undefined) shop.checkInSettings.nfc.enabled = !!nfc.enabled;
+    }
+
+    if (qr) {
+      if (qr.enabled !== undefined) shop.checkInSettings.qr.enabled = !!qr.enabled;
+      if (qr.rotation !== undefined) shop.checkInSettings.qr.rotation = qr.rotation;
+    }
+
+    let activeMethodsCount = 0;
+    if (shop.checkInSettings.gps?.enabled) activeMethodsCount++;
+    if (shop.checkInSettings.nfc?.enabled) activeMethodsCount++;
+    if (shop.checkInSettings.qr?.enabled) activeMethodsCount++;
+
+    let warning: string | undefined;
+    let targetMode = verificationMode || shop.checkInSettings.verificationMode;
+
+    if (targetMode === 'two_factor') {
+      if (activeMethodsCount < 2) {
+        targetMode = 'any';
+        warning = 'verificationModeDowngraded';
+      }
+    }
+
+    shop.checkInSettings.verificationMode = targetMode;
+    shop.markModified('checkInSettings');
+
+    await shop.save();
+
+    let actorName = req.sellerName;
+    if (!actorName) {
+      const u = await User.findById(req.userId);
+      actorName = u ? u.name : 'Unknown';
+    }
+
+    ShopAuditLog.create({
+      shopId: req.shopId,
+      actorUserId: req.userId,
+      actorName,
+      action: 'checkin_settings_updated',
+    }).catch(e => console.error('Audit log error (checkin_settings_updated):', e));
+
+    const nfcRegistered = !!(shop.checkInSettings.nfc && shop.checkInSettings.nfc.tagUidHash);
+
+    const responseData: any = {
+      enabled: shop.checkInSettings.enabled,
+      verificationMode: shop.checkInSettings.verificationMode,
+      gps: {
+        enabled: shop.checkInSettings.gps.enabled,
+        latitude: shop.checkInSettings.gps.latitude,
+        longitude: shop.checkInSettings.gps.longitude,
+        radiusMeters: shop.checkInSettings.gps.radiusMeters,
+      },
+      nfc: {
+        enabled: shop.checkInSettings.nfc.enabled,
+        registeredAt: shop.checkInSettings.nfc.registeredAt,
+        nfcRegistered,
+      },
+      qr: {
+        enabled: shop.checkInSettings.qr.enabled,
+        currentToken: shop.checkInSettings.qr.currentToken,
+        rotation: shop.checkInSettings.qr.rotation,
+        tokenGeneratedAt: shop.checkInSettings.qr.tokenGeneratedAt,
+      },
+    };
+
+    if (warning) {
+      responseData.warning = warning;
+    }
+
+    res.json(responseData);
+  } catch (error) {
+    console.error('Update check-in settings error:', error);
+    res.status(500).json({ message: 'Error updating check-in settings' });
+  }
+});
+
+// POST /shop/checkin-settings/nfc/register — register physical NFC tag (owner only)
+router.post('/checkin-settings/nfc/register', authMiddleware, requireShop, requireOwner, async (req: AuthRequest, res) => {
+  try {
+    const { tagUid } = req.body;
+    if (!tagUid || typeof tagUid !== 'string') {
+      return res.status(400).json({ message: 'tagUid is required' });
+    }
+
+    const shop = await Shop.findById(req.shopId);
+    if (!shop) return res.status(404).json({ message: 'Shop not found' });
+
+    if (!shop.checkInSettings) {
+      shop.checkInSettings = {
+        enabled: false,
+        verificationMode: 'any',
+        gps: { enabled: false, latitude: null, longitude: null, radiusMeters: 100 },
+        nfc: { enabled: false, tagUidHash: null, registeredAt: null },
+        qr: { enabled: false, currentToken: null, rotation: 'static', tokenGeneratedAt: null }
+      };
+    }
+
+    const tagUidHash = crypto.createHash('sha256').update(tagUid).digest('hex');
+    shop.checkInSettings.nfc.tagUidHash = tagUidHash;
+    shop.checkInSettings.nfc.registeredAt = new Date();
+    shop.markModified('checkInSettings');
+
+    await shop.save();
+
+    res.json({ registered: true });
+  } catch (error) {
+    console.error('NFC registration error:', error);
+    res.status(500).json({ message: 'Error registering NFC tag' });
+  }
+});
+
+// POST /shop/checkin-settings/qr/rotate — manually rotate current QR code token (owner only)
+router.post('/checkin-settings/qr/rotate', authMiddleware, requireShop, requireOwner, async (req: AuthRequest, res) => {
+  try {
+    const shop = await Shop.findById(req.shopId);
+    if (!shop) return res.status(404).json({ message: 'Shop not found' });
+
+    if (!shop.checkInSettings) {
+      shop.checkInSettings = {
+        enabled: false,
+        verificationMode: 'any',
+        gps: { enabled: false, latitude: null, longitude: null, radiusMeters: 100 },
+        nfc: { enabled: false, tagUidHash: null, registeredAt: null },
+        qr: { enabled: false, currentToken: null, rotation: 'static', tokenGeneratedAt: null }
+      };
+    }
+
+    const token = crypto.randomBytes(24).toString('base64url');
+    shop.checkInSettings.qr.currentToken = token;
+    shop.checkInSettings.qr.tokenGeneratedAt = new Date();
+    shop.markModified('checkInSettings');
+
+    await shop.save();
+
+    res.json({ token });
+  } catch (error) {
+    console.error('QR rotation error:', error);
+    res.status(500).json({ message: 'Error rotating QR token' });
   }
 });
 
