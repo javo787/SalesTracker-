@@ -395,6 +395,32 @@ function runMigrations() {
     }
   }
 
+  {
+    const schemaV9MigrationDone = db.getFirstSync(
+      "SELECT value FROM app_meta WHERE key = 'schema_v9'"
+    ) as { value: string } | null;
+
+    if (!schemaV9MigrationDone) {
+      db.withTransactionSync(() => {
+        db.execSync(`
+          CREATE TABLE IF NOT EXISTS shift_checkins (
+            local_date TEXT PRIMARY KEY,
+            method TEXT NOT NULL,
+            gps_lat REAL,
+            gps_lng REAL,
+            nfc_tag_uid TEXT,
+            qr_token TEXT,
+            created_at TEXT,
+            synced INTEGER DEFAULT 0,
+            server_status TEXT DEFAULT 'pending',
+            server_error TEXT
+          );
+        `);
+        db.runSync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_v9', 'done')");
+      });
+    }
+  }
+
   // Migration: shop_session table
   db.execSync(`
     CREATE TABLE IF NOT EXISTS shop_session (
@@ -1653,6 +1679,60 @@ export function getPendingReviewCount(): number {
   ) as any;
   return result?.count || 0;
 }
+
+// ── Presence Check-in Helpers ────────────────────────────────────
+
+export interface LocalCheckIn {
+  local_date: string;
+  method: 'gps' | 'nfc' | 'qr';
+  gps_lat?: number | null;
+  gps_lng?: number | null;
+  nfc_tag_uid?: string | null;
+  qr_token?: string | null;
+  created_at: string;
+  synced: number;
+  server_status: 'pending' | 'partial' | 'confirmed' | 'rejected';
+  server_error?: string | null;
+}
+
+export function insertPendingCheckIn(data: LocalCheckIn) {
+  return db.runSync(
+    `INSERT OR REPLACE INTO shift_checkins (
+      local_date, method, gps_lat, gps_lng, nfc_tag_uid, qr_token, created_at, synced, server_status, server_error
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      data.local_date,
+      data.method,
+      data.gps_lat ?? null,
+      data.gps_lng ?? null,
+      data.nfc_tag_uid ?? null,
+      data.qr_token ?? null,
+      data.created_at,
+      data.synced,
+      data.server_status,
+      data.server_error ?? null,
+    ]
+  );
+}
+
+export function getTodayCheckInLocal(): LocalCheckIn | null {
+  const today = todayLocalDate();
+  return db.getFirstSync('SELECT * FROM shift_checkins WHERE local_date = ?', [today]) as LocalCheckIn | null;
+}
+
+export function updateCheckInSyncResult(status: string, error: string | null, synced: number = 1) {
+  const today = todayLocalDate();
+  return db.runSync(
+    'UPDATE shift_checkins SET server_status = ?, server_error = ?, synced = ? WHERE local_date = ?',
+    [status, error, synced, today]
+  );
+}
+
+export function getUnsyncedCheckIn(): LocalCheckIn | null {
+  return db.getFirstSync('SELECT * FROM shift_checkins WHERE synced = 0') as LocalCheckIn | null;
+}
+
+export { nowLocalISO, todayLocalDate };
 
 export { db };
 export default db;

@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState } from 'react-native';
 import { api } from './api';
-import { getProducts, getProductsForSync, getSalesByPeriod, getShopSession, getUnsyncedSales } from '../db/database';
+import { getProducts, getProductsForSync, getSalesByPeriod, getShopSession, getUnsyncedSales, getUnsyncedCheckIn, updateCheckInSyncResult } from '../db/database';
 import * as SQLite from 'expo-sqlite';
 
 const db = SQLite.openDatabaseSync('savdo.db'); // Note: Keeping database name 'savdo.db' to avoid data loss as per instructions.
@@ -39,6 +39,39 @@ export const SyncService = {
 
     setSyncingStatus(true);
     try {
+      // Process unsynced check-ins if any (offline check-in queue retry)
+      // We choose to send the unsynced check-in directly via a POST to /shop/checkin inside the push function.
+      // This is less invasive to the existing sync structure, prevents modifying the complex bulk sync endpoint on the server,
+      // and handles individual check-in validation and status responses cleanly.
+      const unsyncedCheckIn = getUnsyncedCheckIn();
+      if (unsyncedCheckIn) {
+        try {
+          const bodyPayload: any = {};
+          if (unsyncedCheckIn.method === 'gps') {
+            bodyPayload.gps = { latitude: unsyncedCheckIn.gps_lat, longitude: unsyncedCheckIn.gps_lng };
+          } else if (unsyncedCheckIn.method === 'nfc') {
+            bodyPayload.nfcTagUid = unsyncedCheckIn.nfc_tag_uid;
+          } else if (unsyncedCheckIn.method === 'qr') {
+            bodyPayload.qrToken = unsyncedCheckIn.qr_token;
+          }
+
+          const res = await api.post<any>('/shop/checkin', {
+            method: unsyncedCheckIn.method,
+            localDate: unsyncedCheckIn.local_date,
+            ...bodyPayload,
+          });
+
+          updateCheckInSyncResult(res.status, null, 1);
+        } catch (err: any) {
+          if (err.status >= 400 && err.status < 500) {
+            // Definitively rejected by server
+            updateCheckInSyncResult('rejected', err.code || err.message, 1);
+          } else {
+            // Temporary network/server error, keep synced=0 to retry later
+          }
+        }
+      }
+
       const isOwner = session.role === 'owner';
       const salesToSend = getUnsyncedSales();
       const productsToSend = isOwner ? getProductsForSync() : [];

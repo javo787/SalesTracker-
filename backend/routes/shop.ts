@@ -7,6 +7,7 @@ import ShopAuditLog from '../models/ShopAuditLog';
 import { authMiddleware, requireShop, requireOwner, AuthRequest } from '../middleware/authMiddleware';
 import mongoose from 'mongoose';
 import crypto from 'crypto';
+import { hashNfcTagUid } from '../utils/hash';
 
 const router = express.Router();
 
@@ -132,6 +133,17 @@ router.get('/info', authMiddleware, requireShop, async (req: AuthRequest, res) =
       shopId: shop._id,
       shopName: shop.name,
       role: req.role,
+    };
+
+    const settings = shop.checkInSettings;
+    responseData.checkInStatus = {
+      enabled: settings?.enabled ?? false,
+      verificationMode: settings?.verificationMode ?? 'any',
+      methods: {
+        gps: settings?.gps?.enabled ?? false,
+        nfc: settings?.nfc?.enabled ?? false,
+        qr: settings?.qr?.enabled ?? false,
+      },
     };
 
     if (req.role === 'owner') {
@@ -623,7 +635,7 @@ router.post('/checkin-settings/nfc/register', authMiddleware, requireShop, requi
       };
     }
 
-    const tagUidHash = crypto.createHash('sha256').update(tagUid).digest('hex');
+    const tagUidHash = hashNfcTagUid(tagUid);
     shop.checkInSettings.nfc.tagUidHash = tagUidHash;
     shop.checkInSettings.nfc.registeredAt = new Date();
     shop.markModified('checkInSettings');

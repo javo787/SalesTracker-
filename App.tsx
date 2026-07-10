@@ -57,6 +57,7 @@ import SellersScreen from './src/screens/SellersScreen';
 import ProductDetailScreen from './src/screens/ProductDetailScreen';
 import AppSplashScreen from './src/components/AppSplashScreen';
 import CheckInSettingsScreen from './src/screens/CheckInSettingsScreen';
+import CheckInScreen from './src/screens/CheckInScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -510,6 +511,11 @@ function AppContent({ onReady }: { onReady: () => void }) {
             headerStyle: { backgroundColor: Colors.primary },
             headerTintColor: '#fff',
           }}
+        />
+        <Stack.Screen
+          name="CheckIn"
+          component={CheckInScreen}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="Sellers"

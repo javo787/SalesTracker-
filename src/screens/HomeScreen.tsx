@@ -16,6 +16,7 @@ import { getSmartTip } from '../utils/smartTips';
 import CurrencyConversionBanner from '../components/CurrencyConversionBanner';
 import WholesalePromoStrip from '../components/market/WholesalePromoStrip';
 import { useNewsUnread } from '../hooks/useNewsUnread';
+import { useCheckInStatus } from '../hooks/useCheckInStatus';
 import { FEATURES } from '../config/features';
 import { Colors, LightTheme, DarkTheme, Radius, Shadow, FontSize, Spacing } from '../constants/theme';
 
@@ -150,6 +151,7 @@ export default function HomeScreen() {
   const { isOwner, isSeller, sellerName, shopId } = useShop();
   const navigation = useNavigation<any>();
   const { hasUnread } = useNewsUnread();
+  const { todayStatus, checkInStatus } = useCheckInStatus();
 
   const [stats, setStats] = useState({ revenue: 0, profit: 0, count: 0 });
   const [stats7, setStats7] = useState({ revenue: 0, profit: 0, count: 0 });
@@ -277,6 +279,32 @@ export default function HomeScreen() {
       )}
 
       <CurrencyConversionBanner />
+
+      {checkInStatus.enabled && todayStatus !== 'confirmed' && (
+        <TouchableOpacity
+          style={styles.checkInBanner}
+          onPress={() => navigation.navigate('CheckIn')}
+          activeOpacity={0.82}
+        >
+          <LinearGradient
+            colors={['#FF9800', '#F57C00']}
+            style={styles.checkInGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+          >
+            <View style={styles.checkInBannerContent}>
+              <Ionicons name="location" size={24} color="#FFF" />
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.checkInBannerTitle}>{t('checkIn.bannerTitle')}</Text>
+                <Text style={styles.checkInBannerDesc}>
+                  {todayStatus === 'partial' ? t('checkIn.statusPartial') : t('checkIn.bannerDesc')}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#FFF" />
+            </View>
+          </LinearGradient>
+        </TouchableOpacity>
+      )}
 
       {isOwner && pendingReviewCount > 0 && (
         <TouchableOpacity
@@ -540,6 +568,30 @@ const styles = StyleSheet.create({
   saleName: { fontSize: FontSize.lg - 1, fontWeight: '500' },
   saleTime: { fontSize: FontSize.sm, color: '#999', marginTop: Spacing.xs + 1 },
   saleRight: { alignItems: 'flex-end' },
+  checkInBanner: {
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.md,
+    borderRadius: Radius.lg,
+    overflow: 'hidden',
+    ...Shadow.md,
+  },
+  checkInGradient: {
+    padding: Spacing.md,
+  },
+  checkInBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  checkInBannerTitle: {
+    color: '#FFF',
+    fontSize: FontSize.md,
+    fontWeight: 'bold',
+  },
+  checkInBannerDesc: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: FontSize.xs,
+    marginTop: 2,
+  },
   saleRevenue: { fontSize: FontSize.lg - 1, fontWeight: '600' },
   saleProfit: { fontSize: FontSize.md - 1, color: Colors.primary, marginTop: Spacing.xs + 1 },
   debtWidget: {
