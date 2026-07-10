@@ -5,6 +5,12 @@ import { api } from '../services/api';
 
 export type ShopRole = 'owner' | 'seller';
 
+export interface CheckInStatus {
+  enabled: boolean;
+  verificationMode: 'any' | 'two_factor';
+  methods: { gps: boolean; nfc: boolean; qr: boolean };
+}
+
 interface ShopContextType {
   shopId: string | null;
   shopName: string | null;
@@ -17,6 +23,7 @@ interface ShopContextType {
   isLoading: boolean;
   shopRevoked: boolean;
   setShopRevoked: (val: boolean) => void;
+  checkInStatus: CheckInStatus;
   createShop(shopName: string): Promise<void>;
   joinShop(inviteCode: string): Promise<void>;
   leaveShop(): Promise<{ ok: true } | { ok: false; code: 'TRANSFER_REQUIRED' }>;
@@ -35,6 +42,11 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [shopRevoked, setShopRevoked] = useState(false);
+  const [checkInStatus, setCheckInStatus] = useState<CheckInStatus>({
+    enabled: false,
+    verificationMode: 'any',
+    methods: { gps: false, nfc: false, qr: false },
+  });
 
   useEffect(() => {
     loadFromLocal();
@@ -49,7 +61,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => unsubscribe();
   }, []);
 
-  const loadFromLocal = () => {
+  const loadFromLocal = async () => {
     // First read from SQLite (offline-friendly)
     const session = getShopSession();
     if (session.shopId) {
@@ -58,6 +70,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setRole(session.role);
       setSellerName(session.sellerName);
       setInviteCode(session.inviteCode);
+    }
+    try {
+      const cachedStatus = await AsyncStorage.getItem('shop_checkin_status');
+      if (cachedStatus) {
+        setCheckInStatus(JSON.parse(cachedStatus));
+      }
+    } catch (e) {
+      console.warn('Failed to parse cached checkInStatus:', e);
     }
     setIsLoading(false);
   };
@@ -109,8 +129,18 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const refreshShopInfo = async () => {
     try {
       const result = await api.get<{
-        shopId: string; shopName: string; role: ShopRole; inviteCode?: string;
+        shopId: string;
+        shopName: string;
+        role: ShopRole;
+        inviteCode?: string;
+        checkInStatus?: CheckInStatus;
       }>('/shop/info');
+
+      if (result.checkInStatus) {
+        setCheckInStatus(result.checkInStatus);
+        await AsyncStorage.setItem('shop_checkin_status', JSON.stringify(result.checkInStatus));
+      }
+
       persistSession({
         shopId: result.shopId,
         shopName: result.shopName,
@@ -164,6 +194,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isLoading,
       shopRevoked,
       setShopRevoked,
+      checkInStatus,
       createShop, joinShop, leaveShop, transferOwnership, refreshShopInfo, regenerateInviteCode,
     }}>
       {children}

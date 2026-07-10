@@ -13,6 +13,7 @@ import stockRoutes from './routes/stock';
 import telegramRoutes from './routes/telegram';
 import voiceSaleRoutes from './routes/voiceSale';
 import voiceDisambiguateRoutes from './routes/voiceDisambiguate';
+import checkinRoutes from './routes/checkin';
 
 dotenv.config();
 
@@ -111,6 +112,7 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/savdo') /
 app.use('/auth', authRoutes);
 app.use('/sync', syncRoutes);
 app.use('/profile', profileRoutes);
+app.use('/shop/checkin', checkinRoutes);
 app.use('/shop', shopRoutes);
 app.use('/notifications', notificationRoutes);
 app.use('/stock', stockRoutes);
