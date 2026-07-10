@@ -29,3 +29,7 @@ npx expo start -c
 
 Без этого шага `process.env.EXPO_PUBLIC_*` будет `undefined` в локальной сборке,
 даже если значение давно и правильно выставлено в дашборде.
+
+### Список переменных окружения / List of Environment Variables
+
+- `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_ANDROID`: Required for the map picker in Owner → Проверка присутствия → GPS settings. Get a key restricted to Maps SDK for Android + your package name/SHA-1 from Google Cloud Console.
