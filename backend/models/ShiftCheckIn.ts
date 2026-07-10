@@ -13,6 +13,8 @@ export interface IShiftCheckIn extends Document {
   status: 'confirmed' | 'partial';   // 'partial' only possible when shop's verificationMode was 'two_factor' at time of first check-in
   requiredMethodsCount: 1 | 2;       // snapshot of what was required at check-in time
   ownerOverride: boolean;            // true if set via manual owner confirmation
+  overrideBy?: mongoose.Types.ObjectId | null; // the owner userId who performed a manual override, null if none
+  overrideAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -30,6 +32,8 @@ const ShiftCheckInSchema = new Schema({
   status: { type: String, enum: ['confirmed', 'partial'], required: true },
   requiredMethodsCount: { type: Number, enum: [1, 2], required: true },
   ownerOverride: { type: Boolean, default: false },
+  overrideBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+  overrideAt: { type: Schema.Types.Date, default: null },
 }, { timestamps: true });
 
 // Unique index on { shopId, userId, localDate } — one record per seller per shop per local day
