@@ -1,6 +1,7 @@
 import express from 'express';
 import User from '../models/User';
 import Sale from '../models/Sale';
+import ShopMember from '../models/ShopMember';
 import { authMiddleware, AuthRequest } from '../middleware/authMiddleware';
 
 const router = express.Router();
@@ -42,6 +43,16 @@ router.patch('/', authMiddleware, async (req: AuthRequest, res) => {
       updateFields,
       { new: true }
     ).select('-passwordHash');
+
+    // Держим кэш displayName в ShopMember синхронным с User.name —
+    // иначе новое имя не появится в "Команде" у владельца и в seller_name
+    if (name !== undefined && typeof name === 'string' && name.trim()) {
+      await ShopMember.updateOne(
+        { userId: req.userId, isActive: true },
+        { $set: { displayName: name.trim() } }
+      );
+    }
+
     res.json(user);
   } catch (error) {
     res.status(500).json({ message: 'Error updating profile' });
