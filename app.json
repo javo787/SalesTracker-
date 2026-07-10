@@ -39,6 +39,7 @@
         }
       ],
       "expo-sharing",
+      "react-native-nfc-manager",
       [
         "expo-image-picker",
         {

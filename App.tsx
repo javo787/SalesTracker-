@@ -56,6 +56,7 @@ import DebtorsScreen from './src/screens/DebtorsScreen';
 import SellersScreen from './src/screens/SellersScreen';
 import ProductDetailScreen from './src/screens/ProductDetailScreen';
 import AppSplashScreen from './src/components/AppSplashScreen';
+import CheckInSettingsScreen from './src/screens/CheckInSettingsScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -249,6 +250,16 @@ function DrawerNavigator() {
           options={{
             drawerLabel: t('sellers.teamTitle') || 'Команда',
             drawerIcon: ({ color }) => <Ionicons name="people-outline" size={22} color={color} />,
+          }}
+        />
+      )}
+      {isOwner && (
+        <Drawer.Screen
+          name="CheckInSettings"
+          component={CheckInSettingsScreen}
+          options={{
+            drawerLabel: t('checkIn.title') || 'Проверка присутствия',
+            drawerIcon: ({ color }) => <Ionicons name="checkbox-outline" size={22} color={color} />,
           }}
         />
       )}
@@ -487,6 +498,15 @@ function AppContent({ onReady }: { onReady: () => void }) {
           component={DebtorsScreen}
           options={{
             title: 'Должники',
+            headerStyle: { backgroundColor: Colors.primary },
+            headerTintColor: '#fff',
+          }}
+        />
+        <Stack.Screen
+          name="CheckInSettings"
+          component={CheckInSettingsScreen}
+          options={{
+            title: t('checkIn.title') || 'Проверка присутствия',
             headerStyle: { backgroundColor: Colors.primary },
             headerTintColor: '#fff',
           }}
