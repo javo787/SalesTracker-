@@ -255,16 +255,6 @@ function DrawerNavigator() {
           }}
         />
       )}
-      {isOwner && (
-        <Drawer.Screen
-          name="CheckInSettings"
-          component={CheckInSettingsScreen}
-          options={{
-            drawerLabel: t('checkIn.title') || 'Проверка присутствия',
-            drawerIcon: ({ color }) => <Ionicons name="checkbox-outline" size={22} color={color} />,
-          }}
-        />
-      )}
       <Drawer.Screen
         name="Clients"
         component={DebtorsScreen}
