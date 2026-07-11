@@ -66,7 +66,7 @@ export default function CustomDrawerContent(props: DrawerContentComponentProps) 
             </View>
             <View style={styles.userInfo}>
               <Text style={[styles.userName, themeStyles.text]} numberOfLines={1}>
-                {sellerName || user?.name || t('auth.guestBtn')}
+                {user?.name || sellerName || t('common.guest')}
               </Text>
               <Text style={[styles.shopName, themeStyles.textSecondary]} numberOfLines={1}>
                 {shopName || ''}
@@ -81,7 +81,7 @@ export default function CustomDrawerContent(props: DrawerContentComponentProps) 
                   <Text style={styles.providerText}>
                     {user?.authProvider === 'google' ? 'Google' :
                     user?.authProvider === 'telegram' ? 'Telegram' :
-                    user?.authProvider === 'email' ? 'Email' : t('auth.guestBtn')}
+                    user?.authProvider === 'email' ? 'Email' : t('common.guest')}
                   </Text>
                 </View>
               </View>

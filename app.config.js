@@ -87,7 +87,8 @@ module.exports = ({ config }) => ({
       googleServicesFile: "./GoogleService-Info.plist",
       infoPlist: {
         "NSSpeechRecognitionUsageDescription": "Allow $(PRODUCT_NAME) to use speech recognition.",
-        "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to use the microphone."
+        "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to use the microphone.",
+        "LSApplicationQueriesSchemes": ["tg"]
       }
     },
     web: {

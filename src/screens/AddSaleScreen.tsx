@@ -481,7 +481,7 @@ export default function AddSaleScreen(/* props */) {
     }
 
     const seller_Id = userId;
-    const seller_Name = sellerName || user?.name || 'Продавец';
+    const seller_Name = user?.name || sellerName || 'Продавец';
     const current_role = role || 'owner';
 
     let orderId: number | null = null;

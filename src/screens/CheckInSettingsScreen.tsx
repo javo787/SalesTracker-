@@ -1,8 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Alert, Switch, ActivityIndicator, Animated, Modal, Share
+  Alert, Switch, ActivityIndicator, Animated, Modal, Share,
+  Linking
 } from 'react-native';
+
+const SUPPORT_URL = 'https://torgo.vercel.app/support';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -164,6 +167,21 @@ export default function CheckInSettingsScreen() {
       showWarningToastIfNeeded(res);
     } catch (e: any) {
       Alert.alert(t('common.error'), e.message || 'Error updating NFC');
+    }
+  };
+
+  const handleNfcHelp = async () => {
+    const botUsername = process.env.EXPO_PUBLIC_TELEGRAM_BOT_USERNAME;
+    const message = encodeURIComponent('Здравствуйте! Нужна помощь с настройкой NFC-метки в Torgo.');
+    try {
+      const hasTelegramApp = await Linking.canOpenURL(`tg://resolve?domain=${botUsername}`);
+      if (hasTelegramApp) {
+        await Linking.openURL(`https://t.me/${botUsername}?text=${message}`);
+      } else {
+        await Linking.openURL(SUPPORT_URL);
+      }
+    } catch (e) {
+      await Linking.openURL(SUPPORT_URL);
     }
   };
 
@@ -383,6 +401,16 @@ export default function CheckInSettingsScreen() {
                   thumbColor="#FFF"
                 />
               </View>
+
+              <TouchableOpacity
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 10 }}
+                onPress={handleNfcHelp}
+              >
+                <Ionicons name="help-circle-outline" size={16} color="#3F51B5" />
+                <Text style={{ fontSize: 13, color: '#3F51B5', fontWeight: '600' }}>
+                  {t('checkIn.nfcHelpLink') || 'Помощь с настройкой'}
+                </Text>
+              </TouchableOpacity>
 
               {(settings?.nfc.enabled) && (
                 <View style={{ marginTop: 16, borderTopWidth: 1, borderTopColor: isDark ? '#2A2A2A' : '#EEE', paddingTop: 16 }}>
