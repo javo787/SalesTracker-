@@ -242,7 +242,7 @@ export default function HomeScreen() {
 
   const getGreeting = () => {
     const hour = new Date().getHours();
-    const name = isSeller ? (sellerName || user?.name || '') : (user?.name || '');
+    const name = isSeller ? (user?.name || sellerName || '') : (user?.name || '');
     if (hour < 12) return t('home.greetingMorning', { name });
     if (hour < 18) return t('home.greetingAfternoon', { name });
     return t('home.greetingEvening', { name });

@@ -6,6 +6,7 @@ const resources = {
   ru: {
     translation: {
       common: {
+        guest: 'Гость',
         save: 'Сохранить',
         saved: 'Сохранено!',
         cancel: 'Отмена',
@@ -776,12 +777,14 @@ const resources = {
         csvStatus: 'Статус',
         csvMethods: 'Способ(ы)',
         csvOverride: 'Владелец подтвердил вручную',
+        nfcHelpLink: 'Помощь с настройкой',
       },
     },
   },
   tg: {
     translation: {
       common: {
+        guest: 'Меҳмон',
         save: 'Захира кардан',
         saved: 'Захира шуд!',
         cancel: 'Бекор кардан',
@@ -1552,12 +1555,14 @@ const resources = {
         csvStatus: 'Статус',
         csvMethods: 'Усул(ҳо)',
         csvOverride: 'Соҳибкор дастӣ тасдиқ кард',
+        nfcHelpLink: 'Кӯмак дар танзимот',
       },
     },
   },
   en: {
     translation: {
       common: {
+        guest: 'Guest',
         save: 'Save',
         saved: 'Saved!',
         cancel: 'Cancel',
@@ -2328,12 +2333,14 @@ const resources = {
         csvStatus: 'Status',
         csvMethods: 'Method(s)',
         csvOverride: 'Confirmed by owner manually',
+        nfcHelpLink: 'Setup help',
       },
     },
   },
   uz: {
     translation: {
       common: {
+        guest: 'Mehmon',
         save: 'Saqlash',
         saved: 'Saqlandi!',
         cancel: 'Bekor qilish',
@@ -3099,12 +3106,14 @@ const resources = {
         csvStatus: 'Status',
         csvMethods: 'Usul(lar)',
         csvOverride: 'Do\'kon egasi qo\'lda tasdiqladi',
+        nfcHelpLink: 'Sozlashda yordam',
       },
     },
   },
   "uz-Cyrl": {
     translation: {
       common: {
+        guest: 'Меҳмон',
         save: 'Сақлаш',
         saved: 'Сақланди!',
         cancel: 'Бекор қилиш',
@@ -3875,12 +3884,14 @@ const resources = {
         csvStatus: 'Статус',
         csvMethods: 'Усул(лар)',
         csvOverride: 'Дўкон эгаси қўлда тасдиқлади',
+        nfcHelpLink: 'Созлашда ёрдам',
       },
     },
   },
   pt: {
     translation: {
       common: {
+        guest: 'Convidado',
         save: 'Salvar',
         saved: 'Salvo!',
         cancel: 'Cancelar',
@@ -4598,6 +4609,7 @@ const resources = {
   it: {
     translation: {
       common: {
+        guest: 'Ospite',
         save: 'Salva',
         saved: 'Salvato!',
         cancel: 'Annulla',
@@ -5315,6 +5327,7 @@ const resources = {
   es: {
     translation: {
       common: {
+        guest: 'Invitado',
         save: "Guardar",
         saved: "¡Guardado!",
         cancel: "Cancelar",
