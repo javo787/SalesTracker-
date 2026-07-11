@@ -44,12 +44,12 @@ router.patch('/', authMiddleware, async (req: AuthRequest, res) => {
       { new: true }
     ).select('-passwordHash');
 
-    // Кэш displayName в ShopMember должен оставаться в синхронизации с User.name,
-    // иначе в списках команды и уведомлениях будет показываться старое/гостевое имя.
-    if (name !== undefined && name !== null && name.trim().length > 0) {
-      await ShopMember.updateMany(
-        { userId: req.userId },
-        { $set: { displayName: name } }
+    // Держим кэш displayName в ShopMember синхронным с User.name —
+    // иначе новое имя не появится в "Команде" у владельца и в seller_name
+    if (name !== undefined && typeof name === 'string' && name.trim()) {
+      await ShopMember.updateOne(
+        { userId: req.userId, isActive: true },
+        { $set: { displayName: name.trim() } }
       );
     }
 
