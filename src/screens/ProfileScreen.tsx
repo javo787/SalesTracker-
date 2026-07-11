@@ -36,6 +36,7 @@ export default function ProfileScreen() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [newName, setNewName] = useState(user?.name || '');
+  const [isSavingName, setIsSavingName] = useState(false);
   const [lastSync, setLastSync] = useState<Date | null>(user?.lastSyncAt ? new Date(user.lastSyncAt) : null);
 
   useEffect(() => {
@@ -161,16 +162,29 @@ export default function ProfileScreen() {
   };
 
   const handleUpdateName = async () => {
-    if (newName.trim() === user?.name) {
+    const trimmed = newName.trim();
+    if (trimmed === user?.name) {
       setIsEditingName(false);
       return;
     }
+    if (trimmed.length === 0) {
+      Alert.alert(t('common.error'), t('profile.nameEmptyError') || 'Имя не может быть пустым');
+      return;
+    }
+    setIsSavingName(true);
     try {
-      await updateProfile({ name: newName });
+      await updateProfile({ name: trimmed });
       setIsEditingName(false);
     } catch (e) {
       Alert.alert(t('common.error'), t('profile.nameUpdateError'));
+    } finally {
+      setIsSavingName(false);
     }
+  };
+
+  const handleCancelEditName = () => {
+    setNewName(user?.name || '');
+    setIsEditingName(false);
   };
 
   const copyReferral = () => {
@@ -240,10 +254,24 @@ export default function ProfileScreen() {
                 value={newName}
                 onChangeText={setNewName}
                 autoFocus
+                selectTextOnFocus
+                maxLength={40}
+                returnKeyType="done"
+                onSubmitEditing={handleUpdateName}
+                editable={!isSavingName}
               />
-              <TouchableOpacity onPress={handleUpdateName}>
-                <Ionicons name="checkmark-circle" size={24} color="#1D9E75" />
-              </TouchableOpacity>
+              {isSavingName ? (
+                <ActivityIndicator size="small" color="#1D9E75" />
+              ) : (
+                <>
+                  <TouchableOpacity onPress={handleUpdateName} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Ionicons name="checkmark-circle" size={24} color="#1D9E75" />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={handleCancelEditName} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Ionicons name="close-circle" size={24} color="#999" />
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
           ) : (
             <View style={styles.nameRow}>

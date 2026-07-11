@@ -19,7 +19,7 @@ export default function SellersScreen() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
-  const { inviteCode, regenerateInviteCode, shopId, isOwner, role, transferOwnership, leaveShop } = useShop();
+  const { inviteCode, regenerateInviteCode, shopId, isOwner, role, transferOwnership, leaveShop, checkInStatus } = useShop();
   const { resolvedTheme, currency } = useAppContext();
   const isDark = resolvedTheme === 'dark';
   const themeStyles = isDark ? darkStyles : lightStyles;
@@ -307,7 +307,19 @@ export default function SellersScreen() {
                   <View style={[styles.statusDot, online ? { backgroundColor: Colors.primary } : themeStyles.statusOffline]} />
                 </View>
                 <View style={styles.nameWrap}>
-                  <Text style={[styles.memberName, themeStyles.text]}>{member.displayName}</Text>
+                  <View style={styles.nameLine}>
+                    <Text style={[styles.memberName, themeStyles.text]} numberOfLines={1}>
+                      {member.displayName}
+                    </Text>
+                    {member.role === 'owner' && (
+                      <View style={styles.ownerBadge}>
+                        <Text style={styles.ownerBadgeText}>{t('common.owner') || 'Владелец'}</Text>
+                      </View>
+                    )}
+                    {member.isSelf && (
+                      <Text style={styles.youLabel}>{t('sellers.youLabel') || 'Вы'}</Text>
+                    )}
+                  </View>
                   <Text style={[styles.memberSub, themeStyles.memberSub]}>
                     {memberStats?.salesCount || 0} {t('home.salesCount').toLowerCase()} • {online ? (t('sellers.online') || 'онлайн') : t('sellers.lastActive', { time: new Date(member.lastActiveAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) })}
                   </Text>
@@ -316,7 +328,7 @@ export default function SellersScreen() {
                   </Text>
 
                   {/* Today Presence Check-in Badge */}
-                  {(() => {
+                  {checkInStatus.enabled && (() => {
                     const todayStr = todayLocalDate();
                     const userRecord = checkInHistory.find((h: any) => h.userId === member.userId);
                     const todayEntry = userRecord?.days?.find((d: any) => d.localDate === todayStr);
@@ -525,6 +537,10 @@ const styles = StyleSheet.create({
   avatar: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center' },
   statusDot: { position: 'absolute', right: 0, bottom: 0, width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: '#FFF' },
   nameWrap: { flex: 1 },
+  nameLine: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  ownerBadge: { backgroundColor: Colors.infoLight, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
+  ownerBadgeText: { color: Colors.info, fontSize: 10, fontWeight: 'bold' },
+  youLabel: { fontSize: 12, color: Colors.primary, fontWeight: '600' },
   memberName: { fontSize: 16, fontWeight: '600' },
   memberSub: { fontSize: 12, marginTop: 2 },
   revenueWrap: { alignItems: 'flex-end' },
