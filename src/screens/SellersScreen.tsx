@@ -251,6 +251,9 @@ export default function SellersScreen() {
     );
   }
 
+  const activeCount = members.filter(m => m.isActive).length;
+  const totalRevenue = stats.reduce((sum, s) => sum + (s.revenue || 0), 0);
+
   return (
     <ScrollView
       style={[styles.container, themeStyles.container]}
@@ -272,8 +275,23 @@ export default function SellersScreen() {
             </TouchableOpacity>
           ))}
         </View>
+        <View style={styles.statsRow}>
+          <View style={[styles.statChip, themeStyles.card]}>
+            <Text style={[styles.statChipValue, themeStyles.text]}>{activeCount}</Text>
+            <Text style={[styles.statChipLabel, themeStyles.memberSub]}>{t('sellers.activeSellers') || 'Активные'}</Text>
+          </View>
+          <View style={[styles.statChip, themeStyles.card]}>
+            <Text style={[styles.statChipValue, themeStyles.text]}>
+              {totalRevenue.toLocaleString()} {currency.symbol}
+            </Text>
+            <Text style={[styles.statChipLabel, themeStyles.memberSub]}>{t('common.revenue')}</Text>
+          </View>
+        </View>
       </View>
 
+      <Text style={[styles.sectionLabel, themeStyles.memberSub]}>
+        {t('sellers.membersSectionTitle') || 'Участники'}
+      </Text>
       <View style={styles.list}>
         {members.filter(m => m.isActive).map((member) => {
           const memberStats = stats.find(s => s._id === member.userId);
@@ -380,6 +398,10 @@ export default function SellersScreen() {
         })}
       </View>
 
+      <Text style={[styles.sectionLabel, themeStyles.memberSub]}>
+        {t('sellers.managementSectionTitle') || 'Управление'}
+      </Text>
+
       <View style={[styles.inviteCard, themeStyles.card]}>
         <Text style={[styles.inviteTitle, themeStyles.text]}>{t('sellers.inviteTitle') || 'Пригласить продавца'}</Text>
         <Text style={styles.inviteDesc}>{t('sellers.inviteDesc') || 'Поделитесь этим кодом с вашим сотрудником. Он должен ввести его при первом входе.'}</Text>
@@ -410,6 +432,25 @@ export default function SellersScreen() {
           <Text style={styles.regenBtnText}>{t('sellers.regenerateBtn') || 'Перевыпустить код'}</Text>
         </TouchableOpacity>
       </View>
+
+      <TouchableOpacity
+        style={[styles.settingsRow, themeStyles.card]}
+        onPress={() => (navigation as any).navigate('CheckInSettings')}
+        activeOpacity={0.7}
+      >
+        <View style={[styles.settingsIconWrap, { backgroundColor: Colors.primaryLight }]}>
+          <Ionicons name="checkbox-outline" size={22} color={Colors.primary} />
+        </View>
+        <View style={styles.settingsTextWrap}>
+          <Text style={[styles.settingsTitle, themeStyles.text]}>
+            {t('sellers.checkInCardTitle') || 'Проверка присутствия'}
+          </Text>
+          <Text style={[styles.settingsDesc, themeStyles.memberSub]}>
+            {t('sellers.checkInCardDesc') || 'QR-код, NFC и геолокация для отметки прихода'}
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={isDark ? '#666' : '#CCC'} />
+      </TouchableOpacity>
 
       <View style={[styles.leaveCard, themeStyles.card]}>
         <Text style={[styles.leaveTitle, themeStyles.text]}>{t('sellers.leaveShopTitle') || 'Покинуть магазин'}</Text>
@@ -504,4 +545,14 @@ const styles = StyleSheet.create({
   leaveBtn: { backgroundColor: Colors.danger, borderRadius: 10, height: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   leaveBtnDisabled: { backgroundColor: '#CCC' },
   leaveBtnText: { color: '#FFF', fontWeight: 'bold' },
+  statsRow: { flexDirection: 'row', gap: 10, marginTop: 15 },
+  statChip: { flex: 1, borderRadius: 12, padding: 12, ...Shadow.sm },
+  statChipValue: { fontSize: 18, fontWeight: 'bold' },
+  statChipLabel: { fontSize: 12, marginTop: 2 },
+  sectionLabel: { fontSize: 13, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, opacity: 0.6, marginHorizontal: 20, marginBottom: 10, marginTop: 4 },
+  settingsRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 20, marginBottom: 12, padding: 16, borderRadius: 16, ...Shadow.md },
+  settingsIconWrap: { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center', marginRight: 14 },
+  settingsTextWrap: { flex: 1 },
+  settingsTitle: { fontSize: 15, fontWeight: '600' },
+  settingsDesc: { fontSize: 12, marginTop: 2, opacity: 0.7 },
 });
