@@ -298,114 +298,125 @@ export default function SellersScreen() {
           const online = isOnline(member.lastActiveAt);
 
           return (
-            <View key={member.userId} style={[styles.memberCard, themeStyles.card]}>
-              <View style={styles.memberInfo}>
-                <View style={styles.avatarWrap}>
-                  <View style={[styles.avatar, { backgroundColor: Colors.primaryLight }]}>
-                    <Ionicons name="person" size={24} color={Colors.primary} />
+            <TouchableOpacity
+              key={member.userId}
+              activeOpacity={0.85}
+              onPress={() => {
+                (navigation as any).navigate('Main', {
+                  screen: 'ReportsDrawer',
+                  params: { sellerId: member.userId, sellerName: member.displayName },
+                });
+              }}
+            >
+              <View style={[styles.memberCard, themeStyles.card]}>
+                <View style={styles.memberInfo}>
+                  <View style={styles.avatarWrap}>
+                    <View style={[styles.avatar, { backgroundColor: Colors.primaryLight }]}>
+                      <Ionicons name="person" size={24} color={Colors.primary} />
+                    </View>
+                    <View style={[styles.statusDot, online ? { backgroundColor: Colors.primary } : themeStyles.statusOffline]} />
                   </View>
-                  <View style={[styles.statusDot, online ? { backgroundColor: Colors.primary } : themeStyles.statusOffline]} />
-                </View>
-                <View style={styles.nameWrap}>
-                  <View style={styles.nameLine}>
-                    <Text style={[styles.memberName, themeStyles.text]} numberOfLines={1}>
-                      {member.displayName}
+                  <View style={styles.nameWrap}>
+                    <View style={styles.nameLine}>
+                      <Text style={[styles.memberName, themeStyles.text]} numberOfLines={1}>
+                        {member.displayName}
+                      </Text>
+                      {member.role === 'owner' && (
+                        <View style={styles.ownerBadge}>
+                          <Text style={styles.ownerBadgeText}>{t('common.owner') || 'Владелец'}</Text>
+                        </View>
+                      )}
+                      {member.isSelf && (
+                        <Text style={styles.youLabel}>{t('sellers.youLabel') || 'Вы'}</Text>
+                      )}
+                    </View>
+                    <Text style={[styles.memberSub, themeStyles.memberSub]}>
+                      {memberStats?.salesCount || 0} {t('home.salesCount').toLowerCase()} • {online ? (t('sellers.online') || 'онлайн') : t('sellers.lastActive', { time: new Date(member.lastActiveAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) })}
                     </Text>
-                    {member.role === 'owner' && (
-                      <View style={styles.ownerBadge}>
-                        <Text style={styles.ownerBadgeText}>{t('common.owner') || 'Владелец'}</Text>
-                      </View>
-                    )}
-                    {member.isSelf && (
-                      <Text style={styles.youLabel}>{t('sellers.youLabel') || 'Вы'}</Text>
-                    )}
-                  </View>
-                  <Text style={[styles.memberSub, themeStyles.memberSub]}>
-                    {memberStats?.salesCount || 0} {t('home.salesCount').toLowerCase()} • {online ? (t('sellers.online') || 'онлайн') : t('sellers.lastActive', { time: new Date(member.lastActiveAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) })}
-                  </Text>
-                  <Text style={[styles.memberSub, themeStyles.memberSub, { marginTop: 2, fontSize: 11 }]}>
-                    {t('products.lastUpdate')}: {formatRelativeTime(member.lastSyncAt)}
-                  </Text>
+                    <Text style={[styles.memberSub, themeStyles.memberSub, { marginTop: 2, fontSize: 11 }]}>
+                      {t('products.lastUpdate')}: {formatRelativeTime(member.lastSyncAt)}
+                    </Text>
 
-                  {/* Today Presence Check-in Badge */}
-                  {checkInStatus.enabled && (() => {
-                    const todayStr = todayLocalDate();
-                    const userRecord = checkInHistory.find((h: any) => h.userId === member.userId);
-                    const todayEntry = userRecord?.days?.find((d: any) => d.localDate === todayStr);
+                    {/* Today Presence Check-in Badge */}
+                    {checkInStatus.enabled && (() => {
+                      const todayStr = todayLocalDate();
+                      const userRecord = checkInHistory.find((h: any) => h.userId === member.userId);
+                      const todayEntry = userRecord?.days?.find((d: any) => d.localDate === todayStr);
 
-                    if (!todayEntry || todayEntry.status === 'missing') {
-                      return (
-                        <TouchableOpacity
-                          style={styles.badgeBtn}
-                          onPress={() => (navigation as any).navigate('CheckInHistory', { userId: member.userId, sellerName: member.displayName })}
-                        >
-                          <View style={[styles.inlineBadge, { backgroundColor: '#EF5350' }]}>
-                            <Text style={styles.badgeText}>❌ {t('checkIn.statusMissingLabel', 'не отмечен')}</Text>
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    }
-
-                    if (todayEntry.status === 'partial') {
-                      const methodNames = (todayEntry.methodsUsed || []).map((m: any) => m.method.toUpperCase()).join(', ');
-                      return (
-                        <TouchableOpacity
-                          style={styles.badgeBtn}
-                          onPress={() => (navigation as any).navigate('CheckInHistory', { userId: member.userId, sellerName: member.displayName })}
-                        >
-                          <View style={[styles.inlineBadge, { backgroundColor: '#FFA726' }]}>
-                            <Text style={styles.badgeText}>
-                              ⚠️ {t('checkIn.statusPartial', 'частично')}{methodNames ? ` (${methodNames})` : ''}
-                            </Text>
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    }
-
-                    if (todayEntry.status === 'confirmed') {
-                      if (todayEntry.ownerOverride) {
+                      if (!todayEntry || todayEntry.status === 'missing') {
                         return (
                           <TouchableOpacity
                             style={styles.badgeBtn}
                             onPress={() => (navigation as any).navigate('CheckInHistory', { userId: member.userId, sellerName: member.displayName })}
                           >
-                            <View style={[styles.inlineBadge, { backgroundColor: '#42A5F5', opacity: 0.85 }]}>
-                              <Text style={styles.badgeText}>🛡️ {t('checkIn.statusOverrideBadge', 'подтверждено владельцем')}</Text>
+                            <View style={[styles.inlineBadge, { backgroundColor: '#EF5350' }]}>
+                              <Text style={styles.badgeText}>❌ {t('checkIn.statusMissingLabel', 'не отмечен')}</Text>
                             </View>
                           </TouchableOpacity>
                         );
                       }
 
-                      const firstMethod = todayEntry.methodsUsed?.[0];
-                      const timeStr = firstMethod ? new Date(firstMethod.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-                      const methodStr = firstMethod ? firstMethod.method.toUpperCase() : '';
-                      return (
-                        <TouchableOpacity
-                          style={styles.badgeBtn}
-                          onPress={() => (navigation as any).navigate('CheckInHistory', { userId: member.userId, sellerName: member.displayName })}
-                        >
-                          <View style={[styles.inlineBadge, { backgroundColor: '#1D9E75' }]}>
-                            <Text style={styles.badgeText}>✅ {timeStr} · {methodStr}</Text>
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    }
+                      if (todayEntry.status === 'partial') {
+                        const methodNames = (todayEntry.methodsUsed || []).map((m: any) => m.method.toUpperCase()).join(', ');
+                        return (
+                          <TouchableOpacity
+                            style={styles.badgeBtn}
+                            onPress={() => (navigation as any).navigate('CheckInHistory', { userId: member.userId, sellerName: member.displayName })}
+                          >
+                            <View style={[styles.inlineBadge, { backgroundColor: '#FFA726' }]}>
+                              <Text style={styles.badgeText}>
+                                ⚠️ {t('checkIn.statusPartial', 'частично')}{methodNames ? ` (${methodNames})` : ''}
+                              </Text>
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      }
 
-                    return null;
-                  })()}
-                </View>
-                <View style={styles.revenueWrap}>
-                  <Text style={[styles.revenue, themeStyles.text]}>
-                    {(memberStats?.revenue || 0).toLocaleString()} {currency.symbol}
-                  </Text>
-                  {!member.isSelf && (
-                    <TouchableOpacity onPress={() => handleMemberActions(member)} style={{ padding: 5 }}>
-                      <Ionicons name="ellipsis-vertical" size={20} color={isDark ? '#AAA' : '#666'} />
-                    </TouchableOpacity>
-                  )}
+                      if (todayEntry.status === 'confirmed') {
+                        if (todayEntry.ownerOverride) {
+                          return (
+                            <TouchableOpacity
+                              style={styles.badgeBtn}
+                              onPress={() => (navigation as any).navigate('CheckInHistory', { userId: member.userId, sellerName: member.displayName })}
+                            >
+                              <View style={[styles.inlineBadge, { backgroundColor: '#42A5F5', opacity: 0.85 }]}>
+                                <Text style={styles.badgeText}>🛡️ {t('checkIn.statusOverrideBadge', 'подтверждено владельцем')}</Text>
+                              </View>
+                            </TouchableOpacity>
+                          );
+                        }
+
+                        const firstMethod = todayEntry.methodsUsed?.[0];
+                        const timeStr = firstMethod ? new Date(firstMethod.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+                        const methodStr = firstMethod ? firstMethod.method.toUpperCase() : '';
+                        return (
+                          <TouchableOpacity
+                            style={styles.badgeBtn}
+                            onPress={() => (navigation as any).navigate('CheckInHistory', { userId: member.userId, sellerName: member.displayName })}
+                          >
+                            <View style={[styles.inlineBadge, { backgroundColor: '#1D9E75' }]}>
+                              <Text style={styles.badgeText}>✅ {timeStr} · {methodStr}</Text>
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      }
+
+                      return null;
+                    })()}
+                  </View>
+                  <View style={styles.revenueWrap}>
+                    <Text style={[styles.revenue, themeStyles.text]}>
+                      {(memberStats?.revenue || 0).toLocaleString()} {currency.symbol}
+                    </Text>
+                    {!member.isSelf && (
+                      <TouchableOpacity onPress={() => handleMemberActions(member)} style={{ padding: 5 }}>
+                        <Ionicons name="ellipsis-vertical" size={20} color={isDark ? '#AAA' : '#666'} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
               </View>
-            </View>
+            </TouchableOpacity>
           );
         })}
       </View>

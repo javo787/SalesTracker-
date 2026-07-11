@@ -1618,10 +1618,22 @@ export function addOrderWithItems(
 }
 
 // Статистика для продавца (только его продажи, без buy_price)
-export function getMyStats(sellerId: string, days: number = 1) {
+export function getMyStats(sellerId: string, days: number = 1, fromDate?: string, toDate?: string) {
+  if (fromDate && toDate) {
+    const result = db.getFirstSync(`
+      SELECT
+        COALESCE(SUM(sell_price * quantity), 0) as revenue,
+        COALESCE(SUM(profit), 0) as profit,
+        COALESCE(COUNT(*), 0) as count
+      FROM sales
+      WHERE seller_id = ? AND date(created_at) >= date(?) AND date(created_at) <= date(?)
+    `, [sellerId, fromDate, toDate]) as any;
+    return result;
+  }
   const result = db.getFirstSync(`
     SELECT
       COALESCE(SUM(sell_price * quantity), 0) as revenue,
+      COALESCE(SUM(profit), 0) as profit,
       COALESCE(COUNT(*), 0) as count
     FROM sales
     WHERE seller_id = ? AND created_at >= ?

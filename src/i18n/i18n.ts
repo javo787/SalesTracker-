@@ -424,6 +424,7 @@ const resources = {
         exportOptionAI: '+ анализ и советы от AI',
         selectPeriod: 'Выберите период',
         applyBtn: 'Применить',
+        scopedPeriodLabel: '{{sellerName}} · {{periodLabel}}',
       },
       auth: {
         guestBtn: 'Войти как гость',
@@ -544,6 +545,7 @@ const resources = {
         },
       },
       sellers: {
+        filterAll: 'Все',
         teamTitle: 'Команда',
         youLabel: 'Вы',
         activeSellers: 'Активные',
@@ -1206,6 +1208,7 @@ const resources = {
         exportOptionAI: '+ таҳлил ва маслиҳатҳои AI',
         selectPeriod: 'Давраро интихоб кунед',
         applyBtn: 'Қабул кардан',
+        scopedPeriodLabel: '{{sellerName}} · {{periodLabel}}',
       },
       auth: {
         guestBtn: 'Ҳамчун меҳмон ворид шавед',
@@ -1326,6 +1329,7 @@ const resources = {
         },
       },
       sellers: {
+        filterAll: 'Ҳама',
         teamTitle: 'Дастаи фурӯшандагон',
         youLabel: 'Шумо',
         activeSellers: 'Фаъол',
@@ -1988,6 +1992,7 @@ const resources = {
         exportOptionAI: '+ AI analysis and tips',
         selectPeriod: 'Select period',
         applyBtn: 'Apply',
+        scopedPeriodLabel: '{{sellerName}} · {{periodLabel}}',
       },
       auth: {
         guestBtn: 'Enter as guest',
@@ -2108,6 +2113,7 @@ const resources = {
         },
       },
       sellers: {
+        filterAll: 'All',
         teamTitle: 'Team',
         youLabel: 'You',
         activeSellers: 'Active',
@@ -2765,6 +2771,7 @@ const resources = {
         exportOptionAI: '+ AI tahlili va maslahatlari',
         selectPeriod: 'Davrni tanlang',
         applyBtn: 'Qo\'llash',
+        scopedPeriodLabel: '{{sellerName}} · {{periodLabel}}',
       },
       auth: {
         guestBtn: 'Mehmon sifatida kirish',
@@ -2885,6 +2892,7 @@ const resources = {
         },
       },
       sellers: {
+        filterAll: 'Hammasi',
         teamTitle: 'Jamoa',
         youLabel: 'Siz',
         activeSellers: 'Faol',
@@ -3547,6 +3555,7 @@ const resources = {
         exportOptionAI: '+ АИ таҳлили ва маслаҳатлари',
         selectPeriod: 'Даврни танланг',
         applyBtn: 'Қўллаш',
+        scopedPeriodLabel: '{{sellerName}} · {{periodLabel}}',
       },
       auth: {
         guestBtn: 'Меҳмон сифатида кириш',
@@ -3667,6 +3676,7 @@ const resources = {
         },
       },
       sellers: {
+        filterAll: 'Ҳаммаси',
         teamTitle: 'Жамоа',
         youLabel: 'Сиз',
         activeSellers: 'Фаол',
@@ -4329,6 +4339,7 @@ const resources = {
         exportOptionAI: '+ análise e dicas da IA',
         selectPeriod: 'Selecione o período',
         applyBtn: 'Aplicar',
+        scopedPeriodLabel: '{{sellerName}} · {{periodLabel}}',
       },
       auth: {
         guestBtn: 'Entrar como convidado',
@@ -4449,6 +4460,7 @@ const resources = {
         },
       },
       sellers: {
+        filterAll: 'Todos',
         teamTitle: 'Equipe',
         youLabel: 'Você',
         activeSellers: 'Ativos',
@@ -5055,6 +5067,7 @@ const resources = {
         exportOptionAI: '+ analisi e consigli dell\'IA',
         selectPeriod: 'Seleziona periodo',
         applyBtn: 'Applica',
+        scopedPeriodLabel: '{{sellerName}} · {{periodLabel}}',
       },
       auth: {
         guestBtn: 'Entra come ospite',
@@ -5175,6 +5188,7 @@ const resources = {
         },
       },
       sellers: {
+        filterAll: 'Tutti',
         teamTitle: 'Team',
         youLabel: 'Tu',
         activeSellers: 'Attivi',
@@ -5777,7 +5791,8 @@ const resources = {
         exportOptionTable: "Tabla con datos de ventas",
         exportOptionAI: "+ análisis y consejos de la IA",
         selectPeriod: "Selecciona el período",
-        applyBtn: "Aplicar"
+        applyBtn: "Aplicar",
+        scopedPeriodLabel: '{{sellerName}} · {{periodLabel}}'
       },
       auth: {
         guestBtn: "Entrar como invitado",
@@ -5898,6 +5913,7 @@ const resources = {
         }
       },
       sellers: {
+        filterAll: "Todos",
         teamTitle: "Equipo",
         youLabel: 'Tú',
         activeSellers: 'Activos',
