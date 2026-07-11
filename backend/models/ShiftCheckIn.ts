@@ -39,6 +39,12 @@ const ShiftCheckInSchema = new Schema({
 // Unique index on { shopId, userId, localDate } — one record per seller per shop per local day
 ShiftCheckInSchema.index({ shopId: 1, userId: 1, localDate: 1 }, { unique: true });
 
+// Отдельный индекс под запрос истории (GET /shop/checkin/history), который фильтрует
+// по shopId + localDate БЕЗ userId (нужны все продавцы магазина за диапазон дат).
+// Индекс выше { shopId, userId, localDate } тут не помогает, т.к. userId пропущен —
+// без этого индекса Mongo сканирует все документы магазина, а не только нужный диапазон дат.
+ShiftCheckInSchema.index({ shopId: 1, localDate: 1 });
+
 const ShiftCheckIn = mongoose.model<IShiftCheckIn>('ShiftCheckIn', ShiftCheckInSchema);
 
 export default ShiftCheckIn;
