@@ -13,6 +13,8 @@ import { useNavigation } from '@react-navigation/native';
 import MapView, { Marker, Circle } from 'react-native-maps';
 import * as Location from 'expo-location';
 import QRCode from 'react-native-qrcode-svg';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import NfcManager, { NfcTech } from 'react-native-nfc-manager';
 
 import { useShop } from '../context/ShopContext';
@@ -31,6 +33,7 @@ export default function CheckInSettingsScreen() {
 
   const { settings, isLoading, error, updateSettings, registerNfcTag, rotateQrToken } = useCheckInSettings();
   const [fadeAnim] = useState(new Animated.Value(1));
+  const qrRef = React.useRef<any>(null);
 
   // Map state
   const [mapVisible, setMapVisible] = useState(false);
@@ -55,15 +58,15 @@ export default function CheckInSettingsScreen() {
 
   const handleMasterToggle = async (val: boolean) => {
     if (!settings) return;
-    Animated.timing(fadeAnim, { toValue: 0.5, duration: 150, useNativeDriver: true }).start(async () => {
-      try {
-        await updateSettings({ enabled: val });
-      } catch (e: any) {
-        Alert.alert(t('common.error'), e.message || 'Error updating settings');
-      } finally {
-        Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+    try {
+      await updateSettings({ enabled: val });
+      if (val) {
+        fadeAnim.setValue(0);
+        Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }).start();
       }
-    });
+    } catch (e: any) {
+      Alert.alert(t('common.error'), e.message || 'Error updating settings');
+    }
   };
 
   const showWarningToastIfNeeded = useCallback((res: any) => {
@@ -252,10 +255,23 @@ export default function CheckInSettingsScreen() {
   };
 
   const handleShareQr = async () => {
-    if (!settings?.qr.currentToken) return;
+    if (!settings?.qr.currentToken || !qrRef.current) return;
     try {
-      await Share.share({
-        message: `Torgo Shop Check-in Code: ${settings.qr.currentToken}`,
+      qrRef.current.toDataURL(async (dataURL: string) => {
+        try {
+          const fileUri = FileSystem.cacheDirectory + 'torgo-checkin-qr.png';
+          await FileSystem.writeAsStringAsync(fileUri, dataURL, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          const canShare = await Sharing.isAvailableAsync();
+          if (canShare) {
+            await Sharing.shareAsync(fileUri, { mimeType: 'image/png', dialogTitle: t('checkIn.qrSharePrint') });
+          } else {
+            Alert.alert(t('common.error'), 'Sharing is not available on this device');
+          }
+        } catch (innerErr: any) {
+          Alert.alert(t('common.error'), innerErr.message || 'Error sharing');
+        }
       });
     } catch (e: any) {
       Alert.alert(t('common.error'), e.message || 'Error sharing');
@@ -327,8 +343,8 @@ export default function CheckInSettingsScreen() {
           />
         </View>
 
-        <Animated.View style={{ opacity: fadeAnim, pointerEvents: settings?.enabled ? 'auto' : 'none' }}>
-          <View style={!settings?.enabled && styles.disabledContainer}>
+        {settings?.enabled && (
+          <Animated.View style={{ opacity: fadeAnim }}>
             <Text style={[styles.sectionTitle, themeStyles.text]}>Способы проверки</Text>
 
             {/* GPS Card */}
@@ -487,6 +503,7 @@ export default function CheckInSettingsScreen() {
                         size={150}
                         color={isDark ? '#FFF' : '#000'}
                         backgroundColor={isDark ? '#1E1E1E' : '#FFF'}
+                        getRef={(c) => { qrRef.current = c; }}
                       />
                     </View>
                   )}
@@ -505,37 +522,40 @@ export default function CheckInSettingsScreen() {
               )}
             </View>
 
-            {/* Verification Mode Card */}
-            <Text style={[styles.sectionTitle, themeStyles.text]}>{t('checkIn.verificationModeTitle')}</Text>
-            <View style={[styles.card, themeStyles.card, !canStrictMode && styles.disabledContainer]}>
-              <View style={styles.segmented}>
-                <TouchableOpacity
-                  style={[styles.segItem, settings?.verificationMode === 'any' && styles.segItemActive]}
-                  onPress={() => handleVerificationModeChange('any')}
-                >
-                  <Text style={[styles.segText, settings?.verificationMode === 'any' && styles.segTextActive]}>
-                    {t('checkIn.verificationModeEasy')}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.segItem, settings?.verificationMode === 'two_factor' && styles.segItemActive]}
-                  onPress={canStrictMode ? () => handleVerificationModeChange('two_factor') : undefined}
-                  disabled={!canStrictMode}
-                >
-                  <Text style={[styles.segText, settings?.verificationMode === 'two_factor' && styles.segTextActive]}>
-                    {t('checkIn.verificationModeStrict')}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {!canStrictMode && (
-                <Text style={styles.modeWarningText}>
-                  {t('checkIn.verificationModeDisabledDesc')}
-                </Text>
-              )}
-            </View>
-          </View>
-        </Animated.View>
+            {/* Verification Mode Card — показываем только когда реально можно выбирать между режимами */}
+            {canStrictMode && (
+              <>
+                <Text style={[styles.sectionTitle, themeStyles.text]}>{t('checkIn.verificationModeTitle')}</Text>
+                <View style={[styles.card, themeStyles.card]}>
+                  <View style={styles.segmented}>
+                    <TouchableOpacity
+                      style={[styles.segItem, settings?.verificationMode === 'any' && styles.segItemActive]}
+                      onPress={() => handleVerificationModeChange('any')}
+                    >
+                      <Text style={[styles.segTitle, settings?.verificationMode === 'any' && styles.segTextActive]}>
+                        {t('checkIn.verificationModeEasyShort')}
+                      </Text>
+                      <Text style={[styles.segSubtitle, settings?.verificationMode === 'any' && styles.segTextActive]}>
+                        {t('checkIn.verificationModeEasySub')}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.segItem, settings?.verificationMode === 'two_factor' && styles.segItemActive]}
+                      onPress={() => handleVerificationModeChange('two_factor')}
+                    >
+                      <Text style={[styles.segTitle, settings?.verificationMode === 'two_factor' && styles.segTextActive]}>
+                        {t('checkIn.verificationModeStrictShort')}
+                      </Text>
+                      <Text style={[styles.segSubtitle, settings?.verificationMode === 'two_factor' && styles.segTextActive]}>
+                        {t('checkIn.verificationModeStrictSub')}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </>
+            )}
+          </Animated.View>
+        )}
       </ScrollView>
 
       {/* Map Picker Modal */}
@@ -625,9 +645,11 @@ const styles = StyleSheet.create({
   coordsText: { fontSize: 12, color: '#8E8E93', marginTop: 8, textAlign: 'center' },
   subLabel: { fontSize: 13, fontWeight: '600', marginBottom: 8 },
   segmented: { flexDirection: 'row', backgroundColor: '#F2F2F7', borderRadius: 8, padding: 2 },
-  segItem: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 6 },
+  segItem: { flex: 1, paddingVertical: 10, paddingHorizontal: 4, alignItems: 'center', borderRadius: 6 },
   segItemActive: { backgroundColor: '#FFF', ...Shadow.sm },
-  segText: { fontSize: 13, color: '#8E8E93', fontWeight: '600' },
+  segText: { fontSize: 13, color: '#8E8E93', fontWeight: '600', textAlign: 'center' },
+  segTitle: { fontSize: 14, fontWeight: '700', color: '#8E8E93', textAlign: 'center' },
+  segSubtitle: { fontSize: 11, fontWeight: '500', color: '#8E8E93', textAlign: 'center', marginTop: 2, opacity: 0.75 },
   segTextActive: { color: Colors.primary },
   nfcStatusText: { fontSize: 13, color: '#3F51B5', fontWeight: '500' },
   qrContainer: { justifyContent: 'center', alignItems: 'center', padding: 16, backgroundColor: '#FFF', borderRadius: 12, marginTop: 16, alignSelf: 'center', borderWidth: 1, borderColor: '#EEE' },
