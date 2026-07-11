@@ -447,6 +447,7 @@ const resources = {
       profile: {
         title: 'Профиль',
         editName: 'Изменить имя',
+        nameEmptyError: 'Имя не может быть пустым',
         sync: 'Синхронизировать',
         synced: 'Синхронизировано',
         syncNever: 'Никогда не синхронизировалось',
@@ -543,6 +544,7 @@ const resources = {
       },
       sellers: {
         teamTitle: 'Команда',
+        youLabel: 'Вы',
         activeSellers: 'Активные',
         membersSectionTitle: 'Участники',
         managementSectionTitle: 'Управление',
@@ -1207,6 +1209,7 @@ const resources = {
       profile: {
         title: 'Профил',
         editName: 'Иваз кардани ном',
+        nameEmptyError: 'Ном наметавонад холӣ бошад',
         sync: 'Ҳамоҳангсозӣ',
         synced: 'Ҳамоҳанг шуд',
         syncNever: 'Ҳеҷ гоҳ ҳамоҳанг нашудааст',
@@ -1303,6 +1306,7 @@ const resources = {
       },
       sellers: {
         teamTitle: 'Дастаи фурӯшандагон',
+        youLabel: 'Шумо',
         activeSellers: 'Фаъол',
         membersSectionTitle: 'Аъзоён',
         managementSectionTitle: 'Идоракунӣ',
@@ -1967,6 +1971,7 @@ const resources = {
       profile: {
         title: 'Profile',
         editName: 'Edit name',
+        nameEmptyError: 'Name cannot be empty',
         sync: 'Sync',
         synced: 'Synced',
         syncNever: 'Never synced',
@@ -2063,6 +2068,7 @@ const resources = {
       },
       sellers: {
         teamTitle: 'Team',
+        youLabel: 'You',
         activeSellers: 'Active',
         membersSectionTitle: 'Members',
         managementSectionTitle: 'Management',
@@ -2722,6 +2728,7 @@ const resources = {
       profile: {
         title: 'Profil',
         editName: 'Ismni o‘zgartirish',
+        nameEmptyError: "Ism bo'sh bo'lishi mumkin emas",
         sync: 'Sinxronizatsiya',
         synced: 'Sinxronizatsiya qilindi',
         syncNever: 'Hech qachon sinxronizatsiya qilinmagan',
@@ -2818,6 +2825,7 @@ const resources = {
       },
       sellers: {
         teamTitle: 'Jamoa',
+        youLabel: 'Siz',
         activeSellers: 'Faol',
         membersSectionTitle: 'A\'zolar',
         managementSectionTitle: 'Boshqaruv',
@@ -3482,6 +3490,7 @@ const resources = {
       profile: {
         title: 'Профил',
         editName: 'Исмни ўзгартириш',
+        nameEmptyError: 'Исм бўш бўлиши мумкин эмас',
         sync: 'Синхронизация',
         synced: 'Синхронизация қилинди',
         syncNever: 'Ҳеч қачон синхронизация қилинмаган',
@@ -3578,6 +3587,7 @@ const resources = {
       },
       sellers: {
         teamTitle: 'Жамоа',
+        youLabel: 'Сиз',
         activeSellers: 'Фаол',
         membersSectionTitle: 'Аъзолар',
         managementSectionTitle: 'Бошқарув',
@@ -4242,6 +4252,7 @@ const resources = {
       profile: {
         title: 'Perfil',
         editName: 'Editar nome',
+        nameEmptyError: 'O nome não pode estar vazio',
         sync: 'Sincronizar',
         synced: 'Sincronizado',
         syncNever: 'Nunca sincronizado',
@@ -4338,6 +4349,7 @@ const resources = {
       },
       sellers: {
         teamTitle: 'Equipe',
+        youLabel: 'Você',
         activeSellers: 'Ativos',
         membersSectionTitle: 'Membros',
         managementSectionTitle: 'Gestão',
@@ -4943,6 +4955,7 @@ const resources = {
       profile: {
         title: 'Profilo',
         editName: 'Modifica nome',
+        nameEmptyError: 'Il nome non può essere vuoto',
         sync: 'Sincronizza',
         synced: 'Sincronizzato',
         syncNever: 'Mai sincronizzato',
@@ -5039,6 +5052,7 @@ const resources = {
       },
       sellers: {
         teamTitle: 'Team',
+        youLabel: 'Tu',
         activeSellers: 'Attivi',
         membersSectionTitle: 'Membri',
         managementSectionTitle: 'Gestione',
@@ -5641,6 +5655,7 @@ const resources = {
       profile: {
         title: "Perfil",
         editName: "Editar nombre",
+        nameEmptyError: 'El nombre no puede estar vacío',
         sync: "Sincronizar",
         synced: "Sincronizado",
         syncNever: "Nunca sincronizado",
@@ -5737,6 +5752,7 @@ const resources = {
       },
       sellers: {
         teamTitle: "Equipo",
+        youLabel: 'Tú',
         activeSellers: 'Activos',
         membersSectionTitle: "Miembros",
         managementSectionTitle: "Gestión",

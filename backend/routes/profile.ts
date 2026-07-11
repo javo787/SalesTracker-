@@ -1,6 +1,7 @@
 import express from 'express';
 import User from '../models/User';
 import Sale from '../models/Sale';
+import ShopMember from '../models/ShopMember';
 import { authMiddleware, AuthRequest } from '../middleware/authMiddleware';
 
 const router = express.Router();
@@ -42,6 +43,16 @@ router.patch('/', authMiddleware, async (req: AuthRequest, res) => {
       updateFields,
       { new: true }
     ).select('-passwordHash');
+
+    // Кэш displayName в ShopMember должен оставаться в синхронизации с User.name,
+    // иначе в списках команды и уведомлениях будет показываться старое/гостевое имя.
+    if (name !== undefined && name !== null && name.trim().length > 0) {
+      await ShopMember.updateMany(
+        { userId: req.userId },
+        { $set: { displayName: name } }
+      );
+    }
+
     res.json(user);
   } catch (error) {
     res.status(500).json({ message: 'Error updating profile' });
