@@ -177,6 +177,15 @@ export default function ReportScreen() {
     ForecastService.getCachedForecast().then(setForecastCache);
   }, []);
 
+  const PERIODS = [
+    { label: t('reports.today'), days: 1 },
+    { label: t('reports.days7'), days: 7 },
+    { label: t('reports.days30'), days: 30 },
+    { label: t('reports.days60'), days: 60, locked: !extendedUnlocked },
+    { label: t('reports.days90'), days: 90, locked: !extendedUnlocked },
+    { label: t('reports.days365'), days: 365, locked: !extendedUnlocked },
+  ];
+
   const getPeriodLabel = useCallback(() => {
     if (period === 'custom' && dateRange && dateRange.from) {
       const from = new Date(dateRange.from).toLocaleDateString(i18n.language === 'tg' ? 'tg-TJ' : i18n.language === 'uz' ? 'uz-UZ' : 'ru-RU');
@@ -341,15 +350,6 @@ export default function ReportScreen() {
       Alert.alert(t('common.error'), 'Не удалось экспортировать файл');
     }
   };
-
-  const PERIODS = [
-    { label: t('reports.today'), days: 1 },
-    { label: t('reports.days7'), days: 7 },
-    { label: t('reports.days30'), days: 30 },
-    { label: t('reports.days60'), days: 60, locked: !extendedUnlocked },
-    { label: t('reports.days90'), days: 90, locked: !extendedUnlocked },
-    { label: t('reports.days365'), days: 365, locked: !extendedUnlocked },
-  ];
 
 
   const handleDayPress = (day: any) => {
