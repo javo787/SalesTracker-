@@ -199,10 +199,10 @@ export default function ReportScreen() {
   }, [getPeriodLabel, isOwner, selectedSellerId, members, t]);
 
   const checkExportCache = useCallback(async () => {
-    const label = getPeriodLabel();
+    const label = displayPeriodLabel;
     const summary = await ExportSummaryService.getCachedSummary(label, i18n.language);
     setCachedSummary(summary);
-  }, [getPeriodLabel, i18n.language]);
+  }, [displayPeriodLabel, i18n.language]);
 
   useFocusEffect(useCallback(() => {
     loadData(period, dateRange || undefined);
@@ -453,7 +453,7 @@ export default function ReportScreen() {
       const payload: SummaryPayload = {
         language: i18n.language as 'ru' | 'tj' | 'uz',
         currency: currency.symbol,
-        periodLabel: getPeriodLabel(),
+        periodLabel: displayPeriodLabel,
         totalRevenue: stats.revenue,
         totalProfit: stats.profit,
         totalExpenses: expenseTotal,
@@ -493,7 +493,7 @@ export default function ReportScreen() {
       // Sheet 1: AI Summary
       const summaryData = [
         ["Отчёт Torgo"],
-        [getPeriodLabel()],
+        [displayPeriodLabel],
         [],
         [t('exportSummary.headerRevenue'), `${stats.revenue} ${currency.symbol}`],
         [t('exportSummary.headerProfit'), `${stats.profit} ${currency.symbol}`],
