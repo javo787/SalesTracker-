@@ -7,8 +7,10 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { BarChart } from 'react-native-gifted-charts';
 import { Calendar } from 'react-native-calendars';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
+import { ShopMember } from '../types/auth';
+import { api } from '../services/api';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as XLSX from 'xlsx';
@@ -72,6 +74,18 @@ export default function ReportScreen() {
   const { isOwner, role } = useShop();
   const { user, isGuest } = useAuth();
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
+
+  const [selectedSellerId, setSelectedSellerId] = useState<string | null>(null);
+  const [members, setMembers] = useState<ShopMember[]>([]);
+
+  useEffect(() => {
+    if (route.params?.sellerId) {
+      setSelectedSellerId(route.params.sellerId);
+      navigation.setParams({ sellerId: undefined, sellerName: undefined });
+    }
+  }, [route.params?.sellerId]);
+
   const [period, setPeriod] = useState<number | 'custom'>(30);
   const [dateRange, setDateRange] = useState<{from: string, to: string} | null>(null);
   const [showCalendar, setShowCalendar] = useState(false);
@@ -106,22 +120,32 @@ export default function ReportScreen() {
     const userId = isGuest ? 'guest' : (user as any)?._id;
 
     if (p === 'custom' && range) {
-      setStats(isOwner ? getStats(0, range.from, range.to) : getMyStats(userId, 3650)); // Fallback to a year for custom range for sellers as getMyStats doesn't support custom range yet
-      setSales(getSalesByPeriod(0, range.from, range.to).filter((s: any) => isOwner || s.seller_id === userId));
+      setStats(isOwner ? (selectedSellerId ? getMyStats(selectedSellerId, 0, range.from, range.to) : getStats(0, range.from, range.to)) : getMyStats(userId, 3650)); // Fallback to a year for custom range for sellers as getMyStats doesn't support custom range yet
+      setSales(getSalesByPeriod(0, range.from, range.to).filter((s: any) => {
+        if (isOwner) {
+          return selectedSellerId === null || s.seller_id === selectedSellerId;
+        }
+        return s.seller_id === userId;
+      }));
       const expStats = getExpenseStats(0, range.from, range.to);
       setExpenseTotal(isOwner ? expStats.total : 0);
       setOperationalExpenseTotal(isOwner ? expStats.operational : 0);
       setExpenses(isOwner ? getExpenses(0, range.from, range.to) as any[] : []);
     } else {
       const days = typeof p === 'number' ? p : 1;
-      setStats(isOwner ? getStats(days) : getMyStats(userId, days));
-      setSales(getSalesByPeriod(days).filter((s: any) => isOwner || s.seller_id === userId));
+      setStats(isOwner ? (selectedSellerId ? getMyStats(selectedSellerId, days) : getStats(days)) : getMyStats(userId, days));
+      setSales(getSalesByPeriod(days).filter((s: any) => {
+        if (isOwner) {
+          return selectedSellerId === null || s.seller_id === selectedSellerId;
+        }
+        return s.seller_id === userId;
+      }));
       const expStats = getExpenseStats(days);
       setExpenseTotal(isOwner ? expStats.total : 0);
       setOperationalExpenseTotal(isOwner ? expStats.operational : 0);
       setExpenses(isOwner ? getExpenses(days) as any[] : []);
     }
-  }, [isOwner, user, isGuest]);
+  }, [isOwner, user, isGuest, selectedSellerId]);
 
   const checkRegPrompt = useCallback(async () => {
     if (!isGuest) return;
@@ -163,11 +187,22 @@ export default function ReportScreen() {
     return p ? p.label : '';
   }, [period, dateRange, i18n.language]);
 
-  const checkExportCache = useCallback(async () => {
+  const displayPeriodLabel = useMemo(() => {
     const label = getPeriodLabel();
+    if (isOwner && selectedSellerId) {
+      const member = members.find(m => m.userId === selectedSellerId);
+      if (member) {
+        return t('reports.scopedPeriodLabel', { sellerName: member.displayName, periodLabel: label });
+      }
+    }
+    return label;
+  }, [getPeriodLabel, isOwner, selectedSellerId, members, t]);
+
+  const checkExportCache = useCallback(async () => {
+    const label = displayPeriodLabel;
     const summary = await ExportSummaryService.getCachedSummary(label, i18n.language);
     setCachedSummary(summary);
-  }, [getPeriodLabel, i18n.language]);
+  }, [displayPeriodLabel, i18n.language]);
 
   useFocusEffect(useCallback(() => {
     loadData(period, dateRange || undefined);
@@ -175,7 +210,17 @@ export default function ReportScreen() {
     checkExtendedUnlock();
     checkForecast();
     checkExportCache();
-  }, [period, dateRange, loadData, checkRegPrompt, checkExtendedUnlock, checkForecast, checkExportCache]));
+
+    if (isOwner) {
+      api.get<{ members: ShopMember[] }>('/shop/members?limit=100')
+        .then(res => {
+          if (res && res.members) {
+            setMembers(res.members);
+          }
+        })
+        .catch(err => console.error('Failed to fetch members in ReportScreen:', err));
+    }
+  }, [period, dateRange, loadData, checkRegPrompt, checkExtendedUnlock, checkForecast, checkExportCache, isOwner]));
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -408,7 +453,7 @@ export default function ReportScreen() {
       const payload: SummaryPayload = {
         language: i18n.language as 'ru' | 'tj' | 'uz',
         currency: currency.symbol,
-        periodLabel: getPeriodLabel(),
+        periodLabel: displayPeriodLabel,
         totalRevenue: stats.revenue,
         totalProfit: stats.profit,
         totalExpenses: expenseTotal,
@@ -448,7 +493,7 @@ export default function ReportScreen() {
       // Sheet 1: AI Summary
       const summaryData = [
         ["Отчёт Torgo"],
-        [getPeriodLabel()],
+        [displayPeriodLabel],
         [],
         [t('exportSummary.headerRevenue'), `${stats.revenue} ${currency.symbol}`],
         [t('exportSummary.headerProfit'), `${stats.profit} ${currency.symbol}`],
@@ -577,7 +622,7 @@ export default function ReportScreen() {
         {/* Row 1: title + export button */}
         <View style={styles.headerRow}>
           <Text style={[styles.periodTitle, themeStyles.text]}>
-            {getPeriodLabel()}
+            {displayPeriodLabel}
           </Text>
           {isOwner && (
             <TouchableOpacity
@@ -639,6 +684,49 @@ export default function ReportScreen() {
             )}
           </TouchableOpacity>
         </ScrollView>
+
+        {/* Row 3: scrollable seller chips */}
+        {isOwner && members.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={[styles.periodChips, { marginTop: 8, paddingTop: 4 }]}
+          >
+            <TouchableOpacity
+              style={[
+                styles.chip,
+                selectedSellerId === null && styles.chipActive,
+              ]}
+              onPress={() => setSelectedSellerId(null)}
+            >
+              <Text style={[
+                styles.chipText,
+                selectedSellerId === null && styles.chipTextActive,
+              ]}>
+                {t('sellers.filterAll') || 'Все'}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Deactivated (removed) sellers: historical sales remain visible under "Все" (aggregate), but they do not appear as selectable chips. */}
+            {members.filter(m => m.isActive).map(member => (
+              <TouchableOpacity
+                key={member.userId}
+                style={[
+                  styles.chip,
+                  selectedSellerId === member.userId && styles.chipActive,
+                ]}
+                onPress={() => setSelectedSellerId(member.userId)}
+              >
+                <Text style={[
+                  styles.chipText,
+                  selectedSellerId === member.userId && styles.chipTextActive,
+                ]}>
+                  {member.displayName}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
       </View>
 
       {!extendedUnlocked ? (
