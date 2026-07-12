@@ -428,6 +428,13 @@ export default function ReportScreen() {
   };
 
   const applyCustomRange = () => {
+    if (!extendedUnlocked) {
+      setShowCalendar(false);
+      setSelectedDates({});
+      setDateRange(null);
+      setShowExtendedModal(true);
+      return;
+    }
     if (dateRange && dateRange.from) {
       const finalRange = dateRange.to ? dateRange : { from: dateRange.from, to: dateRange.from };
       setDateRange(finalRange);
