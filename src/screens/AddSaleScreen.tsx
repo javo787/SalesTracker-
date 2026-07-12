@@ -117,6 +117,24 @@ export default function AddSaleScreen(/* props */) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const opacityAnim = useRef(new Animated.Value(1)).current;
 
+  const isFormDirty = !!(
+    productName || sellPrice || buyPrice || quantity || note ||
+    selectedProduct || clientName || paymentType !== 'full'
+  );
+
+  const handleClearForm = () => {
+    setProductName(''); setSellPrice(''); setBuyPrice('');
+    setQuantity(''); setNote(''); setVoiceText('');
+    setSelectedProduct(null); setSalePricePlaceholder(null);
+    setAmbiguousCandidates([]); setUnitType('base');
+    setShowNoteInput(false);
+    setPaymentType('full'); setPaidAmount(''); setDueDate('');
+    setClientName(''); setClientPhone(''); setClientId(null);
+    setShowFullClient(false); setShowDebtOptions(false);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setTimeout(() => productInputRef.current?.focus(), 100);
+  };
+
   const addToCart = () => {
     if (!productName.trim()) {
       Alert.alert(t('common.error'), t('addSale.productPlaceholder'));
@@ -749,7 +767,19 @@ export default function AddSaleScreen(/* props */) {
 
       {/* Форма */}
       <View style={[styles.form, themeStyles.card]}>
-        <Text style={[styles.sectionTitle, themeStyles.text]}>{t('addSale.formTitle')}</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+          <Text style={[styles.sectionTitle, themeStyles.text, { marginBottom: 0 }]}>{t('addSale.formTitle')}</Text>
+          {isFormDirty && (
+            <TouchableOpacity
+              onPress={handleClearForm}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="close-circle-outline" size={16} color="#888" />
+              <Text style={{ fontSize: 13, color: '#888' }}>{t('addSale.clearForm')}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Text style={[styles.label, themeStyles.text]}>{t('addSale.productName')} *</Text>
