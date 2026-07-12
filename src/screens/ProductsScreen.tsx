@@ -8,16 +8,17 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import {
   addProduct, updateProduct, deleteProduct, getProducts, getDistinctCategories, getProductIdsWithDebts,
-  getProductSalesStats, getProductSalesHistory, getUnregisteredProductsFromHistory, db
+  getProductSalesStats, getProductSalesHistory, getUnregisteredProductsFromHistory, db, resolvePendingSale
 } from '../db/database';
 import { useShop } from '../context/ShopContext';
+import { ProductAutocomplete } from '../components/sales/ProductAutocomplete';
+import { AutocompleteResult } from '../types/product';
 import { analyticsService } from '../services/analyticsService';
 import { useAppContext } from '../context/AppContext';
 import { useExpenses } from '../hooks/useExpenses';
 import { useFieldChain } from '../hooks/useFieldChain';
 import StockOperationModal from '../components/stock/StockOperationModal';
 import StockHistorySheet from '../components/stock/StockHistorySheet';
-import { ProductAutocomplete } from '../components/sales/ProductAutocomplete';
 import { Colors, LightTheme, DarkTheme, Radius, Shadow } from '../constants/theme';
 import { PRESET_COLORS, getColorHex, ColorCircle } from '../constants/colors';
 
@@ -92,6 +93,8 @@ export default function ProductsScreen() {
 
   const [buyPriceModal, setBuyPriceModal] = useState<{ saleId: number; productName: string } | null>(null);
   const [buyPriceInput, setBuyPriceInput] = useState('');
+  const [pendingLinkProduct, setPendingLinkProduct] = useState<AutocompleteResult | null>(null);
+  const [pendingLinkSearch, setPendingLinkSearch] = useState('');
 
   const [refreshing, setRefreshing] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -952,6 +955,8 @@ export default function ProductsScreen() {
                   onPress={() => {
                     setBuyPriceModal({ saleId: sale.id, productName: sale.product_name });
                     setBuyPriceInput('');
+                    setPendingLinkSearch(sale.product_name || '');
+                    setPendingLinkProduct(null);
                   }}
                 >
                   <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>{t('common.edit')}</Text>
@@ -1395,17 +1400,51 @@ export default function ProductsScreen() {
             <Text style={[styles.buyPriceModalTitle, themeStyles.text]}>
               {t('addSale.buyPrice')}: {buyPriceModal?.productName}
             </Text>
+
+            <Text style={[styles.label, themeStyles.text, { marginTop: 10 }]}>
+              {t('addSale.productName')}
+            </Text>
+            <View style={{ zIndex: 10, marginBottom: 10 }}>
+              <ProductAutocomplete
+                inputStyle={[styles.buyPriceModalInput, themeStyles.input, { marginVertical: 0 }]}
+                placeholder={t('addSale.productPlaceholder')}
+                placeholderTextColor={isDark ? '#888' : '#aaa'}
+                value={pendingLinkSearch}
+                onChange={(text) => {
+                  setPendingLinkSearch(text);
+                  setPendingLinkProduct(null);
+                }}
+                onSelect={(product) => {
+                  setPendingLinkSearch(product.name);
+                  setPendingLinkProduct(product);
+                }}
+              />
+            </View>
+            <Text style={{ fontSize: 12, color: '#888', marginBottom: 12 }}>
+              Если этого товара нет в каталоге — оставь поле пустым, склад не изменится
+            </Text>
+
+            <Text style={[styles.label, themeStyles.text]}>
+              {t('addSale.buyPrice')}
+            </Text>
             <TextInput
-              style={[styles.buyPriceModalInput, themeStyles.input]}
+              style={[styles.buyPriceModalInput, themeStyles.input, { marginVertical: 8 }]}
               keyboardType="numeric"
               value={buyPriceInput}
               onChangeText={setBuyPriceInput}
-              autoFocus
               placeholder="0"
               placeholderTextColor={isDark ? '#888' : '#aaa'}
             />
+
             <View style={styles.buyPriceModalButtons}>
-              <TouchableOpacity onPress={() => setBuyPriceModal(null)} style={styles.modalCancelBtn}>
+              <TouchableOpacity
+                onPress={() => {
+                  setBuyPriceModal(null);
+                  setPendingLinkProduct(null);
+                  setPendingLinkSearch('');
+                }}
+                style={styles.modalCancelBtn}
+              >
                 <Text style={styles.modalCancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -1413,17 +1452,13 @@ export default function ProductsScreen() {
                 onPress={() => {
                   const bPrice = parseFloat(buyPriceInput || '0');
                   if (!isNaN(bPrice) && buyPriceModal) {
-                    const sale = pendingSales.find(s => s.id === buyPriceModal.saleId);
-                    if (sale) {
-                      const profit = (sale.sell_price - bPrice) * sale.quantity;
-                      db.runSync(
-                        "UPDATE sales SET buy_price = ?, profit = ?, is_pending_review = 0 WHERE id = ?",
-                        [bPrice, profit, buyPriceModal.saleId]
-                      );
-                      loadProducts();
-                    }
+                    const productId = pendingLinkProduct?.id ? parseInt(pendingLinkProduct.id) : null;
+                    resolvePendingSale(buyPriceModal.saleId, productId, bPrice);
+                    loadProducts();
                   }
                   setBuyPriceModal(null);
+                  setPendingLinkProduct(null);
+                  setPendingLinkSearch('');
                 }}
               >
                 <Text style={styles.modalSaveText}>{t('common.save')}</Text>

@@ -1500,6 +1500,53 @@ export function clearShopSession() {
   db.runSync("DELETE FROM shop_session");
 }
 
+/**
+ * Разрешает отложенную ("на проверке") продажу: опционально привязывает
+ * к товару каталога (со списанием склада) и/или обновляет закупочную цену.
+ * Если productId не передан — только обновляет buy_price/profit,
+ * товар остаётся непривязанным (для случаев "этого товара нет на складе").
+ */
+export function resolvePendingSale(
+  saleId: number,
+  productId: number | null,
+  buyPrice: number | null
+) {
+  const sale = db.getFirstSync('SELECT * FROM sales WHERE id = ?', [saleId]) as any;
+  if (!sale) return null;
+
+  let lowStockInfo: any = null;
+
+  db.withTransactionSync(() => {
+    const bPrice = buyPrice ?? sale.buy_price ?? 0;
+    const profit = (sale.sell_price - bPrice) * sale.quantity;
+
+    if (productId) {
+      db.runSync(
+        `UPDATE sales SET product_id = ?, buy_price = ?, profit = ?,
+         stock_updated = 1, is_pending_review = 0 WHERE id = ?`,
+        [productId, bPrice, profit, saleId]
+      );
+      db.runSync('UPDATE products SET stock = stock - ? WHERE id = ?', [sale.quantity, productId]);
+
+      const p = db.getFirstSync(
+        'SELECT name, stock, min_stock_alert FROM products WHERE id = ?',
+        [productId]
+      ) as any;
+      if (p && p.stock <= p.min_stock_alert && p.min_stock_alert > 0) {
+        lowStockInfo = { name: p.name, stock: p.stock };
+      }
+    } else {
+      db.runSync(
+        'UPDATE sales SET buy_price = ?, profit = ?, is_pending_review = 0 WHERE id = ?',
+        [bPrice, profit, saleId]
+      );
+    }
+  });
+
+  if (lowStockInfo) notifyLowStock(lowStockInfo.name, lowStockInfo.stock);
+  return { saleId, productId, linked: !!productId };
+}
+
 // Обновлённая addSale — принимает seller_id и seller_name
 export function addSaleWithSeller(
   productId: number | null,

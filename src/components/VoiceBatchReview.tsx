@@ -239,6 +239,49 @@ export default function VoiceBatchReview({ result, onConfirm, onCancel }: VoiceB
               </View>
             ) : null}
 
+            {(() => {
+              const linked = matchResults[index]?.match;
+              const showToggle = linked?.has_packages === 1 && linked?.is_continuous !== 1;
+              if (!showToggle) return null;
+              const currentUnitType = (item as any).unitType || 'base';
+              return (
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: Spacing.sm }}>
+                  <TouchableOpacity
+                    onPress={() => handleUpdateItem(index, 'unitType' as any, 'base')}
+                    style={[
+                      styles.unitToggleBtn,
+                      isDark && styles.unitToggleBtnDark,
+                      currentUnitType === 'base' && styles.unitToggleBtnActive
+                    ]}
+                  >
+                    <Text style={[
+                      styles.unitToggleText,
+                      isDark && styles.unitToggleTextDark,
+                      currentUnitType === 'base' && styles.unitToggleTextActive
+                    ]}>
+                      {linked.base_unit || t('warehouse.unitBase')}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => handleUpdateItem(index, 'unitType' as any, 'package')}
+                    style={[
+                      styles.unitToggleBtn,
+                      isDark && styles.unitToggleBtnDark,
+                      currentUnitType === 'package' && styles.unitToggleBtnActive
+                    ]}
+                  >
+                    <Text style={[
+                      styles.unitToggleText,
+                      isDark && styles.unitToggleTextDark,
+                      currentUnitType === 'package' && styles.unitToggleTextActive
+                    ]}>
+                      {linked.package_name || t('warehouse.unitPackage')}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })()}
+
             {matchResults[index]?.confidence === 'ambiguous' ? (
               <View>
                 <VariantPicker
@@ -440,5 +483,32 @@ const styles = StyleSheet.create({
   manualBtnText: {
     color: Colors.primary,
     fontWeight: '600',
-  }
+  },
+  unitToggleBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: Radius.sm,
+    backgroundColor: '#F2F2F7',
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+  },
+  unitToggleBtnDark: {
+    backgroundColor: '#1C1C1E',
+    borderColor: '#3A3A3C',
+  },
+  unitToggleBtnActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  unitToggleText: {
+    fontSize: FontSize.xs,
+    fontWeight: '600',
+    color: '#8E8E93',
+  },
+  unitToggleTextDark: {
+    color: '#AEAEB2',
+  },
+  unitToggleTextActive: {
+    color: '#fff',
+  },
 });
