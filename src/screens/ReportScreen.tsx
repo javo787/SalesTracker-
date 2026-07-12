@@ -1122,6 +1122,13 @@ export default function ReportScreen() {
               ))}
             </View>
 
+            {!extendedUnlocked && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                <Ionicons name="lock-closed" size={12} color="#999" />
+                <Text style={{ fontSize: 12, color: '#999' }}>{t('extendedReport.lockBadge')}</Text>
+              </View>
+            )}
+
             <Calendar
               onDayPress={handleDayPress}
               markedDates={selectedDates}
@@ -1183,34 +1190,6 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 4,
   },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    marginBottom: 10,
-  },
-  periodTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#999',
-    letterSpacing: 0.3,
-  },
-  exportBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#1D9E75',
-  },
-  exportBtnText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#1D9E75',
-  },
   periodChips: {
     flexDirection: 'row',
     gap: 8,
@@ -1233,9 +1212,6 @@ const styles = StyleSheet.create({
   chipLocked: {
     borderStyle: 'dashed',
     borderColor: '#CCC',
-  },
-  chipCalendar: {
-    paddingHorizontal: 12,
   },
   chipText: {
     fontSize: 13,
