@@ -95,7 +95,6 @@ export const ProductAutocomplete = React.forwardRef<any, Props>(({
         onPress={() => handleSelect(item)}
       >
         <View style={styles.itemLeft}>
-          <Text style={styles.icon}>{item.source === 'catalog' ? '📦' : '🕐'}</Text>
           {colorHex && (
             <ColorCircle size={14} hex={colorHex} style={{ marginRight: 6 }} />
           )}
@@ -153,7 +152,6 @@ export const ProductAutocomplete = React.forwardRef<any, Props>(({
                     <View key={`group-${g.article}`} style={{ borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#EEE', paddingVertical: 8 }}>
                       <View style={[styles.item, { borderBottomWidth: 0, paddingBottom: 4 }]}>
                          <View style={styles.itemLeft}>
-                           <Text style={styles.icon}>📦</Text>
                            <Text style={[styles.itemName, isDark ? styles.textDark : styles.textLight, { fontWeight: 'bold' }]}>
                              {g.variants[0].baseName ?? g.variants[0].name}
                            </Text>
