@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useLayoutEffect } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
   TouchableOpacity, RefreshControl, Alert, TextInput, Modal, ActivityIndicator
@@ -7,7 +7,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { BarChart } from 'react-native-gifted-charts';
 import { Calendar } from 'react-native-calendars';
-import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute, DrawerActions } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { ShopMember } from '../types/auth';
 import { api } from '../services/api';
@@ -206,6 +206,45 @@ export default function ReportScreen() {
     }
     return label;
   }, [getPeriodLabel, isOwner, selectedSellerId, members, t]);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerShown: true,
+      headerStyle: { backgroundColor: isDark ? DarkTheme.headerBg : LightTheme.headerBg },
+      headerTintColor: '#fff',
+      headerTitleAlign: 'left',
+      headerTitle: () => (
+        <TouchableOpacity
+          onPress={() => setShowCalendar(true)}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Text style={{ color: '#fff', fontSize: 17, fontWeight: '500' }} numberOfLines={1}>
+            {getPeriodLabel()}
+          </Text>
+          <Ionicons name="chevron-down" size={16} color="#fff" />
+        </TouchableOpacity>
+      ),
+      headerRight: () => (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, marginRight: 16 }}>
+          {isOwner && (
+            <TouchableOpacity
+              onPress={() => setShowExportModal(true)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="download-outline" size={22} color="#fff" />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="menu-outline" size={26} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      ),
+    });
+  }, [navigation, isDark, isOwner, period, dateRange, i18n.language]);
 
   const checkExportCache = useCallback(async () => {
     const label = displayPeriodLabel;
@@ -618,79 +657,13 @@ export default function ReportScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       {/* Period + Export header */}
-      <View style={styles.headerControls}>
-        {/* Row 1: title + export button */}
-        <View style={styles.headerRow}>
-          <Text style={[styles.periodTitle, themeStyles.text]}>
-            {displayPeriodLabel}
-          </Text>
-          {isOwner && (
-            <TouchableOpacity
-              style={styles.exportBtn}
-              onPress={() => setShowExportModal(true)}
-            >
-              <Ionicons name="download-outline" size={14} color="#1D9E75" />
-              <Text style={styles.exportBtnText}>{t('reports.exportCsv')}</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Row 2: scrollable period chips */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.periodChips}
-        >
-          {PERIODS.map(p => (
-            <TouchableOpacity
-              key={p.days}
-              style={[
-                styles.chip,
-                period === p.days && styles.chipActive,
-                p.locked && styles.chipLocked,
-              ]}
-              onPress={() => {
-                if (p.locked) { setShowExtendedModal(true); return; }
-                setPeriod(p.days);
-                setDateRange(null);
-                setSelectedDates({});
-              }}
-            >
-              {p.locked && (
-                <Ionicons name="lock-closed" size={10} color="#999" style={{ marginRight: 3 }} />
-              )}
-              <Text style={[
-                styles.chipText,
-                period === p.days && styles.chipTextActive,
-                p.locked && styles.chipTextLocked,
-              ]}>
-                {p.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-
-          {/* Calendar chip */}
-          <TouchableOpacity
-            style={[styles.chip, styles.chipCalendar, period === 'custom' && styles.chipActive]}
-            onPress={() => extendedUnlocked ? setShowCalendar(true) : setShowExtendedModal(true)}
-          >
-            <Ionicons
-              name="calendar-outline"
-              size={14}
-              color={period === 'custom' ? '#fff' : '#1D9E75'}
-            />
-            {!extendedUnlocked && (
-              <Ionicons name="lock-closed" size={9} color="#999" style={{ marginLeft: 2 }} />
-            )}
-          </TouchableOpacity>
-        </ScrollView>
-
-        {/* Row 3: scrollable seller chips */}
-        {isOwner && members.length > 0 && (
+      {isOwner && members.length > 0 && (
+        <View style={styles.headerControls}>
+          {/* Row 3: scrollable seller chips */}
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={[styles.periodChips, { marginTop: 8, paddingTop: 4 }]}
+            contentContainerStyle={[styles.periodChips, { paddingTop: 4 }]}
           >
             <TouchableOpacity
               style={[
@@ -726,8 +699,8 @@ export default function ReportScreen() {
               </TouchableOpacity>
             ))}
           </ScrollView>
-        )}
-      </View>
+        </View>
+      )}
 
       {!extendedUnlocked ? (
         <TouchableOpacity style={styles.lockStrip} onPress={() => setShowExtendedModal(true)}>
@@ -1109,6 +1082,37 @@ export default function ReportScreen() {
               <TouchableOpacity onPress={() => setShowCalendar(false)}>
                 <Ionicons name="close" size={24} color={isDark ? '#eee' : '#333'} />
               </TouchableOpacity>
+            </View>
+
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+              {PERIODS.map(p => (
+                <TouchableOpacity
+                  key={p.days}
+                  style={[styles.chip, period === p.days && styles.chipActive, p.locked && styles.chipLocked]}
+                  onPress={() => {
+                    if (p.locked) {
+                      setShowCalendar(false);
+                      setShowExtendedModal(true);
+                      return;
+                    }
+                    setPeriod(p.days);
+                    setDateRange(null);
+                    setSelectedDates({});
+                    setShowCalendar(false);
+                  }}
+                >
+                  {p.locked && (
+                    <Ionicons name="lock-closed" size={10} color="#999" style={{ marginRight: 3 }} />
+                  )}
+                  <Text style={[
+                    styles.chipText,
+                    period === p.days && styles.chipTextActive,
+                    p.locked && styles.chipTextLocked,
+                  ]}>
+                    {p.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
 
             <Calendar
