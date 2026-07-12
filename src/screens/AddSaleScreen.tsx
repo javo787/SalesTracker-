@@ -411,16 +411,27 @@ export default function AddSaleScreen(/* props */) {
         ? parseInt(linkedProduct.id)
         : (it.matchedProductId ?? null);
 
+      const unitType = (it as any).unitType || 'base';
+      const isPackageSale = linkedProduct?.has_packages === 1
+        && linkedProduct?.is_continuous !== 1
+        && unitType === 'package';
+      const resolvedQuantity = isPackageSale
+        ? it.quantity * (linkedProduct!.units_per_package || 1)
+        : it.quantity;
+      const resolvedUnitLabel = isPackageSale
+        ? `${it.quantity} ${linkedProduct!.package_name} (${resolvedQuantity} ${linkedProduct!.base_unit})`
+        : `${it.quantity} ${linkedProduct?.base_unit || t('warehouse.unitBase')}`;
+
       return {
         id: Math.random().toString(36).substring(2, 9),
         product: linkedProduct,
         productId: resolvedProductId,
         productName: it.product_name,
-        quantity: it.quantity,
+        quantity: resolvedQuantity,
         sellPrice: it.sell_price,
         buyPrice: it.buy_price,
         note: '',
-        unitLabel: `${it.quantity} ${t('warehouse.unitBase')}`
+        unitLabel: resolvedUnitLabel
       };
     });
 
@@ -493,7 +504,7 @@ export default function AddSaleScreen(/* props */) {
         // Multiple items flow
         const itemsWithPending = finalItems.map(it => ({
           ...it,
-          isPendingReview: (current_role === 'seller' && it.productId === null) ? 1 : 0
+          isPendingReview: it.productId === null ? 1 : 0
         }));
 
         const orderResult = addOrderWithItems(
@@ -511,7 +522,7 @@ export default function AddSaleScreen(/* props */) {
       } else {
         // Single item retail flow - maintain identical behavior
         const item = finalItems[0];
-        const isPending = (current_role === 'seller' && item.productId === null) ? 1 : 0;
+        const isPending = item.productId === null ? 1 : 0;
 
         const saleResult = addSaleWithSeller(
           item.productId,

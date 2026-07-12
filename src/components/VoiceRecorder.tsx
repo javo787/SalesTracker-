@@ -36,7 +36,6 @@ interface VoiceRecorderProps {
 // ─────────────────────────────────────────────
 // Constants
 // ─────────────────────────────────────────────
-const GROQ_API_URL = 'https://api.groq.com/openai/v1/audio/transcriptions';
 const MAX_DURATION_MS = 60_000;
 const WARNING_MS = 55_000;
 const MIN_DURATION_MS = 700;
@@ -236,10 +235,10 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
 
       try {
         const apiUrl = process.env.EXPO_PUBLIC_API_URL;
-
-        const transcribeUrl = apiUrl
-          ? `${apiUrl}/voice-sale`
-          : GROQ_API_URL;
+        if (!apiUrl) {
+          throw new Error('API URL не настроен. Обратитесь к администратору приложения.');
+        }
+        const transcribeUrl = `${apiUrl}/voice-sale`;
 
         const ext = uri.split('.').pop()?.toLowerCase() ?? 'm4a';
         const mimeMap: Record<string, string> = {
@@ -308,22 +307,7 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
           throw new Error(`[${result.status}] ${detail}`);
         }
 
-        if (transcribeUrl.includes('voice-sale')) {
-          onResult(body as VoiceSaleResult);
-        } else {
-          // Legacy Groq path
-          const text: string = body?.text ?? '';
-          if (!text.trim()) {
-            throw new Error('Речь не распознана. Говорите громче или ближе к микрофону.');
-          }
-          onResult({
-            items: [{ product_name: text, sell_price: 0, buy_price: 0, quantity: 1, needs_confirmation: true }],
-            language_detected: 'unknown',
-            truncated: false,
-            transcript: text,
-            source: 'transcript_only'
-          });
-        }
+        onResult(body as VoiceSaleResult);
       } catch (err: any) {
         if (err?.name === 'AbortError') return;
         if (unmountedRef.current) return;
