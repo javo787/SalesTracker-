@@ -34,7 +34,7 @@ module.exports = ({ config }) => ({
     updates: {
       url: "https://u.expo.dev/9a8cb8e4-5c8c-4147-942b-46ea4c65fb4a"
     },
-    runtimeVersion: "1.1.2",
+    runtimeVersion: "1.0.0",
     plugins: [
       [
         "expo-audio",
