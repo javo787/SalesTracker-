@@ -50,6 +50,10 @@ export async function runNewsReminderCheck(): Promise<{ notified: number; reason
     notificationsEnabled: true,
   }).lean();
 
+  function sleep(ms: number) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
   let notified = 0;
   for (const user of users) {
     if (!user.fcmToken) continue;
@@ -58,6 +62,8 @@ export async function runNewsReminderCheck(): Promise<{ notified: number; reason
       url: important[0].url,
     });
     if (sent) notified++;
+    // Растягиваем рассылку, чтобы избежать синхронного всплеска открытий приложения
+    await sleep(300 + Math.random() * 700); // 0.3-1 сек между отправками
   }
 
   return { notified };
