@@ -4,10 +4,11 @@ import ShopMember from '../models/ShopMember';
 import Sale from '../models/Sale';
 import User from '../models/User';
 import ShopAuditLog from '../models/ShopAuditLog';
-import { authMiddleware, requireShop, requireOwner, AuthRequest } from '../middleware/authMiddleware';
+import { authMiddleware, requireShop, requireOwner, requirePermission, AuthRequest } from '../middleware/authMiddleware';
 import mongoose from 'mongoose';
 import crypto from 'crypto';
 import { hashNfcTagUid } from '../utils/hash';
+import { isValidPermission } from '../constants/permissions';
 
 const router = express.Router();
 
@@ -133,6 +134,7 @@ router.get('/info', authMiddleware, requireShop, async (req: AuthRequest, res) =
       shopId: shop._id,
       shopName: shop.name,
       role: req.role,
+      permissions: req.permissions || [],
     };
 
     const settings = shop.checkInSettings;
@@ -146,7 +148,7 @@ router.get('/info', authMiddleware, requireShop, async (req: AuthRequest, res) =
       },
     };
 
-    if (req.role === 'owner') {
+    if (req.role === 'owner' || req.permissions?.includes('manage_team')) {
       responseData.inviteCode = shop.inviteCode;
     }
 
@@ -156,8 +158,8 @@ router.get('/info', authMiddleware, requireShop, async (req: AuthRequest, res) =
   }
 });
 
-// GET /shop/members — list of sellers (owner only)
-router.get('/members', authMiddleware, requireShop, requireOwner, async (req: AuthRequest, res) => {
+// GET /shop/members — list of sellers (manage_team permission required)
+router.get('/members', authMiddleware, requireShop, requirePermission('manage_team'), async (req: AuthRequest, res) => {
   try {
     const page = Math.max(parseInt(req.query.page as string) || 1, 1);
     const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 100);
@@ -166,7 +168,7 @@ router.get('/members', authMiddleware, requireShop, requireOwner, async (req: Au
     const totalCount = await ShopMember.countDocuments({ shopId: req.shopId });
 
     const members = await ShopMember.find({ shopId: req.shopId })
-      .select('userId displayName role isActive joinedAt lastActiveAt')
+      .select('userId displayName role isActive joinedAt lastActiveAt permissions')
       .populate('userId', 'lastSyncAt')
       .sort({ joinedAt: 1 })
       .skip(skip)
@@ -208,6 +210,7 @@ router.get('/members', authMiddleware, requireShop, requireOwner, async (req: Au
         isSelf: stringId === req.userId,
         todayRevenue: s?.todayRevenue || 0,
         todaySalesCount: s?.todaySalesCount || 0,
+        permissions: m.permissions || [],
       };
     });
 
@@ -218,6 +221,46 @@ router.get('/members', authMiddleware, requireShop, requireOwner, async (req: Au
   } catch (error) {
     console.error('Fetch members error:', error);
     res.status(500).json({ message: 'Error fetching members' });
+  }
+});
+
+router.patch('/members/:userId/permissions', authMiddleware, requireShop, requireOwner, async (req: AuthRequest, res) => {
+  try {
+    const { userId } = req.params;
+    const { permissions } = req.body;
+
+    if (!Array.isArray(permissions) || !permissions.every(isValidPermission)) {
+      return res.status(400).json({ message: 'Invalid permissions list' });
+    }
+
+    const targetMember = await ShopMember.findOne({ shopId: req.shopId, userId, isActive: true });
+    if (!targetMember) return res.status(404).json({ message: 'Active member not found' });
+    if (targetMember.role === 'owner') {
+      return res.status(400).json({ message: 'Cannot set permissions on owner' });
+    }
+
+    targetMember.permissions = permissions;
+    await targetMember.save();
+
+    let actorName = req.sellerName;
+    if (!actorName) {
+      const u = await User.findById(req.userId);
+      actorName = u ? u.name : 'Unknown';
+    }
+
+    ShopAuditLog.create({
+      shopId: req.shopId,
+      actorUserId: req.userId,
+      actorName,
+      action: 'permissions_updated',
+      targetUserId: new mongoose.Types.ObjectId(userId),
+      targetName: targetMember.displayName,
+      metadata: { permissions },
+    }).catch(e => console.error('Audit log error (permissions_updated):', e));
+
+    res.json({ message: 'Permissions updated', permissions: targetMember.permissions });
+  } catch (error) {
+    res.status(500).json({ message: 'Error updating permissions' });
   }
 });
 
@@ -342,14 +385,17 @@ router.post('/leave', authMiddleware, requireShop, async (req: AuthRequest, res)
   }
 });
 
-// DELETE /shop/members/:userId — deactivate seller (owner only)
-router.delete('/members/:userId', authMiddleware, requireShop, requireOwner, async (req: AuthRequest, res) => {
+// DELETE /shop/members/:userId — deactivate seller
+router.delete('/members/:userId', authMiddleware, requireShop, requirePermission('manage_team'), async (req: AuthRequest, res) => {
   try {
     const { userId } = req.params;
     if (userId === req.userId) return res.status(400).json({ message: 'Cannot remove yourself' });
 
     const member = await ShopMember.findOne({ shopId: req.shopId, userId });
     if (!member) return res.status(404).json({ message: 'Member not found' });
+    if (member.role === 'owner') {
+      return res.status(400).json({ message: 'Cannot remove the shop owner' });
+    }
 
     member.isActive = false;
     await member.save();
@@ -375,8 +421,8 @@ router.delete('/members/:userId', authMiddleware, requireShop, requireOwner, asy
   }
 });
 
-// POST /shop/regenerate-code — regenerate invite code (owner only)
-router.post('/regenerate-code', authMiddleware, requireShop, requireOwner, async (req: AuthRequest, res) => {
+// POST /shop/regenerate-code — regenerate invite code
+router.post('/regenerate-code', authMiddleware, requireShop, requirePermission('manage_team'), async (req: AuthRequest, res) => {
   try {
     const newCode = await generateInviteCode();
     const INVITE_CODE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -405,8 +451,8 @@ router.post('/regenerate-code', authMiddleware, requireShop, requireOwner, async
   }
 });
 
-// GET /shop/seller-stats — analytics per seller (owner only)
-router.get('/seller-stats', authMiddleware, requireShop, requireOwner, async (req: AuthRequest, res) => {
+// GET /shop/seller-stats — analytics per seller
+router.get('/seller-stats', authMiddleware, requireShop, requirePermission('manage_team'), async (req: AuthRequest, res) => {
   try {
     const { period = 'today' } = req.query;
 
