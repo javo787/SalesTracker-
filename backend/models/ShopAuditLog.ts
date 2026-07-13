@@ -6,7 +6,8 @@ export type ShopAuditAction =
   | 'ownership_transferred'
   | 'invite_code_regenerated'
   | 'member_left'
-  | 'checkin_settings_updated';
+  | 'checkin_settings_updated'
+  | 'permissions_updated';
 
 export interface IShopAuditLog extends Document {
   shopId: mongoose.Types.ObjectId;
@@ -25,7 +26,7 @@ const ShopAuditLogSchema = new Schema({
   actorName: { type: String, required: true },
   action: {
     type: String,
-    enum: ['member_joined', 'member_removed', 'ownership_transferred', 'invite_code_regenerated', 'member_left', 'checkin_settings_updated'],
+    enum: ['member_joined', 'member_removed', 'ownership_transferred', 'invite_code_regenerated', 'member_left', 'checkin_settings_updated', 'permissions_updated'],
     required: true,
   },
   targetUserId: { type: Schema.Types.ObjectId, ref: 'User' },

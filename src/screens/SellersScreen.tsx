@@ -19,7 +19,7 @@ export default function SellersScreen() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
-  const { inviteCode, regenerateInviteCode, shopId, isOwner, role, transferOwnership, leaveShop, checkInStatus } = useShop();
+  const { inviteCode, regenerateInviteCode, shopId, isOwner, role, transferOwnership, leaveShop, checkInStatus, can } = useShop();
   const { resolvedTheme, currency } = useAppContext();
   const isDark = resolvedTheme === 'dark';
   const themeStyles = isDark ? darkStyles : lightStyles;
@@ -33,7 +33,7 @@ export default function SellersScreen() {
   const [loadError, setLoadError] = useState(false);
 
   const loadData = useCallback(async () => {
-    if (!isOwner) return;
+    if (!isOwner && !can('manage_team')) return;
     try {
       setLoadError(false);
       const [membersData, statsData, checkInData] = await Promise.all([
@@ -51,16 +51,16 @@ export default function SellersScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [period, isOwner]);
+  }, [period, isOwner, can]);
 
   useEffect(() => {
-    if (!isOwner) {
+    if (!isOwner && !can('manage_team')) {
       Alert.alert(t('common.error'), t('sellers.ownerOnly') || "Доступно только владельцу магазина");
       navigation.goBack();
       return;
     }
     loadData();
-  }, [loadData, isOwner, navigation, t]);
+  }, [loadData, isOwner, can, navigation, t]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -136,7 +136,7 @@ export default function SellersScreen() {
       });
     }
 
-    if (isOwner) {
+    if ((isOwner || can('manage_team')) && member.role !== 'owner') {
       options.push({
         text: t('common.delete'),
         style: 'destructive',
@@ -298,18 +298,18 @@ export default function SellersScreen() {
           const online = isOnline(member.lastActiveAt);
 
           return (
-            <TouchableOpacity
-              key={member.userId}
-              activeOpacity={0.85}
-              onPress={() => {
-                (navigation as any).navigate('Main', {
-                  screen: 'ReportsDrawer',
-                  params: { sellerId: member.userId, sellerName: member.displayName },
-                });
-              }}
-            >
-              <View style={[styles.memberCard, themeStyles.card]}>
-                <View style={styles.memberInfo}>
+            <View key={member.userId} style={[styles.memberCard, themeStyles.card]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
+                  onPress={() => {
+                    (navigation as any).navigate('Main', {
+                      screen: 'ReportsDrawer',
+                      params: { sellerId: member.userId, sellerName: member.displayName },
+                    });
+                  }}
+                >
                   <View style={styles.avatarWrap}>
                     <View style={[styles.avatar, { backgroundColor: Colors.primaryLight }]}>
                       <Ionicons name="person" size={24} color={Colors.primary} />
@@ -404,19 +404,84 @@ export default function SellersScreen() {
                       return null;
                     })()}
                   </View>
-                  <View style={styles.revenueWrap}>
-                    <Text style={[styles.revenue, themeStyles.text]}>
-                      {(memberStats?.revenue || 0).toLocaleString()} {currency.symbol}
-                    </Text>
-                    {!member.isSelf && (
-                      <TouchableOpacity onPress={() => handleMemberActions(member)} style={{ padding: 5 }}>
-                        <Ionicons name="ellipsis-vertical" size={20} color={isDark ? '#AAA' : '#666'} />
-                      </TouchableOpacity>
-                    )}
-                  </View>
+                </TouchableOpacity>
+
+                <View style={styles.revenueWrap}>
+                  <Text style={[styles.revenue, themeStyles.text]}>
+                    {(memberStats?.revenue || 0).toLocaleString()} {currency.symbol}
+                  </Text>
+                  {!member.isSelf && (
+                    <TouchableOpacity onPress={() => handleMemberActions(member)} style={{ padding: 5 }}>
+                      <Ionicons name="ellipsis-vertical" size={20} color={isDark ? '#AAA' : '#666'} />
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
-            </TouchableOpacity>
+
+              {isOwner && member.role === 'seller' && (
+                <View style={[styles.permissionsRow, { borderTopColor: isDark ? '#333' : '#EEE' }]}>
+                  <TouchableOpacity
+                    style={[
+                      styles.permissionChip,
+                      member.permissions?.includes('manage_debtors')
+                        ? styles.permissionChipActive
+                        : themeStyles.periodBtn
+                    ]}
+                    onPress={async () => {
+                      const current = member.permissions || [];
+                      const nextList = current.includes('manage_debtors')
+                        ? current.filter(p => p !== 'manage_debtors')
+                        : [...current, 'manage_debtors'];
+                      try {
+                        await api.patch(`/shop/members/${member.userId}/permissions`, { permissions: nextList });
+                        loadData();
+                      } catch (e: any) {
+                        Alert.alert(t('common.error'), e.message);
+                      }
+                    }}
+                  >
+                    <Text style={[
+                      styles.permissionChipText,
+                      member.permissions?.includes('manage_debtors')
+                        ? styles.permissionChipTextActive
+                        : themeStyles.periodText
+                    ]}>
+                      Управление долгами
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.permissionChip,
+                      member.permissions?.includes('manage_team')
+                        ? styles.permissionChipActive
+                        : themeStyles.periodBtn
+                    ]}
+                    onPress={async () => {
+                      const current = member.permissions || [];
+                      const nextList = current.includes('manage_team')
+                        ? current.filter(p => p !== 'manage_team')
+                        : [...current, 'manage_team'];
+                      try {
+                        await api.patch(`/shop/members/${member.userId}/permissions`, { permissions: nextList });
+                        loadData();
+                      } catch (e: any) {
+                        Alert.alert(t('common.error'), e.message);
+                      }
+                    }}
+                  >
+                    <Text style={[
+                      styles.permissionChipText,
+                      member.permissions?.includes('manage_team')
+                        ? styles.permissionChipTextActive
+                        : themeStyles.periodText
+                    ]}>
+                      Управление командой
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
           );
         })}
       </View>
@@ -582,4 +647,28 @@ const styles = StyleSheet.create({
   settingsTextWrap: { flex: 1 },
   settingsTitle: { fontSize: 15, fontWeight: '600' },
   settingsDesc: { fontSize: 12, marginTop: 2, opacity: 0.7 },
+  permissionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: 12,
+  },
+  permissionChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  permissionChipActive: {
+    backgroundColor: Colors.primary,
+  },
+  permissionChipText: {
+    fontSize: 12,
+  },
+  permissionChipTextActive: {
+    color: '#fff',
+    fontWeight: '600',
+  },
 });

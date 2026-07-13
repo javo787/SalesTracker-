@@ -27,7 +27,7 @@ interface ClientSearchResult { id: number; name: string; phone?: string; }
 export default function DebtorsScreen() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
-  const { isOwner } = useShop();
+  const { isOwner, can } = useShop();
   const { resolvedTheme, currency } = useAppContext();
   const isDark = resolvedTheme === 'dark';
   const themeStyles = isDark ? darkStyles : lightStyles;
@@ -633,7 +633,7 @@ export default function DebtorsScreen() {
                     <Text style={styles.payBtnText}>{t('debtors.savePayment')}</Text>
                   </TouchableOpacity>
 
-                  {isOwner && (
+                  {(isOwner || can('manage_debtors')) && (
                   <TouchableOpacity
                     style={styles.deleteBtn}
                     onPress={() => {
@@ -1038,7 +1038,7 @@ export default function DebtorsScreen() {
                 <Text style={clientStyles.actionBtnText}>Изменить</Text>
               </TouchableOpacity>
 
-              {isOwner && (
+              {(isOwner || can('manage_debtors')) && (
                 <TouchableOpacity
                   style={[clientStyles.actionBtn, clientStyles.actionBtnRed]}
                   onPress={() => {

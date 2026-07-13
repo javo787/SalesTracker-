@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import ShopMember from '../models/ShopMember';
+import { Permission } from '../constants/permissions';
 
 export interface AuthRequest extends Request {
   userId?: string;
@@ -9,6 +10,7 @@ export interface AuthRequest extends Request {
   role?: 'owner' | 'seller';
   sellerName?: string;
   memberId?: string;
+  permissions?: string[];
 }
 
 export const authMiddleware = async (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -35,6 +37,7 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
       req.role = member.role;
       req.sellerName = member.displayName;
       req.memberId = member._id.toString();
+      req.permissions = member.permissions || [];
 
       // Update lastActiveAt asynchronously
       ShopMember.findByIdAndUpdate(member._id, { lastActiveAt: new Date() }).exec();
@@ -52,6 +55,14 @@ export const requireShop = (req: AuthRequest, res: Response, next: NextFunction)
     return res.status(403).json({ message: 'Not a member of any shop. Create or join a shop first.' });
   }
   next();
+};
+
+export const requirePermission = (perm: Permission) => {
+  return (req: AuthRequest, res: Response, next: NextFunction) => {
+    if (req.role === 'owner') return next();
+    if (req.permissions?.includes(perm)) return next();
+    return res.status(403).json({ message: `Permission required: ${perm}` });
+  };
 };
 
 // Middleware: owner only

@@ -1,6 +1,6 @@
 import express from 'express';
 import mongoose from 'mongoose';
-import { authMiddleware, requireShop, requireOwner, AuthRequest } from '../middleware/authMiddleware';
+import { authMiddleware, requireShop, requireOwner, requirePermission, AuthRequest } from '../middleware/authMiddleware';
 import Shop from '../models/Shop';
 import ShiftCheckIn from '../models/ShiftCheckIn';
 import ShopMember from '../models/ShopMember';
@@ -198,8 +198,8 @@ router.get('/today', authMiddleware, requireShop, async (req: AuthRequest, res) 
   }
 });
 
-// PATCH /shop/checkin/:userId/manual-confirm — Manual confirm check-in (owner only)
-router.patch('/:userId/manual-confirm', authMiddleware, requireShop, requireOwner, async (req: AuthRequest, res) => {
+// PATCH /shop/checkin/:userId/manual-confirm — Manual confirm check-in (manage_team permission required)
+router.patch('/:userId/manual-confirm', authMiddleware, requireShop, requirePermission('manage_team'), async (req: AuthRequest, res) => {
   try {
     const { userId } = req.params;
     const { localDate } = req.body;
@@ -283,8 +283,8 @@ router.patch('/:userId/manual-confirm', authMiddleware, requireShop, requireOwne
   }
 });
 
-// GET /shop/checkin/history — Get check-in history for all active shop members (owner only)
-router.get('/history', authMiddleware, requireShop, requireOwner, async (req: AuthRequest, res) => {
+// GET /shop/checkin/history — Get check-in history for all active shop members (manage_team permission required)
+router.get('/history', authMiddleware, requireShop, requirePermission('manage_team'), async (req: AuthRequest, res) => {
   try {
     const { period = 'week', startDate } = req.query;
 

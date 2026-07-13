@@ -24,6 +24,8 @@ interface ShopContextType {
   shopRevoked: boolean;
   setShopRevoked: (val: boolean) => void;
   checkInStatus: CheckInStatus;
+  permissions: string[];
+  can(permission: string): boolean;
   createShop(shopName: string): Promise<void>;
   joinShop(inviteCode: string): Promise<void>;
   leaveShop(): Promise<{ ok: true } | { ok: false; code: 'TRANSFER_REQUIRED' }>;
@@ -42,6 +44,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [shopRevoked, setShopRevoked] = useState(false);
+  const [permissions, setPermissions] = useState<string[]>([]);
   const [checkInStatus, setCheckInStatus] = useState<CheckInStatus>({
     enabled: false,
     verificationMode: 'any',
@@ -55,6 +58,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       clearShopSession();
       setShopId(null); setShopName(null); setRole(null);
       setSellerName(null); setInviteCode(null);
+      setPermissions([]);
+      AsyncStorage.removeItem('shop_permissions').catch(() => {});
       setShopRevoked(true);
     });
 
@@ -78,6 +83,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (e) {
       console.warn('Failed to parse cached checkInStatus:', e);
+    }
+    try {
+      const cachedPerms = await AsyncStorage.getItem('shop_permissions');
+      if (cachedPerms) {
+        setPermissions(JSON.parse(cachedPerms));
+      }
+    } catch (e) {
+      console.warn('Failed to parse cached permissions:', e);
     }
     setIsLoading(false);
   };
@@ -134,12 +147,17 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         role: ShopRole;
         inviteCode?: string;
         checkInStatus?: CheckInStatus;
+        permissions?: string[];
       }>('/shop/info');
 
       if (result.checkInStatus) {
         setCheckInStatus(result.checkInStatus);
         await AsyncStorage.setItem('shop_checkin_status', JSON.stringify(result.checkInStatus));
       }
+
+      const perms = result.permissions || [];
+      setPermissions(perms);
+      await AsyncStorage.setItem('shop_permissions', JSON.stringify(perms));
 
       persistSession({
         shopId: result.shopId,
@@ -170,12 +188,18 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const can = (perm: string): boolean => {
+    return role === 'owner' || permissions.includes(perm);
+  };
+
   const leaveShop = async (): Promise<{ ok: true } | { ok: false; code: 'TRANSFER_REQUIRED' }> => {
     try {
       await api.post('/shop/leave', {});
       clearShopSession();
       setShopId(null); setShopName(null); setRole(null);
       setSellerName(null); setInviteCode(null);
+      setPermissions([]);
+      await AsyncStorage.removeItem('shop_permissions');
       return { ok: true };
     } catch (e: any) {
       if (e.message?.includes('TRANSFER_REQUIRED') || e.status === 409) {
@@ -195,6 +219,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       shopRevoked,
       setShopRevoked,
       checkInStatus,
+      permissions,
+      can,
       createShop, joinShop, leaveShop, transferOwnership, refreshShopInfo, regenerateInviteCode,
     }}>
       {children}

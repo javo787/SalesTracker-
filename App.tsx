@@ -164,7 +164,7 @@ function DrawerNavigator() {
   const { t } = useTranslation();
   const { resolvedTheme } = useAppContext();
   const isDark = resolvedTheme === 'dark';
-  const { isOwner } = useShop();
+  const { isOwner, can } = useShop();
 
   return (
     <Drawer.Navigator
@@ -245,7 +245,7 @@ function DrawerNavigator() {
           }}
         />
       )}
-      {isOwner && (
+      {(isOwner || can('manage_team')) && (
         <Drawer.Screen
           name="Sellers"
           component={SellersScreen}

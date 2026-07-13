@@ -10,6 +10,7 @@ export interface IShopMember extends Document {
   isActive: boolean;         // false = seller blocked by owner
   joinedAt: Date;
   lastActiveAt: Date;
+  permissions: string[];     // делегированные права для role='seller'; owner не хранит — у него всё неявно
 }
 
 const ShopMemberSchema = new Schema({
@@ -20,6 +21,7 @@ const ShopMemberSchema = new Schema({
   isActive: { type: Boolean, default: true },
   joinedAt: { type: Date, default: Date.now },
   lastActiveAt: { type: Date, default: Date.now },
+  permissions: { type: [String], default: [] },
 });
 
 // One user - one active shop (allows historical inactive records)

@@ -39,6 +39,7 @@ export interface ShopInfo {
   shopName: string;
   role: 'owner' | 'seller';
   inviteCode?: string;
+  permissions?: string[];
 }
 
 export interface SellerStats {
@@ -62,4 +63,5 @@ export interface ShopMember {
   isSelf?: boolean;
   todayRevenue?: number;
   todaySalesCount?: number;
+  permissions?: string[];
 }
