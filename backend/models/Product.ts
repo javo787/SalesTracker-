@@ -17,6 +17,7 @@ export interface IProduct extends Document {
   created_at: string;
   updated_at: string;
   is_deleted: number;
+  serverUpdatedAt: Date;
 }
 
 const ProductSchema: Schema = new Schema({
@@ -36,10 +37,17 @@ const ProductSchema: Schema = new Schema({
   created_at: { type: String },
   updated_at: { type: String },
   is_deleted: { type: Number, default: 0 },
+  // Серверная авторитетная метка времени последнего изменения (UTC, тип Date).
+  // Используется ТОЛЬКО для дельта-синхронизации (/sync/pull ?since=...).
+  // Клиентское поле updated_at — это локальное время устройства владельца
+  // в формате "YYYY-MM-DD HH:MM:SS" (без TZ) и НЕ подходит для сравнения
+  // со строкой since (которая приходит в полном ISO 8601 формате с 'T'/'Z'):
+  // лексикографическое сравнение таких строк даёт неверный результат.
+  serverUpdatedAt: { type: Date, default: Date.now },
 });
 
 // Composite index for efficient upserting during sync
 ProductSchema.index({ shopId: 1, localId: 1 }, { unique: true });
-ProductSchema.index({ shopId: 1, updated_at: 1 });
+ProductSchema.index({ shopId: 1, serverUpdatedAt: 1 });
 
 export default mongoose.model<IProduct>('Product', ProductSchema);

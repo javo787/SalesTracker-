@@ -16,6 +16,7 @@ export interface ISale extends Document {
   stock_updated: number;
   stock_warning?: boolean;
   created_at: string;
+  serverUpdatedAt: Date;
 }
 
 const SaleSchema: Schema = new Schema({
@@ -34,10 +35,13 @@ const SaleSchema: Schema = new Schema({
   stock_updated: { type: Number, default: 0 },
   stock_warning: { type: Boolean, default: false },
   created_at: { type: String },
+  // Серверная авторитетная метка времени (UTC, Date) — см. комментарий
+  // в models/Product.ts. Используется только для дельта-синхронизации.
+  serverUpdatedAt: { type: Date, default: Date.now },
 });
 
 // Composite index for efficient upserting during sync
 SaleSchema.index({ shopId: 1, sellerId: 1, localId: 1 }, { unique: true });
-SaleSchema.index({ shopId: 1, created_at: -1 });
+SaleSchema.index({ shopId: 1, serverUpdatedAt: 1 });
 
 export default mongoose.model<ISale>('Sale', SaleSchema);
