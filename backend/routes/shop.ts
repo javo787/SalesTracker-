@@ -148,7 +148,7 @@ router.get('/info', authMiddleware, requireShop, async (req: AuthRequest, res) =
       },
     };
 
-    if (req.role === 'owner') {
+    if (req.role === 'owner' || req.permissions?.includes('manage_team')) {
       responseData.inviteCode = shop.inviteCode;
     }
 
