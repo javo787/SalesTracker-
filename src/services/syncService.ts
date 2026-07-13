@@ -5,6 +5,24 @@ import { getProducts, getProductsForSync, getSalesByPeriod, getShopSession, getU
 import * as SQLite from 'expo-sqlite';
 
 const db = SQLite.openDatabaseSync('savdo.db'); // Note: Keeping database name 'savdo.db' to avoid data loss as per instructions.
+
+// Повторяет запрос при 5xx/503 (в т.ч. от load-shedding на бэкенде) или сетевой ошибке,
+// с растущей паузой между попытками. 4xx (401/403 и т.п.) не ретраятся — это не транспортная проблема.
+async function withRetry<T>(fn: () => Promise<T>, maxRetries = 2): Promise<T> {
+  let lastErr: any;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      lastErr = err;
+      const isRetryable = !err.status || err.status >= 500;
+      if (!isRetryable || attempt === maxRetries) throw err;
+      const delay = 1000 * Math.pow(2, attempt) + Math.random() * 500;
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  throw lastErr;
+}
 let isSyncing = false;
 let pushTimeout: NodeJS.Timeout | null = null;
 
@@ -84,7 +102,7 @@ export const SyncService = {
         payload.products = productsToSend;
       }
 
-      const result = await api.post<{ syncedAt: string }>('/sync/push', payload);
+      const result = await withRetry(() => api.post<{ syncedAt: string }>('/sync/push', payload));
       await AsyncStorage.setItem('last_sync_at', result.syncedAt);
 
       // Locally mark the successfully pushed items as synced
@@ -117,12 +135,12 @@ export const SyncService = {
       const lastPullAsOf = await AsyncStorage.getItem('last_pull_asOf');
       const url = lastPullAsOf ? `/sync/pull?since=${encodeURIComponent(lastPullAsOf)}` : '/sync/pull';
 
-      const data = await api.get<{
+      const data = await withRetry(() => api.get<{
         products: any[];
         sales: any[];
         role: string;
         asOf: string;
-      }>(url);
+      }>(url));
 
       const CHUNK_SIZE = 300;
       function chunk<T>(arr: T[], size: number): T[][] {

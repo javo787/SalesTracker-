@@ -39,8 +39,13 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
       req.memberId = member._id.toString();
       req.permissions = member.permissions || [];
 
-      // Update lastActiveAt asynchronously
-      ShopMember.findByIdAndUpdate(member._id, { lastActiveAt: new Date() }).exec();
+      // Update lastActiveAt asynchronously, but throttled — не чаще раза в 5 минут,
+      // чтобы не писать в Mongo на каждый запрос синхронизации
+      const ACTIVITY_THROTTLE_MS = 5 * 60 * 1000;
+      const lastActive = member.lastActiveAt ? new Date(member.lastActiveAt).getTime() : 0;
+      if (Date.now() - lastActive > ACTIVITY_THROTTLE_MS) {
+        ShopMember.findByIdAndUpdate(member._id, { lastActiveAt: new Date() }).exec();
+      }
     }
 
     next();

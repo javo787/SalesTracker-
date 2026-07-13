@@ -7,6 +7,26 @@ import mongoose from 'mongoose';
 
 const router = express.Router();
 
+// Короткий in-memory кэш полного списка товаров магазина — сглаживает всплеск,
+// когда несколько продавцов одного магазина открывают приложение почти одновременно.
+const PULL_CACHE_TTL_MS = 8000;
+const shopProductsCache = new Map<string, { data: any[]; expiresAt: number }>();
+
+async function getShopProductsCached(shopObjectId: mongoose.Types.ObjectId): Promise<any[]> {
+  const key = shopObjectId.toString();
+  const cached = shopProductsCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.data;
+  }
+  const data = await Product.find({ shopId: shopObjectId }).lean();
+  shopProductsCache.set(key, { data, expiresAt: Date.now() + PULL_CACHE_TTL_MS });
+  return data;
+}
+
+function invalidateShopProductsCache(shopId: string) {
+  shopProductsCache.delete(shopId);
+}
+
 // POST /sync/push
 router.post('/push', authMiddleware, requireShop, async (req: AuthRequest, res) => {
   const { sales, products } = req.body;
@@ -39,7 +59,10 @@ router.post('/push', authMiddleware, requireShop, async (req: AuthRequest, res) 
           },
         };
       });
-      if (productOps.length > 0) await Product.bulkWrite(productOps);
+      if (productOps.length > 0) {
+        await Product.bulkWrite(productOps);
+        invalidateShopProductsCache(req.shopId!);
+      }
     }
 
     // SALES: owners and sellers
@@ -80,6 +103,7 @@ router.post('/push', authMiddleware, requireShop, async (req: AuthRequest, res) 
 
       // Update stock on server based on new sales
       if (req.role === 'seller') {
+        let stockDecremented = false;
         for (const s of sales) {
           if (s.product_id && s.quantity && s.stock_updated === 1) {
             // Check if stock is sufficient
@@ -99,7 +123,11 @@ router.post('/push', authMiddleware, requireShop, async (req: AuthRequest, res) 
               { shopId: shopObjectId, localId: s.product_id },
               { $inc: { stock: -s.quantity }, $set: { updated_at: new Date().toISOString() } }
             );
+            stockDecremented = true;
           }
+        }
+        if (stockDecremented) {
+          invalidateShopProductsCache(req.shopId!);
         }
       }
     }
@@ -122,11 +150,10 @@ router.get('/pull', authMiddleware, requireShop, async (req: AuthRequest, res) =
   try {
     // Products: everyone gets them, but buy_price is owner only
     // Include all products including deleted ones for sync purposes
-    const productQuery: any = { shopId: shopObjectId };
-    if (since) {
-      productQuery.updated_at = { $gte: since as string };
-    }
-    const productsRaw = await Product.find(productQuery).lean();
+    const allProducts = await getShopProductsCached(shopObjectId);
+    const productsRaw = since
+      ? allProducts.filter((p: any) => p.updated_at >= (since as string))
+      : allProducts;
 
     const products = productsRaw.map((p: any) => {
       if (!isOwner) {
