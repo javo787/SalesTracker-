@@ -214,10 +214,10 @@ export default function ProfileScreen() {
           onPress: async () => {
             try {
               const result = await leaveShop();
-              if (!result.ok && result.code === 'TRANSFER_REQUIRED') {
+              if (result && !result.ok && result.code === 'TRANSFER_REQUIRED') {
                 Alert.alert(
                   t('common.error'),
-                  t('sellers.leaveShopTransferRequired') || 'Сначала передайте права владельца другому участнику команды, прежде чем покинуть магазин'
+                  t('sellers.leaveShopBlockedDesc') || 'Сначала назначьте нового владельца через меню участника, затем сможете покинуть магазин'
                 );
               }
             } catch (e: any) {
