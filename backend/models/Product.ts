@@ -40,5 +40,6 @@ const ProductSchema: Schema = new Schema({
 
 // Composite index for efficient upserting during sync
 ProductSchema.index({ shopId: 1, localId: 1 }, { unique: true });
+ProductSchema.index({ shopId: 1, updated_at: 1 });
 
 export default mongoose.model<IProduct>('Product', ProductSchema);

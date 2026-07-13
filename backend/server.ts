@@ -4,6 +4,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import compression from 'compression';
+import { loadSheddingMiddleware } from './middleware/loadShedding';
 import authRoutes from './routes/auth';
 import syncRoutes from './routes/sync';
 import profileRoutes from './routes/profile';
@@ -23,9 +25,11 @@ const PORT = process.env.PORT || 3000;
 // Render всегда работает за reverse-proxy — без этого express-rate-limit
 // видит один и тот же IP для всех клиентов (см. ERR_ERL_UNEXPECTED_X_FORWARDED_FOR в логах Render)
 app.set('trust proxy', 1);
+app.use(loadSheddingMiddleware);
 
 // Middleware
 app.use(helmet());
+app.use(compression());
 
 app.use(cors({
   origin: process.env.ALLOWED_ORIGINS
