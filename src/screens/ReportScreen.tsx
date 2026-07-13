@@ -121,12 +121,7 @@ export default function ReportScreen() {
 
     if (p === 'custom' && range) {
       setStats(isOwner ? (selectedSellerId ? getMyStats(selectedSellerId, 0, range.from, range.to) : getStats(0, range.from, range.to)) : getMyStats(userId, 3650)); // Fallback to a year for custom range for sellers as getMyStats doesn't support custom range yet
-      setSales(getSalesByPeriod(0, range.from, range.to).filter((s: any) => {
-        if (isOwner) {
-          return selectedSellerId === null || s.seller_id === selectedSellerId;
-        }
-        return s.seller_id === userId;
-      }));
+      setSales(getSalesByPeriod(0, range.from, range.to, isOwner ? selectedSellerId : userId));
       const expStats = getExpenseStats(0, range.from, range.to);
       setExpenseTotal(isOwner ? expStats.total : 0);
       setOperationalExpenseTotal(isOwner ? expStats.operational : 0);
@@ -134,12 +129,7 @@ export default function ReportScreen() {
     } else {
       const days = typeof p === 'number' ? p : 1;
       setStats(isOwner ? (selectedSellerId ? getMyStats(selectedSellerId, days) : getStats(days)) : getMyStats(userId, days));
-      setSales(getSalesByPeriod(days).filter((s: any) => {
-        if (isOwner) {
-          return selectedSellerId === null || s.seller_id === selectedSellerId;
-        }
-        return s.seller_id === userId;
-      }));
+      setSales(getSalesByPeriod(days, undefined, undefined, isOwner ? selectedSellerId : userId));
       const expStats = getExpenseStats(days);
       setExpenseTotal(isOwner ? expStats.total : 0);
       setOperationalExpenseTotal(isOwner ? expStats.operational : 0);

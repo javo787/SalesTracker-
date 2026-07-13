@@ -126,6 +126,9 @@ function runMigrations() {
     CREATE INDEX IF NOT EXISTS idx_sales_created_at ON sales(created_at);
     CREATE INDEX IF NOT EXISTS idx_stock_movements_product_id ON stock_movements(product_id);
     CREATE INDEX IF NOT EXISTS idx_clients_name ON clients(name);
+    CREATE INDEX IF NOT EXISTS idx_sales_synced ON sales(synced);
+    CREATE INDEX IF NOT EXISTS idx_sales_seller_id ON sales(seller_id);
+    CREATE INDEX IF NOT EXISTS idx_products_synced ON products(synced);
   `);
 
   // One-time schema migrations (skipped on subsequent launches)
@@ -851,22 +854,28 @@ export function addSale(
 
 export function getSalesToday() {
   return db.getAllSync(
-    `SELECT * FROM sales WHERE date(created_at) = ? ORDER BY created_at DESC`,
-    [todayLocalDate()]
+    `SELECT * FROM sales WHERE created_at >= ? AND created_at <= ? ORDER BY created_at DESC`,
+    [todayLocalDate() + ' 00:00:00', todayLocalDate() + ' 23:59:59']
   );
 }
 
-export function getSalesByPeriod(days: number, fromDate?: string, toDate?: string) {
+export function getSalesByPeriod(days: number, fromDate?: string, toDate?: string, sellerId?: string | null) {
   if (fromDate && toDate) {
-    return db.getAllSync(
-      "SELECT * FROM sales WHERE date(created_at) >= date(?) AND date(created_at) <= date(?) ORDER BY created_at DESC",
-      [fromDate, toDate]
-    );
+    const query = sellerId
+      ? "SELECT * FROM sales WHERE seller_id = ? AND created_at >= ? AND created_at <= ? ORDER BY created_at DESC"
+      : "SELECT * FROM sales WHERE created_at >= ? AND created_at <= ? ORDER BY created_at DESC";
+    const params = sellerId
+      ? [sellerId, fromDate + ' 00:00:00', toDate + ' 23:59:59']
+      : [fromDate + ' 00:00:00', toDate + ' 23:59:59'];
+    return db.getAllSync(query, params);
   }
-  return db.getAllSync(
-    "SELECT * FROM sales WHERE created_at >= ? ORDER BY created_at DESC",
-    [daysAgoLocalISO(days)]
-  );
+  const query = sellerId
+    ? "SELECT * FROM sales WHERE seller_id = ? AND created_at >= ? ORDER BY created_at DESC"
+    : "SELECT * FROM sales WHERE created_at >= ? ORDER BY created_at DESC";
+  const params = sellerId
+    ? [sellerId, daysAgoLocalISO(days)]
+    : [daysAgoLocalISO(days)];
+  return db.getAllSync(query, params);
 }
 
 export function deleteSale(saleId: number) {
@@ -894,26 +903,34 @@ export function deleteSale(saleId: number) {
 }
 
 // Статистика
-export function getStats(days: number = 1, fromDate?: string, toDate?: string) {
+export function getStats(days: number = 1, fromDate?: string, toDate?: string, sellerId?: string | null) {
   if (fromDate && toDate) {
-    const result = db.getFirstSync(`
+    const query = `
       SELECT
         COALESCE(SUM(sell_price * quantity), 0) as revenue,
         COALESCE(SUM(profit), 0) as profit,
         COALESCE(COUNT(*), 0) as count
       FROM sales
-      WHERE date(created_at) >= date(?) AND date(created_at) <= date(?)
-    `, [fromDate, toDate]) as any;
+      WHERE ${sellerId ? 'seller_id = ? AND ' : ''}created_at >= ? AND created_at <= ?
+    `;
+    const params = sellerId
+      ? [sellerId, fromDate + ' 00:00:00', toDate + ' 23:59:59']
+      : [fromDate + ' 00:00:00', toDate + ' 23:59:59'];
+    const result = db.getFirstSync(query, params) as any;
     return result;
   }
-  const result = db.getFirstSync(`
+  const query = `
     SELECT 
       COALESCE(SUM(sell_price * quantity), 0) as revenue,
       COALESCE(SUM(profit), 0) as profit,
       COALESCE(COUNT(*), 0) as count
     FROM sales 
-    WHERE created_at >= ?
-  `, [daysAgoLocalISO(days)]) as any;
+    WHERE ${sellerId ? 'seller_id = ? AND ' : ''}created_at >= ?
+  `;
+  const params = sellerId
+    ? [sellerId, daysAgoLocalISO(days)]
+    : [daysAgoLocalISO(days)];
+  const result = db.getFirstSync(query, params) as any;
   return result;
 }
 
@@ -940,8 +957,8 @@ export function addExpense(
 export function getExpenses(days: number = 1, fromDate?: string, toDate?: string) {
   if (fromDate && toDate) {
     return db.getAllSync(
-      "SELECT * FROM expenses WHERE date(created_at) >= date(?) AND date(created_at) <= date(?) ORDER BY created_at DESC",
-      [fromDate, toDate]
+      "SELECT * FROM expenses WHERE created_at >= ? AND created_at <= ? ORDER BY created_at DESC",
+      [fromDate + ' 00:00:00', toDate + ' 23:59:59']
     );
   }
   return db.getAllSync(
@@ -962,8 +979,8 @@ export function getExpenseStats(days: number = 1, fromDate?: string, toDate?: st
         COALESCE(SUM(CASE WHEN type = 'inventory' THEN amount ELSE 0 END), 0) as inventory,
         COALESCE(SUM(amount), 0) as total
       FROM expenses
-      WHERE date(created_at) >= date(?) AND date(created_at) <= date(?)
-    `, [fromDate, toDate]) as any;
+      WHERE created_at >= ? AND created_at <= ?
+    `, [fromDate + ' 00:00:00', toDate + ' 23:59:59']) as any;
     return result;
   }
   const result = db.getFirstSync(`
@@ -1052,18 +1069,18 @@ export function getAnnualStats() {
       SUM(profit) as profit,
       COUNT(*) as salesCount
     FROM sales
-    WHERE strftime('%Y', created_at) = ?
+    WHERE created_at >= ? AND created_at <= ?
     GROUP BY month
-  `, [String(year)]) as any[];
+  `, [year + '-01-01 00:00:00', year + '-12-31 23:59:59']) as any[];
 
   const monthlyExpenses = db.getAllSync(`
     SELECT
       CAST(strftime('%m', created_at) AS INTEGER) as month,
       SUM(amount) as total
     FROM expenses
-    WHERE strftime('%Y', created_at) = ?
+    WHERE created_at >= ? AND created_at <= ?
     GROUP BY month
-  `, [String(year)]) as any[];
+  `, [year + '-01-01 00:00:00', year + '-12-31 23:59:59']) as any[];
 
   const months = [];
   for (let m = 1; m <= 12; m++) {
@@ -1087,11 +1104,11 @@ export function getAnnualStats() {
       SUM(quantity) as totalQty,
       COUNT(*) as salesCount
     FROM sales
-    WHERE date(created_at) >= ?
+    WHERE created_at >= ?
     GROUP BY product_name
     ORDER BY totalProfit DESC
     LIMIT 10
-  `, [`${year}-01-01`]) as any[];
+  `, [year + '-01-01 00:00:00']) as any[];
 
   // Year totals
   const totals = db.getFirstSync(`
@@ -1100,14 +1117,14 @@ export function getAnnualStats() {
       COALESCE(SUM(profit), 0) as profit,
       COALESCE(COUNT(*), 0) as salesCount
     FROM sales
-    WHERE strftime('%Y', created_at) = ?
-  `, [String(year)]) as any;
+    WHERE created_at >= ? AND created_at <= ?
+  `, [year + '-01-01 00:00:00', year + '-12-31 23:59:59']) as any;
 
   const totalExpenses = db.getFirstSync(`
     SELECT COALESCE(SUM(amount), 0) as total
     FROM expenses
-    WHERE strftime('%Y', created_at) = ?
-  `, [String(year)]) as any;
+    WHERE created_at >= ? AND created_at <= ?
+  `, [year + '-01-01 00:00:00', year + '-12-31 23:59:59']) as any;
 
   return {
     year,
@@ -1363,15 +1380,36 @@ export function searchProductsForAutocomplete(query: string) {
   if (!query.trim()) {
     // Top 5 most frequent items
     return db.getAllSync(`
-      WITH AllItems AS (
+      WITH SalesAgg AS (
+        SELECT product_id,
+               COUNT(*) as salesCount,
+               MAX(created_at) as lastSoldAt,
+               (SELECT sell_price FROM sales s2 WHERE s2.product_id = sales.product_id ORDER BY s2.created_at DESC LIMIT 1) as lastSalePrice
+        FROM sales
+        WHERE product_id IS NOT NULL
+        GROUP BY product_id
+      ),
+      HistoryAgg AS (
+        SELECT
+          product_name,
+          COUNT(*) as salesCount,
+          MAX(created_at) as lastSoldAt,
+          (SELECT s2.buy_price FROM sales s2 WHERE s2.product_name = sales.product_name AND s2.product_id IS NULL ORDER BY s2.created_at DESC LIMIT 1) as purchasePrice,
+          (SELECT s2.sell_price FROM sales s2 WHERE s2.product_name = sales.product_name AND s2.product_id IS NULL ORDER BY s2.created_at DESC LIMIT 1) as lastSalePrice
+        FROM sales
+        WHERE product_id IS NULL
+          AND product_name NOT IN (SELECT name FROM products)
+        GROUP BY product_name
+      ),
+      AllItems AS (
         SELECT
           CAST(p.id AS TEXT) as id,
           p.name,
           'catalog' as source,
           p.buy_price as purchasePrice,
-          (SELECT s.sell_price FROM sales s WHERE s.product_id = p.id ORDER BY s.created_at DESC LIMIT 1) as lastSalePrice,
-          (SELECT COUNT(*) FROM sales s WHERE s.product_id = p.id) as salesCount,
-          (SELECT MAX(s.created_at) FROM sales s WHERE s.product_id = p.id) as lastSoldAt,
+          sa.lastSalePrice as lastSalePrice,
+          COALESCE(sa.salesCount, 0) as salesCount,
+          sa.lastSoldAt as lastSoldAt,
           p.base_unit, p.has_packages, p.package_name, p.units_per_package, p.is_continuous, p.stock,
           p.article, p.color,
           CASE WHEN p.color IS NOT NULL AND p.color != ''
@@ -1379,23 +1417,21 @@ export function searchProductsForAutocomplete(query: string) {
                ELSE p.name
           END AS displayName
         FROM products p
+        LEFT JOIN SalesAgg sa ON p.id = sa.product_id
         WHERE p.is_deleted = 0
         UNION ALL
         SELECT
           NULL as id,
-          s.product_name as name,
+          ha.product_name as name,
           'history' as source,
-          (SELECT s2.buy_price FROM sales s2 WHERE s2.product_name = s.product_name AND s2.product_id IS NULL ORDER BY s2.created_at DESC LIMIT 1) as purchasePrice,
-          (SELECT s2.sell_price FROM sales s2 WHERE s2.product_name = s.product_name AND s2.product_id IS NULL ORDER BY s2.created_at DESC LIMIT 1) as lastSalePrice,
-          COUNT(*) as salesCount,
-          MAX(s.created_at) as lastSoldAt,
+          ha.purchasePrice,
+          ha.lastSalePrice,
+          ha.salesCount,
+          ha.lastSoldAt,
           'шт' as base_unit, 0 as has_packages, NULL as package_name, 1 as units_per_package, 0 as is_continuous, 0 as stock,
           NULL as article, NULL as color,
-          s.product_name as displayName
-        FROM sales s
-        WHERE s.product_id IS NULL
-          AND s.product_name NOT IN (SELECT name FROM products)
-        GROUP BY s.product_name
+          ha.product_name as displayName
+        FROM HistoryAgg ha
       )
       SELECT id, displayName as name, source, purchasePrice, lastSalePrice, salesCount, lastSoldAt, base_unit, has_packages, package_name, units_per_package, is_continuous, stock, article, color, name as baseName FROM AllItems
       ORDER BY salesCount DESC, lastSoldAt DESC
@@ -1405,16 +1441,38 @@ export function searchProductsForAutocomplete(query: string) {
 
   // Search by query
   return db.getAllSync(`
-    WITH CatalogMatches AS (
+    WITH SalesAgg AS (
+      SELECT product_id,
+             COUNT(*) as salesCount,
+             MAX(created_at) as lastSoldAt,
+             (SELECT sell_price FROM sales s2 WHERE s2.product_id = sales.product_id ORDER BY s2.created_at DESC LIMIT 1) as lastSalePrice
+      FROM sales
+      WHERE product_id IS NOT NULL
+      GROUP BY product_id
+    ),
+    HistoryAgg AS (
+      SELECT
+        product_name,
+        COUNT(*) as salesCount,
+        MAX(created_at) as lastSoldAt,
+        (SELECT s2.buy_price FROM sales s2 WHERE s2.product_name = sales.product_name AND s2.product_id IS NULL ORDER BY s2.created_at DESC LIMIT 1) as purchasePrice,
+        (SELECT s2.sell_price FROM sales s2 WHERE s2.product_name = sales.product_name AND s2.product_id IS NULL ORDER BY s2.created_at DESC LIMIT 1) as lastSalePrice
+      FROM sales
+      WHERE product_id IS NULL
+        AND product_name LIKE ? || '%'
+        AND product_name NOT IN (SELECT name FROM products)
+      GROUP BY product_name
+    ),
+    CatalogMatches AS (
       SELECT
         CAST(p.id AS TEXT) as id,
         p.name,
         p.name as baseName,
         'catalog' as source,
         p.buy_price as purchasePrice,
-        (SELECT s.sell_price FROM sales s WHERE s.product_id = p.id ORDER BY s.created_at DESC LIMIT 1) as lastSalePrice,
-        (SELECT COUNT(*) FROM sales s WHERE s.product_id = p.id) as salesCount,
-        (SELECT MAX(s.created_at) FROM sales s WHERE s.product_id = p.id) as lastSoldAt,
+        sa.lastSalePrice,
+        COALESCE(sa.salesCount, 0) as salesCount,
+        sa.lastSoldAt,
         p.base_unit, p.has_packages, p.package_name, p.units_per_package, p.is_continuous, p.stock,
         p.article, p.color,
         CASE WHEN p.color IS NOT NULL AND p.color != ''
@@ -1422,26 +1480,23 @@ export function searchProductsForAutocomplete(query: string) {
              ELSE p.name
         END AS displayName
       FROM products p
+      LEFT JOIN SalesAgg sa ON p.id = sa.product_id
       WHERE (p.name LIKE ? || '%' OR p.article LIKE ? || '%') AND p.is_deleted = 0
     ),
     HistoryMatches AS (
       SELECT
         NULL as id,
-        s.product_name as name,
-        s.product_name as baseName,
+        ha.product_name as name,
+        ha.product_name as baseName,
         'history' as source,
-        (SELECT s2.buy_price FROM sales s2 WHERE s2.product_name = s.product_name AND s2.product_id IS NULL ORDER BY s2.created_at DESC LIMIT 1) as purchasePrice,
-        (SELECT s2.sell_price FROM sales s2 WHERE s2.product_name = s.product_name AND s2.product_id IS NULL ORDER BY s2.created_at DESC LIMIT 1) as lastSalePrice,
-        COUNT(*) as salesCount,
-        MAX(s.created_at) as lastSoldAt,
+        ha.purchasePrice,
+        ha.lastSalePrice,
+        ha.salesCount,
+        ha.lastSoldAt,
         'шт' as base_unit, 0 as has_packages, NULL as package_name, 1 as units_per_package, 0 as is_continuous, 0 as stock,
         NULL as article, NULL as color,
-        s.product_name as displayName
-      FROM sales s
-      WHERE s.product_id IS NULL
-        AND s.product_name LIKE ? || '%'
-        AND s.product_name NOT IN (SELECT name FROM products)
-      GROUP BY s.product_name
+        ha.product_name as displayName
+      FROM HistoryAgg ha
     )
     SELECT * FROM (
       SELECT id, displayName as name, source, purchasePrice, lastSalePrice, salesCount, lastSoldAt, base_unit, has_packages, package_name, units_per_package, is_continuous, stock, article, color, baseName FROM CatalogMatches
@@ -1673,8 +1728,8 @@ export function getMyStats(sellerId: string, days: number = 1, fromDate?: string
         COALESCE(SUM(profit), 0) as profit,
         COALESCE(COUNT(*), 0) as count
       FROM sales
-      WHERE seller_id = ? AND date(created_at) >= date(?) AND date(created_at) <= date(?)
-    `, [sellerId, fromDate, toDate]) as any;
+      WHERE seller_id = ? AND created_at >= ? AND created_at <= ?
+    `, [sellerId, fromDate + ' 00:00:00', toDate + ' 23:59:59']) as any;
     return result;
   }
   const result = db.getFirstSync(`
@@ -1690,8 +1745,8 @@ export function getMyStats(sellerId: string, days: number = 1, fromDate?: string
 
 export function getMySalesToday(sellerId: string) {
   return db.getAllSync(
-    `SELECT * FROM sales WHERE seller_id = ? AND date(created_at) = ? ORDER BY created_at DESC`,
-    [sellerId, todayLocalDate()]
+    `SELECT * FROM sales WHERE seller_id = ? AND created_at >= ? AND created_at <= ? ORDER BY created_at DESC`,
+    [sellerId, todayLocalDate() + ' 00:00:00', todayLocalDate() + ' 23:59:59']
   );
 }
 
