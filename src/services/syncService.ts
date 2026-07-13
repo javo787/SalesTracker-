@@ -234,7 +234,10 @@ export const SyncService = {
       if (syncEnabled === 'false') return;
 
       if (nextAppState === 'active') {
-        SyncService.pull().then(() => SyncService.push());
+        const jitterMs = Math.random() * 4000; // 0-4 сек, сглаживает всплеск после push-рассылки
+        setTimeout(() => {
+          SyncService.pull().then(() => SyncService.push());
+        }, jitterMs);
       } else if (nextAppState === 'background') {
         if (pushTimeout) {
           clearTimeout(pushTimeout);
