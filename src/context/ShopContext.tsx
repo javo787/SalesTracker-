@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getShopSession, saveShopSession, clearShopSession } from '../db/database';
 import { api } from '../services/api';
+import { SyncService } from '../services/syncService';
 
 export type ShopRole = 'owner' | 'seller';
 
@@ -118,6 +119,12 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const userName = storedUser ? JSON.parse(storedUser).name : result.shopName;
 
       persistSession({ ...result, sellerName: userName });
+
+      try {
+        await SyncService.pull();
+      } catch (pullErr) {
+        console.warn('Initial pull after createShop failed:', pullErr);
+      }
     } catch (e: any) {
       throw e;
     }
@@ -134,6 +141,12 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const userName = storedUser ? JSON.parse(storedUser).name : 'Продавец';
 
       persistSession({ ...result, sellerName: userName });
+
+      try {
+        await SyncService.pull();
+      } catch (pullErr) {
+        console.warn('Initial pull after joinShop failed:', pullErr);
+      }
     } catch (e: any) {
       throw e;
     }
