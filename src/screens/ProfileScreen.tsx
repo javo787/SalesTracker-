@@ -213,7 +213,13 @@ export default function ProfileScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await leaveShop();
+              const result = await leaveShop();
+              if (!result.ok && result.code === 'TRANSFER_REQUIRED') {
+                Alert.alert(
+                  t('common.error'),
+                  t('sellers.leaveShopTransferRequired') || 'Сначала передайте права владельца другому участнику команды, прежде чем покинуть магазин'
+                );
+              }
             } catch (e: any) {
               Alert.alert(t('common.error'), e.message);
             }
