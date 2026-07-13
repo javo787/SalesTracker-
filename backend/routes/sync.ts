@@ -51,6 +51,11 @@ router.post('/push', authMiddleware, requireShop, async (req: AuthRequest, res) 
         for (const key of allowedProductFields) {
           if (p[key] !== undefined) update[key] = p[key];
         }
+        // Серверная метка времени (UTC, Date) — авторитетный источник для
+        // дельта-синхронизации. Клиентский updated_at не годится: это
+        // локальное время устройства владельца без TZ и в другом формате,
+        // строковое сравнение с since (полный ISO 8601) даёт неверный результат.
+        update.serverUpdatedAt = new Date();
         return {
           updateOne: {
             filter: { shopId: shopObjectId, localId: p.id },
@@ -89,6 +94,9 @@ router.post('/push', authMiddleware, requireShop, async (req: AuthRequest, res) 
             update[key] = s[key];
           }
         }
+        // Серверная метка времени для дельта-синхронизации (см. комментарий
+        // в блоке PRODUCTS выше) — created_at от клиента для этого не годится.
+        update.serverUpdatedAt = new Date();
 
         return {
           updateOne: {
@@ -121,7 +129,7 @@ router.post('/push', authMiddleware, requireShop, async (req: AuthRequest, res) 
             // Still decrement stock (it might go negative)
             await Product.findOneAndUpdate(
               { shopId: shopObjectId, localId: s.product_id },
-              { $inc: { stock: -s.quantity }, $set: { updated_at: new Date().toISOString() } }
+              { $inc: { stock: -s.quantity }, $set: { updated_at: new Date().toISOString(), serverUpdatedAt: new Date() } }
             );
             stockDecremented = true;
           }
@@ -148,11 +156,20 @@ router.get('/pull', authMiddleware, requireShop, async (req: AuthRequest, res) =
   const asOf = new Date().toISOString();
 
   try {
+    // Единая точка отсчёта для дельты: конвертируем since (ISO 8601 от клиента,
+    // сохранённый из предыдущего asOf) в реальный Date один раз.
+    const sinceDate = since ? new Date(since as string) : null;
+
     // Products: everyone gets them, but buy_price is owner only
     // Include all products including deleted ones for sync purposes
     const allProducts = await getShopProductsCached(shopObjectId);
-    const productsRaw = since
-      ? allProducts.filter((p: any) => p.updated_at >= (since as string))
+    // Фильтруем по serverUpdatedAt (серверный Date), а НЕ по клиентскому
+    // updated_at — то строка в локальном времени владельца без TZ и без 'T',
+    // и лексикографическое сравнение с since (полный ISO 8601) было всегда
+    // ложным, из-за чего товары, добавленные/изменённые после первого pull,
+    // никогда не попадали к продавцам.
+    const productsRaw = sinceDate
+      ? allProducts.filter((p: any) => p.serverUpdatedAt && new Date(p.serverUpdatedAt) >= sinceDate)
       : allProducts;
 
     const products = productsRaw.map((p: any) => {
@@ -171,8 +188,10 @@ router.get('/pull', authMiddleware, requireShop, async (req: AuthRequest, res) =
     if (!isOwner) {
       salesQuery.sellerId = new mongoose.Types.ObjectId(req.userId!);
     }
-    if (since) {
-      salesQuery.created_at = { $gte: since as string };
+    if (sinceDate) {
+      // Аналогично товарам: created_at — локальное время устройства
+      // продавца без TZ, для дельты используем серверную метку.
+      salesQuery.serverUpdatedAt = { $gte: sinceDate };
     }
 
     const salesRaw = await Sale.find(salesQuery).lean();
