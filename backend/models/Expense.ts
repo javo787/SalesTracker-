@@ -9,7 +9,7 @@ export interface IExpense extends Document {
   category: string;
   amount: number;
   description?: string;
-  linkedProductId?: number | null;
+  linked_product_id?: number | null;
   created_at: string;
   serverUpdatedAt: Date;
 }
@@ -23,7 +23,7 @@ const ExpenseSchema: Schema = new Schema({
   category: { type: String, required: true },
   amount: { type: Number, required: true },
   description: { type: String },
-  linkedProductId: { type: Number, default: null },
+  linked_product_id: { type: Number, default: null },
   created_at: { type: String },
   serverUpdatedAt: { type: Date, default: Date.now },
 });

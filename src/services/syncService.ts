@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState } from 'react-native';
 import { api } from './api';
-import { getProducts, getProductsForSync, getSalesByPeriod, getShopSession, getUnsyncedSales, getUnsyncedCheckIn, updateCheckInSyncResult } from '../db/database';
+import { getProducts, getProductsForSync, getSalesByPeriod, getShopSession, getUnsyncedSales, getUnsyncedExpenses, getUnsyncedCheckIn, updateCheckInSyncResult } from '../db/database';
 import * as SQLite from 'expo-sqlite';
 
 const db = SQLite.openDatabaseSync('savdo.db'); // Note: Keeping database name 'savdo.db' to avoid data loss as per instructions.
@@ -93,9 +93,11 @@ export const SyncService = {
       const isOwner = session.role === 'owner';
       const salesToSend = getUnsyncedSales();
       const productsToSend = isOwner ? getProductsForSync() : [];
+      const expensesToSend = getUnsyncedExpenses();
 
       const payload: any = {
         sales: salesToSend,
+        expenses: expensesToSend,
       };
 
       if (isOwner) {
@@ -112,6 +114,9 @@ export const SyncService = {
         }
         for (const p of productsToSend as any[]) {
           db.runSync('UPDATE products SET synced = 1 WHERE id = ?', [p.id]);
+        }
+        for (const e of expensesToSend as any[]) {
+          db.runSync('UPDATE expenses SET synced = 1 WHERE id = ?', [e.id]);
         }
       });
     } catch (error) {
@@ -138,6 +143,7 @@ export const SyncService = {
       const data = await withRetry(() => api.get<{
         products: any[];
         sales: any[];
+        expenses: any[];
         role: string;
         asOf: string;
       }>(url));
@@ -219,6 +225,31 @@ export const SyncService = {
             } else {
               // Keep local sync status clean
               db.runSync('UPDATE sales SET synced = 1 WHERE id = ?', [s.localId]);
+            }
+          }
+        });
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+
+      // Expenses sync
+      for (const batch of chunk(data.expenses || [], CHUNK_SIZE)) {
+        db.withTransactionSync(() => {
+          for (const e of batch) {
+            const existing = db.getFirstSync('SELECT id FROM expenses WHERE id = ?', [e.localId]);
+            if (!existing) {
+              db.runSync(
+                `INSERT INTO expenses (
+                  id, type, category, amount, description, linked_product_id, created_at,
+                  user_id, seller_id, seller_name, remote_id, synced
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+                [
+                  e.localId, e.type, e.category, e.amount, e.description || null,
+                  e.linked_product_id || null, e.created_at,
+                  e.sellerId, e.sellerId, e.sellerName, e._id || null
+                ]
+              );
+            } else {
+              db.runSync('UPDATE expenses SET synced = 1 WHERE id = ?', [e.localId]);
             }
           }
         });

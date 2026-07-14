@@ -369,15 +369,13 @@ export default function HomeScreen() {
           <Ionicons name="add-circle-outline" size={chipIconSize} color={Colors.primary} />
           <Text style={[styles.actionText, { color: Colors.primary, fontSize: chipFontSize }]}>{t('tabs.sale')}</Text>
         </TouchableOpacity>
-        {isOwner && (
-          <TouchableOpacity
-            style={[styles.actionChip, { backgroundColor: Colors.dangerLight, flex: 1, paddingHorizontal: chipPaddingH, paddingVertical: chipPaddingV }]}
-            onPress={() => navigation.navigate('Expenses')}
-          >
-            <Ionicons name="receipt-outline" size={chipIconSize} color={Colors.danger} />
-            <Text style={[styles.actionText, { color: Colors.danger, fontSize: chipFontSize }]}>{t('tabs.expenses')}</Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          style={[styles.actionChip, { backgroundColor: Colors.dangerLight, flex: 1, paddingHorizontal: chipPaddingH, paddingVertical: chipPaddingV }]}
+          onPress={() => navigation.navigate('Expenses')}
+        >
+          <Ionicons name="receipt-outline" size={chipIconSize} color={Colors.danger} />
+          <Text style={[styles.actionText, { color: Colors.danger, fontSize: chipFontSize }]}>{t('tabs.expenses')}</Text>
+        </TouchableOpacity>
         <TouchableOpacity
           style={[styles.actionChip, { backgroundColor: Colors.infoLight, flex: 1, paddingHorizontal: chipPaddingH, paddingVertical: chipPaddingV }]}
           onPress={() => navigation.navigate('Calculator')}

@@ -2,9 +2,11 @@ import { useState, useCallback } from 'react';
 import { addExpense as dbAddExpense, getExpenses as dbGetExpenses, deleteExpense as dbDeleteExpense, getExpenseStats as dbGetExpenseStats } from '../db/database';
 import { Expense, ExpenseCategory, ExpenseType } from '../types/expense';
 import { useAuth } from '../context/AuthContext';
+import { useShop } from '../context/ShopContext';
 
 export function useExpenses() {
   const { user } = useAuth();
+  const { sellerName } = useShop();
   const userId = user?._id || 'local_guest';
 
   const addExpense = useCallback(async (data: {
@@ -20,9 +22,11 @@ export function useExpenses() {
       data.amount,
       data.description,
       userId,
-      data.linkedProductId || null
+      data.linkedProductId || null,
+      userId,
+      sellerName || null
     );
-  }, [userId]);
+  }, [userId, sellerName]);
 
   const getExpenses = useCallback(async (days: number): Promise<Expense[]> => {
     return dbGetExpenses(days) as Expense[];

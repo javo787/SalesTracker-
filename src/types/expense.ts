@@ -20,4 +20,6 @@ export interface Expense {
   linkedProductId?: number;
   created_at: string; // ISO string to match other entities
   userId: string;
+  sellerId?: string;
+  sellerName?: string;
 }
