@@ -1,0 +1,129 @@
+diff --git a/backend/models/Product.ts b/backend/models/Product.ts
+index 0459ee8..024747c 100644
+--- a/backend/models/Product.ts
++++ b/backend/models/Product.ts
+@@ -17,6 +17,7 @@ export interface IProduct extends Document {
+   created_at: string;
+   updated_at: string;
+   is_deleted: number;
++  serverUpdatedAt: Date;
+ }
+ 
+ const ProductSchema: Schema = new Schema({
+@@ -36,10 +37,17 @@ const ProductSchema: Schema = new Schema({
+   created_at: { type: String },
+   updated_at: { type: String },
+   is_deleted: { type: Number, default: 0 },
++  // Серверная авторитетная метка времени последнего изменения (UTC, тип Date).
++  // Используется ТОЛЬКО для дельта-синхронизации (/sync/pull ?since=...).
++  // Клиентское поле updated_at — это локальное время устройства владельца
++  // в формате "YYYY-MM-DD HH:MM:SS" (без TZ) и НЕ подходит для сравнения
++  // со строкой since (которая приходит в полном ISO 8601 формате с 'T'/'Z'):
++  // лексикографическое сравнение таких строк даёт неверный результат.
++  serverUpdatedAt: { type: Date, default: Date.now },
+ });
+ 
+ // Composite index for efficient upserting during sync
+ ProductSchema.index({ shopId: 1, localId: 1 }, { unique: true });
+-ProductSchema.index({ shopId: 1, updated_at: 1 });
++ProductSchema.index({ shopId: 1, serverUpdatedAt: 1 });
+ 
+ export default mongoose.model<IProduct>('Product', ProductSchema);
+diff --git a/backend/models/Sale.ts b/backend/models/Sale.ts
+index 18a2ea2..34f9bd7 100644
+--- a/backend/models/Sale.ts
++++ b/backend/models/Sale.ts
+@@ -16,6 +16,7 @@ export interface ISale extends Document {
+   stock_updated: number;
+   stock_warning?: boolean;
+   created_at: string;
++  serverUpdatedAt: Date;
+ }
+ 
+ const SaleSchema: Schema = new Schema({
+@@ -34,10 +35,13 @@ const SaleSchema: Schema = new Schema({
+   stock_updated: { type: Number, default: 0 },
+   stock_warning: { type: Boolean, default: false },
+   created_at: { type: String },
++  // Серверная авторитетная метка времени (UTC, Date) — см. комментарий
++  // в models/Product.ts. Используется только для дельта-синхронизации.
++  serverUpdatedAt: { type: Date, default: Date.now },
+ });
+ 
+ // Composite index for efficient upserting during sync
+ SaleSchema.index({ shopId: 1, sellerId: 1, localId: 1 }, { unique: true });
+-SaleSchema.index({ shopId: 1, created_at: -1 });
++SaleSchema.index({ shopId: 1, serverUpdatedAt: 1 });
+ 
+ export default mongoose.model<ISale>('Sale', SaleSchema);
+diff --git a/backend/routes/sync.ts b/backend/routes/sync.ts
+index 29f7f41..15f06e5 100644
+--- a/backend/routes/sync.ts
++++ b/backend/routes/sync.ts
+@@ -51,6 +51,11 @@ router.post('/push', authMiddleware, requireShop, async (req: AuthRequest, res)
+         for (const key of allowedProductFields) {
+           if (p[key] !== undefined) update[key] = p[key];
+         }
++        // Серверная метка времени (UTC, Date) — авторитетный источник для
++        // дельта-синхронизации. Клиентский updated_at не годится: это
++        // локальное время устройства владельца без TZ и в другом формате,
++        // строковое сравнение с since (полный ISO 8601) даёт неверный результат.
++        update.serverUpdatedAt = new Date();
+         return {
+           updateOne: {
+             filter: { shopId: shopObjectId, localId: p.id },
+@@ -89,6 +94,9 @@ router.post('/push', authMiddleware, requireShop, async (req: AuthRequest, res)
+             update[key] = s[key];
+           }
+         }
++        // Серверная метка времени для дельта-синхронизации (см. комментарий
++        // в блоке PRODUCTS выше) — created_at от клиента для этого не годится.
++        update.serverUpdatedAt = new Date();
+ 
+         return {
+           updateOne: {
+@@ -121,7 +129,7 @@ router.post('/push', authMiddleware, requireShop, async (req: AuthRequest, res)
+             // Still decrement stock (it might go negative)
+             await Product.findOneAndUpdate(
+               { shopId: shopObjectId, localId: s.product_id },
+-              { $inc: { stock: -s.quantity }, $set: { updated_at: new Date().toISOString() } }
++              { $inc: { stock: -s.quantity }, $set: { updated_at: new Date().toISOString(), serverUpdatedAt: new Date() } }
+             );
+             stockDecremented = true;
+           }
+@@ -148,11 +156,20 @@ router.get('/pull', authMiddleware, requireShop, async (req: AuthRequest, res) =
+   const asOf = new Date().toISOString();
+ 
+   try {
++    // Единая точка отсчёта для дельты: конвертируем since (ISO 8601 от клиента,
++    // сохранённый из предыдущего asOf) в реальный Date один раз.
++    const sinceDate = since ? new Date(since as string) : null;
++
+     // Products: everyone gets them, but buy_price is owner only
+     // Include all products including deleted ones for sync purposes
+     const allProducts = await getShopProductsCached(shopObjectId);
+-    const productsRaw = since
+-      ? allProducts.filter((p: any) => p.updated_at >= (since as string))
++    // Фильтруем по serverUpdatedAt (серверный Date), а НЕ по клиентскому
++    // updated_at — то строка в локальном времени владельца без TZ и без 'T',
++    // и лексикографическое сравнение с since (полный ISO 8601) было всегда
++    // ложным, из-за чего товары, добавленные/изменённые после первого pull,
++    // никогда не попадали к продавцам.
++    const productsRaw = sinceDate
++      ? allProducts.filter((p: any) => p.serverUpdatedAt && new Date(p.serverUpdatedAt) >= sinceDate)
+       : allProducts;
+ 
+     const products = productsRaw.map((p: any) => {
+@@ -171,8 +188,10 @@ router.get('/pull', authMiddleware, requireShop, async (req: AuthRequest, res) =
+     if (!isOwner) {
+       salesQuery.sellerId = new mongoose.Types.ObjectId(req.userId!);
+     }
+-    if (since) {
+-      salesQuery.created_at = { $gte: since as string };
++    if (sinceDate) {
++      // Аналогично товарам: created_at — локальное время устройства
++      // продавца без TZ, для дельты используем серверную метку.
++      salesQuery.serverUpdatedAt = { $gte: sinceDate };
+     }
+ 
+     const salesRaw = await Sale.find(salesQuery).lean();
