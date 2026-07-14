@@ -2,6 +2,7 @@ import express from 'express';
 import Sale from '../models/Sale';
 import Product from '../models/Product';
 import User from '../models/User';
+import Expense from '../models/Expense';
 import { authMiddleware, requireShop, AuthRequest } from '../middleware/authMiddleware';
 import mongoose from 'mongoose';
 
@@ -29,7 +30,7 @@ function invalidateShopProductsCache(shopId: string) {
 
 // POST /sync/push
 router.post('/push', authMiddleware, requireShop, async (req: AuthRequest, res) => {
-  const { sales, products } = req.body;
+  const { sales, products, expenses } = req.body;
   const shopObjectId = new mongoose.Types.ObjectId(req.shopId!);
   const sellerObjectId = new mongoose.Types.ObjectId(req.userId!);
 
@@ -140,6 +141,31 @@ router.post('/push', authMiddleware, requireShop, async (req: AuthRequest, res) 
       }
     }
 
+    // EXPENSES: owners and sellers, каждый пушит свои
+    if (expenses && Array.isArray(expenses)) {
+      const allowedExpenseFields = ['type', 'category', 'amount', 'description', 'linkedProductId', 'created_at'];
+      const expenseOps = expenses.map((e: any) => {
+        const update: Record<string, any> = {
+          shopId: shopObjectId,
+          sellerId: sellerObjectId,
+          sellerName: req.sellerName || 'Unknown',
+          localId: e.id,
+        };
+        for (const key of allowedExpenseFields) {
+          if (e[key] !== undefined) update[key] = e[key];
+        }
+        update.serverUpdatedAt = new Date();
+        return {
+          updateOne: {
+            filter: { shopId: shopObjectId, sellerId: sellerObjectId, localId: e.id },
+            update: { $set: update },
+            upsert: true,
+          },
+        };
+      });
+      if (expenseOps.length > 0) await Expense.bulkWrite(expenseOps);
+    }
+
     await User.findByIdAndUpdate(req.userId, { lastSyncAt: new Date() });
     res.json({ syncedAt: new Date().toISOString(), role: req.role });
   } catch (error) {
@@ -205,7 +231,17 @@ router.get('/pull', authMiddleware, requireShop, async (req: AuthRequest, res) =
       return s;
     });
 
-    res.json({ products, sales, role: req.role, shopId: req.shopId, asOf });
+    // Expenses: owner получает все расходы магазина, продавец — только свои
+    const expensesQuery: any = { shopId: shopObjectId };
+    if (!isOwner) {
+      expensesQuery.sellerId = new mongoose.Types.ObjectId(req.userId!);
+    }
+    if (sinceDate) {
+      expensesQuery.serverUpdatedAt = { $gte: sinceDate };
+    }
+    const expenses = await Expense.find(expensesQuery).lean();
+
+    res.json({ products, sales, expenses, role: req.role, shopId: req.shopId, asOf });
   } catch (error) {
     console.error('Pull error:', error);
     res.status(500).json({ message: 'Error during pull sync' });

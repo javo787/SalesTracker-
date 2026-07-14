@@ -424,6 +424,33 @@ function runMigrations() {
     }
   }
 
+  const schemaV10MigrationDone = db.getFirstSync(
+    "SELECT value FROM app_meta WHERE key = 'schema_v10'"
+  ) as { value: string } | null;
+
+  if (!schemaV10MigrationDone) {
+    db.withTransactionSync(() => {
+      const expensesTableInfo = db.getAllSync("PRAGMA table_info(expenses)") as any[];
+      if (!expensesTableInfo.some(c => c.name === 'seller_id')) {
+        db.execSync("ALTER TABLE expenses ADD COLUMN seller_id TEXT");
+      }
+      if (!expensesTableInfo.some(c => c.name === 'seller_name')) {
+        db.execSync("ALTER TABLE expenses ADD COLUMN seller_name TEXT");
+      }
+      if (!expensesTableInfo.some(c => c.name === 'remote_id')) {
+        db.execSync("ALTER TABLE expenses ADD COLUMN remote_id TEXT");
+      }
+      if (!expensesTableInfo.some(c => c.name === 'synced')) {
+        db.execSync("ALTER TABLE expenses ADD COLUMN synced INTEGER DEFAULT 0");
+      }
+      // Бэкфилл: существующие локальные расходы владельца считаем его собственными
+      db.execSync(
+        "UPDATE expenses SET seller_id = user_id WHERE seller_id IS NULL"
+      );
+      db.runSync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_v10', 'done')");
+    });
+  }
+
   // Migration: shop_session table
   db.execSync(`
     CREATE TABLE IF NOT EXISTS shop_session (
