@@ -15,7 +15,7 @@ import { toISODate } from '../utils/dateUtils';
 import { analyticsService } from '../services/analyticsService';
 import { reviewService } from '../services/reviewService';
 import { SyncService } from '../services/syncService';
-import VoiceRecorder from '../components/VoiceRecorder';
+import VoiceCapsule, { CapsuleState } from '../components/VoiceCapsule';
 import VoiceBatchReview from '../components/VoiceBatchReview';
 import { VoiceSaleResult, VoiceSaleItem } from '../types/voiceSale';
 import { matchProductByName, ProductMatchResult } from '../utils/productMatching';
@@ -97,9 +97,11 @@ export default function AddSaleScreen(/* props */) {
   const [lastSaved, setLastSaved] = useState<{
     name: string; profit: string; revenue: string; shareText?: string;
   } | null>(null);
-  const [showVoiceBar, setShowVoiceBar] = useState(false);
 
   const [isSaved, setIsSaved] = useState(false);
+  const [resetCapsuleTrigger, setResetCapsuleTrigger] = useState(0);
+  const [capsuleState, setCapsuleState] = useState<CapsuleState>('idle');
+  const [rowWidth, setRowWidth] = useState(0);
   const [showFullClient, setShowFullClient] = useState(false);
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [maskBuyPrice, setMaskBuyPrice] = useState(true);
@@ -116,6 +118,15 @@ export default function AddSaleScreen(/* props */) {
 
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const opacityAnim = useRef(new Animated.Value(1)).current;
+  const otherButtonsOpacity = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.timing(otherButtonsOpacity, {
+      toValue: capsuleState === 'idle' ? 1 : 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [capsuleState]);
 
   const isFormDirty = !!(
     productName || sellPrice || buyPrice || quantity || note ||
@@ -348,7 +359,6 @@ export default function AddSaleScreen(/* props */) {
     if (result.items.length === 1) {
       await applyAIResult(result.items[0], result.transcript);
       if (result.transcript) setVoiceText(result.transcript);
-      setShowVoiceBar(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } else {
       setVoiceResult(result);
@@ -455,7 +465,6 @@ export default function AddSaleScreen(/* props */) {
 
     setCartItems(prev => [...prev, ...newCartItems]);
     setVoiceResult(null);
-    setShowVoiceBar(false);
     triggerSaveAnimation();
   };
 
@@ -647,48 +656,35 @@ export default function AddSaleScreen(/* props */) {
       themeStyles.container,
       { transform: [{ scale: scaleAnim }], opacity: opacityAnim }
     ]}>
-      {/* Voice Input Modal (Bottom Bar) */}
+      {/* Voice Batch Review Modal (Triggered directly by voiceResult !== null) */}
       <Modal
-        visible={showVoiceBar}
+        visible={voiceResult !== null}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowVoiceBar(false)}
+        onRequestClose={() => {
+          setVoiceResult(null);
+          setResetCapsuleTrigger(prev => prev + 1);
+        }}
       >
-        <TouchableWithoutFeedback onPress={() => setShowVoiceBar(false)}>
+        <TouchableWithoutFeedback onPress={() => {
+          setVoiceResult(null);
+          setResetCapsuleTrigger(prev => prev + 1);
+        }}>
           <View style={styles.modalOverlay}>
             <TouchableWithoutFeedback>
               <View style={[styles.voiceBar, themeStyles.card]}>
-                <View style={styles.voiceBarHeader}>
-                  <Text style={[styles.voiceBarTitle, themeStyles.text]}>{t('addSale.voiceTitle')}</Text>
-                  <TouchableOpacity onPress={() => setShowVoiceBar(false)} style={styles.closeBtn}>
-                    <Ionicons name="close" size={24} color={isDark ? '#eee' : '#333'} />
-                  </TouchableOpacity>
-                </View>
-
-                {voiceResult ? (
-                   <VoiceBatchReview
-                      result={voiceResult}
-                      onConfirm={handleBatchConfirm}
-                      onCancel={() => setVoiceResult(null)}
-                   />
-                ) : (
-                  <>
-                    <VoiceRecorder onResult={handleVoiceResult} />
-
-                    {voiceText ? (
-                      <View style={[styles.voiceResult, themeStyles.voiceResult]}>
-                        <Text style={styles.voiceResultLabel}>{t('addSale.recognized')}:</Text>
-                        <Text style={[styles.voiceResultText, themeStyles.text]}>"{voiceText}"</Text>
-                      </View>
-                    ) : null}
-
-                    {processing && (
-                      <View style={styles.processingRow}>
-                        <ActivityIndicator size="small" color="#1D9E75" />
-                        <Text style={styles.processingText}>{t('addSale.aiProcessing')}</Text>
-                      </View>
-                    )}
-                  </>
+                {voiceResult && (
+                  <VoiceBatchReview
+                    result={voiceResult}
+                    onConfirm={(items) => {
+                      handleBatchConfirm(items);
+                      setResetCapsuleTrigger(prev => prev + 1);
+                    }}
+                    onCancel={() => {
+                      setVoiceResult(null);
+                      setResetCapsuleTrigger(prev => prev + 1);
+                    }}
+                  />
                 )}
               </View>
             </TouchableWithoutFeedback>
@@ -1208,41 +1204,55 @@ export default function AddSaleScreen(/* props */) {
           </View>
         )}
 
-        <View style={styles.actionsRow}>
-          <TouchableOpacity
-            style={styles.addToCartBtn}
-            onPress={() => setShowVoiceBar(true)}
-            activeOpacity={0.8}
+        <View
+          style={styles.actionsRowContainer}
+          onLayout={(e) => setRowWidth(e.nativeEvent.layout.width)}
+        >
+          <Animated.View
+            style={[styles.remainingActionsRow, { opacity: otherButtonsOpacity }]}
+            pointerEvents={capsuleState === 'idle' ? 'auto' : 'none'}
           >
-            <Ionicons name="mic" size={24} color="#fff" />
-          </TouchableOpacity>
+            {/* Leftmost spacer for the capsule */}
+            <View style={{ width: 56 }} />
 
-          <TouchableOpacity
-            style={[styles.saveBtn, { flex: 1 }, isSaved && { backgroundColor: '#1D9E75' }]}
-            onPress={handleSave}
-            activeOpacity={0.8}
-          >
-            <Ionicons
-              name={isSaved ? 'checkmark-circle' : 'checkmark'}
-              size={20}
-              color="#fff"
-              style={{ marginRight: 8 }}
+            <TouchableOpacity
+              style={[styles.saveBtn, { flex: 1 }, isSaved && { backgroundColor: '#1D9E75' }]}
+              onPress={handleSave}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name={isSaved ? 'checkmark-circle' : 'checkmark'}
+                size={20}
+                color="#fff"
+                style={{ marginRight: 8 }}
+              />
+              <Text style={styles.saveBtnText} numberOfLines={1}>
+                {cartItems.length > 0
+                  ? t('addSale.checkoutBtn', { total: cartTotal.toLocaleString(), symbol: currency.symbol })
+                  : (isSaved ? t('common.saved') : t('addSale.saveBtn'))
+                }
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.addToCartBtn}
+              onPress={addToCart}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="add" size={30} color="#fff" />
+            </TouchableOpacity>
+          </Animated.View>
+
+          {/* Absolute VoiceCapsule on the left expanding rightward */}
+          <View style={styles.capsuleAbsoluteContainer}>
+            <VoiceCapsule
+              rowWidth={rowWidth}
+              onStateChange={setCapsuleState}
+              onResult={handleVoiceResult}
+              onShowBatchReview={(res) => setVoiceResult(res)}
+              resetCapsuleTrigger={resetCapsuleTrigger}
             />
-            <Text style={styles.saveBtnText} numberOfLines={1}>
-              {cartItems.length > 0
-                ? t('addSale.checkoutBtn', { total: cartTotal.toLocaleString(), symbol: currency.symbol })
-                : (isSaved ? t('common.saved') : t('addSale.saveBtn'))
-              }
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.addToCartBtn}
-            onPress={addToCart}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="add" size={30} color="#fff" />
-          </TouchableOpacity>
+          </View>
         </View>
       </View>
 
@@ -1488,6 +1498,27 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
     marginTop: Spacing.xl,
     alignItems: 'center',
+  },
+  actionsRowContainer: {
+    position: 'relative',
+    width: '100%',
+    minHeight: 56,
+    marginTop: Spacing.xl,
+    justifyContent: 'center',
+  },
+  remainingActionsRow: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+    width: '100%',
+    alignItems: 'center',
+  },
+  capsuleAbsoluteContainer: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    zIndex: 10,
+    justifyContent: 'center',
   },
   addToCartBtn: {
     width: 56,
