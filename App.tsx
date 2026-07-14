@@ -201,16 +201,14 @@ function DrawerNavigator() {
           drawerIcon: ({ color }) => <Ionicons name="person-outline" size={22} color={color} />,
         }}
       />
-      {isOwner && (
-        <Drawer.Screen
-          name="Expenses"
-          component={ExpensesScreen}
-          options={{
-            drawerLabel: t('tabs.expenses'),
-            drawerIcon: ({ color }) => <Ionicons name="receipt-outline" size={22} color={color} />,
-          }}
-        />
-      )}
+      <Drawer.Screen
+        name="Expenses"
+        component={ExpensesScreen}
+        options={{
+          drawerLabel: t('tabs.expenses'),
+          drawerIcon: ({ color }) => <Ionicons name="receipt-outline" size={22} color={color} />,
+        }}
+      />
       <Drawer.Screen
         name="ReportsDrawer"
         component={ReportScreen}

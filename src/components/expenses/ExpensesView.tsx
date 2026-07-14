@@ -15,6 +15,7 @@ import { BarChart } from 'react-native-gifted-charts';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppContext } from '../../context/AppContext';
+import { useShop } from '../../context/ShopContext';
 import { useExpenses } from '../../hooks/useExpenses';
 import { Expense } from '../../types/expense';
 import { CATEGORY_CONFIG } from './CategoryPicker';
@@ -25,6 +26,7 @@ type Period = 1 | 7 | 30;
 export default function ExpensesView() {
   const { t, i18n } = useTranslation();
   const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
+  const { isOwner } = useShop();
   const insets = useSafeAreaInsets();
   const { getExpenses, getTotals, deleteExpense } = useExpenses();
 
@@ -205,6 +207,7 @@ export default function ExpensesView() {
                   isDark={isDark}
                   currency={currency}
                   t={t}
+                  showSeller={isOwner}
                 />
               ))}
             </View>
@@ -231,7 +234,7 @@ export default function ExpensesView() {
   );
 }
 
-function ExpenseListItem({ expense, onDelete, isDark, currency, t }: { expense: Expense, onDelete: () => void, isDark: boolean, currency: any, t: any }) {
+function ExpenseListItem({ expense, onDelete, isDark, currency, t, showSeller }: { expense: Expense, onDelete: () => void, isDark: boolean, currency: any, t: any, showSeller?: boolean }) {
   const translateX = React.useRef(new RNAnimated.Value(0)).current;
 
   const panResponder = React.useRef(
@@ -281,6 +284,7 @@ function ExpenseListItem({ expense, onDelete, isDark, currency, t }: { expense: 
           </Text>
           <Text style={styles.expenseTime}>
             {new Date(expense.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            {showSeller && expense.sellerName ? ` · ${expense.sellerName}` : ''}
           </Text>
         </View>
         <Text style={styles.expenseAmount}>

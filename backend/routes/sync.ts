@@ -143,7 +143,7 @@ router.post('/push', authMiddleware, requireShop, async (req: AuthRequest, res) 
 
     // EXPENSES: owners and sellers, каждый пушит свои
     if (expenses && Array.isArray(expenses)) {
-      const allowedExpenseFields = ['type', 'category', 'amount', 'description', 'linkedProductId', 'created_at'];
+      const allowedExpenseFields = ['type', 'category', 'amount', 'description', 'linked_product_id', 'created_at'];
       const expenseOps = expenses.map((e: any) => {
         const update: Record<string, any> = {
           shopId: shopObjectId,

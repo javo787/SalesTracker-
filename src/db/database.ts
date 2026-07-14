@@ -681,6 +681,10 @@ export function getUnsyncedSales() {
   return db.getAllSync('SELECT * FROM sales WHERE synced = 0 ORDER BY created_at ASC');
 }
 
+export function getUnsyncedExpenses() {
+  return db.getAllSync('SELECT * FROM expenses WHERE synced = 0 ORDER BY created_at ASC');
+}
+
 export function getAllProductsForSync() {
   return db.getAllSync('SELECT * FROM products ORDER BY name ASC');
 }
@@ -968,12 +972,14 @@ export function addExpense(
   amount: number,
   description: string,
   userId: string,
-  linkedProductId: number | null = null
+  linkedProductId: number | null = null,
+  sellerId: string | null = null,
+  sellerName: string | null = null
 ) {
   try {
     return db.runSync(
-      'INSERT INTO expenses (type, category, amount, description, user_id, linked_product_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [type, category, amount, description, userId, linkedProductId, nowLocalISO()]
+      'INSERT INTO expenses (type, category, amount, description, user_id, linked_product_id, created_at, seller_id, seller_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [type, category, amount, description, userId, linkedProductId, nowLocalISO(), sellerId || userId, sellerName]
     );
   } catch (error) {
     console.error('Error adding expense:', error);
@@ -981,17 +987,17 @@ export function addExpense(
   }
 }
 
-export function getExpenses(days: number = 1, fromDate?: string, toDate?: string) {
+export function getExpenses(days: number = 1, fromDate?: string, toDate?: string, sellerId?: string | null) {
   if (fromDate && toDate) {
-    return db.getAllSync(
-      "SELECT * FROM expenses WHERE created_at >= ? AND created_at <= ? ORDER BY created_at DESC",
-      [fromDate + ' 00:00:00', toDate + ' 23:59:59']
-    );
+    const query = `SELECT * FROM expenses WHERE ${sellerId ? 'seller_id = ? AND ' : ''}created_at >= ? AND created_at <= ? ORDER BY created_at DESC`;
+    const params = sellerId
+      ? [sellerId, fromDate + ' 00:00:00', toDate + ' 23:59:59']
+      : [fromDate + ' 00:00:00', toDate + ' 23:59:59'];
+    return db.getAllSync(query, params);
   }
-  return db.getAllSync(
-    "SELECT * FROM expenses WHERE created_at >= ? ORDER BY created_at DESC",
-    [daysAgoLocalISO(days)]
-  );
+  const query = `SELECT * FROM expenses WHERE ${sellerId ? 'seller_id = ? AND ' : ''}created_at >= ? ORDER BY created_at DESC`;
+  const params = sellerId ? [sellerId, daysAgoLocalISO(days)] : [daysAgoLocalISO(days)];
+  return db.getAllSync(query, params);
 }
 
 export function deleteExpense(id: number) {
