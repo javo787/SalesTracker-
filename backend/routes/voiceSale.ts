@@ -3,6 +3,7 @@ import multer from 'multer';
 import { authMiddleware, AuthRequest, requireShop } from '../middleware/authMiddleware';
 import { fetchGeminiWithRotation, GEMINI_MODELS, parseGeminiJSON, normalizeVoiceSaleResult } from '../utils/gemini';
 import { transcribeAudio } from '../utils/transcribe';
+import { fetchCerebrasChat } from '../utils/cerebras';
 import axios from 'axios';
 
 const router = express.Router();
@@ -234,8 +235,38 @@ router.post('/', authMiddleware, requireShop, (req, res, next) => {
       }
     }
 
-    // LEVEL 3: Whisper -> Groq Llama
-    logStep('level3_start');
+    // LEVEL 3a: Whisper -> Cerebras Llama (независимая от Google/Groq инфраструктура)
+    logStep('level3a_start');
+    if (process.env.CEREBRAS_API_KEY) {
+      try {
+        const cerebrasResponse = await fetchCerebrasChat(
+          promptWithHint,
+          `TRANSCRIPT: "${transcript}"`,
+          { signal: controller.signal, timeout: 10000 }
+        );
+        logStep('level3a_response', { ok: cerebrasResponse.ok, status: cerebrasResponse.status });
+
+        if (cerebrasResponse.ok) {
+          const content = cerebrasResponse.data?.choices?.[0]?.message?.content;
+          const parsed = content ? JSON.parse(content) : null;
+          if (parsed) {
+            const normalized = normalizeVoiceSaleResult(parsed);
+            logStep('level3a_success', {
+              itemsCount: normalized.items?.length,
+              hasEmptySellPrice: normalized.items?.some((i: any) => !i.sell_price)
+            });
+            applyEmptyNameFallback(normalized, transcript);
+            clearTimeout(timeoutId);
+            return res.json({ ...normalized, transcript, source: 'whisper_cerebras' });
+          }
+        }
+      } catch (e) {
+        console.error('[voice-sale] Cerebras failed', e);
+      }
+    }
+
+    // LEVEL 3b: Whisper -> Groq Llama
+    logStep('level3b_start');
     const groqApiKey = process.env.GROQ_API_KEY;
     if (groqApiKey) {
       try {
@@ -261,7 +292,7 @@ router.post('/', authMiddleware, requireShop, (req, res, next) => {
           const result = JSON.parse(content);
           if (result) {
             const normalized = normalizeVoiceSaleResult(result);
-            logStep('level3_success', {
+            logStep('level3b_success', {
               itemsCount: normalized.items?.length,
               hasEmptySellPrice: normalized.items?.some((i: any) => !i.sell_price)
             });

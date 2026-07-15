@@ -19,8 +19,13 @@ const GEMINI_API_KEYS = [
 ].filter(Boolean) as string[];
 
 export const GEMINI_MODELS = {
-  LEVEL_1: 'gemini-3-flash-preview',
-  LEVEL_1_FALLBACK: 'gemini-flash-latest',
+  // gemini-2.5-flash — стабильная GA-модель с полноценным пулом мощностей у Google.
+  // gemini-3-flash-preview остаётся в preview-статусе с урезанной квотой compute,
+  // из-за чего именно она чаще всего отдаёт 503 "model is overloaded" при пиковой нагрузке.
+  // Поэтому ставим её в fallback: если 2.5 недоступна (пул независимый от preview-пула),
+  // есть шанс, что 3-preview в этот момент свободна, и наоборот.
+  LEVEL_1: 'gemini-2.5-flash',
+  LEVEL_1_FALLBACK: 'gemini-3-flash-preview',
 };
 
 /**

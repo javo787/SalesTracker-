@@ -31,7 +31,7 @@ router.post('/', authMiddleware, requireShop, async (req: AuthRequest, res: Resp
       .map((c: any) => `id=${c.id}, name="${c.name}", color=${c.color || '-'}, size=${c.size || '-'}, price=${c.price ?? '-'}`)
       .join('\n');
 
-    const geminiResponse = await fetchGeminiWithRotation(GEMINI_MODELS.LEVEL_1_FALLBACK, {
+    const requestPayload = {
       contents: [{
         parts: [{
           text: `${SYSTEM_PROMPT}\n\nTRANSCRIPT: "${transcript}"\n\nCANDIDATES:\n${candidatesText}`
@@ -41,7 +41,13 @@ router.post('/', authMiddleware, requireShop, async (req: AuthRequest, res: Resp
         response_mime_type: "application/json",
         response_schema: RESPONSE_SCHEMA
       }
-    }, {});
+    };
+
+    let geminiResponse = await fetchGeminiWithRotation(GEMINI_MODELS.LEVEL_1, requestPayload, {});
+
+    if (!geminiResponse.ok) {
+      geminiResponse = await fetchGeminiWithRotation(GEMINI_MODELS.LEVEL_1_FALLBACK, requestPayload, {});
+    }
 
     if (!geminiResponse.ok) {
       console.error('[voice-disambiguate] Gemini failure', {

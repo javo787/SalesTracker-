@@ -1,0 +1,129 @@
+[1mdiff --git a/backend/models/Product.ts b/backend/models/Product.ts[m
+[1mindex 0459ee8..024747c 100644[m
+[1m--- a/backend/models/Product.ts[m
+[1m+++ b/backend/models/Product.ts[m
+[36m@@ -17,6 +17,7 @@[m [mexport interface IProduct extends Document {[m
+   created_at: string;[m
+   updated_at: string;[m
+   is_deleted: number;[m
+[32m+[m[32m  serverUpdatedAt: Date;[m
+ }[m
+ [m
+ const ProductSchema: Schema = new Schema({[m
+[36m@@ -36,10 +37,17 @@[m [mconst ProductSchema: Schema = new Schema({[m
+   created_at: { type: String },[m
+   updated_at: { type: String },[m
+   is_deleted: { type: Number, default: 0 },[m
+[32m+[m[32m  // Серверная авторитетная метка времени последнего изменения (UTC, тип Date).[m
+[32m+[m[32m  // Используется ТОЛЬКО для дельта-синхронизации (/sync/pull ?since=...).[m
+[32m+[m[32m  // Клиентское поле updated_at — это локальное время устройства владельца[m
+[32m+[m[32m  // в формате "YYYY-MM-DD HH:MM:SS" (без TZ) и НЕ подходит для сравнения[m
+[32m+[m[32m  // со строкой since (которая приходит в полном ISO 8601 формате с 'T'/'Z'):[m
+[32m+[m[32m  // лексикографическое сравнение таких строк даёт неверный результат.[m
+[32m+[m[32m  serverUpdatedAt: { type: Date, default: Date.now },[m
+ });[m
+ [m
+ // Composite index for efficient upserting during sync[m
+ ProductSchema.index({ shopId: 1, localId: 1 }, { unique: true });[m
+[31m-ProductSchema.index({ shopId: 1, updated_at: 1 });[m
+[32m+[m[32mProductSchema.index({ shopId: 1, serverUpdatedAt: 1 });[m
+ [m
+ export default mongoose.model<IProduct>('Product', ProductSchema);[m
+[1mdiff --git a/backend/models/Sale.ts b/backend/models/Sale.ts[m
+[1mindex 18a2ea2..34f9bd7 100644[m
+[1m--- a/backend/models/Sale.ts[m
+[1m+++ b/backend/models/Sale.ts[m
+[36m@@ -16,6 +16,7 @@[m [mexport interface ISale extends Document {[m
+   stock_updated: number;[m
+   stock_warning?: boolean;[m
+   created_at: string;[m
+[32m+[m[32m  serverUpdatedAt: Date;[m
+ }[m
+ [m
+ const SaleSchema: Schema = new Schema({[m
+[36m@@ -34,10 +35,13 @@[m [mconst SaleSchema: Schema = new Schema({[m
+   stock_updated: { type: Number, default: 0 },[m
+   stock_warning: { type: Boolean, default: false },[m
+   created_at: { type: String },[m
+[32m+[m[32m  // Серверная авторитетная метка времени (UTC, Date) — см. комментарий[m
+[32m+[m[32m  // в models/Product.ts. Используется только для дельта-синхронизации.[m
+[32m+[m[32m  serverUpdatedAt: { type: Date, default: Date.now },[m
+ });[m
+ [m
+ // Composite index for efficient upserting during sync[m
+ SaleSchema.index({ shopId: 1, sellerId: 1, localId: 1 }, { unique: true });[m
+[31m-SaleSchema.index({ shopId: 1, created_at: -1 });[m
+[32m+[m[32mSaleSchema.index({ shopId: 1, serverUpdatedAt: 1 });[m
+ [m
+ export default mongoose.model<ISale>('Sale', SaleSchema);[m
+[1mdiff --git a/backend/routes/sync.ts b/backend/routes/sync.ts[m
+[1mindex 29f7f41..15f06e5 100644[m
+[1m--- a/backend/routes/sync.ts[m
+[1m+++ b/backend/routes/sync.ts[m
+[36m@@ -51,6 +51,11 @@[m [mrouter.post('/push', authMiddleware, requireShop, async (req: AuthRequest, res)[m
+         for (const key of allowedProductFields) {[m
+           if (p[key] !== undefined) update[key] = p[key];[m
+         }[m
+[32m+[m[32m        // Серверная метка времени (UTC, Date) — авторитетный источник для[m
+[32m+[m[32m        // дельта-синхронизации. Клиентский updated_at не годится: это[m
+[32m+[m[32m        // локальное время устройства владельца без TZ и в другом формате,[m
+[32m+[m[32m        // строковое сравнение с since (полный ISO 8601) даёт неверный результат.[m
+[32m+[m[32m        update.serverUpdatedAt = new Date();[m
+         return {[m
+           updateOne: {[m
+             filter: { shopId: shopObjectId, localId: p.id },[m
+[36m@@ -89,6 +94,9 @@[m [mrouter.post('/push', authMiddleware, requireShop, async (req: AuthRequest, res)[m
+             update[key] = s[key];[m
+           }[m
+         }[m
+[32m+[m[32m        // Серверная метка времени для дельта-синхронизации (см. комментарий[m
+[32m+[m[32m        // в блоке PRODUCTS выше) — created_at от клиента для этого не годится.[m
+[32m+[m[32m        update.serverUpdatedAt = new Date();[m
+ [m
+         return {[m
+           updateOne: {[m
+[36m@@ -121,7 +129,7 @@[m [mrouter.post('/push', authMiddleware, requireShop, async (req: AuthRequest, res)[m
+             // Still decrement stock (it might go negative)[m
+             await Product.findOneAndUpdate([m
+               { shopId: shopObjectId, localId: s.product_id },[m
+[31m-              { $inc: { stock: -s.quantity }, $set: { updated_at: new Date().toISOString() } }[m
+[32m+[m[32m              { $inc: { stock: -s.quantity }, $set: { updated_at: new Date().toISOString(), serverUpdatedAt: new Date() } }[m
+             );[m
+             stockDecremented = true;[m
+           }[m
+[36m@@ -148,11 +156,20 @@[m [mrouter.get('/pull', authMiddleware, requireShop, async (req: AuthRequest, res) =[m
+   const asOf = new Date().toISOString();[m
+ [m
+   try {[m
+[32m+[m[32m    // Единая точка отсчёта для дельты: конвертируем since (ISO 8601 от клиента,[m
+[32m+[m[32m    // сохранённый из предыдущего asOf) в реальный Date один раз.[m
+[32m+[m[32m    const sinceDate = since ? new Date(since as string) : null;[m
+[32m+[m
+     // Products: everyone gets them, but buy_price is owner only[m
+     // Include all products including deleted ones for sync purposes[m
+     const allProducts = await getShopProductsCached(shopObjectId);[m
+[31m-    const productsRaw = since[m
+[31m-      ? allProducts.filter((p: any) => p.updated_at >= (since as string))[m
+[32m+[m[32m    // Фильтруем по serverUpdatedAt (серверный Date), а НЕ по клиентскому[m
+[32m+[m[32m    // updated_at — то строка в локальном времени владельца без TZ и без 'T',[m
+[32m+[m[32m    // и лексикографическое сравнение с since (полный ISO 8601) было всегда[m
+[32m+[m[32m    // ложным, из-за чего товары, добавленные/изменённые после первого pull,[m
+[32m+[m[32m    // никогда не попадали к продавцам.[m
+[32m+[m[32m    const productsRaw = sinceDate[m
+[32m+[m[32m      ? allProducts.filter((p: any) => p.serverUpdatedAt && new Date(p.serverUpdatedAt) >= sinceDate)[m
+       : allProducts;[m
+ [m
+     const products = productsRaw.map((p: any) => {[m
+[36m@@ -171,8 +188,10 @@[m [mrouter.get('/pull', authMiddleware, requireShop, async (req: AuthRequest, res) =[m
+     if (!isOwner) {[m
+       salesQuery.sellerId = new mongoose.Types.ObjectId(req.userId!);[m
+     }[m
+[31m-    if (since) {[m
+[31m-      salesQuery.created_at = { $gte: since as string };[m
+[32m+[m[32m    if (sinceDate) {[m
+[32m+[m[32m      // Аналогично товарам: created_at — локальное время устройства[m
+[32m+[m[32m      // продавца без TZ, для дельты используем серверную метку.[m
+[32m+[m[32m      salesQuery.serverUpdatedAt = { $gte: sinceDate };[m
+     }[m
+ [m
+     const salesRaw = await Sale.find(salesQuery).lean();[m
