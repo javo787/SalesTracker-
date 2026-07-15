@@ -1692,7 +1692,7 @@ const lightStyles = StyleSheet.create({
   input: { backgroundColor: '#F5F5F5', borderColor: '#E0E0E0' },
   chip: { backgroundColor: '#F0F0F0', borderColor: '#E0E0E0' },
   chipText: { color: '#666' },
-  searchBar: { backgroundColor: '#F9F9F9', borderColor: '#E0E0E0' },
+  searchBar: { backgroundColor: LightTheme.inputBg, borderColor: LightTheme.inputBorder },
 });
 
 const darkStyles = StyleSheet.create({
@@ -1702,7 +1702,7 @@ const darkStyles = StyleSheet.create({
   input: { backgroundColor: '#2C2C2C', borderColor: '#444', color: '#EEE' },
   chip: { backgroundColor: '#2C2C2C', borderColor: '#444' },
   chipText: { color: '#AAA' },
-  searchBar: { backgroundColor: '#1A1A1A', borderColor: '#333' },
+  searchBar: { backgroundColor: DarkTheme.inputBg, borderColor: DarkTheme.inputBorder },
 });
 
 const styles = StyleSheet.create({

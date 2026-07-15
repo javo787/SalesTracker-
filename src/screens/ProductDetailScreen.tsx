@@ -216,10 +216,10 @@ const ProductDetailScreen = () => {
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <TouchableOpacity
                   onPress={() => navigation.navigate('Products', { openAddVariantFor: product })}
-                  style={styles.editBtn}
+                  style={[styles.editBtn, { paddingHorizontal: Spacing.sm }]}
+                  accessibilityLabel="Добавить вариант"
                 >
                   <Ionicons name="add-circle-outline" size={20} color="#fff" />
-                  <Text style={styles.editBtnText}>{t('products.addVariant')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity onPress={() => setEditModalVisible(true)} style={styles.editBtn}>
