@@ -17,6 +17,7 @@ import Animated, {
   withRepeat,
   withSequence,
   runOnJS,
+  interpolateColor,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useAudioRecorder, AudioModule, setAudioModeAsync, RecordingPresets } from 'expo-audio';
@@ -36,7 +37,7 @@ const MAX_DURATION_MS = 60_000;
 const WARNING_MS = 55_000;
 const MIN_DURATION_MS = 700;
 
-export type CapsuleState = 'idle' | 'recording' | 'locked' | 'processing' | 'success' | 'batch';
+export type CapsuleState = 'idle' | 'recording' | 'locked' | 'sending' | 'processing' | 'success' | 'batch';
 
 interface VoiceCapsuleProps {
   rowWidth: number;
@@ -164,6 +165,7 @@ export default function VoiceCapsule({
   const [showWarning, setShowWarning] = useState(false);
   const [batchCount, setBatchCount] = useState(0);
   const [latestBatchResult, setLatestBatchResult] = useState<VoiceSaleResult | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   // Audio Recorder hook
   const recorder = useAudioRecorder(recordingOptions);
@@ -178,10 +180,14 @@ export default function VoiceCapsule({
   const secondsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Reanimated Shared Values
-  const widthVal = useSharedValue(56);
+  const widthVal = useSharedValue(48);
   const slideProgress = useSharedValue(0);
   const lockProgress = useSharedValue(0);
   const isTransitioning = useSharedValue(false);
+
+  // "Send" swap icon animation (mic -> checkmark, WhatsApp/Telegram-style)
+  const sendIconOpacity = useSharedValue(0);
+  const sendIconScale = useSharedValue(0.6);
 
   // Waveform heights (0 to 1)
   const wave1 = useSharedValue(0.2);
@@ -205,7 +211,7 @@ export default function VoiceCapsule({
   useEffect(() => {
     if (resetCapsuleTrigger !== undefined) {
       setCapsuleState('idle');
-      widthVal.value = withTiming(56, { duration: 200 });
+      widthVal.value = withTiming(48, { duration: 200 });
       setBatchCount(0);
       setLatestBatchResult(null);
     }
@@ -223,6 +229,29 @@ export default function VoiceCapsule({
     };
     loadLang();
   }, [language]);
+
+  // First-time onboarding hint: show once per install, explaining that you can
+  // swipe to cancel or swipe up to lock (hands-free) recording. Auto-hides
+  // after a few seconds and is dismissed immediately on first real interaction.
+  useEffect(() => {
+    let hideTimer: ReturnType<typeof setTimeout> | null = null;
+    const checkOnboarding = async () => {
+      try {
+        const seen = await AsyncStorage.getItem('voice_capsule_onboarding_seen');
+        if (!seen && !unmountedRef.current) {
+          setShowOnboarding(true);
+          await AsyncStorage.setItem('voice_capsule_onboarding_seen', '1');
+          hideTimer = setTimeout(() => {
+            if (!unmountedRef.current) setShowOnboarding(false);
+          }, 4500);
+        }
+      } catch (_) {}
+    };
+    checkOnboarding();
+    return () => {
+      if (hideTimer) clearTimeout(hideTimer);
+    };
+  }, []);
 
   // Clean timers
   const clearTimers = useCallback(() => {
@@ -273,7 +302,7 @@ export default function VoiceCapsule({
   const transcribeAudio = useCallback(async (uri: string) => {
     if (unmountedRef.current) return;
     setCapsuleState('processing');
-    widthVal.value = withTiming(56, { duration: 200 });
+    widthVal.value = withTiming(48, { duration: 200 });
 
     abortRef.current = new AbortController();
 
@@ -350,16 +379,27 @@ export default function VoiceCapsule({
       const voiceRes = body as VoiceSaleResult;
 
       if (voiceRes.items && voiceRes.items.length > 1) {
-        // Multiple items -> go to batch state
+        // Multiple items -> brief "N поз." pill for visual continuity, then
+        // open the batch review modal automatically. Users shouldn't have to
+        // discover and tap the pill to see what was recognized.
         setBatchCount(voiceRes.items.length);
         setLatestBatchResult(voiceRes);
         setCapsuleState('batch');
         widthVal.value = withTiming(190, { duration: 250 });
         triggerHaptic('impactMedium');
+
+        setTimeout(() => {
+          if (unmountedRef.current) return;
+          if (onShowBatchReview) {
+            onShowBatchReview(voiceRes);
+          }
+          setCapsuleState('idle');
+          widthVal.value = withTiming(48, { duration: 200 });
+        }, 350);
       } else {
         // Single item -> trigger success haptic & update form
         setCapsuleState('idle');
-        widthVal.value = withTiming(56, { duration: 200 });
+        widthVal.value = withTiming(48, { duration: 200 });
         triggerHaptic('success');
         onResult(voiceRes);
       }
@@ -369,7 +409,7 @@ export default function VoiceCapsule({
       console.warn('[VoiceCapsule] transcribe error:', err);
       Alert.alert('Ошибка распознавания', err?.message ?? 'Не удалось распознать речь');
       setCapsuleState('idle');
-      widthVal.value = withTiming(56, { duration: 200 });
+      widthVal.value = withTiming(48, { duration: 200 });
     } finally {
       abortRef.current = null;
     }
@@ -389,14 +429,14 @@ export default function VoiceCapsule({
     if (discard) {
       if (uri) FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
       setCapsuleState('idle');
-      widthVal.value = withTiming(56, { duration: 200 });
+      widthVal.value = withTiming(48, { duration: 200 });
       triggerHaptic('warning');
       return;
     }
 
     if (!uri) {
       setCapsuleState('idle');
-      widthVal.value = withTiming(56, { duration: 200 });
+      widthVal.value = withTiming(48, { duration: 200 });
       return;
     }
 
@@ -404,17 +444,33 @@ export default function VoiceCapsule({
       FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
       Alert.alert('🎙️ Удержите кнопку', 'Нажмите и удерживайте пока говорите, затем отпустите.');
       setCapsuleState('idle');
-      widthVal.value = withTiming(56, { duration: 200 });
+      widthVal.value = withTiming(48, { duration: 200 });
       return;
     }
 
+    // Brief "mic -> checkmark" send animation before collapsing into the
+    // processing spinner, so sending doesn't feel like an abrupt cut.
+    setCapsuleState('sending');
+    triggerHaptic('impactLight');
+    widthVal.value = withTiming(100, { duration: 220 });
+    sendIconOpacity.value = 0;
+    sendIconScale.value = 0.6;
+    sendIconOpacity.value = withTiming(1, { duration: 120 });
+    sendIconScale.value = withSequence(
+      withTiming(1.15, { duration: 130 }),
+      withTiming(1, { duration: 100 })
+    );
+    await new Promise((resolve) => setTimeout(resolve, 240));
+    if (unmountedRef.current) return;
+
     await transcribeAudio(uri);
-  }, [recorder, clearTimers, stopAnimations, transcribeAudio, setCapsuleState, widthVal, triggerHaptic]);
+  }, [recorder, clearTimers, stopAnimations, transcribeAudio, setCapsuleState, widthVal, triggerHaptic, sendIconOpacity, sendIconScale]);
 
   // Start Recording
   const startRecording = async () => {
     if (capsuleState !== 'idle') return;
 
+    setShowOnboarding(false);
     setCapsuleState('recording');
     widthVal.value = withTiming(rowWidth || 350, { duration: 250 });
 
@@ -432,7 +488,7 @@ export default function VoiceCapsule({
       if (perm.status !== 'granted') {
         Alert.alert('Нет доступа к микрофону', 'Разрешите доступ в настройках телефона.');
         setCapsuleState('idle');
-        widthVal.value = withTiming(56, { duration: 200 });
+        widthVal.value = withTiming(48, { duration: 200 });
         return;
       }
 
@@ -476,7 +532,7 @@ export default function VoiceCapsule({
     } catch (err) {
       console.error('[VoiceCapsule] start recording error:', err);
       setCapsuleState('idle');
-      widthVal.value = withTiming(56, { duration: 200 });
+      widthVal.value = withTiming(48, { duration: 200 });
       Alert.alert('Ошибка', 'Не удалось начать запись.');
     }
   };
@@ -550,12 +606,22 @@ export default function VoiceCapsule({
   });
 
   const slideHintStyle = useAnimatedStyle(() => {
-    const opacity = Math.max(0, 1 - slideProgress.value / 80);
+    const progress = Math.min(1, Math.max(0, slideProgress.value / 80));
     const translateX = Math.max(0, slideProgress.value * 0.4);
+    // Stay fully visible (and grow slightly) as the finger approaches the
+    // cancel threshold, instead of fading to nothing right when the gesture
+    // fires — the hint should confirm the action, not disappear before it.
+    const scale = 1 + progress * 0.2;
     return {
-      opacity,
-      transform: [{ translateX }],
+      opacity: 1,
+      transform: [{ translateX }, { scale }],
     };
+  });
+
+  const slideHintTextStyle = useAnimatedStyle(() => {
+    const progress = Math.min(1, Math.max(0, slideProgress.value / 80));
+    const color = interpolateColor(progress, [0, 1], ['rgba(255,255,255,0.8)', '#FFD9D6']);
+    return { color };
   });
 
   const lockIconStyle = useAnimatedStyle(() => {
@@ -589,12 +655,18 @@ export default function VoiceCapsule({
     }
   };
 
-  // Waveform Bar animated height styles
-  const waveStyle1 = useAnimatedStyle(() => ({ height: 6 + wave1.value * 24 }));
-  const waveStyle2 = useAnimatedStyle(() => ({ height: 6 + wave2.value * 24 }));
-  const waveStyle3 = useAnimatedStyle(() => ({ height: 6 + wave3.value * 24 }));
-  const waveStyle4 = useAnimatedStyle(() => ({ height: 6 + wave4.value * 24 }));
-  const waveStyle5 = useAnimatedStyle(() => ({ height: 6 + wave5.value * 24 }));
+  // Waveform Bar animated height styles (scaled down to fit the more compact 48pt capsule)
+  const waveStyle1 = useAnimatedStyle(() => ({ height: 5 + wave1.value * 18 }));
+  const waveStyle2 = useAnimatedStyle(() => ({ height: 5 + wave2.value * 18 }));
+  const waveStyle3 = useAnimatedStyle(() => ({ height: 5 + wave3.value * 18 }));
+  const waveStyle4 = useAnimatedStyle(() => ({ height: 5 + wave4.value * 18 }));
+  const waveStyle5 = useAnimatedStyle(() => ({ height: 5 + wave5.value * 18 }));
+
+  // "Send" checkmark icon animated style
+  const sendIconStyle = useAnimatedStyle(() => ({
+    opacity: sendIconOpacity.value,
+    transform: [{ scale: sendIconScale.value }],
+  }));
 
   // Render help colors
   const activeBg = capsuleState === 'recording' ? '#FF3B30' : Colors.primary;
@@ -606,6 +678,19 @@ export default function VoiceCapsule({
         <Ionicons name="lock-closed" size={18} color="#FF3B30" />
         <Ionicons name="chevron-up" size={12} color="#FF3B30" />
       </Animated.View>
+
+      {capsuleState === 'idle' && showOnboarding ? (
+        <View style={styles.onboardingTooltip} pointerEvents="none">
+          <View style={styles.onboardingRow}>
+            <Ionicons name="arrow-forward" size={12} color="#fff" />
+            <Text style={styles.onboardingText}>Смахните — отмена</Text>
+          </View>
+          <View style={styles.onboardingRow}>
+            <Ionicons name="arrow-up" size={12} color="#fff" />
+            <Text style={styles.onboardingText}>Вверх — блокировка</Text>
+          </View>
+        </View>
+      ) : null}
 
       {capsuleState === 'idle' ? (
         <GestureDetector gesture={panGesture}>
@@ -643,7 +728,7 @@ export default function VoiceCapsule({
 
               {/* Slide to Cancel Hint (sliding rightwards) */}
               <Animated.View style={[styles.slideHintRow, slideHintStyle]}>
-                <Text style={styles.slideHintText}>Отмена</Text>
+                <Animated.Text style={[styles.slideHintText, slideHintTextStyle]}>Отмена</Animated.Text>
                 <Ionicons name="chevron-forward-outline" size={14} color="rgba(255,255,255,0.7)" />
               </Animated.View>
             </View>
@@ -674,6 +759,12 @@ export default function VoiceCapsule({
             </TouchableOpacity>
           </View>
         </Animated.View>
+      ) : capsuleState === 'sending' ? (
+        <Animated.View style={[styles.capsule, styles.idleCapsule, capsuleAnimatedStyle]}>
+          <Animated.View style={sendIconStyle}>
+            <Ionicons name="checkmark-circle" size={26} color="#fff" />
+          </Animated.View>
+        </Animated.View>
       ) : capsuleState === 'processing' ? (
         <Animated.View style={[styles.capsule, styles.processingCapsule, capsuleAnimatedStyle]}>
           <ActivityIndicator size="small" color="#fff" />
@@ -697,12 +788,12 @@ export default function VoiceCapsule({
 // ─────────────────────────────────────────────
 const styles = StyleSheet.create({
   outerContainer: {
-    height: 56,
+    height: 48,
     justifyContent: 'center',
     position: 'relative',
   },
   capsule: {
-    height: 56,
+    height: 48,
     borderRadius: Radius.lg,
     flexDirection: 'row',
     alignItems: 'center',
@@ -781,7 +872,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 3,
-    height: 30,
+    height: 24,
     marginHorizontal: Spacing.sm,
   },
   waveBar: {
@@ -821,5 +912,28 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: FontSize.sm - 1,
     fontWeight: 'bold',
+  },
+  onboardingTooltip: {
+    position: 'absolute',
+    bottom: '100%',
+    left: 0,
+    marginBottom: Spacing.xs,
+    backgroundColor: 'rgba(28,28,30,0.92)',
+    borderRadius: Radius.sm,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    gap: 4,
+    zIndex: 1000,
+    ...Shadow.md,
+  },
+  onboardingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  onboardingText: {
+    color: '#fff',
+    fontSize: FontSize.sm - 2,
+    fontWeight: '500',
   },
 });

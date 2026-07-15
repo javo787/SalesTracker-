@@ -640,6 +640,12 @@ export default function AddSaleScreen(/* props */) {
     setShowDebtOptions(false);
     setPaymentType('full');
 
+    // Reset voice capsule too — otherwise if the user saved without opening/confirming
+    // a pending voice batch pill, VoiceCapsule stays stuck in 'batch' state forever
+    // and blocks recording a new sale.
+    setVoiceResult(null);
+    setResetCapsuleTrigger(prev => prev + 1);
+
     triggerSaveAnimation();
   };
 
@@ -1209,8 +1215,8 @@ export default function AddSaleScreen(/* props */) {
             style={[styles.remainingActionsRow, { opacity: otherButtonsOpacity }]}
             pointerEvents={capsuleState === 'idle' ? 'auto' : 'none'}
           >
-            {/* Leftmost spacer for the capsule */}
-            <View style={{ width: 56 }} />
+            {/* Leftmost spacer for the capsule (must match VoiceCapsule's idle width) */}
+            <View style={{ width: 48 }} />
 
             <TouchableOpacity
               style={[styles.saveBtn, { flex: 1 }, isSaved && { backgroundColor: '#1D9E75' }]}
