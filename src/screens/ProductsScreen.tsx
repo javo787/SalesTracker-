@@ -8,17 +8,17 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import {
   addProduct, updateProduct, deleteProduct, getProducts, getDistinctCategories, getProductIdsWithDebts,
-  getProductSalesStats, getProductSalesHistory, getUnregisteredProductsFromHistory, db, resolvePendingSale
+  getProductSalesStats, getProductSalesHistory, getUnregisteredProductsFromHistory, db
 } from '../db/database';
 import { useShop } from '../context/ShopContext';
 import { ProductAutocomplete } from '../components/sales/ProductAutocomplete';
-import { AutocompleteResult } from '../types/product';
 import { analyticsService } from '../services/analyticsService';
 import { useAppContext } from '../context/AppContext';
 import { useExpenses } from '../hooks/useExpenses';
 import { useFieldChain } from '../hooks/useFieldChain';
 import StockOperationModal from '../components/stock/StockOperationModal';
 import StockHistorySheet from '../components/stock/StockHistorySheet';
+import ResolvePendingSaleModal from '../components/products/ResolvePendingSaleModal';
 import { Colors, LightTheme, DarkTheme, Radius, Shadow } from '../constants/theme';
 import { PRESET_COLORS, getColorHex, ColorCircle } from '../constants/colors';
 
@@ -93,10 +93,7 @@ export default function ProductsScreen() {
   const [historyVisible, setHistoryVisible] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
 
-  const [buyPriceModal, setBuyPriceModal] = useState<{ saleId: number; productName: string } | null>(null);
-  const [buyPriceInput, setBuyPriceInput] = useState('');
-  const [pendingLinkProduct, setPendingLinkProduct] = useState<AutocompleteResult | null>(null);
-  const [pendingLinkSearch, setPendingLinkSearch] = useState('');
+  const [resolveSaleTarget, setResolveSaleTarget] = useState<any | null>(null);
 
   const [refreshing, setRefreshing] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -1005,12 +1002,7 @@ export default function ProductsScreen() {
                 </View>
                 <TouchableOpacity
                   style={{ backgroundColor: Colors.primary, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, alignSelf: 'center' }}
-                  onPress={() => {
-                    setBuyPriceModal({ saleId: sale.id, productName: sale.product_name });
-                    setBuyPriceInput('');
-                    setPendingLinkSearch(sale.product_name || '');
-                    setPendingLinkProduct(null);
-                  }}
+                  onPress={() => setResolveSaleTarget(sale)}
                 >
                   <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>{t('common.edit')}</Text>
                 </TouchableOpacity>
@@ -1470,79 +1462,12 @@ export default function ProductsScreen() {
         </View>
       </Modal>
 
-      <Modal visible={!!buyPriceModal} transparent animationType="fade">
-        <View style={styles.buyPriceModalOverlay}>
-          <View style={[styles.buyPriceModalBox, themeStyles.card]}>
-            <Text style={[styles.buyPriceModalTitle, themeStyles.text]}>
-              {t('addSale.buyPrice')}: {buyPriceModal?.productName}
-            </Text>
-
-            <Text style={[styles.label, themeStyles.text, { marginTop: 10 }]}>
-              {t('addSale.productName')}
-            </Text>
-            <View style={{ zIndex: 10, marginBottom: 10 }}>
-              <ProductAutocomplete
-                inputStyle={[styles.buyPriceModalInput, themeStyles.input, { marginVertical: 0 }]}
-                placeholder={t('addSale.productPlaceholder')}
-                placeholderTextColor={isDark ? '#888' : '#aaa'}
-                value={pendingLinkSearch}
-                onChange={(text) => {
-                  setPendingLinkSearch(text);
-                  setPendingLinkProduct(null);
-                }}
-                onSelect={(product) => {
-                  setPendingLinkSearch(product.name);
-                  setPendingLinkProduct(product);
-                }}
-              />
-            </View>
-            <Text style={{ fontSize: 12, color: '#888', marginBottom: 12 }}>
-              Если этого товара нет в каталоге — оставь поле пустым, склад не изменится
-            </Text>
-
-            <Text style={[styles.label, themeStyles.text]}>
-              {t('addSale.buyPrice')}
-            </Text>
-            <TextInput
-              style={[styles.buyPriceModalInput, themeStyles.input, { marginVertical: 8 }]}
-              keyboardType="numeric"
-              value={buyPriceInput}
-              onChangeText={setBuyPriceInput}
-              placeholder="0"
-              placeholderTextColor={isDark ? '#888' : '#aaa'}
-            />
-
-            <View style={styles.buyPriceModalButtons}>
-              <TouchableOpacity
-                onPress={() => {
-                  setBuyPriceModal(null);
-                  setPendingLinkProduct(null);
-                  setPendingLinkSearch('');
-                }}
-                style={styles.modalCancelBtn}
-              >
-                <Text style={styles.modalCancelText}>{t('common.cancel')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.modalSaveBtn}
-                onPress={() => {
-                  const bPrice = parseFloat(buyPriceInput || '0');
-                  if (!isNaN(bPrice) && buyPriceModal) {
-                    const productId = pendingLinkProduct?.id ? parseInt(pendingLinkProduct.id) : null;
-                    resolvePendingSale(buyPriceModal.saleId, productId, bPrice);
-                    loadProducts();
-                  }
-                  setBuyPriceModal(null);
-                  setPendingLinkProduct(null);
-                  setPendingLinkSearch('');
-                }}
-              >
-                <Text style={styles.modalSaveText}>{t('common.save')}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <ResolvePendingSaleModal
+        visible={!!resolveSaleTarget}
+        sale={resolveSaleTarget}
+        onClose={() => setResolveSaleTarget(null)}
+        onResolved={loadProducts}
+      />
 
       {/* Unregistered Products Quick Add Modal */}
       <Modal
@@ -2059,54 +1984,6 @@ const styles = StyleSheet.create({
   unregAddText: {
     fontSize: 13,
     color: '#fff',
-    fontWeight: 'bold',
-  },
-  buyPriceModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  buyPriceModalBox: {
-    padding: 24,
-    borderRadius: 16,
-    width: '85%',
-    ...Shadow.lg,
-  },
-  buyPriceModalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  buyPriceModalInput: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 18,
-    marginVertical: 16,
-  },
-  buyPriceModalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  modalCancelBtn: {
-    padding: 10,
-  },
-  modalCancelText: {
-    color: '#888',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  modalSaveBtn: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 10,
-  },
-  modalSaveText: {
-    color: '#fff',
-    fontSize: 16,
     fontWeight: 'bold',
   },
 });
