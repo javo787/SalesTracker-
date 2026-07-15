@@ -39,14 +39,14 @@ function fmt(r: Result) {
 async function checkGeminiKey(keyLabel: string, key: string, model: string) {
   const started = Date.now();
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
     const res = await axios.post(
       url,
       {
         contents: [{ parts: [{ text: 'Reply with the single word: OK' }] }],
         generationConfig: { maxOutputTokens: 5 },
       },
-      { validateStatus: () => true, timeout: 15000 }
+      { headers: { 'x-goog-api-key': key }, validateStatus: () => true, timeout: 15000 }
     );
     const latencyMs = Date.now() - started;
     const ok = res.status >= 200 && res.status < 300;
