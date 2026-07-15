@@ -1644,6 +1644,72 @@ export function resolvePendingSale(
   return { saleId, productId, linked: !!productId };
 }
 
+/**
+ * Разрешает отложенную ("на проверке") продажу путём создания НОВОГО товара
+ * в каталоге и привязки к нему этой продажи.
+ *
+ * Важно: `stock` в newProduct — это остаток, который есть у владельца
+ * ПРЯМО СЕЙЧАС (после уже совершённой продажи), а не остаток "до продажи".
+ * Поэтому, в отличие от resolvePendingSale с existing productId,
+ * здесь stock из sale.quantity повторно НЕ вычитается —
+ * это привело бы к двойному списанию.
+ */
+export function createProductAndResolvePendingSale(
+  saleId: number,
+  newProduct: {
+    name: string;
+    buyPrice: number;
+    sellPrice: number;
+    stock: number;
+    minStockAlert?: number;
+    baseUnit?: string;
+    hasPackages?: number;
+    packageName?: string | null;
+    unitsPerPackage?: number;
+    category?: string | null;
+    isContinuous?: number;
+    article?: string | null;
+    color?: string | null;
+  }
+) {
+  const sale = db.getFirstSync('SELECT * FROM sales WHERE id = ?', [saleId]) as any;
+  if (!sale) return null;
+
+  let newProductId: number | null = null;
+
+  db.withTransactionSync(() => {
+    const bPrice = newProduct.buyPrice;
+    const profit = (sale.sell_price - bPrice) * sale.quantity;
+
+    // addProduct() уже сама уведомляет о низком остатке, если нужно —
+    // дублировать здесь не нужно.
+    const created = addProduct(
+      newProduct.name,
+      bPrice,
+      newProduct.sellPrice,
+      newProduct.stock,
+      newProduct.minStockAlert ?? 0,
+      newProduct.baseUnit || 'шт',
+      newProduct.hasPackages ?? 0,
+      newProduct.packageName ?? null,
+      newProduct.unitsPerPackage ?? 1,
+      newProduct.category ?? null,
+      newProduct.isContinuous ?? 0,
+      newProduct.article ?? null,
+      newProduct.color ?? null
+    );
+    newProductId = created.lastInsertRowId;
+
+    db.runSync(
+      `UPDATE sales SET product_id = ?, buy_price = ?, profit = ?,
+       stock_updated = 1, is_pending_review = 0 WHERE id = ?`,
+      [newProductId, bPrice, profit, saleId]
+    );
+  });
+
+  return { saleId, productId: newProductId, linked: true };
+}
+
 // Обновлённая addSale — принимает seller_id и seller_name
 export function addSaleWithSeller(
   productId: number | null,
