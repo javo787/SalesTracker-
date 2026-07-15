@@ -79,7 +79,6 @@ export default function AddSaleScreen(/* props */) {
   const noteRef = useRef<TextInput>(null);
   const quantityInputRef = useRef<TextInput>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [processing, setProcessing] = useState(false);
 
   const handleDueDateChange = (text: string) => {
     // Remove all non-digits
@@ -92,7 +91,6 @@ export default function AddSaleScreen(/* props */) {
     }
     setDueDate(formatted);
   };
-  const [voiceText, setVoiceText] = useState('');
   const [showDebtOptions, setShowDebtOptions] = useState(false);
   const [lastSaved, setLastSaved] = useState<{
     name: string; profit: string; revenue: string; shareText?: string;
@@ -135,7 +133,7 @@ export default function AddSaleScreen(/* props */) {
 
   const handleClearForm = () => {
     setProductName(''); setSellPrice(''); setBuyPrice('');
-    setQuantity(''); setNote(''); setVoiceText('');
+    setQuantity(''); setNote('');
     setSelectedProduct(null); setSalePricePlaceholder(null);
     setAmbiguousCandidates([]); setUnitType('base');
     setShowNoteInput(false);
@@ -211,7 +209,7 @@ export default function AddSaleScreen(/* props */) {
 
     // Clear form
     setProductName(''); setSellPrice(''); setBuyPrice('');
-    setQuantity(''); setNote(''); setVoiceText('');
+    setQuantity(''); setNote('');
     setSelectedProduct(null); setSalePricePlaceholder(null);
     setShowNoteInput(false);
 
@@ -358,7 +356,6 @@ export default function AddSaleScreen(/* props */) {
 
     if (result.items.length === 1) {
       await applyAIResult(result.items[0], result.transcript);
-      if (result.transcript) setVoiceText(result.transcript);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } else {
       setVoiceResult(result);
@@ -634,7 +631,7 @@ export default function AddSaleScreen(/* props */) {
 
     // Reset all
     setProductName(''); setSellPrice(''); setBuyPrice('');
-    setQuantity(''); setNote(''); setVoiceText('');
+    setQuantity(''); setNote('');
     setSelectedProduct(null); setSalePricePlaceholder(null);
     setCartItems([]);
     setPaymentType('full'); setPaidAmount(''); setDueDate('');
@@ -1381,8 +1378,6 @@ const styles = StyleSheet.create({
   voiceResult: { marginTop: Spacing.md, padding: Spacing.md, borderRadius: Radius.sm },
   voiceResultLabel: { fontSize: FontSize.sm, color: '#999', marginBottom: Spacing.xs },
   voiceResultText: { fontSize: FontSize.md, fontStyle: 'italic' },
-  processingRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: Spacing.md },
-  processingText: { fontSize: FontSize.md, color: Colors.primary },
   form: {
     margin: Spacing.lg, marginTop: 0,
     borderRadius: Radius.lg, padding: Spacing.lg,

@@ -529,6 +529,7 @@ export default function VoiceCapsule({
     .onEnd((event) => {
       isTransitioning.value = false;
 
+      // Intentional sticky cancel: once cancel line is crossed, cancellation is locked in even if dragged back.
       const shouldCancel = event.translationX >= 80 || hasTriggeredCancelHaptic.value;
       const shouldLock = event.translationY <= -60 || hasTriggeredLockHaptic.value;
 
@@ -682,7 +683,7 @@ export default function VoiceCapsule({
           <Animated.View style={[styles.capsule, styles.batchCapsule, capsuleAnimatedStyle]}>
             <Ionicons name="document-text-outline" size={16} color="#fff" />
             <Text style={styles.batchText} numberOfLines={1}>
-              {t('addSale.itemsRecognized', { count: batchCount }).replace('распознано', '').replace('Распознано', '').trim() || `${batchCount} поз.`} · {t('common.edit')}
+              {t('addSale.itemsCountShort', { count: batchCount })} · {t('common.edit')}
             </Text>
           </Animated.View>
         </TouchableOpacity>
