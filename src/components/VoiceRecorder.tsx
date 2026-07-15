@@ -94,7 +94,7 @@ function getLangConfig(appLang: string): GroqLangConfig {
     case 'ru':
     default:
       return {
-        language: 'ru',
+        language: undefined, // auto-detect for Russian as well
         prompt:
           'нарх, продажа, сомони, килограмм, штука, количество, кило, прибыль, ' +
           'закупка, склад, товар, помидор, лук, картошка, мука, сахар, масло',
