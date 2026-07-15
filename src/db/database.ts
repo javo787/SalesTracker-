@@ -1617,10 +1617,13 @@ export function resolvePendingSale(
     if (productId) {
       db.runSync(
         `UPDATE sales SET product_id = ?, buy_price = ?, profit = ?,
-         stock_updated = 1, is_pending_review = 0 WHERE id = ?`,
+         stock_updated = 1, is_pending_review = 0, synced = 0 WHERE id = ?`,
         [productId, bPrice, profit, saleId]
       );
-      db.runSync('UPDATE products SET stock = stock - ? WHERE id = ?', [sale.quantity, productId]);
+      db.runSync(
+        'UPDATE products SET stock = stock - ?, synced = 0, updated_at = ? WHERE id = ?',
+        [sale.quantity, nowLocalISO(), productId]
+      );
 
       const p = db.getFirstSync(
         'SELECT name, stock, min_stock_alert FROM products WHERE id = ?',
@@ -1631,7 +1634,7 @@ export function resolvePendingSale(
       }
     } else {
       db.runSync(
-        'UPDATE sales SET buy_price = ?, profit = ?, is_pending_review = 0 WHERE id = ?',
+        'UPDATE sales SET buy_price = ?, profit = ?, is_pending_review = 0, synced = 0 WHERE id = ?',
         [bPrice, profit, saleId]
       );
     }
@@ -1672,7 +1675,10 @@ export function addSaleWithSeller(
       ]
     );
     if (productId) {
-      db.runSync('UPDATE products SET stock = stock - ? WHERE id = ?', [quantity, productId]);
+      db.runSync(
+        'UPDATE products SET stock = stock - ?, synced = 0, updated_at = ? WHERE id = ?',
+        [quantity, nowLocalISO(), productId]
+      );
     }
   });
   if (productId) {
@@ -1736,7 +1742,10 @@ export function addOrderWithItems(
       saleIds.push(saleResult.lastInsertRowId);
 
       if (item.productId) {
-        db.runSync('UPDATE products SET stock = stock - ? WHERE id = ?', [item.quantity, item.productId]);
+        db.runSync(
+          'UPDATE products SET stock = stock - ?, synced = 0, updated_at = ? WHERE id = ?',
+          [item.quantity, now, item.productId]
+        );
 
         // Prepare for notification after transaction
         const p = db.getFirstSync('SELECT name, stock, min_stock_alert FROM products WHERE id = ?', [item.productId]) as any;
