@@ -64,6 +64,7 @@ export default function ProductsScreen() {
   const [color, setColor] = useState('');
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [allCategories, setAllCategories] = useState<string[]>([]);
+  const [topCategories, setTopCategories] = useState<string[]>([]);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
 
   // Filters & Sorting
@@ -88,6 +89,7 @@ export default function ProductsScreen() {
   // Modal states
   const [opModalVisible, setOpModalVisible] = useState(false);
   const [opType, setOpType] = useState<'stock_in' | 'waste' | 'correction'>('stock_in');
+  const [moreCategoriesVisible, setMoreCategoriesVisible] = useState(false);
   const [historyVisible, setHistoryVisible] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
 
@@ -133,7 +135,28 @@ export default function ProductsScreen() {
 
     // Derive distinct categories from products to avoid extra SQL query
     const cats = Array.from(new Set(allProds.map(p => p.category).filter(Boolean))) as string[];
-    setAllCategories(cats.sort());
+    const alphabeticalCats = [...cats].sort((a, b) => a.localeCompare(b));
+    setAllCategories(alphabeticalCats);
+
+    // Count frequencies
+    const categoryCounts: { [key: string]: number } = {};
+    allProds.forEach(p => {
+      if (p.category) {
+        categoryCounts[p.category] = (categoryCounts[p.category] || 0) + 1;
+      }
+    });
+
+    // Sort by descending frequency
+    const sortedCatsByFrequency = [...cats].sort((a, b) => {
+      const countA = categoryCounts[a] || 0;
+      const countB = categoryCounts[b] || 0;
+      if (countB !== countA) {
+        return countB - countA;
+      }
+      return a.localeCompare(b);
+    });
+
+    setTopCategories(sortedCatsByFrequency.slice(0, 4));
 
     if (sellerMode === 'wholesale') {
       setDebtProductIdsList(getProductIdsWithDebts());
@@ -153,6 +176,18 @@ export default function ProductsScreen() {
       setActiveFilter(route.params.filter);
     }
   }, [route.params?.filter]);
+
+  useEffect(() => {
+    if (route.params?.openAddVariantFor) {
+      const p = route.params.openAddVariantFor;
+      openAddVariantForm({
+        article: p.article?.trim() || p.name?.trim() || '',
+        displayName: p.name,
+        variants: [p],
+      });
+      navigation.setParams({ openAddVariantFor: undefined }); // reset parameter
+    }
+  }, [route.params?.openAddVariantFor]);
 
   const filteredProducts = useMemo(() => {
     let result = [...products];
@@ -398,6 +433,7 @@ export default function ProductsScreen() {
   };
 
   const themeStyles = isDark ? darkStyles : lightStyles;
+  const activeCategory = (activeFilter && typeof activeFilter === 'object') ? activeFilter.category : undefined;
 
   return (
     <View style={[styles.container, themeStyles.container]}>
@@ -434,7 +470,7 @@ export default function ProductsScreen() {
       )}
 
       {/* Search Bar with Autocomplete Suggestions */}
-      <View style={[styles.searchContainer, themeStyles.card]}>
+      <View style={[styles.searchContainer, themeStyles.searchBar]}>
         <Ionicons name="search-outline" size={20} color={isDark ? '#888' : '#aaa'} style={styles.searchIcon} />
         <ProductAutocomplete
           containerStyle={styles.searchAutocompleteContainer}
@@ -493,25 +529,57 @@ export default function ProductsScreen() {
             </TouchableOpacity>
           )}
 
-          {allCategories.map((cat, idx) => (
+          {topCategories.map((cat, idx) => (
             <TouchableOpacity
-              key={idx}
+              key={`top-${idx}`}
               style={[
                 styles.chip,
                 themeStyles.chip,
-                typeof activeFilter === 'object' && activeFilter.category === cat && styles.chipActive
+                activeCategory === cat && styles.chipActive
               ]}
               onPress={() => setActiveFilter({ category: cat })}
             >
               <Text style={[
                 styles.chipText,
                 themeStyles.chipText,
-                typeof activeFilter === 'object' && activeFilter.category === cat && styles.chipTextActive
+                activeCategory === cat && styles.chipTextActive
               ]}>
                 {cat}
               </Text>
             </TouchableOpacity>
           ))}
+
+          {/* Render active category if not in top-4 */}
+          {activeCategory && !topCategories.includes(activeCategory) && (
+            <TouchableOpacity
+              key="selected-extra"
+              style={[
+                styles.chip,
+                styles.chipActive
+              ]}
+              onPress={() => setActiveFilter('all')}
+            >
+              <Text style={[
+                styles.chipText,
+                themeStyles.chipText,
+                styles.chipTextActive
+              ]}>
+                {activeCategory}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {/* More Categories Button */}
+          {allCategories.length > 4 && (
+            <TouchableOpacity
+              style={[styles.chip, themeStyles.chip]}
+              onPress={() => setMoreCategoriesVisible(true)}
+            >
+              <Text style={[styles.chipText, themeStyles.chipText, { color: Colors.primary, fontWeight: '600' }]}>
+                {t('common.more') || 'Ещё'} →
+              </Text>
+            </TouchableOpacity>
+          )}
         </ScrollView>
       </View>
 
@@ -903,24 +971,9 @@ export default function ProductsScreen() {
       )}
 
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 8 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Text style={[styles.sectionTitle, themeStyles.text, { paddingHorizontal: 0, marginBottom: 0 }]}>
-            {searchQuery ? `${t('products.found')}: ${filteredProducts.length}` : `${t('products.allProducts')} (${products.length})`}
-          </Text>
-          <View style={{
-            paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12,
-            backgroundColor: sellerMode === 'wholesale' ? '#FFF3E0' : '#F0FBF7',
-            borderWidth: 1,
-            borderColor: sellerMode === 'wholesale' ? '#FF9800' : '#1D9E75',
-          }}>
-            <Text style={{
-              fontSize: 11, fontWeight: '600',
-              color: sellerMode === 'wholesale' ? '#E65100' : '#1D9E75',
-            }}>
-              {sellerMode === 'wholesale' ? '📦 ' + t('common.wholesale') : '🛒 ' + t('common.retail')}
-            </Text>
-          </View>
-        </View>
+        <Text style={[styles.sectionTitle, themeStyles.text, { paddingHorizontal: 0, marginBottom: 0 }]}>
+          {searchQuery ? `${t('products.found')}: ${filteredProducts.length}` : `${t('products.allProducts')} (${products.length})`}
+        </Text>
 
         <TouchableOpacity
           style={styles.sortBtn}
@@ -978,7 +1031,11 @@ export default function ProductsScreen() {
             const stats = productStats[p.id];
 
             return (
-              <View key={`single-${p.id}`} style={[styles.productItem, themeStyles.card]}>
+              <View key={`single-${p.id}`} style={[
+                styles.productItem,
+                themeStyles.card,
+                p.stock <= 0 && { backgroundColor: isDark ? '#181818' : '#FAFAFA' }
+              ]}>
                 <TouchableOpacity
                   style={styles.productMain}
                   onPress={() => {
@@ -1024,23 +1081,6 @@ export default function ProductsScreen() {
                           +{(p.sell_price - p.buy_price).toFixed(0)} {currency.symbol}
                         </Text>
                       )}
-                      <TouchableOpacity
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          openAddVariantForm({
-                            article: p.article?.trim() || p.name?.trim() || '',
-                            displayName: p.name,
-                            variants: [p],
-                          });
-                        }}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
-                      >
-                        <Ionicons name="add-circle-outline" size={18} color={Colors.primary} />
-                        <Text style={{ fontSize: 11, color: Colors.primary }}>
-                          {t('products.addVariant')}
-                        </Text>
-                      </TouchableOpacity>
                     </View>
                   </View>
                 </TouchableOpacity>
@@ -1065,7 +1105,7 @@ export default function ProductsScreen() {
                       )}
                     </View>
 
-                    <View style={[styles.infoRow, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
+                    <View style={[styles.infoRow, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 4 }]}>
                       <Text style={styles.infoText}>
                         {t('products.addedDate')}: {p.created_at ? new Date(p.created_at.replace(' ', 'T')).toLocaleDateString('ru-RU') : '—'}
                       </Text>
@@ -1083,6 +1123,24 @@ export default function ProductsScreen() {
                           </Text>
                         </TouchableOpacity>
                       )}
+                    </View>
+
+                    <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 12, paddingBottom: 12 }}>
+                      <TouchableOpacity
+                        onPress={() => {
+                          openAddVariantForm({
+                            article: p.article?.trim() || p.name?.trim() || '',
+                            displayName: p.name,
+                            variants: [p],
+                          });
+                        }}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                      >
+                        <Ionicons name="add-circle-outline" size={16} color={Colors.primary} />
+                        <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: '600' }}>
+                          {t('products.addVariant')}
+                        </Text>
+                      </TouchableOpacity>
                     </View>
 
                     <View style={styles.productActions}>
@@ -1172,7 +1230,7 @@ export default function ProductsScreen() {
                   const isExpanded = expandedProductId === v.id;
                   const stats = productStats[v.id];
                   return (
-                    <View key={v.id}>
+                    <View key={v.id} style={v.stock <= 0 ? { backgroundColor: isDark ? '#181818' : '#FAFAFA' } : undefined}>
                       <TouchableOpacity
                         style={[styles.productMain, { paddingVertical: 10 }]}
                         onPress={() => {
@@ -1233,7 +1291,7 @@ export default function ProductsScreen() {
                               </View>
                             )}
                           </View>
-                          <View style={[styles.infoRow, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
+                          <View style={[styles.infoRow, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 4 }]}>
                             <Text style={styles.infoText}>
                               {t('products.addedDate')}: {v.created_at ? new Date(v.created_at.replace(' ', 'T')).toLocaleDateString('ru-RU') : '—'}
                             </Text>
@@ -1250,6 +1308,24 @@ export default function ProductsScreen() {
                                 </Text>
                               </TouchableOpacity>
                             )}
+                          </View>
+
+                          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 12, paddingBottom: 12 }}>
+                            <TouchableOpacity
+                              onPress={() => {
+                                openAddVariantForm({
+                                  article: v.article?.trim() || v.name?.trim() || '',
+                                  displayName: v.name,
+                                  variants: [v],
+                                });
+                              }}
+                              style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                            >
+                              <Ionicons name="add-circle-outline" size={16} color={Colors.primary} />
+                              <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: '600' }}>
+                                {t('products.addVariant')}
+                              </Text>
+                            </TouchableOpacity>
                           </View>
                           <View style={styles.productActions}>
                             <TouchableOpacity
@@ -1542,6 +1618,69 @@ export default function ProductsScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* More Categories Modal */}
+      <Modal
+        visible={moreCategoriesVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setMoreCategoriesVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setMoreCategoriesVisible(false)}
+        >
+          <View style={[styles.modalContent, themeStyles.card]} onStartShouldSetResponder={() => true}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, themeStyles.text]}>{t('products.category') || 'Категория'}</Text>
+              <TouchableOpacity onPress={() => setMoreCategoriesVisible(false)}>
+                <Ionicons name="close" size={24} color={isDark ? '#FFF' : '#000'} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+              {allCategories.map((cat, idx) => {
+                const isActive = activeCategory === cat;
+                return (
+                  <TouchableOpacity
+                    key={`modal-cat-${idx}`}
+                    style={{
+                      paddingVertical: 14,
+                      paddingHorizontal: 12,
+                      borderBottomWidth: StyleSheet.hairlineWidth,
+                      borderBottomColor: isDark ? '#333' : '#EEE',
+                      backgroundColor: isActive ? (isDark ? '#2C2C2C' : '#E8F5E9') : 'transparent',
+                      borderRadius: Radius.md,
+                      flexDirection: 'row',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                    onPress={() => {
+                      setActiveFilter({ category: cat });
+                      setMoreCategoriesVisible(false);
+                    }}
+                  >
+                    <Text style={[
+                      themeStyles.text,
+                      {
+                        fontSize: 15,
+                        fontWeight: isActive ? '600' : '400',
+                        color: isActive ? Colors.primary : undefined
+                      }
+                    ]}>
+                      {cat}
+                    </Text>
+                    {isActive && (
+                      <Ionicons name="checkmark" size={18} color={Colors.primary} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -1553,6 +1692,7 @@ const lightStyles = StyleSheet.create({
   input: { backgroundColor: '#F5F5F5', borderColor: '#E0E0E0' },
   chip: { backgroundColor: '#F0F0F0', borderColor: '#E0E0E0' },
   chipText: { color: '#666' },
+  searchBar: { backgroundColor: '#F9F9F9', borderColor: '#E0E0E0' },
 });
 
 const darkStyles = StyleSheet.create({
@@ -1562,6 +1702,7 @@ const darkStyles = StyleSheet.create({
   input: { backgroundColor: '#2C2C2C', borderColor: '#444', color: '#EEE' },
   chip: { backgroundColor: '#2C2C2C', borderColor: '#444' },
   chipText: { color: '#AAA' },
+  searchBar: { backgroundColor: '#1A1A1A', borderColor: '#333' },
 });
 
 const styles = StyleSheet.create({
@@ -1576,6 +1717,7 @@ const styles = StyleSheet.create({
     paddingRight: 8,
     borderRadius: Radius.lg,
     height: 48,
+    borderWidth: 1,
     ...Shadow.md,
     zIndex: 100,
   },
