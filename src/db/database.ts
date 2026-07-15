@@ -1004,26 +1004,32 @@ export function deleteExpense(id: number) {
   return db.runSync('DELETE FROM expenses WHERE id = ?', [id]);
 }
 
-export function getExpenseStats(days: number = 1, fromDate?: string, toDate?: string) {
+export function getExpenseStats(days: number = 1, fromDate?: string, toDate?: string, sellerId?: string | null) {
   if (fromDate && toDate) {
-    const result = db.getFirstSync(`
+    const query = `
       SELECT
         COALESCE(SUM(CASE WHEN type = 'operational' THEN amount ELSE 0 END), 0) as operational,
         COALESCE(SUM(CASE WHEN type = 'inventory' THEN amount ELSE 0 END), 0) as inventory,
         COALESCE(SUM(amount), 0) as total
       FROM expenses
-      WHERE created_at >= ? AND created_at <= ?
-    `, [fromDate + ' 00:00:00', toDate + ' 23:59:59']) as any;
+      WHERE ${sellerId ? 'seller_id = ? AND ' : ''}created_at >= ? AND created_at <= ?
+    `;
+    const params = sellerId
+      ? [sellerId, fromDate + ' 00:00:00', toDate + ' 23:59:59']
+      : [fromDate + ' 00:00:00', toDate + ' 23:59:59'];
+    const result = db.getFirstSync(query, params) as any;
     return result;
   }
-  const result = db.getFirstSync(`
+  const query = `
     SELECT
       COALESCE(SUM(CASE WHEN type = 'operational' THEN amount ELSE 0 END), 0) as operational,
       COALESCE(SUM(CASE WHEN type = 'inventory' THEN amount ELSE 0 END), 0) as inventory,
       COALESCE(SUM(amount), 0) as total
     FROM expenses
-    WHERE created_at >= ?
-  `, [daysAgoLocalISO(days)]) as any;
+    WHERE ${sellerId ? 'seller_id = ? AND ' : ''}created_at >= ?
+  `;
+  const params = sellerId ? [sellerId, daysAgoLocalISO(days)] : [daysAgoLocalISO(days)];
+  const result = db.getFirstSync(query, params) as any;
   return result;
 }
 

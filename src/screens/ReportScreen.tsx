@@ -117,23 +117,23 @@ export default function ReportScreen() {
 
 
   const loadData = useCallback((p: number | 'custom', range?: {from: string, to: string}) => {
-    const userId = isGuest ? 'guest' : (user as any)?._id;
+    const userId = (user as any)?._id || 'guest';
 
     if (p === 'custom' && range) {
       setStats(isOwner ? (selectedSellerId ? getMyStats(selectedSellerId, 0, range.from, range.to) : getStats(0, range.from, range.to)) : getMyStats(userId, 3650)); // Fallback to a year for custom range for sellers as getMyStats doesn't support custom range yet
       setSales(getSalesByPeriod(0, range.from, range.to, isOwner ? selectedSellerId : userId));
-      const expStats = getExpenseStats(0, range.from, range.to);
+      const expStats = getExpenseStats(0, range.from, range.to, isOwner ? selectedSellerId : null);
       setExpenseTotal(isOwner ? expStats.total : 0);
       setOperationalExpenseTotal(isOwner ? expStats.operational : 0);
-      setExpenses(isOwner ? getExpenses(0, range.from, range.to) as any[] : []);
+      setExpenses(isOwner ? getExpenses(0, range.from, range.to, selectedSellerId) as any[] : []);
     } else {
       const days = typeof p === 'number' ? p : 1;
       setStats(isOwner ? (selectedSellerId ? getMyStats(selectedSellerId, days) : getStats(days)) : getMyStats(userId, days));
       setSales(getSalesByPeriod(days, undefined, undefined, isOwner ? selectedSellerId : userId));
-      const expStats = getExpenseStats(days);
+      const expStats = getExpenseStats(days, undefined, undefined, isOwner ? selectedSellerId : null);
       setExpenseTotal(isOwner ? expStats.total : 0);
       setOperationalExpenseTotal(isOwner ? expStats.operational : 0);
-      setExpenses(isOwner ? getExpenses(days) as any[] : []);
+      setExpenses(isOwner ? getExpenses(days, undefined, undefined, selectedSellerId) as any[] : []);
     }
   }, [isOwner, user, isGuest, selectedSellerId]);
 
