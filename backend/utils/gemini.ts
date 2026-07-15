@@ -99,9 +99,14 @@ export async function fetchGeminiWithRotation(model: string, payload: any, optio
     const startedAt = Date.now();
 
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+      // Ключ передаём заголовком x-goog-api-key (актуальный способ по докам Google,
+      // https://ai.google.dev/gemini-api/docs/generate-content/api-key, обновлено 24.06.2026),
+      // а не query-параметром ?key=. Это важно для новых Auth-ключей (формат AQ.Ab8...) —
+      // Standard-ключи (AIzaSy...) поддерживают оба способа для обратной совместимости,
+      // но именно на этом различии, судя по всему, спотыкались GEMINI_API_KEY_1/2/3.
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
       const response = await axios.post(url, payload, {
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
         validateStatus: () => true,
         signal: options.signal,
         timeout: options.timeout || 15000,
