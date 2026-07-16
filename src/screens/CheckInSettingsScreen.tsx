@@ -26,7 +26,7 @@ export default function CheckInSettingsScreen() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
-  const { isOwner } = useShop();
+  const { isOwner, refreshShopInfo } = useShop();
   const { resolvedTheme } = useAppContext();
   const isDark = resolvedTheme === 'dark';
   const themeStyles = isDark ? darkStyles : lightStyles;
@@ -60,6 +60,7 @@ export default function CheckInSettingsScreen() {
     if (!settings) return;
     try {
       await updateSettings({ enabled: val });
+      refreshShopInfo().catch(() => {});
       if (val) {
         fadeAnim.setValue(0);
         Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }).start();
@@ -91,6 +92,7 @@ export default function CheckInSettingsScreen() {
             enabled: val,
           }
         });
+        refreshShopInfo().catch(() => {});
         showWarningToastIfNeeded(res);
       }
     } catch (e: any) {
@@ -137,6 +139,7 @@ export default function CheckInSettingsScreen() {
           longitude: mapCoords.longitude,
         }
       });
+      refreshShopInfo().catch(() => {});
       showWarningToastIfNeeded(res);
       setMapVisible(false);
     } catch (e: any) {
@@ -167,6 +170,7 @@ export default function CheckInSettingsScreen() {
           enabled: val,
         }
       });
+      refreshShopInfo().catch(() => {});
       showWarningToastIfNeeded(res);
     } catch (e: any) {
       Alert.alert(t('common.error'), e.message || 'Error updating NFC');
@@ -225,6 +229,7 @@ export default function CheckInSettingsScreen() {
           currentToken,
         }
       });
+      refreshShopInfo().catch(() => {});
       showWarningToastIfNeeded(res);
     } catch (e: any) {
       Alert.alert(t('common.error'), e.message || 'Error updating QR settings');
@@ -284,6 +289,7 @@ export default function CheckInSettingsScreen() {
       await updateSettings({
         verificationMode: mode,
       });
+      refreshShopInfo().catch(() => {});
     } catch (e: any) {
       Alert.alert(t('common.error'), e.message || 'Error updating verification mode');
     }

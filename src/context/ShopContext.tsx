@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getShopSession, saveShopSession, clearShopSession } from '../db/database';
 import { api } from '../services/api';
@@ -183,6 +184,28 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Offline — use cache
     }
   };
+
+  // Bug fix: refreshShopInfo() was defined but never invoked anywhere in the
+  // app, so checkInStatus/permissions never updated after the initial cache
+  // read. This kept the seller's (and owner's own) check-in banner from ever
+  // reflecting settings changes made in CheckInSettingsScreen. Fetch fresh
+  // shop info as soon as we know which shop we're in, and again whenever the
+  // app returns to the foreground.
+  useEffect(() => {
+    if (!shopId) return;
+
+    refreshShopInfo();
+
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active') {
+        refreshShopInfo();
+      }
+    };
+
+    const sub = AppState.addEventListener('change', handleAppStateChange);
+    return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shopId]);
 
   const regenerateInviteCode = async () => {
     const { inviteCode: newCode } = await api.post<{ inviteCode: string }>('/shop/regenerate-code', {});
