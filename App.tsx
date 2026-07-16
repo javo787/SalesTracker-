@@ -56,6 +56,7 @@ import DebtorsScreen from './src/screens/DebtorsScreen';
 import SellersScreen from './src/screens/SellersScreen';
 import ProductDetailScreen from './src/screens/ProductDetailScreen';
 import AppSplashScreen from './src/components/AppSplashScreen';
+import ErrorBoundary from './src/components/ErrorBoundary';
 import CheckInSettingsScreen from './src/screens/CheckInSettingsScreen';
 import CheckInScreen from './src/screens/CheckInScreen';
 import CheckInHistoryScreen from './src/screens/CheckInHistoryScreen';
@@ -616,7 +617,9 @@ export default function App() {
                       </Text>
                     </View>
                   ) : (
-                    <AppContent onReady={handleAppContentReady} />
+                    <ErrorBoundary>
+                      <AppContent onReady={handleAppContentReady} />
+                    </ErrorBoundary>
                   )}
                 </I18nextProvider>
               </AppLockProvider>
