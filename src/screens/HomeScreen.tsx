@@ -280,7 +280,7 @@ export default function HomeScreen() {
 
       <CurrencyConversionBanner />
 
-      {checkInStatus.enabled && todayStatus !== 'confirmed' && (
+      {!isOwner && checkInStatus.enabled && todayStatus !== 'confirmed' && (
         <TouchableOpacity
           style={styles.checkInBanner}
           onPress={() => navigation.navigate('CheckIn')}

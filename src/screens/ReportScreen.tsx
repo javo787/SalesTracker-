@@ -289,11 +289,16 @@ export default function ReportScreen() {
     : '0';
 
   // Топ товары
+  // Защита от null/undefined: у очень старых записей (сделанных до появления
+  // текущей схемы) поля product_name/profit/quantity могли не быть заполнены
+  // в ожидаемом формате. Без гардов здесь .toLowerCase() ниже по коду падал
+  // с TypeError на рендере — что приводило к полному краху экрана (без
+  // ErrorBoundary это выглядело как белый/чёрный экран без возможности выйти).
   const topProducts = sales.reduce((acc: any, sale: any) => {
-    const key = sale.product_name;
+    const key = sale.product_name || '—';
     if (!acc[key]) acc[key] = { name: key, profit: 0, count: 0 };
-    acc[key].profit += sale.profit;
-    acc[key].count += sale.quantity;
+    acc[key].profit += sale.profit || 0;
+    acc[key].count += sale.quantity || 0;
     return acc;
   }, {});
   const topList = Object.values(topProducts)
@@ -301,7 +306,7 @@ export default function ReportScreen() {
     .slice(0, 5);
 
   const filteredSales = sales.filter(s =>
-    s.product_name.toLowerCase().includes(filterText.toLowerCase())
+    (s.product_name || '').toLowerCase().includes(filterText.toLowerCase())
   );
 
   // Подготовка данных для графика — в зависимости от выбранной метрики (тап по карточке)

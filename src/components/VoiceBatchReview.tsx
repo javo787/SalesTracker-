@@ -200,7 +200,7 @@ export default function VoiceBatchReview({ result, onConfirm, onCancel }: VoiceB
 
             <View style={styles.cardFields}>
               <View style={styles.fieldGroup}>
-                <Text style={styles.fieldLabel}>{t('addSale.sellPrice')}</Text>
+                <Text style={[styles.fieldLabel, isDark && styles.fieldLabelDark]}>{t('addSale.sellPrice')}</Text>
                 <View style={styles.inputWrapper}>
                   <TextInput
                     style={[styles.fieldInput, isDark && styles.textDark]}
@@ -213,7 +213,7 @@ export default function VoiceBatchReview({ result, onConfirm, onCancel }: VoiceB
               </View>
 
               <View style={styles.fieldGroup}>
-                <Text style={styles.fieldLabel}>{t('addSale.quantity')}</Text>
+                <Text style={[styles.fieldLabel, isDark && styles.fieldLabelDark]}>{t('addSale.quantity')}</Text>
                 <TextInput
                   style={[styles.fieldInput, isDark && styles.textDark]}
                   value={(item.quantity ?? 0).toString()}
@@ -392,6 +392,9 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     color: '#888',
     marginBottom: 4,
+  },
+  fieldLabelDark: {
+    color: '#aaa',
   },
   inputWrapper: {
     flexDirection: 'row',

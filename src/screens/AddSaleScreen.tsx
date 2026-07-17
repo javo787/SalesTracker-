@@ -2,7 +2,8 @@ import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import {
   View, Text, TextInput, TouchableOpacity, Share, Keyboard,
-  StyleSheet, ScrollView, Alert, ActivityIndicator, Animated, Modal, TouchableWithoutFeedback, Easing
+  StyleSheet, ScrollView, Alert, ActivityIndicator, Animated, Modal, TouchableWithoutFeedback, Easing,
+  KeyboardAvoidingView, Platform
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
@@ -673,7 +674,10 @@ export default function AddSaleScreen(/* props */) {
           setVoiceResult(null);
           setResetCapsuleTrigger(prev => prev + 1);
         }}>
-          <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView
+            style={styles.modalOverlay}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          >
             <TouchableWithoutFeedback>
               <View style={[styles.voiceBar, themeStyles.card]}>
                 {voiceResult && (
@@ -691,7 +695,7 @@ export default function AddSaleScreen(/* props */) {
                 )}
               </View>
             </TouchableWithoutFeedback>
-          </View>
+          </KeyboardAvoidingView>
         </TouchableWithoutFeedback>
       </Modal>
 

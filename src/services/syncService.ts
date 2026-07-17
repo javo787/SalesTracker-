@@ -137,7 +137,34 @@ export const SyncService = {
     setSyncingStatus(true);
     try {
       const isOwner = session.role === 'owner';
-      const lastPullAsOf = await AsyncStorage.getItem('last_pull_asOf');
+
+      // Одноразовый полный ресинк — ТОЛЬКО для владельца. Устраняет последствия
+      // старого бага дедупликации продаж по локальному id (см. комментарий у
+      // блока "Sales sync" ниже): часть продаж продавцов могла быть безвозвратно
+      // потеряна на устройстве владельца ДО того, как появился фикс дедупа по
+      // remote_id — коллизия молча помечала чужую строку synced=1 вместо
+      // вставки настоящей продажи. Продавец коллизии не подвержен: /sync/pull
+      // отдаёт ему только его собственные продажи, без чужого id-пространства,
+      // так что форсить полный ресинк у продавцов незачем — это лишняя,
+      // ничем не оправданная нагрузка на бэкенд (у /sync/pull нет пагинации,
+      // полный pull — это все продажи магазина за всё время одним запросом).
+      // Сам полный ресинк размазываем случайной задержкой (0–20 мин) на
+      // устройство. Бэкенд сейчас на бесплатном Render-тарифе — 512 MB RAM,
+      // 0.1 CPU, один инстанс без автоскейлинга, и валит его именно нехватка
+      // памяти, а не CPU (Sale.find без .limit() держит в памяти все продажи
+      // магазина разом). Без разброса все обновившиеся владельцы дёрнули бы
+      // этот безлимитный запрос почти одновременно, особенно при раскатке
+      // через EAS Update (OTA доходит быстрее, чем обновление через сторы).
+      let dedupeRepairNeeded = false;
+      if (isOwner && !(await AsyncStorage.getItem('sales_dedupe_repair_v1'))) {
+        let scheduledAt = await AsyncStorage.getItem('sales_dedupe_repair_at');
+        if (!scheduledAt) {
+          scheduledAt = String(Date.now() + Math.random() * 20 * 60 * 1000);
+          await AsyncStorage.setItem('sales_dedupe_repair_at', scheduledAt);
+        }
+        dedupeRepairNeeded = Date.now() >= Number(scheduledAt);
+      }
+      const lastPullAsOf = dedupeRepairNeeded ? null : await AsyncStorage.getItem('last_pull_asOf');
       const url = lastPullAsOf ? `/sync/pull?since=${encodeURIComponent(lastPullAsOf)}` : '/sync/pull';
 
       const data = await withRetry(() => api.get<{
@@ -202,55 +229,115 @@ export const SyncService = {
       }
 
       // Sales sync
+      //
+      // Bug fix: `id` on the local `sales` table is a per-device SQLite
+      // AUTOINCREMENT counter, NOT a globally unique identifier — it's only
+      // guaranteed unique per (shop, seller) on the server (see the
+      // {shopId, sellerId, localId} unique index in backend/models/Sale.ts).
+      // The old code matched/inserted incoming rows purely by
+      // `id = s.localId`, so a seller's sale could collide with an unrelated
+      // local row that happened to share the same numeric id on the owner's
+      // device (e.g. the owner's own sale, or another seller's already-pulled
+      // sale). When that happened the incoming sale was silently dropped —
+      // the owner's device just marked the colliding row `synced = 1` instead
+      // of inserting the seller's actual sale. Sales have high volume, so
+      // collisions were common; expenses (much lower volume) rarely
+      // collided, which is why the owner could see a seller's expenses but
+      // not their sales.
+      //
+      // Fix: dedupe by the server's globally unique remote_id first. If this
+      // device is the original author of the row (same local id AND same
+      // seller_id, not yet tagged with a remote_id), just attach the
+      // remote_id. Otherwise always insert as a brand-new local row with its
+      // own fresh autoincrement id — never force `id = s.localId`.
       for (const batch of chunk(data.sales, CHUNK_SIZE)) {
         db.withTransactionSync(() => {
           for (const s of batch) {
-            const existing = db.getFirstSync('SELECT id FROM sales WHERE id = ?', [s.localId]);
-            if (!existing) {
-              db.runSync(
-                `INSERT INTO sales (
-                  id, product_id, product_name, quantity, sell_price, buy_price, profit,
-                  note, stock_updated, created_at, seller_id, seller_name, stock_warning, synced
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
-                [
-                  s.localId, s.product_id, s.product_name, s.quantity,
-                  s.sell_price,
-                  isOwner ? s.buy_price : null,
-                  isOwner ? s.profit : null,
-                  s.note, s.stock_updated, s.created_at,
-                  s.sellerId, s.sellerName,
-                  s.stock_warning ? 1 : 0
-                ]
-              );
-            } else {
-              // Keep local sync status clean
-              db.runSync('UPDATE sales SET synced = 1 WHERE id = ?', [s.localId]);
+            const remoteId = s._id ? String(s._id) : null;
+
+            const byRemoteId = remoteId
+              ? db.getFirstSync('SELECT id FROM sales WHERE remote_id = ?', [remoteId])
+              : null;
+
+            if (byRemoteId) {
+              db.runSync('UPDATE sales SET synced = 1 WHERE remote_id = ?', [remoteId]);
+              continue;
             }
+
+            const ownUnlinkedRow = s.localId
+              ? db.getFirstSync(
+                  'SELECT id FROM sales WHERE id = ? AND seller_id = ? AND remote_id IS NULL',
+                  [s.localId, s.sellerId]
+                )
+              : null;
+
+            if (ownUnlinkedRow) {
+              db.runSync('UPDATE sales SET remote_id = ?, synced = 1 WHERE id = ?', [remoteId, s.localId]);
+              continue;
+            }
+
+            db.runSync(
+              `INSERT INTO sales (
+                product_id, product_name, quantity, sell_price, buy_price, profit,
+                note, stock_updated, created_at, seller_id, seller_name, stock_warning,
+                remote_id, synced
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+              [
+                s.product_id, s.product_name, s.quantity,
+                s.sell_price,
+                isOwner ? s.buy_price : null,
+                isOwner ? s.profit : null,
+                s.note, s.stock_updated, s.created_at,
+                s.sellerId, s.sellerName,
+                s.stock_warning ? 1 : 0,
+                remoteId,
+              ]
+            );
           }
         });
         await new Promise(resolve => setTimeout(resolve, 0));
       }
 
-      // Expenses sync
+      // Expenses sync — same dedupe-by-remote_id fix as sales above, since
+      // expenses were exposed to the exact same local-id collision risk
+      // (just less likely to trigger in practice due to lower volume).
       for (const batch of chunk(data.expenses || [], CHUNK_SIZE)) {
         db.withTransactionSync(() => {
           for (const e of batch) {
-            const existing = db.getFirstSync('SELECT id FROM expenses WHERE id = ?', [e.localId]);
-            if (!existing) {
-              db.runSync(
-                `INSERT INTO expenses (
-                  id, type, category, amount, description, linked_product_id, created_at,
-                  user_id, seller_id, seller_name, remote_id, synced
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
-                [
-                  e.localId, e.type, e.category, e.amount, e.description || null,
-                  e.linked_product_id || null, e.created_at,
-                  e.sellerId, e.sellerId, e.sellerName, e._id || null
-                ]
-              );
-            } else {
-              db.runSync('UPDATE expenses SET synced = 1 WHERE id = ?', [e.localId]);
+            const remoteId = e._id ? String(e._id) : null;
+
+            const byRemoteId = remoteId
+              ? db.getFirstSync('SELECT id FROM expenses WHERE remote_id = ?', [remoteId])
+              : null;
+
+            if (byRemoteId) {
+              db.runSync('UPDATE expenses SET synced = 1 WHERE remote_id = ?', [remoteId]);
+              continue;
             }
+
+            const ownUnlinkedRow = e.localId
+              ? db.getFirstSync(
+                  'SELECT id FROM expenses WHERE id = ? AND seller_id = ? AND remote_id IS NULL',
+                  [e.localId, e.sellerId]
+                )
+              : null;
+
+            if (ownUnlinkedRow) {
+              db.runSync('UPDATE expenses SET remote_id = ?, synced = 1 WHERE id = ?', [remoteId, e.localId]);
+              continue;
+            }
+
+            db.runSync(
+              `INSERT INTO expenses (
+                type, category, amount, description, linked_product_id, created_at,
+                user_id, seller_id, seller_name, remote_id, synced
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+              [
+                e.type, e.category, e.amount, e.description || null,
+                e.linked_product_id || null, e.created_at,
+                e.sellerId, e.sellerId, e.sellerName, remoteId,
+              ]
+            );
           }
         });
         await new Promise(resolve => setTimeout(resolve, 0));
@@ -258,6 +345,9 @@ export const SyncService = {
 
       if (data.asOf) {
         await AsyncStorage.setItem('last_pull_asOf', data.asOf);
+      }
+      if (dedupeRepairNeeded) {
+        await AsyncStorage.setItem('sales_dedupe_repair_v1', 'done');
       }
     } catch (error) {
       console.warn('Sync pull failed:', error);
