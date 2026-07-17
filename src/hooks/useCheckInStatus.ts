@@ -6,7 +6,7 @@ import { api } from '../services/api';
 import { submitCheckIn as submitCheckInService } from '../services/checkInService';
 
 export function useCheckInStatus() {
-  const { checkInStatus, hasShop } = useShop();
+  const { checkInStatus, hasShop, isOwner } = useShop();
   const [todayStatus, setTodayStatus] = useState<LocalCheckIn['server_status'] | null>(null);
   const [todayRecord, setTodayRecord] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -29,7 +29,9 @@ export function useCheckInStatus() {
   }, []);
 
   const reconcileWithServer = useCallback(async () => {
-    if (!hasShop || !checkInStatus.enabled) return;
+    // Presence check-in is seller-only; the owner is exempt, so skip the
+    // network round-trip (and the ShiftCheckIn lookup on the backend) entirely.
+    if (!hasShop || !checkInStatus.enabled || isOwner) return;
     try {
       const today = todayLocalDate();
       const serverRecord = await api.get<any>(`/shop/checkin/today?localDate=${today}`);
@@ -45,7 +47,7 @@ export function useCheckInStatus() {
         console.warn('Failed to reconcile check-in status:', err);
       }
     }
-  }, [hasShop, checkInStatus.enabled]);
+  }, [hasShop, checkInStatus.enabled, isOwner]);
 
   useEffect(() => {
     loadLocalStatus();

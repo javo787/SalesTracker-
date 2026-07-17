@@ -337,8 +337,8 @@ export default function SellersScreen() {
                       {t('products.lastUpdate')}: {formatRelativeTime(member.lastSyncAt)}
                     </Text>
 
-                    {/* Today Presence Check-in Badge */}
-                    {checkInStatus.enabled && (() => {
+                    {/* Today Presence Check-in Badge — owner is exempt from check-in, seller-only */}
+                    {checkInStatus.enabled && member.role !== 'owner' && (() => {
                       const todayStr = todayLocalDate();
                       const userRecord = checkInHistory.find((h: any) => h.userId === member.userId);
                       const todayEntry = userRecord?.days?.find((d: any) => d.localDate === todayStr);
