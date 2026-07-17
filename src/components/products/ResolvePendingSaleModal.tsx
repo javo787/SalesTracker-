@@ -71,6 +71,9 @@ export default function ResolvePendingSaleModal({
   const minStockAlertRef = useRef<any>(null);
   const articleRef = useRef<any>(null);
   const baseUnitRef = useRef<any>(null);
+  const packageNameRef = useRef<any>(null);
+  const unitsPerPackageRef = useRef<any>(null);
+  const existingBuyPriceRef = useRef<any>(null);
 
   useEffect(() => {
     if (visible && sale) {
@@ -106,6 +109,8 @@ export default function ResolvePendingSaleModal({
       { ref: minStockAlertRef, visible: true },
       { ref: articleRef, visible: showAdvanced },
       { ref: baseUnitRef, visible: showAdvanced },
+      { ref: packageNameRef, visible: showAdvanced && hasPackages },
+      { ref: unitsPerPackageRef, visible: showAdvanced && hasPackages },
     ],
     () => handleSaveNew()
   );
@@ -173,7 +178,8 @@ export default function ResolvePendingSaleModal({
     <Modal visible={visible} animationType="slide" transparent onRequestClose={closeAndReset}>
       <View style={styles.overlay}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
           style={styles.sheetWrap}
         >
           <View style={[styles.sheet, { backgroundColor: themeStyles.card }]}>
@@ -231,12 +237,15 @@ export default function ResolvePendingSaleModal({
                       value={linkSearch}
                       onChange={(text) => { setLinkSearch(text); setLinkProduct(null); }}
                       onSelect={(product) => { setLinkSearch(product.name); setLinkProduct(product); }}
+                      returnKeyType="next"
+                      onSubmitEditing={() => existingBuyPriceRef.current?.focus()}
                     />
                   </View>
                   <Text style={styles.hintText}>{t('products.leaveEmptyHint')}</Text>
 
                   <Text style={[styles.label, { color: themeStyles.text }]}>{t('addSale.buyPrice')} *</Text>
                   <TextInput
+                    ref={existingBuyPriceRef}
                     style={[styles.input, { backgroundColor: themeStyles.inputBg, borderColor: themeStyles.inputBorder, color: themeStyles.text }]}
                     placeholder="0"
                     placeholderTextColor={isDark ? '#888' : '#aaa'}
@@ -463,22 +472,29 @@ export default function ResolvePendingSaleModal({
                           <View style={styles.half}>
                             <Text style={[styles.label, { color: themeStyles.text }]}>{t('products.packageName')}</Text>
                             <TextInput
+                              ref={packageNameRef}
                               style={[styles.input, { backgroundColor: themeStyles.inputBg, borderColor: themeStyles.inputBorder, color: themeStyles.text }]}
                               placeholder={t('products.packageNamePlaceholder')}
                               placeholderTextColor={isDark ? '#888' : '#aaa'}
                               value={packageName}
                               onChangeText={setPackageName}
+                              returnKeyType={getReturnKeyType(7)}
+                              onSubmitEditing={getSubmitHandler(7)}
+                              blurOnSubmit={false}
                             />
                           </View>
                           <View style={styles.half}>
                             <Text style={[styles.label, { color: themeStyles.text }]}>{t('products.unitsPerPackage')}</Text>
                             <TextInput
+                              ref={unitsPerPackageRef}
                               style={[styles.input, { backgroundColor: themeStyles.inputBg, borderColor: themeStyles.inputBorder, color: themeStyles.text }]}
                               placeholder="1"
                               placeholderTextColor={isDark ? '#888' : '#aaa'}
                               keyboardType="numeric"
                               value={unitsPerPackage}
                               onChangeText={setUnitsPerPackage}
+                              returnKeyType={getReturnKeyType(8)}
+                              onSubmitEditing={getSubmitHandler(8)}
                             />
                           </View>
                         </View>

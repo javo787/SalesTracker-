@@ -130,7 +130,8 @@ export default function EditProductModal({ visible, product, onClose, onSaved }:
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.overlay}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
           style={styles.sheetWrap}
         >
           <View style={[styles.sheet, { backgroundColor: themeStyles.card }]}>
