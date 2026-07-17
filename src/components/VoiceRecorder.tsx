@@ -6,11 +6,21 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
-  Animated,
   AppState,
   AppStateStatus,
   Modal,
+  LayoutChangeEvent,
 } from 'react-native';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withRepeat,
+  withSequence,
+  runOnJS,
+  interpolateColor,
+} from 'react-native-reanimated';
 import {
   useAudioRecorder,
   AudioModule,
@@ -20,10 +30,12 @@ import {
 import * as FileSystem from 'expo-file-system/legacy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
+import * as Haptics from 'expo-haptics';
 import { useAppContext } from '../context/AppContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { VoiceSaleResult } from '../types/voiceSale';
+import { Colors, Radius, Spacing, FontSize, Shadow } from '../constants/theme';
 
 // ─────────────────────────────────────────────
 // Types
@@ -33,12 +45,19 @@ interface VoiceRecorderProps {
   onClose?: () => void;
 }
 
+type RecState = 'idle' | 'recording' | 'locked' | 'sending' | 'processing';
+
 // ─────────────────────────────────────────────
 // Constants
 // ─────────────────────────────────────────────
 const MAX_DURATION_MS = 60_000;
 const WARNING_MS = 55_000;
 const MIN_DURATION_MS = 700;
+
+/** Порог свайпа вправо для отмены (px) */
+const CANCEL_THRESHOLD = 80;
+/** Порог свайпа вверх для блокировки (px, отрицательное значение = вверх) */
+const LOCK_THRESHOLD = -60;
 
 /**
  * LANGUAGE STRATEGY
@@ -106,10 +125,6 @@ function getLangConfig(appLang: string): GroqLangConfig {
 // ─────────────────────────────────────────────
 // Recording options (SDK 56 compatible)
 // ─────────────────────────────────────────────
-// Используем any чтобы избежать конфликтов типов между минорными версиями SDK 56.
-// m4a/aac + 22050 Hz моно + 64kbps — оптимально для:
-//   - слабого интернета Таджикистана (маленький файл)
-//   - качества распознавания Whisper (достаточная частота для речи)
 const recordingOptions: any = {
   ...RecordingPresets.HIGH_QUALITY,
   android: {
@@ -178,20 +193,23 @@ async function safeStopRecorder(
 // ─────────────────────────────────────────────
 export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps) {
   const { t } = useTranslation();
-  const { resolvedTheme, currency, language } = useAppContext(); const isDark = resolvedTheme === "dark";
+  const { resolvedTheme, language } = useAppContext();
+  const isDark = resolvedTheme === 'dark';
   const recorder = useAudioRecorder(recordingOptions);
 
-  // UI state
+  // ── UI state ──────────────────────────────────
+  const [recState, setRecState] = useState<RecState>('idle');
   const [voiceLang, setVoiceLang] = useState(language);
   const [showInfo, setShowInfo] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isStarting, setIsStarting] = useState(false);
   const [showWarning, setShowWarning] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [timerText, setTimerText] = useState('00:00');
+  const [hintText, setHintText] = useState('');
 
-  // Refs — не вызывают ре-рендер, безопасны в async callbacks
-  const pulseAnim = useRef(new Animated.Value(1)).current;
+  // ── Refs — не вызывают ре-рендер, безопасны в async callbacks ──
   const durationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const warningTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const secondsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   /** Флаг: пользователь отпустил кнопку пока ещё шла фаза prepareToRecord */
   const stopRequestedRef = useRef(false);
@@ -199,38 +217,78 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
   const startTimeRef = useRef<number | null>(null);
   /** Флаг: компонент размонтирован — не обновляем state */
   const unmountedRef = useRef(false);
+  /** Измеренная ширина контейнера — куда раскрывается капсула записи */
+  const containerWidthRef = useRef(0);
 
-  const isRecording = safeIsRecording(recorder);
+  // ── Reanimated shared values (UI thread) ──────
+  const widthVal = useSharedValue(48);
+  const slideProgress = useSharedValue(0);
+  const lockProgress = useSharedValue(0);
+  const isTransitioning = useSharedValue(false);
+  const hasTriggeredCancelHaptic = useSharedValue(false);
+  const hasTriggeredLockHaptic = useSharedValue(false);
+  const wave1 = useSharedValue(0.2);
+  const wave2 = useSharedValue(0.2);
+  const wave3 = useSharedValue(0.2);
+  const wave4 = useSharedValue(0.2);
+  const wave5 = useSharedValue(0.2);
+  const sendIconOpacity = useSharedValue(0);
+  const sendIconScale = useSharedValue(0.6);
+
+  // ── Layout measurement ────────────────────────
+  const handleLayout = useCallback((e: LayoutChangeEvent) => {
+    containerWidthRef.current = e.nativeEvent.layout.width;
+  }, []);
 
   // ── Timers ──────────────────────────────────
   const clearTimers = useCallback(() => {
     if (durationTimerRef.current) clearTimeout(durationTimerRef.current);
     if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
+    if (secondsTimerRef.current) clearInterval(secondsTimerRef.current);
     durationTimerRef.current = null;
     warningTimerRef.current = null;
+    secondsTimerRef.current = null;
   }, []);
 
-  // ── Pulse animation ─────────────────────────
-  const startPulse = useCallback(() => {
-    pulseAnim.stopAnimation();
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.2, duration: 500, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1.0, duration: 500, useNativeDriver: true }),
-      ])
-    ).start();
-  }, [pulseAnim]);
+  // ── Animations ────────────────────────────────
+  const stopAnimations = useCallback(() => {
+    wave1.value = 0.2;
+    wave2.value = 0.2;
+    wave3.value = 0.2;
+    wave4.value = 0.2;
+    wave5.value = 0.2;
+    slideProgress.value = 0;
+    lockProgress.value = 0;
+  }, [wave1, wave2, wave3, wave4, wave5, slideProgress, lockProgress]);
 
-  const stopPulse = useCallback(() => {
-    pulseAnim.stopAnimation();
-    pulseAnim.setValue(1);
-  }, [pulseAnim]);
+  const startWaveformAnimations = useCallback(() => {
+    wave1.value = withRepeat(withSequence(withTiming(1, { duration: 400 }), withTiming(0.2, { duration: 400 })), -1, true);
+    wave2.value = withRepeat(withSequence(withTiming(1, { duration: 300 }), withTiming(0.2, { duration: 350 })), -1, true);
+    wave3.value = withRepeat(withSequence(withTiming(1, { duration: 500 }), withTiming(0.2, { duration: 450 })), -1, true);
+    wave4.value = withRepeat(withSequence(withTiming(1, { duration: 350 }), withTiming(0.2, { duration: 300 })), -1, true);
+    wave5.value = withRepeat(withSequence(withTiming(1, { duration: 450 }), withTiming(0.2, { duration: 400 })), -1, true);
+  }, [wave1, wave2, wave3, wave4, wave5]);
+
+  // ── Haptics ───────────────────────────────────
+  const triggerHaptic = useCallback(async (type: 'impactLight' | 'impactMedium' | 'warning' | 'success') => {
+    try {
+      if (type === 'impactLight') {
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      } else if (type === 'impactMedium') {
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      } else if (type === 'warning') {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      } else if (type === 'success') {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (_) {}
+  }, []);
 
   // ── Transcription ────────────────────────────
   const transcribeAudio = useCallback(
     async (uri: string) => {
       if (unmountedRef.current) return;
-      setIsProcessing(true);
+      if (!unmountedRef.current) setRecState('processing');
       abortRef.current = new AbortController();
 
       try {
@@ -315,47 +373,91 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
         Alert.alert('Ошибка распознавания', err?.message ?? 'Не удалось распознать речь');
       } finally {
         if (!unmountedRef.current) {
-          setIsProcessing(false);
+          setRecState('idle');
+          widthVal.value = withTiming(48, { duration: 200 });
         }
         abortRef.current = null;
       }
     },
-    [onResult, voiceLang]
+    [onResult, voiceLang, widthVal]
   );
 
   // ── Stop recording (core logic) ──────────────
-  const stopRecordingInternal = useCallback(async () => {
-    // Сначала чистим таймеры и анимацию — до любого async вызова
-    clearTimers();
-    stopPulse();
-    if (!unmountedRef.current) setShowWarning(false);
+  // discard=true  → свайп-отмена или сброс: файл удаляется, ничего не отправляется
+  // discard=false → обычное отпускание ИЛИ кнопка "отправить" в locked-режиме: всегда отправляем
+  const stopRecordingInternal = useCallback(
+    async (discard: boolean) => {
+      clearTimers();
+      stopAnimations();
+      if (!unmountedRef.current) setShowWarning(false);
 
-    // Вычисляем длительность ДО вызова stop()
-    const durationMs = startTimeRef.current
-      ? Date.now() - startTimeRef.current
-      : MIN_DURATION_MS + 1;
-    startTimeRef.current = null;
+      // Вычисляем длительность ДО вызова stop()
+      const durationMs = startTimeRef.current ? Date.now() - startTimeRef.current : 0;
+      startTimeRef.current = null;
 
-    const uri = await safeStopRecorder(recorder);
+      const uri = await safeStopRecorder(recorder);
 
-    if (!uri) return; // объект был released или не записывал
+      if (discard) {
+        if (uri) FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
+        if (!unmountedRef.current) {
+          setRecState('idle');
+          widthVal.value = withTiming(48, { duration: 200 });
+        }
+        triggerHaptic('warning');
+        return;
+      }
 
-    if (durationMs < MIN_DURATION_MS) {
-      // Слишком короткое нажатие
-      FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
-      Alert.alert('🎙️ Удержите кнопку', 'Нажмите и удерживайте пока говорите, затем отпустите.');
-      return;
-    }
+      if (!uri) {
+        // объект был released или не записывал
+        if (!unmountedRef.current) {
+          setRecState('idle');
+          widthVal.value = withTiming(48, { duration: 200 });
+        }
+        return;
+      }
 
-    await transcribeAudio(uri);
-  }, [recorder, clearTimers, stopPulse, transcribeAudio]);
+      if (durationMs < MIN_DURATION_MS) {
+        // Слишком короткое нажатие
+        FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
+        Alert.alert('🎙️ Удержите кнопку', 'Нажмите и удерживайте пока говорите, затем отпустите.');
+        if (!unmountedRef.current) {
+          setRecState('idle');
+          widthVal.value = withTiming(48, { duration: 200 });
+        }
+        return;
+      }
+
+      // Короткая анимация mic → checkmark перед отправкой (WhatsApp/Telegram-style)
+      if (!unmountedRef.current) setRecState('sending');
+      triggerHaptic('impactLight');
+      sendIconOpacity.value = 0;
+      sendIconScale.value = 0.6;
+      sendIconOpacity.value = withTiming(1, { duration: 120 });
+      sendIconScale.value = withSequence(
+        withTiming(1.15, { duration: 130 }),
+        withTiming(1, { duration: 100 })
+      );
+      await new Promise((resolve) => setTimeout(resolve, 240));
+      if (unmountedRef.current) return;
+
+      await transcribeAudio(uri);
+    },
+    [recorder, clearTimers, stopAnimations, transcribeAudio, widthVal, triggerHaptic, sendIconOpacity, sendIconScale]
+  );
 
   // ── Start recording ──────────────────────────
   const startRecording = async () => {
-    if (isProcessing || isStarting) return;
+    if (recState !== 'idle') return;
 
-    if (!unmountedRef.current) setIsStarting(true);
+    setShowOnboarding(false);
+    setRecState('recording');
+    widthVal.value = withTiming(containerWidthRef.current || 280, { duration: 250 });
+
     stopRequestedRef.current = false;
+    hasTriggeredCancelHaptic.value = false;
+    hasTriggeredLockHaptic.value = false;
+    slideProgress.value = 0;
+    lockProgress.value = 0;
 
     try {
       // Cleanup зависшей сессии (защита от двойного нажатия)
@@ -368,7 +470,8 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
       const perm = await AudioModule.requestRecordingPermissionsAsync();
       if (perm.status !== 'granted') {
         Alert.alert('Нет доступа к микрофону', 'Разрешите доступ в настройках телефона.');
-        if (!unmountedRef.current) setIsStarting(false);
+        if (!unmountedRef.current) setRecState('idle');
+        widthVal.value = withTiming(48, { duration: 200 });
         return;
       }
 
@@ -380,51 +483,94 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
       await recorder.record();
 
       startTimeRef.current = Date.now();
-      if (!unmountedRef.current) setIsStarting(false);
 
       // Пользователь успел отпустить кнопку пока мы инициализировались
       if (stopRequestedRef.current) {
         stopRequestedRef.current = false;
-        stopRecordingInternal();
+        stopRecordingInternal(false);
         return;
       }
 
-      startPulse();
+      startWaveformAnimations();
+      triggerHaptic('impactMedium');
+
+      setTimerText('00:00');
+      const start = Date.now();
+      secondsTimerRef.current = setInterval(() => {
+        const elapsedSecs = Math.floor((Date.now() - start) / 1000);
+        const mins = Math.floor(elapsedSecs / 60).toString().padStart(2, '0');
+        const secs = (elapsedSecs % 60).toString().padStart(2, '0');
+        if (!unmountedRef.current) setTimerText(`${mins}:${secs}`);
+      }, 500);
 
       // Авто-стоп по максимальной длительности
       durationTimerRef.current = setTimeout(() => {
         if (safeIsRecording(recorder)) {
-          stopRecordingInternal();
+          stopRecordingInternal(false);
           Alert.alert('Инфо', 'Достигнут лимит записи (60 сек).');
         }
       }, MAX_DURATION_MS);
 
       // Предупреждение за 5 сек до лимита
       warningTimerRef.current = setTimeout(() => {
-        if (!unmountedRef.current && safeIsRecording(recorder)) {
-          setShowWarning(true);
-        }
+        if (!unmountedRef.current) setShowWarning(true);
       }, WARNING_MS);
     } catch (err) {
       console.error('[VoiceRecorder] startRecording error:', err);
-      if (!unmountedRef.current) {
-        setIsStarting(false);
-        Alert.alert('Ошибка', 'Не удалось начать запись. Попробуйте ещё раз.');
-      }
+      if (!unmountedRef.current) setRecState('idle');
+      widthVal.value = withTiming(48, { duration: 200 });
+      Alert.alert('Ошибка', 'Не удалось начать запись. Попробуйте ещё раз.');
     }
   };
 
-  // ── Handle button release ────────────────────
-  const handleStop = useCallback(() => {
-    if (isStarting) {
-      // Ещё инициализируемся — запоминаем намерение остановиться
-      stopRequestedRef.current = true;
-      return;
-    }
-    if (!isProcessing) {
-      stopRecordingInternal();
-    }
-  }, [isStarting, isProcessing, stopRecordingInternal]);
+  // ── Gesture (press, slide-to-cancel, slide-up-to-lock, release-to-send) ──
+  // Работает через react-native-gesture-handler вместо TouchableOpacity —
+  // это устраняет старый баг, когда onPressOut терял событие внутри ScrollView
+  // (родительский скролл перехватывал responder при малейшем дрожании пальца),
+  // и запись зависала без отправки.
+  const panGesture = Gesture.Pan()
+    .onBegin(() => {
+      if (isTransitioning.value) return;
+      isTransitioning.value = true;
+      runOnJS(startRecording)();
+    })
+    .onUpdate((event) => {
+      slideProgress.value = event.translationX;
+      lockProgress.value = event.translationY;
+
+      // X-порог (свайп вправо = отмена)
+      if (event.translationX >= CANCEL_THRESHOLD && !hasTriggeredCancelHaptic.value) {
+        hasTriggeredCancelHaptic.value = true;
+        runOnJS(triggerHaptic)('warning');
+      }
+
+      // Y-порог (свайп вверх = блокировка)
+      if (event.translationY <= LOCK_THRESHOLD && !hasTriggeredLockHaptic.value) {
+        hasTriggeredLockHaptic.value = true;
+        runOnJS(triggerHaptic)('impactLight');
+      }
+    })
+    .onEnd((event) => {
+      isTransitioning.value = false;
+
+      // Липкая отмена/блокировка: если порог был пройден хоть раз — считается,
+      // даже если палец вернули обратно перед отпусканием.
+      const shouldCancel = event.translationX >= CANCEL_THRESHOLD || hasTriggeredCancelHaptic.value;
+      const shouldLock = event.translationY <= LOCK_THRESHOLD || hasTriggeredLockHaptic.value;
+
+      if (shouldCancel) {
+        runOnJS(stopRecordingInternal)(true);
+      } else if (shouldLock) {
+        runOnJS(setRecState)('locked');
+      } else {
+        // Обычное отпускание без свайпов — ВСЕГДА останавливаем и отправляем
+        runOnJS(stopRecordingInternal)(false);
+      }
+    });
+
+  // ── Locked-state action buttons ───────────────
+  const handleLockTrash = () => stopRecordingInternal(true);
+  const handleLockSend = () => stopRecordingInternal(false);
 
   // ── Language Persistence ─────────────────────
   const lastSystemLangRef = useRef(language);
@@ -455,13 +601,34 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
     await AsyncStorage.setItem('voice_language', lang);
   };
 
+  // ── First-time onboarding hint ─────────────────
+  useEffect(() => {
+    let hideTimer: ReturnType<typeof setTimeout> | null = null;
+    const checkOnboarding = async () => {
+      try {
+        const seen = await AsyncStorage.getItem('voice_recorder_onboarding_seen');
+        if (!seen && !unmountedRef.current) {
+          setShowOnboarding(true);
+          await AsyncStorage.setItem('voice_recorder_onboarding_seen', '1');
+          hideTimer = setTimeout(() => {
+            if (!unmountedRef.current) setShowOnboarding(false);
+          }, 4500);
+        }
+      } catch (_) {}
+    };
+    checkOnboarding();
+    return () => {
+      if (hideTimer) clearTimeout(hideTimer);
+    };
+  }, []);
+
   // ── AppState & cleanup ───────────────────────
   useEffect(() => {
     unmountedRef.current = false;
 
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
       if (next !== 'active' && safeIsRecording(recorder)) {
-        stopRecordingInternal();
+        stopRecordingInternal(false);
       }
     });
 
@@ -471,7 +638,6 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
       clearTimers();
 
       // Безопасная остановка при размонтировании
-      // НЕ используем recorder.isRecording напрямую — может бросить
       safeStopRecorder(recorder).catch(() => {});
 
       if (abortRef.current) {
@@ -479,93 +645,195 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
         abortRef.current = null;
       }
     };
-    // recorder не добавляем в deps — его идентичность стабильна в рамках маунта
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [recorder, clearTimers, stopRecordingInternal]);
 
-  // ── Hint text ────────────────────────────────
-  const [hintText, setHintText] = useState('🎙️ Зажмите и говорите');
-
+  // ── Processing hint text (Распознаём → Разбираем) ─────
   useEffect(() => {
-    if (showWarning) {
-      setHintText('⏱️ Запись остановится через 5 сек');
-    } else if (isRecording) {
-      setHintText('🔴 Отпустите, чтобы завершить');
-    } else if (isProcessing) {
+    if (recState === 'processing') {
       setHintText(t('addSale.stepRecognizing'));
       const timer = setTimeout(() => {
-         setHintText(t('addSale.stepAnalyzing'));
+        if (!unmountedRef.current) setHintText(t('addSale.stepAnalyzing'));
       }, 3000);
       return () => clearTimeout(timer);
-    } else if (isStarting) {
-      setHintText('⏳ Подготовка...');
-    } else {
-      setHintText('🎙️ Зажмите и говорите');
     }
-  }, [showWarning, isRecording, isProcessing, isStarting, t]);
+  }, [recState, t]);
+
+  // ── Reanimated styles ─────────────────────────
+  const capsuleAnimatedStyle = useAnimatedStyle(() => ({
+    width: widthVal.value,
+  }));
+
+  const slideHintStyle = useAnimatedStyle(() => {
+    const progress = Math.min(1, Math.max(0, slideProgress.value / CANCEL_THRESHOLD));
+    const translateX = Math.max(0, slideProgress.value * 0.4);
+    const scale = 1 + progress * 0.2;
+    return {
+      opacity: 1,
+      transform: [{ translateX }, { scale }],
+    };
+  });
+
+  const slideHintTextStyle = useAnimatedStyle(() => {
+    const progress = Math.min(1, Math.max(0, slideProgress.value / CANCEL_THRESHOLD));
+    const color = interpolateColor(progress, [0, 1], ['rgba(255,255,255,0.8)', '#FFD9D6']);
+    return { color };
+  });
+
+  const lockIconStyle = useAnimatedStyle(() => {
+    if (recState !== 'recording') {
+      return { opacity: 0 };
+    }
+    const progress = Math.min(1, Math.max(0, -lockProgress.value / Math.abs(LOCK_THRESHOLD)));
+    const opacity = progress;
+    const scale = 0.8 + progress * 0.4;
+    const translateY = -40 + Math.max(LOCK_THRESHOLD / 3, lockProgress.value * 0.3);
+    return {
+      opacity,
+      transform: [{ translateY }, { scale }],
+    };
+  });
+
+  const waveStyle1 = useAnimatedStyle(() => ({ height: 5 + wave1.value * 18 }));
+  const waveStyle2 = useAnimatedStyle(() => ({ height: 5 + wave2.value * 18 }));
+  const waveStyle3 = useAnimatedStyle(() => ({ height: 5 + wave3.value * 18 }));
+  const waveStyle4 = useAnimatedStyle(() => ({ height: 5 + wave4.value * 18 }));
+  const waveStyle5 = useAnimatedStyle(() => ({ height: 5 + wave5.value * 18 }));
+
+  const sendIconStyle = useAnimatedStyle(() => ({
+    opacity: sendIconOpacity.value,
+    transform: [{ scale: sendIconScale.value }],
+  }));
+
+  const activeBg = recState === 'recording' ? '#FF3B30' : Colors.primary;
 
   // ── Render ───────────────────────────────────
   return (
-    <View style={styles.linearContainer}>
-      <View style={[styles.linearLangSwitcher, isDark ? styles.langSwitcherDark : styles.langSwitcherLight]}>
-        {['ru', 'tg', 'uz'].map((l) => (
-          <TouchableOpacity
-            key={l}
-            onPress={() => changeVoiceLang(l)}
-            style={[
-              styles.linearLangBtn,
-              voiceLang === l && styles.langBtnActive
-            ]}
-          >
-            <Text style={[
-              styles.linearLangBtnText,
-              voiceLang === l && styles.langBtnTextActive,
-              isDark && voiceLang !== l && { color: '#aaa' }
-            ]}>
-              {l.toUpperCase()}
-            </Text>
-          </TouchableOpacity>
-        ))}
-        <TouchableOpacity
-          style={styles.infoBtn}
-          onPress={() => setShowInfo(true)}
-        >
-          <Ionicons name="information-circle-outline" size={18} color={isDark ? '#aaa' : '#888'} />
-        </TouchableOpacity>
-      </View>
+    <View style={styles.outerContainer} onLayout={handleLayout}>
+      {/* Иконка блокировки, всплывающая при свайпе вверх */}
+      <Animated.View style={[styles.lockContainer, lockIconStyle]} pointerEvents="none">
+        <Ionicons name="lock-closed" size={18} color="#FF3B30" />
+        <Ionicons name="chevron-up" size={12} color="#FF3B30" />
+      </Animated.View>
 
-      <View style={styles.micWrapper}>
-        <TouchableOpacity
-          onPressIn={startRecording}
-          onPressOut={handleStop}
-          disabled={isProcessing}
-          activeOpacity={0.75}
-        >
-          <Animated.View
-            style={[
-              styles.linearButton,
-              isRecording && styles.buttonRecording,
-              (isProcessing || isStarting) && styles.buttonBusy,
-              { transform: [{ scale: pulseAnim }] },
-            ]}
-          >
-            {isProcessing || isStarting ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <Ionicons
-                name={isRecording ? 'stop' : 'mic'}
-                size={24}
-                color="#fff"
-              />
-            )}
-          </Animated.View>
-        </TouchableOpacity>
+      {/* Подсказка для первого использования */}
+      {recState === 'idle' && showOnboarding ? (
+        <View style={styles.onboardingTooltip} pointerEvents="none">
+          <View style={styles.onboardingRow}>
+            <Ionicons name="arrow-forward" size={12} color="#fff" />
+            <Text style={styles.onboardingText}>Смахните — отмена</Text>
+          </View>
+          <View style={styles.onboardingRow}>
+            <Ionicons name="arrow-up" size={12} color="#fff" />
+            <Text style={styles.onboardingText}>Вверх — блокировка</Text>
+          </View>
+        </View>
+      ) : null}
 
-        {isRecording || isProcessing || isStarting ? (
-           <Text style={[styles.linearHint, isDark ? styles.hintDark : styles.hintLight]} numberOfLines={1}>
-             {hintText}
-           </Text>
+      <View style={styles.row}>
+        {recState === 'idle' ? (
+          <View style={[styles.linearLangSwitcher, isDark ? styles.langSwitcherDark : styles.langSwitcherLight]}>
+            {['ru', 'tg', 'uz'].map((l) => (
+              <TouchableOpacity
+                key={l}
+                onPress={() => changeVoiceLang(l)}
+                style={[
+                  styles.linearLangBtn,
+                  voiceLang === l && styles.langBtnActive
+                ]}
+              >
+                <Text style={[
+                  styles.linearLangBtnText,
+                  voiceLang === l && styles.langBtnTextActive,
+                  isDark && voiceLang !== l && { color: '#aaa' }
+                ]}>
+                  {l.toUpperCase()}
+                </Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity
+              style={styles.infoBtn}
+              onPress={() => setShowInfo(true)}
+            >
+              <Ionicons name="information-circle-outline" size={18} color={isDark ? '#aaa' : '#888'} />
+            </TouchableOpacity>
+          </View>
         ) : null}
+
+        <View style={styles.capsuleArea}>
+          {recState === 'idle' ? (
+            <GestureDetector gesture={panGesture}>
+              <Animated.View style={[styles.capsule, styles.idleCapsule, capsuleAnimatedStyle]}>
+                <Ionicons name="mic" size={22} color="#fff" />
+                <View style={[styles.langBadge, isDark ? styles.langBadgeDark : styles.langBadgeLight]}>
+                  <Text style={[styles.langBadgeText, isDark ? styles.textDark : styles.textLight]}>
+                    {voiceLang.toUpperCase()}
+                  </Text>
+                </View>
+              </Animated.View>
+            </GestureDetector>
+          ) : recState === 'recording' ? (
+            <GestureDetector gesture={panGesture}>
+              <Animated.View style={[styles.capsule, styles.recordingCapsule, capsuleAnimatedStyle, { backgroundColor: activeBg }]}>
+                <View style={styles.recordingRow}>
+                  <Ionicons name="mic" size={18} color="#fff" />
+                  <Text style={styles.timerText}>{timerText}</Text>
+
+                  {showWarning ? (
+                    <Text style={styles.warningTextCapsule} numberOfLines={1}>⏱️ 5 сек</Text>
+                  ) : (
+                    <View style={styles.waveformContainer}>
+                      <Animated.View style={[styles.waveBar, waveStyle1]} />
+                      <Animated.View style={[styles.waveBar, waveStyle2]} />
+                      <Animated.View style={[styles.waveBar, waveStyle3]} />
+                      <Animated.View style={[styles.waveBar, waveStyle4]} />
+                      <Animated.View style={[styles.waveBar, waveStyle5]} />
+                    </View>
+                  )}
+
+                  {/* Слайд для отмены */}
+                  <Animated.View style={[styles.slideHintRow, slideHintStyle]}>
+                    <Animated.Text style={[styles.slideHintText, slideHintTextStyle]}>Отмена</Animated.Text>
+                    <Ionicons name="chevron-forward-outline" size={14} color="rgba(255,255,255,0.7)" />
+                  </Animated.View>
+                </View>
+              </Animated.View>
+            </GestureDetector>
+          ) : recState === 'locked' ? (
+            <Animated.View style={[styles.capsule, styles.recordingCapsule, capsuleAnimatedStyle, { backgroundColor: Colors.primary }]}>
+              <View style={styles.recordingRow}>
+                <TouchableOpacity style={styles.lockActionButton} onPress={handleLockTrash}>
+                  <Ionicons name="trash-outline" size={20} color="#fff" />
+                </TouchableOpacity>
+
+                <View style={styles.lockedCenter}>
+                  <Text style={styles.timerText}>{timerText}</Text>
+                  <View style={styles.waveformContainer}>
+                    <Animated.View style={[styles.waveBar, waveStyle1]} />
+                    <Animated.View style={[styles.waveBar, waveStyle2]} />
+                    <Animated.View style={[styles.waveBar, waveStyle3]} />
+                    <Animated.View style={[styles.waveBar, waveStyle4]} />
+                    <Animated.View style={[styles.waveBar, waveStyle5]} />
+                  </View>
+                </View>
+
+                <TouchableOpacity style={styles.lockActionButton} onPress={handleLockSend}>
+                  <Ionicons name="checkmark-circle" size={26} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
+          ) : recState === 'sending' ? (
+            <Animated.View style={[styles.capsule, styles.idleCapsule, capsuleAnimatedStyle]}>
+              <Animated.View style={sendIconStyle}>
+                <Ionicons name="checkmark-circle" size={24} color="#fff" />
+              </Animated.View>
+            </Animated.View>
+          ) : (
+            <Animated.View style={[styles.capsule, styles.processingCapsule, capsuleAnimatedStyle]}>
+              <ActivityIndicator color="#fff" size="small" />
+              <Text style={styles.processingText} numberOfLines={1}>{hintText}</Text>
+            </Animated.View>
+          )}
+        </View>
       </View>
 
       {/* Info Modal */}
@@ -607,11 +875,16 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
 // Styles
 // ─────────────────────────────────────────────
 const styles = StyleSheet.create({
-  linearContainer: {
+  outerContainer: {
+    width: '100%',
+    height: 48,
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingVertical: 8,
   },
   linearLangSwitcher: {
     flexDirection: 'row',
@@ -647,36 +920,151 @@ const styles = StyleSheet.create({
   langBtnTextActive: {
     color: '#fff',
   },
-  micWrapper: {
+  capsuleArea: {
+    flex: 1,
+  },
+  capsule: {
+    height: 48,
+    borderRadius: Radius.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    ...Shadow.md,
+  },
+  idleCapsule: {
+    backgroundColor: '#1D9E75',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  recordingCapsule: {
+    paddingHorizontal: Spacing.md,
+    justifyContent: 'space-between',
+  },
+  processingCapsule: {
+    backgroundColor: '#aaaaaa',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: Spacing.md,
+  },
+  processingText: {
+    color: '#fff',
+    fontSize: FontSize.sm,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
+  langBadge: {
+    position: 'absolute',
+    bottom: 4,
+    right: 4,
+    borderRadius: 6,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderWidth: 1,
+    borderColor: '#1D9E75',
+    elevation: 1,
+  },
+  langBadgeLight: {
+    backgroundColor: '#fff',
+  },
+  langBadgeDark: {
+    backgroundColor: '#1C1C1E',
+  },
+  langBadgeText: {
+    fontSize: 8,
+    fontWeight: 'bold',
+  },
+  textLight: {
+    color: '#333',
+  },
+  textDark: {
+    color: '#eee',
+  },
+  lockContainer: {
+    position: 'absolute',
+    top: -8,
+    alignSelf: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 32,
+    zIndex: 999,
+  },
+  recordingRow: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    justifyContent: 'space-between',
+    width: '100%',
   },
-  linearButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#1D9E75',
+  timerText: {
+    color: '#fff',
+    fontSize: FontSize.md,
+    fontWeight: 'bold',
+    marginLeft: Spacing.sm,
+  },
+  waveformContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
+    gap: 3,
+    height: 24,
+    marginHorizontal: Spacing.sm,
   },
-  buttonRecording: {
-    backgroundColor: '#E53935',
+  waveBar: {
+    width: 3,
+    backgroundColor: '#fff',
+    borderRadius: 1.5,
   },
-  buttonBusy: {
-    backgroundColor: '#aaaaaa',
-    opacity: 0.85,
+  slideHintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
   },
-  linearHint: {
-    fontSize: 11,
+  slideHintText: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: FontSize.sm,
     fontWeight: '500',
+  },
+  lockActionButton: {
+    padding: Spacing.xs,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  lockedCenter: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  warningTextCapsule: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: FontSize.sm,
+    flex: 1,
+    textAlign: 'center',
+  },
+  onboardingTooltip: {
+    position: 'absolute',
+    bottom: '100%',
+    left: 0,
+    marginBottom: Spacing.xs,
+    backgroundColor: 'rgba(28,28,30,0.92)',
+    borderRadius: Radius.sm,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    gap: 4,
+    zIndex: 1000,
+    ...Shadow.md,
+  },
+  onboardingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  onboardingText: {
+    color: '#fff',
+    fontSize: FontSize.sm - 2,
+    fontWeight: '500',
   },
   modalOverlay: {
     flex: 1,
@@ -712,12 +1100,6 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     marginBottom: 20,
   },
-  textLight: {
-    color: '#333',
-  },
-  textDark: {
-    color: '#eee',
-  },
   closeBtn: {
     backgroundColor: '#1D9E75',
     borderRadius: 10,
@@ -728,11 +1110,5 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: 'bold',
     fontSize: 15,
-  },
-  hintLight: {
-    color: '#555',
-  },
-  hintDark: {
-    color: '#ccc',
   },
 });
