@@ -148,7 +148,22 @@ export const SyncService = {
       // так что форсить полный ресинк у продавцов незачем — это лишняя,
       // ничем не оправданная нагрузка на бэкенд (у /sync/pull нет пагинации,
       // полный pull — это все продажи магазина за всё время одним запросом).
-      const dedupeRepairNeeded = isOwner && !(await AsyncStorage.getItem('sales_dedupe_repair_v1'));
+      // Сам полный ресинк размазываем случайной задержкой (0–20 мин) на
+      // устройство. Бэкенд сейчас на бесплатном Render-тарифе — 512 MB RAM,
+      // 0.1 CPU, один инстанс без автоскейлинга, и валит его именно нехватка
+      // памяти, а не CPU (Sale.find без .limit() держит в памяти все продажи
+      // магазина разом). Без разброса все обновившиеся владельцы дёрнули бы
+      // этот безлимитный запрос почти одновременно, особенно при раскатке
+      // через EAS Update (OTA доходит быстрее, чем обновление через сторы).
+      let dedupeRepairNeeded = false;
+      if (isOwner && !(await AsyncStorage.getItem('sales_dedupe_repair_v1'))) {
+        let scheduledAt = await AsyncStorage.getItem('sales_dedupe_repair_at');
+        if (!scheduledAt) {
+          scheduledAt = String(Date.now() + Math.random() * 20 * 60 * 1000);
+          await AsyncStorage.setItem('sales_dedupe_repair_at', scheduledAt);
+        }
+        dedupeRepairNeeded = Date.now() >= Number(scheduledAt);
+      }
       const lastPullAsOf = dedupeRepairNeeded ? null : await AsyncStorage.getItem('last_pull_asOf');
       const url = lastPullAsOf ? `/sync/pull?since=${encodeURIComponent(lastPullAsOf)}` : '/sync/pull';
 
