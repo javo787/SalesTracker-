@@ -480,6 +480,15 @@ function runMigrations() {
       db.runSync("INSERT INTO app_meta (key, value) VALUES ('tz_migration_v1', 'done')");
     });
   }
+
+  // remote_id используется построчно в syncService.pull() для дедупа входящих
+  // продаж/расходов по глобальному ID сервера — без индекса это full scan на
+  // каждую строку. Колонка гарантированно существует к этому моменту (schema_v2
+  // для sales, schema_v10 для expenses), поэтому индекс создаём безусловно.
+  db.execSync(`
+    CREATE INDEX IF NOT EXISTS idx_sales_remote_id ON sales(remote_id);
+    CREATE INDEX IF NOT EXISTS idx_expenses_remote_id ON expenses(remote_id);
+  `);
 }
 
 // Схема и миграции выполняются синхронно прямо при загрузке этого модуля —

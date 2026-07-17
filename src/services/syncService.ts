@@ -137,7 +137,19 @@ export const SyncService = {
     setSyncingStatus(true);
     try {
       const isOwner = session.role === 'owner';
-      const lastPullAsOf = await AsyncStorage.getItem('last_pull_asOf');
+
+      // Одноразовый полный ресинк на устройство. Устраняет последствия старого
+      // бага дедупликации продаж по локальному id (см. комментарий у блока
+      // "Sales sync" ниже): часть продаж продавцов могла быть безвозвратно
+      // потеряна на устройстве владельца ДО того, как появился фикс дедупа по
+      // remote_id — коллизия молча помечала чужую строку synced=1 вместо
+      // вставки настоящей продажи. Инкрементальный pull (since=...) такие
+      // продажи больше никогда не запросит повторно, т.к. их serverUpdatedAt
+      // раньше курсора последнего успешного pull. Поэтому один раз сбрасываем
+      // курсор и качаем всё заново — уже исправленная логика вставит то, что
+      // было потеряно, и не задублирует то, что уже на месте.
+      const dedupeRepairDone = await AsyncStorage.getItem('sales_dedupe_repair_v1');
+      const lastPullAsOf = dedupeRepairDone ? await AsyncStorage.getItem('last_pull_asOf') : null;
       const url = lastPullAsOf ? `/sync/pull?since=${encodeURIComponent(lastPullAsOf)}` : '/sync/pull';
 
       const data = await withRetry(() => api.get<{
@@ -318,6 +330,9 @@ export const SyncService = {
 
       if (data.asOf) {
         await AsyncStorage.setItem('last_pull_asOf', data.asOf);
+      }
+      if (!dedupeRepairDone) {
+        await AsyncStorage.setItem('sales_dedupe_repair_v1', 'done');
       }
     } catch (error) {
       console.warn('Sync pull failed:', error);
