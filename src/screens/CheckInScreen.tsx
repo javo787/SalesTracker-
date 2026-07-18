@@ -15,6 +15,32 @@ import { useCheckInStatus } from '../hooks/useCheckInStatus';
 import { useAppContext } from '../context/AppContext';
 import { Colors, Shadow } from '../constants/theme';
 
+// Location.getCurrentPositionAsync() has no built-in timeout: indoors or with
+// a weak signal it can take far longer than a seller is willing to wait, or
+// never resolve at all, leaving the check-in spinner running forever. Bound it.
+const GPS_TIMEOUT_MS = 15000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, timeoutCode: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      const err: any = new Error('Location request timed out');
+      err.code = timeoutCode;
+      reject(err);
+    }, ms);
+
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+}
+
 export default function CheckInScreen() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -89,6 +115,10 @@ export default function CheckInScreen() {
       msg = t('checkIn.errorQrMismatch');
     } else if (err.code === 'METHOD_ALREADY_USED') {
       msg = t('checkIn.methodAlreadyUsed');
+    } else if (err.code === 'GPS_TIMEOUT') {
+      msg = t('checkIn.errorGpsTimeout');
+    } else if (err.code === 'GPS_DISABLED') {
+      msg = t('checkIn.errorGpsDisabled');
     }
     setErrorMessage(msg);
     setActiveView('menu');
@@ -105,9 +135,22 @@ export default function CheckInScreen() {
         throw new Error('Location permission denied');
       }
 
-      const loc = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
+      // Fail fast if location services are off system-wide, instead of
+      // waiting on a getCurrentPositionAsync() call that's doomed to hang.
+      const servicesEnabled = await Location.hasServicesEnabledAsync();
+      if (!servicesEnabled) {
+        const err: any = new Error('Location services disabled');
+        err.code = 'GPS_DISABLED';
+        throw err;
+      }
+
+      const loc = await withTimeout(
+        Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        }),
+        GPS_TIMEOUT_MS,
+        'GPS_TIMEOUT'
+      );
 
       const res = await submitCheckIn('gps', {
         gps: {
