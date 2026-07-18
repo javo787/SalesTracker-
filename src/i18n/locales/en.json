@@ -768,6 +768,8 @@
     "errorQrMismatch": "Invalid QR code. Make sure you are scanning the active shop code.",
     "errorAlreadyCheckedIn": "You have already checked in today.",
     "methodAlreadyUsed": "This verification method has already been used today.",
+    "errorGpsTimeout": "Could not get your location. Try again or move to an open area.",
+    "errorGpsDisabled": "Turn on location services in your phone settings and try again.",
     "checkingGps": "Verifying GPS position...",
     "checkingNfc": "Hold phone against NFC tag",
     "checkingQr": "Scan the QR code",

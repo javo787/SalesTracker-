@@ -720,6 +720,8 @@
     "verificationModeEasyShort": "Fácil",
     "verificationModeEasySub": "cualquier método",
     "verificationModeStrictShort": "Estricto",
-    "verificationModeStrictSub": "dos métodos"
+    "verificationModeStrictSub": "dos métodos",
+    "errorGpsTimeout": "No se pudo obtener tu ubicación. Intenta de nuevo o sal a un lugar abierto.",
+    "errorGpsDisabled": "Activa la ubicación en la configuración del teléfono e intenta de nuevo."
   }
 }

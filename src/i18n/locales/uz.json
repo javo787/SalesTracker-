@@ -763,6 +763,8 @@
     "errorQrMismatch": "Noto‘g‘ri QR-kod. To‘g‘ri kodni skanerlayotganingizga ishonch hosil qiling.",
     "errorAlreadyCheckedIn": "Siz bugun hozir bo‘lganingizni tasdiqladingiz.",
     "methodAlreadyUsed": "Bu tekshirish usuli bugun ishlatilgan.",
+    "errorGpsTimeout": "Joylashuvni aniqlab bo‘lmadi. Qayta urinib ko‘ring yoki ochiq joyga chiqing.",
+    "errorGpsDisabled": "Telefon sozlamalarida geolokatsiyani yoqing va qayta urinib ko‘ring.",
     "checkingGps": "GPS joylashuvini tekshirmoqdamiz...",
     "checkingNfc": "Telefonni NFC tegiga tekkizing",
     "checkingQr": "Kamerani QR-kodga yo‘naltiring",
