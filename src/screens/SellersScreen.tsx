@@ -31,6 +31,7 @@ export default function SellersScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const [togglingPermKey, setTogglingPermKey] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     if (!isOwner && !can('manage_team')) return;
@@ -65,6 +66,32 @@ export default function SellersScreen() {
   const onRefresh = () => {
     setRefreshing(true);
     loadData();
+  };
+
+  const togglePermission = async (member: ShopMember, perm: 'manage_debtors' | 'manage_team') => {
+    const key = `${member.userId}:${perm}`;
+    if (togglingPermKey) return; // один тоггл за раз — избегаем гонки при быстром двойном тапе
+
+    const previous = member.permissions || [];
+    const next = previous.includes(perm)
+      ? previous.filter(p => p !== perm)
+      : [...previous, perm];
+
+    setTogglingPermKey(key);
+    // Optimistic update — чип реагирует сразу, не дожидаясь ответа сервера
+    // (важно на Render free tier: холодный старт инстанса может занять
+    // десятки секунд, и без этого тап выглядел как "не работает").
+    setMembers(prev => prev.map(m => (m.userId === member.userId ? { ...m, permissions: next } : m)));
+
+    try {
+      await api.patch(`/shop/members/${member.userId}/permissions`, { permissions: next });
+    } catch (e: any) {
+      // Откатываем на реальную ошибку сервера/сети
+      setMembers(prev => prev.map(m => (m.userId === member.userId ? { ...m, permissions: previous } : m)));
+      Alert.alert(t('common.error'), e.message || t('sellers.permissionUpdateFailed') || 'Не удалось обновить права');
+    } finally {
+      setTogglingPermKey(null);
+    }
   };
 
   const handleTransferOwnership = (userId: string, name: string) => {
@@ -380,65 +407,34 @@ export default function SellersScreen() {
 
                   {isOwner && member.role === 'seller' && (
                     <View style={[styles.permissionsRow, { borderTopColor: isDark ? '#333' : '#EEE' }]}>
-                      <TouchableOpacity
-                        style={[
-                          styles.permissionChip,
-                          member.permissions?.includes('manage_debtors')
-                            ? styles.permissionChipActive
-                            : themeStyles.periodBtn
-                        ]}
-                        onPress={async () => {
-                          const current = member.permissions || [];
-                          const nextList = current.includes('manage_debtors')
-                            ? current.filter(p => p !== 'manage_debtors')
-                            : [...current, 'manage_debtors'];
-                          try {
-                            await api.patch(`/shop/members/${member.userId}/permissions`, { permissions: nextList });
-                            loadData();
-                          } catch (e: any) {
-                            Alert.alert(t('common.error'), e.message);
-                          }
-                        }}
-                      >
-                        <Text style={[
-                          styles.permissionChipText,
-                          member.permissions?.includes('manage_debtors')
-                            ? styles.permissionChipTextActive
-                            : themeStyles.periodText
-                        ]}>
-                          Управление долгами
-                        </Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={[
-                          styles.permissionChip,
-                          member.permissions?.includes('manage_team')
-                            ? styles.permissionChipActive
-                            : themeStyles.periodBtn
-                        ]}
-                        onPress={async () => {
-                          const current = member.permissions || [];
-                          const nextList = current.includes('manage_team')
-                            ? current.filter(p => p !== 'manage_team')
-                            : [...current, 'manage_team'];
-                          try {
-                            await api.patch(`/shop/members/${member.userId}/permissions`, { permissions: nextList });
-                            loadData();
-                          } catch (e: any) {
-                            Alert.alert(t('common.error'), e.message);
-                          }
-                        }}
-                      >
-                        <Text style={[
-                          styles.permissionChipText,
-                          member.permissions?.includes('manage_team')
-                            ? styles.permissionChipTextActive
-                            : themeStyles.periodText
-                        ]}>
-                          Управление командой
-                        </Text>
-                      </TouchableOpacity>
+                      {(['manage_debtors', 'manage_team'] as const).map((perm) => {
+                        const permKey = `${member.userId}:${perm}`;
+                        const active = member.permissions?.includes(perm);
+                        const isToggling = togglingPermKey === permKey;
+                        return (
+                          <TouchableOpacity
+                            key={perm}
+                            disabled={!!togglingPermKey}
+                            style={[
+                              styles.permissionChip,
+                              active ? styles.permissionChipActive : themeStyles.periodBtn,
+                              isToggling && { opacity: 0.6 }
+                            ]}
+                            onPress={() => togglePermission(member, perm)}
+                          >
+                            {isToggling ? (
+                              <ActivityIndicator size="small" color={active ? '#FFF' : Colors.primary} />
+                            ) : (
+                              <Text style={[
+                                styles.permissionChipText,
+                                active ? styles.permissionChipTextActive : themeStyles.periodText
+                              ]}>
+                                {perm === 'manage_debtors' ? 'Управление долгами' : 'Управление командой'}
+                              </Text>
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
                     </View>
                   )}
                 </View>
