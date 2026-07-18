@@ -202,27 +202,36 @@ export default function SellersScreen() {
     return (now.getTime() - lastDate.getTime()) < 5 * 60 * 1000;
   };
 
-  const formatRelativeTime = (dateStr: string | null | undefined) => {
-    if (!dateStr) return t('sellers.neverSynced') || 'никогда';
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return t('sellers.neverSynced') || 'никогда';
+  const getCheckInInfo = (member: ShopMember) => {
+    if (!checkInStatus.enabled || member.role === 'owner') return null;
 
-    const diffMs = Date.now() - d.getTime();
-    const diffSec = Math.floor(diffMs / 1000);
-    const diffMin = Math.floor(diffSec / 60);
-    const diffHr = Math.floor(diffMin / 60);
-    const diffDays = Math.floor(diffHr / 24);
+    const todayStr = todayLocalDate();
+    const userRecord = checkInHistory.find((h: any) => h.userId === member.userId);
+    const todayEntry = userRecord?.days?.find((d: any) => d.localDate === todayStr);
 
-    if (diffSec < 30) {
-      return t('sellers.justNow') || 'только что';
+    if (!todayEntry || todayEntry.status === 'missing') {
+      return { color: Colors.danger, label: t('checkIn.statusMissingLabel', 'не отмечен') };
     }
-    if (diffMin < 60) {
-      return t('sellers.minsAgo', { count: diffMin }) || `${diffMin} мин назад`;
+
+    if (todayEntry.status === 'partial') {
+      const methodNames = (todayEntry.methodsUsed || []).map((m: any) => m.method.toUpperCase()).join(', ');
+      return {
+        color: Colors.warning,
+        label: `${t('checkIn.statusPartial', 'частично')}${methodNames ? ` (${methodNames})` : ''}`,
+      };
     }
-    if (diffHr < 24) {
-      return t('sellers.hrsAgo', { count: diffHr }) || `${diffHr} ч назад`;
+
+    if (todayEntry.status === 'confirmed') {
+      if (todayEntry.ownerOverride) {
+        return { color: Colors.info, label: t('checkIn.statusOverrideBadge', 'подтверждено владельцем') };
+      }
+      const firstMethod = todayEntry.methodsUsed?.[0];
+      const timeStr = firstMethod ? new Date(firstMethod.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+      const methodStr = firstMethod ? firstMethod.method.toUpperCase() : '';
+      return { color: Colors.primary, label: `${timeStr}${methodStr ? ` · ${methodStr}` : ''}` };
     }
-    return t('sellers.daysAgo', { count: diffDays }) || `${diffDays} дн назад`;
+
+    return null;
   };
 
   if (loading && !refreshing) {
@@ -296,191 +305,144 @@ export default function SellersScreen() {
         {members.filter(m => m.isActive).map((member) => {
           const memberStats = stats.find(s => s._id === member.userId);
           const online = isOnline(member.lastActiveAt);
+          const checkInInfo = getCheckInInfo(member);
+          const onlineLabel = online
+            ? (t('sellers.online') || 'онлайн')
+            : t('sellers.lastActive', { time: new Date(member.lastActiveAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) });
 
           return (
             <View key={member.userId} style={[styles.memberCard, themeStyles.card]}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
-                  onPress={() => {
-                    (navigation as any).navigate('Main', {
-                      screen: 'ReportsDrawer',
-                      params: { sellerId: member.userId, sellerName: member.displayName },
-                    });
-                  }}
-                >
-                  <View style={styles.avatarWrap}>
-                    <View style={[styles.avatar, { backgroundColor: Colors.primaryLight }]}>
-                      <Ionicons name="person" size={24} color={Colors.primary} />
-                    </View>
-                    <View style={[styles.statusDot, online ? { backgroundColor: Colors.primary } : themeStyles.statusOffline]} />
-                  </View>
-                  <View style={styles.nameWrap}>
-                    <View style={styles.nameLine}>
-                      <Text style={[styles.memberName, themeStyles.text]} numberOfLines={1}>
-                        {member.displayName}
-                      </Text>
-                      {member.role === 'owner' && (
-                        <View style={styles.ownerBadge}>
-                          <Text style={styles.ownerBadgeText}>{t('common.owner') || 'Владелец'}</Text>
+              <View style={styles.memberCardInner}>
+                <View style={[styles.statusAccent, { backgroundColor: checkInInfo ? checkInInfo.color : 'transparent' }]} />
+                <View style={styles.memberCardContent}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
+                      onPress={() => {
+                        (navigation as any).navigate('Main', {
+                          screen: 'ReportsDrawer',
+                          params: { sellerId: member.userId, sellerName: member.displayName },
+                        });
+                      }}
+                    >
+                      <View style={styles.avatarWrap}>
+                        <View style={[styles.avatar, { backgroundColor: Colors.primaryLight }]}>
+                          <Ionicons name="person" size={22} color={Colors.primary} />
                         </View>
-                      )}
-                      {member.isSelf && (
-                        <Text style={styles.youLabel}>{t('sellers.youLabel') || 'Вы'}</Text>
-                      )}
-                    </View>
-                    <Text style={[styles.memberSub, themeStyles.memberSub]}>
-                      {memberStats?.salesCount || 0} {t('home.salesCount').toLowerCase()} • {online ? (t('sellers.online') || 'онлайн') : t('sellers.lastActive', { time: new Date(member.lastActiveAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) })}
-                    </Text>
-                    <Text style={[styles.memberSub, themeStyles.memberSub, { marginTop: 2, fontSize: 11 }]}>
-                      {t('products.lastUpdate')}: {formatRelativeTime(member.lastSyncAt)}
-                    </Text>
-
-                    {/* Today Presence Check-in Badge — owner is exempt from check-in, seller-only */}
-                    {checkInStatus.enabled && member.role !== 'owner' && (() => {
-                      const todayStr = todayLocalDate();
-                      const userRecord = checkInHistory.find((h: any) => h.userId === member.userId);
-                      const todayEntry = userRecord?.days?.find((d: any) => d.localDate === todayStr);
-
-                      if (!todayEntry || todayEntry.status === 'missing') {
-                        return (
-                          <TouchableOpacity
-                            style={styles.badgeBtn}
-                            onPress={() => (navigation as any).navigate('CheckInHistory', { userId: member.userId, sellerName: member.displayName })}
-                          >
-                            <View style={[styles.inlineBadge, { backgroundColor: '#EF5350' }]}>
-                              <Text style={styles.badgeText}>❌ {t('checkIn.statusMissingLabel', 'не отмечен')}</Text>
+                        <View style={[styles.statusDot, online ? { backgroundColor: Colors.primary } : themeStyles.statusOffline]} />
+                      </View>
+                      <View style={styles.nameWrap}>
+                        <View style={styles.nameLine}>
+                          <Text style={[styles.memberName, themeStyles.text]} numberOfLines={1}>
+                            {member.displayName}
+                          </Text>
+                          {member.role === 'owner' && (
+                            <View style={styles.ownerBadge}>
+                              <Text style={styles.ownerBadgeText}>{t('common.owner') || 'Владелец'}</Text>
                             </View>
-                          </TouchableOpacity>
-                        );
-                      }
-
-                      if (todayEntry.status === 'partial') {
-                        const methodNames = (todayEntry.methodsUsed || []).map((m: any) => m.method.toUpperCase()).join(', ');
-                        return (
-                          <TouchableOpacity
-                            style={styles.badgeBtn}
-                            onPress={() => (navigation as any).navigate('CheckInHistory', { userId: member.userId, sellerName: member.displayName })}
-                          >
-                            <View style={[styles.inlineBadge, { backgroundColor: '#FFA726' }]}>
-                              <Text style={styles.badgeText}>
-                                ⚠️ {t('checkIn.statusPartial', 'частично')}{methodNames ? ` (${methodNames})` : ''}
-                              </Text>
-                            </View>
-                          </TouchableOpacity>
-                        );
-                      }
-
-                      if (todayEntry.status === 'confirmed') {
-                        if (todayEntry.ownerOverride) {
-                          return (
+                          )}
+                          {member.isSelf && (
+                            <Text style={styles.youLabel}>{t('sellers.youLabel') || 'Вы'}</Text>
+                          )}
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          {checkInInfo && (
                             <TouchableOpacity
-                              style={styles.badgeBtn}
                               onPress={() => (navigation as any).navigate('CheckInHistory', { userId: member.userId, sellerName: member.displayName })}
                             >
-                              <View style={[styles.inlineBadge, { backgroundColor: '#42A5F5', opacity: 0.85 }]}>
-                                <Text style={styles.badgeText}>🛡️ {t('checkIn.statusOverrideBadge', 'подтверждено владельцем')}</Text>
-                              </View>
+                              <Text style={[styles.checkInLabel, { color: checkInInfo.color }]} numberOfLines={1}>
+                                {checkInInfo.label}
+                              </Text>
                             </TouchableOpacity>
-                          );
-                        }
-
-                        const firstMethod = todayEntry.methodsUsed?.[0];
-                        const timeStr = firstMethod ? new Date(firstMethod.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-                        const methodStr = firstMethod ? firstMethod.method.toUpperCase() : '';
-                        return (
-                          <TouchableOpacity
-                            style={styles.badgeBtn}
-                            onPress={() => (navigation as any).navigate('CheckInHistory', { userId: member.userId, sellerName: member.displayName })}
-                          >
-                            <View style={[styles.inlineBadge, { backgroundColor: '#1D9E75' }]}>
-                              <Text style={styles.badgeText}>✅ {timeStr} · {methodStr}</Text>
-                            </View>
-                          </TouchableOpacity>
-                        );
-                      }
-
-                      return null;
-                    })()}
-                  </View>
-                </TouchableOpacity>
-
-                <View style={styles.revenueWrap}>
-                  <Text style={[styles.revenue, themeStyles.text]}>
-                    {(memberStats?.revenue || 0).toLocaleString()} {currency.symbol}
-                  </Text>
-                  {!member.isSelf && (
-                    <TouchableOpacity onPress={() => handleMemberActions(member)} style={{ padding: 5 }}>
-                      <Ionicons name="ellipsis-vertical" size={20} color={isDark ? '#AAA' : '#666'} />
+                          )}
+                          <Text style={[styles.memberSub, themeStyles.memberSub]} numberOfLines={1}>
+                            {checkInInfo ? ' · ' : ''}{onlineLabel}
+                          </Text>
+                        </View>
+                      </View>
                     </TouchableOpacity>
+
+                    <View style={styles.revenueWrap}>
+                      <Text style={[styles.revenueHero, themeStyles.text]} numberOfLines={1}>
+                        {(memberStats?.revenue || 0).toLocaleString()} {currency.symbol}
+                      </Text>
+                      <Text style={[styles.revenueSub, themeStyles.memberSub]}>
+                        {memberStats?.salesCount || 0} {t('home.salesCount').toLowerCase()}
+                      </Text>
+                    </View>
+                    {!member.isSelf && (
+                      <TouchableOpacity onPress={() => handleMemberActions(member)} style={{ padding: 5, marginLeft: 2 }}>
+                        <Ionicons name="ellipsis-vertical" size={20} color={isDark ? '#AAA' : '#666'} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  {isOwner && member.role === 'seller' && (
+                    <View style={[styles.permissionsRow, { borderTopColor: isDark ? '#333' : '#EEE' }]}>
+                      <TouchableOpacity
+                        style={[
+                          styles.permissionChip,
+                          member.permissions?.includes('manage_debtors')
+                            ? styles.permissionChipActive
+                            : themeStyles.periodBtn
+                        ]}
+                        onPress={async () => {
+                          const current = member.permissions || [];
+                          const nextList = current.includes('manage_debtors')
+                            ? current.filter(p => p !== 'manage_debtors')
+                            : [...current, 'manage_debtors'];
+                          try {
+                            await api.patch(`/shop/members/${member.userId}/permissions`, { permissions: nextList });
+                            loadData();
+                          } catch (e: any) {
+                            Alert.alert(t('common.error'), e.message);
+                          }
+                        }}
+                      >
+                        <Text style={[
+                          styles.permissionChipText,
+                          member.permissions?.includes('manage_debtors')
+                            ? styles.permissionChipTextActive
+                            : themeStyles.periodText
+                        ]}>
+                          Управление долгами
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.permissionChip,
+                          member.permissions?.includes('manage_team')
+                            ? styles.permissionChipActive
+                            : themeStyles.periodBtn
+                        ]}
+                        onPress={async () => {
+                          const current = member.permissions || [];
+                          const nextList = current.includes('manage_team')
+                            ? current.filter(p => p !== 'manage_team')
+                            : [...current, 'manage_team'];
+                          try {
+                            await api.patch(`/shop/members/${member.userId}/permissions`, { permissions: nextList });
+                            loadData();
+                          } catch (e: any) {
+                            Alert.alert(t('common.error'), e.message);
+                          }
+                        }}
+                      >
+                        <Text style={[
+                          styles.permissionChipText,
+                          member.permissions?.includes('manage_team')
+                            ? styles.permissionChipTextActive
+                            : themeStyles.periodText
+                        ]}>
+                          Управление командой
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
                   )}
                 </View>
               </View>
-
-              {isOwner && member.role === 'seller' && (
-                <View style={[styles.permissionsRow, { borderTopColor: isDark ? '#333' : '#EEE' }]}>
-                  <TouchableOpacity
-                    style={[
-                      styles.permissionChip,
-                      member.permissions?.includes('manage_debtors')
-                        ? styles.permissionChipActive
-                        : themeStyles.periodBtn
-                    ]}
-                    onPress={async () => {
-                      const current = member.permissions || [];
-                      const nextList = current.includes('manage_debtors')
-                        ? current.filter(p => p !== 'manage_debtors')
-                        : [...current, 'manage_debtors'];
-                      try {
-                        await api.patch(`/shop/members/${member.userId}/permissions`, { permissions: nextList });
-                        loadData();
-                      } catch (e: any) {
-                        Alert.alert(t('common.error'), e.message);
-                      }
-                    }}
-                  >
-                    <Text style={[
-                      styles.permissionChipText,
-                      member.permissions?.includes('manage_debtors')
-                        ? styles.permissionChipTextActive
-                        : themeStyles.periodText
-                    ]}>
-                      Управление долгами
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.permissionChip,
-                      member.permissions?.includes('manage_team')
-                        ? styles.permissionChipActive
-                        : themeStyles.periodBtn
-                    ]}
-                    onPress={async () => {
-                      const current = member.permissions || [];
-                      const nextList = current.includes('manage_team')
-                        ? current.filter(p => p !== 'manage_team')
-                        : [...current, 'manage_team'];
-                      try {
-                        await api.patch(`/shop/members/${member.userId}/permissions`, { permissions: nextList });
-                        loadData();
-                      } catch (e: any) {
-                        Alert.alert(t('common.error'), e.message);
-                      }
-                    }}
-                  >
-                    <Text style={[
-                      styles.permissionChipText,
-                      member.permissions?.includes('manage_team')
-                        ? styles.permissionChipTextActive
-                        : themeStyles.periodText
-                    ]}>
-                      Управление командой
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              )}
             </View>
           );
         })}
@@ -593,9 +555,6 @@ const darkStyles = StyleSheet.create({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   centered: { justifyContent: 'center', alignItems: 'center' },
-  badgeBtn: { alignSelf: 'flex-start', marginTop: 6 },
-  inlineBadge: { paddingVertical: 4, paddingHorizontal: 8, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  badgeText: { color: '#FFF', fontSize: 11, fontWeight: 'bold' },
   header: { padding: 20 },
   title: { fontSize: 24, fontWeight: 'bold', marginBottom: 15 },
   errorText: { fontSize: 16, marginTop: 15, marginBottom: 20, textAlign: 'center', opacity: 0.7 },
@@ -607,7 +566,11 @@ const styles = StyleSheet.create({
   periodText: { fontSize: 13 },
   periodTextActive: { color: '#FFF', fontWeight: '600' },
   list: { paddingHorizontal: 20, gap: 12 },
-  memberCard: { padding: 16, borderRadius: 16, ...Shadow.sm },
+  memberCard: { borderRadius: 16, ...Shadow.sm },
+  memberCardInner: { flexDirection: 'row', borderRadius: 16, overflow: 'hidden' },
+  memberCardContent: { flex: 1, padding: 16 },
+  statusAccent: { width: 4 },
+  checkInLabel: { fontSize: 12, fontWeight: '600' },
   memberInfo: { flexDirection: 'row', alignItems: 'center' },
   avatarWrap: { position: 'relative', marginRight: 15 },
   avatar: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center' },
@@ -620,7 +583,8 @@ const styles = StyleSheet.create({
   memberName: { fontSize: 16, fontWeight: '600' },
   memberSub: { fontSize: 12, marginTop: 2 },
   revenueWrap: { alignItems: 'flex-end' },
-  revenue: { fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
+  revenueHero: { fontSize: 19, fontWeight: '700' },
+  revenueSub: { fontSize: 11, marginTop: 2 },
   inviteCard: { margin: 20, padding: 20, borderRadius: 16, ...Shadow.md, borderStyle: 'dashed', borderWidth: 1, borderColor: Colors.primary },
   inviteTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 8 },
   inviteDesc: { fontSize: 13, color: '#888', lineHeight: 18, marginBottom: 20 },
