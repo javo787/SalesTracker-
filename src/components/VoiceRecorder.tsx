@@ -211,8 +211,15 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
   const warningTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const secondsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
-  /** Флаг: пользователь отпустил кнопку пока ещё шла фаза prepareToRecord */
-  const stopRequestedRef = useRef(false);
+  /** Флаг: recorder.record() ещё не резолвнулся — идёт асинхронная инициализация.
+   *  Пока true, release/cancel/lock нельзя обрабатывать напрямую (recorder не готов). */
+  const isStartingRef = useRef(false);
+  /** Действие, которое пользователь запросил (send/discard/lock), пока recorder
+   *  ещё инициализировался — применяется сразу как только recorder.record() резолвится.
+   *  Раньше был stopRequestedRef, который проверялся, но нигде не устанавливался в true —
+   *  из-за этого release/lock во время инициализации молча терялся, а запись
+   *  продолжала идти в фоне без какой-либо возможности её остановить. */
+  const pendingActionRef = useRef<null | 'send' | 'discard' | 'lock'>(null);
   /** Метка времени старта записи для проверки MIN_DURATION_MS */
   const startTimeRef = useRef<number | null>(null);
   /** Флаг: компонент размонтирован — не обновляем state */
@@ -224,7 +231,9 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
   const widthVal = useSharedValue(48);
   const slideProgress = useSharedValue(0);
   const lockProgress = useSharedValue(0);
-  const isTransitioning = useSharedValue(false);
+  /** Гарантирует, что release-действие (send/discard/lock) обработается РОВНО один раз
+   *  за жест, даже если и onEnd, и onFinalize успеют сработать. */
+  const hasHandledReleaseValue = useSharedValue(false);
   const hasTriggeredCancelHaptic = useSharedValue(false);
   const hasTriggeredLockHaptic = useSharedValue(false);
   const wave1 = useSharedValue(0.2);
@@ -453,7 +462,8 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
     setRecState('recording');
     widthVal.value = withTiming(containerWidthRef.current || 280, { duration: 250 });
 
-    stopRequestedRef.current = false;
+    isStartingRef.current = true;
+    pendingActionRef.current = null;
     hasTriggeredCancelHaptic.value = false;
     hasTriggeredLockHaptic.value = false;
     slideProgress.value = 0;
@@ -470,6 +480,8 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
       const perm = await AudioModule.requestRecordingPermissionsAsync();
       if (perm.status !== 'granted') {
         Alert.alert('Нет доступа к микрофону', 'Разрешите доступ в настройках телефона.');
+        isStartingRef.current = false;
+        pendingActionRef.current = null;
         if (!unmountedRef.current) setRecState('idle');
         widthVal.value = withTiming(48, { duration: 200 });
         return;
@@ -483,16 +495,25 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
       await recorder.record();
 
       startTimeRef.current = Date.now();
+      isStartingRef.current = false;
 
-      // Пользователь успел отпустить кнопку пока мы инициализировались
-      if (stopRequestedRef.current) {
-        stopRequestedRef.current = false;
-        stopRecordingInternal(false);
+      // Пользователь успел отпустить/свайпнуть кнопку, пока recorder ещё готовился —
+      // применяем отложенное действие ПРЯМО СЕЙЧАС, вместо того чтобы дать
+      // записи повиснуть в фоне без возможности её остановить.
+      const pending = pendingActionRef.current;
+      pendingActionRef.current = null;
+
+      if (pending === 'send' || pending === 'discard') {
+        stopRecordingInternal(pending === 'discard');
         return;
       }
 
       startWaveformAnimations();
       triggerHaptic('impactMedium');
+
+      if (pending === 'lock' && !unmountedRef.current) {
+        setRecState('locked');
+      }
 
       setTimerText('00:00');
       const start = Date.now();
@@ -517,6 +538,8 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
       }, WARNING_MS);
     } catch (err) {
       console.error('[VoiceRecorder] startRecording error:', err);
+      isStartingRef.current = false;
+      pendingActionRef.current = null;
       if (!unmountedRef.current) setRecState('idle');
       widthVal.value = withTiming(48, { duration: 200 });
       Alert.alert('Ошибка', 'Не удалось начать запись. Попробуйте ещё раз.');
@@ -524,16 +547,72 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
   };
 
   // ── Gesture (press, slide-to-cancel, slide-up-to-lock, release-to-send) ──
-  // Работает через react-native-gesture-handler вместо TouchableOpacity —
-  // это устраняет старый баг, когда onPressOut терял событие внутри ScrollView
-  // (родительский скролл перехватывал responder при малейшем дрожании пальца),
-  // и запись зависала без отправки.
-  const panGesture = Gesture.Pan()
-    .onBegin(() => {
-      if (isTransitioning.value) return;
-      isTransitioning.value = true;
+  //
+  // ПОЧЕМУ LongPress, А НЕ ОДИН Pan (как было раньше):
+  // Pan-жест активируется (переходит в ACTIVE) только после смещения пальца
+  // минимум на minDistance (~10px), и onEnd вызывается ТОЛЬКО для перехода
+  // из ACTIVE — то есть только если было движение. Основной сценарий этой
+  // кнопки — держать палец НЕПОДВИЖНО и говорить. При таком нажатии Pan мог
+  // вообще не дойти до ACTIVE, и тогда onEnd не срабатывал ни разу: запись
+  // стартовала (onBegin) и продолжала идти в фоне без отправки, пока не
+  // срабатывал 60-секундный автостоп. Это и есть баг "при отпускании
+  // продолжает записывать".
+  //
+  // LongPress активируется по ВРЕМЕНИ удержания (minDuration), а не по
+  // расстоянию, поэтому надёжно ловит и onEnd, и (гарантированно, при любом
+  // исходе — успех/обрыв/отмена системой) onFinalize даже без единого пикселя
+  // движения. Pan работает ПАРАЛЛЕЛЬНО через Gesture.Simultaneous — он больше
+  // не решает, когда стартовать/стопать запись, а только поставляет
+  // translationX/Y для свайп-отмены и свайп-блокировки.
+  const handleRelease = useCallback(
+    (action: 'send' | 'discard' | 'lock') => {
+      if (isStartingRef.current) {
+        // recorder.record() ещё не резолвнулся — applyем действие, как только будет готов.
+        // Раньше в этой ситуации действие просто терялось (см. startRecording).
+        pendingActionRef.current = action;
+        return;
+      }
+      if (action === 'lock') {
+        if (!unmountedRef.current) setRecState('locked');
+        return;
+      }
+      stopRecordingInternal(action === 'discard');
+    },
+    [stopRecordingInternal]
+  );
+
+  const longPressGesture = Gesture.LongPress()
+    .minDuration(0) // активируется сразу на касание — как раньше onBegin
+    .maxDistance(100_000) // не даём жесту «провалиться» из-за свайпа отмены/блокировки
+    .onStart(() => {
+      hasHandledReleaseValue.value = false;
       runOnJS(startRecording)();
     })
+    .onFinalize(() => {
+      // onFinalize — ЕДИНСТВЕННЫЙ колбэк, который гарантированно вызывается
+      // при любом завершении жеста (успешное отпускание, обрыв, системная
+      // отмена). Именно поэтому решение send/discard/lock принимается здесь,
+      // а не в onEnd — так исключается сценарий, где запись зависает без
+      // единого способа её остановить.
+      if (hasHandledReleaseValue.value) return;
+      hasHandledReleaseValue.value = true;
+
+      // Липкая отмена/блокировка: если порог был пройден хоть раз — считается,
+      // даже если палец вернули обратно перед отпусканием.
+      const shouldCancel = slideProgress.value >= CANCEL_THRESHOLD || hasTriggeredCancelHaptic.value;
+      const shouldLock = lockProgress.value <= LOCK_THRESHOLD || hasTriggeredLockHaptic.value;
+
+      if (shouldCancel) {
+        runOnJS(handleRelease)('discard');
+      } else if (shouldLock) {
+        runOnJS(handleRelease)('lock');
+      } else {
+        runOnJS(handleRelease)('send');
+      }
+    });
+
+  const panGesture = Gesture.Pan()
+    .minDistance(1)
     .onUpdate((event) => {
       slideProgress.value = event.translationX;
       lockProgress.value = event.translationY;
@@ -549,26 +628,16 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
         hasTriggeredLockHaptic.value = true;
         runOnJS(triggerHaptic)('impactLight');
       }
-    })
-    .onEnd((event) => {
-      isTransitioning.value = false;
-
-      // Липкая отмена/блокировка: если порог был пройден хоть раз — считается,
-      // даже если палец вернули обратно перед отпусканием.
-      const shouldCancel = event.translationX >= CANCEL_THRESHOLD || hasTriggeredCancelHaptic.value;
-      const shouldLock = event.translationY <= LOCK_THRESHOLD || hasTriggeredLockHaptic.value;
-
-      if (shouldCancel) {
-        runOnJS(stopRecordingInternal)(true);
-      } else if (shouldLock) {
-        runOnJS(setRecState)('locked');
-      } else {
-        // Обычное отпускание без свайпов — ВСЕГДА останавливаем и отправляем
-        runOnJS(stopRecordingInternal)(false);
-      }
     });
 
+  // LongPress и Pan трекают ОДНО и то же касание одновременно — Pan никогда
+  // не "проваливается"/не отменяет LongPress, даже если сам не активировался.
+  const composedGesture = Gesture.Simultaneous(longPressGesture, panGesture);
+
   // ── Locked-state action buttons ───────────────
+  // К моменту, когда рендерятся эти кнопки, recState уже 'locked', а значит
+  // isStartingRef.current гарантированно false (см. handleRelease/startRecording) —
+  // recorder точно готов, вызывать stopRecordingInternal напрямую безопасно.
   const handleLockTrash = () => stopRecordingInternal(true);
   const handleLockSend = () => stopRecordingInternal(false);
 
@@ -761,7 +830,7 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
 
         <View style={styles.capsuleArea}>
           {recState === 'idle' ? (
-            <GestureDetector gesture={panGesture}>
+            <GestureDetector gesture={composedGesture}>
               <Animated.View style={[styles.capsule, styles.idleCapsule, capsuleAnimatedStyle]}>
                 <Ionicons name="mic" size={22} color="#fff" />
                 <View style={[styles.langBadge, isDark ? styles.langBadgeDark : styles.langBadgeLight]}>
@@ -772,7 +841,7 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
               </Animated.View>
             </GestureDetector>
           ) : recState === 'recording' ? (
-            <GestureDetector gesture={panGesture}>
+            <GestureDetector gesture={composedGesture}>
               <Animated.View style={[styles.capsule, styles.recordingCapsule, capsuleAnimatedStyle, { backgroundColor: activeBg }]}>
                 <View style={styles.recordingRow}>
                   <Ionicons name="mic" size={18} color="#fff" />
