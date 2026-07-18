@@ -18,6 +18,7 @@ import Animated, {
   withTiming,
   withRepeat,
   withSequence,
+  withDelay,
   runOnJS,
   interpolateColor,
 } from 'react-native-reanimated';
@@ -243,6 +244,9 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
   const wave5 = useSharedValue(0.2);
   const sendIconOpacity = useSharedValue(0);
   const sendIconScale = useSharedValue(0.6);
+  const sendIconTranslateX = useSharedValue(0);
+  const sendIconTranslateY = useSharedValue(0);
+  const sendIconRotate = useSharedValue(0);
 
   // ── Layout measurement ────────────────────────
   const handleLayout = useCallback((e: LayoutChangeEvent) => {
@@ -436,22 +440,50 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
         return;
       }
 
-      // Короткая анимация mic → checkmark перед отправкой (WhatsApp/Telegram-style)
+      // Анимация mic → paper-plane перед отправкой (Telegram-style):
+      // фаза 1 — появление (pop), фаза 2 — «улёт» по диагонали с поворотом.
+      // Всё на UI-потоке через Reanimated (withTiming/withSequence/withDelay) —
+      // не JS-таймеры, поэтому не нагружает JS-поток и не тормозит UI.
       if (!unmountedRef.current) setRecState('sending');
       triggerHaptic('impactLight');
       sendIconOpacity.value = 0;
       sendIconScale.value = 0.6;
-      sendIconOpacity.value = withTiming(1, { duration: 120 });
+      sendIconTranslateX.value = 0;
+      sendIconTranslateY.value = 0;
+      sendIconRotate.value = 0;
+
+      sendIconOpacity.value = withSequence(
+        withTiming(1, { duration: 120 }), // pop-in
+        withTiming(1, { duration: 100 }), // задержка перед улётом
+        withTiming(0, { duration: 180 }) // fade во время улёта
+      );
       sendIconScale.value = withSequence(
         withTiming(1.15, { duration: 130 }),
-        withTiming(1, { duration: 100 })
+        withTiming(1, { duration: 100 }),
+        withTiming(0.82, { duration: 180 })
       );
-      await new Promise((resolve) => setTimeout(resolve, 240));
+      sendIconTranslateX.value = withDelay(230, withTiming(16, { duration: 180 }));
+      sendIconTranslateY.value = withDelay(230, withTiming(-14, { duration: 180 }));
+      sendIconRotate.value = withDelay(230, withTiming(18, { duration: 180 }));
+
+      await new Promise((resolve) => setTimeout(resolve, 410));
       if (unmountedRef.current) return;
 
       await transcribeAudio(uri);
     },
-    [recorder, clearTimers, stopAnimations, transcribeAudio, widthVal, triggerHaptic, sendIconOpacity, sendIconScale]
+    [
+      recorder,
+      clearTimers,
+      stopAnimations,
+      transcribeAudio,
+      widthVal,
+      triggerHaptic,
+      sendIconOpacity,
+      sendIconScale,
+      sendIconTranslateX,
+      sendIconTranslateY,
+      sendIconRotate,
+    ]
   );
 
   // ── Start recording ──────────────────────────
@@ -770,7 +802,12 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
 
   const sendIconStyle = useAnimatedStyle(() => ({
     opacity: sendIconOpacity.value,
-    transform: [{ scale: sendIconScale.value }],
+    transform: [
+      { translateX: sendIconTranslateX.value },
+      { translateY: sendIconTranslateY.value },
+      { scale: sendIconScale.value },
+      { rotate: `${sendIconRotate.value}deg` },
+    ],
   }));
 
   const activeBg = recState === 'recording' ? '#FF3B30' : Colors.primary;
@@ -886,14 +923,14 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
                 </View>
 
                 <TouchableOpacity style={styles.lockActionButton} onPress={handleLockSend}>
-                  <Ionicons name="checkmark-circle" size={26} color="#fff" />
+                  <Ionicons name="send" size={22} color="#fff" />
                 </TouchableOpacity>
               </View>
             </Animated.View>
           ) : recState === 'sending' ? (
             <Animated.View style={[styles.capsule, styles.idleCapsule, capsuleAnimatedStyle]}>
               <Animated.View style={sendIconStyle}>
-                <Ionicons name="checkmark-circle" size={24} color="#fff" />
+                <Ionicons name="send" size={22} color="#fff" />
               </Animated.View>
             </Animated.View>
           ) : (

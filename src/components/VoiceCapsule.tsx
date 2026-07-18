@@ -16,6 +16,7 @@ import Animated, {
   withTiming,
   withRepeat,
   withSequence,
+  withDelay,
   runOnJS,
   interpolateColor,
 } from 'react-native-reanimated';
@@ -174,7 +175,13 @@ export default function VoiceCapsule({
   const unmountedRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const startTimeRef = useRef<number | null>(null);
-  const stopRequestedRef = useRef(false);
+  /** Флаг: recorder.record() ещё не резолвнулся — идёт асинхронная инициализация. */
+  const isStartingRef = useRef(false);
+  /** Действие (send/discard/lock), запрошенное пока recorder ещё готовился —
+   *  применяется сразу как только recorder.record() резолвится (см. startRecording).
+   *  Раньше был stopRequestedRef, который проверялся, но нигде не устанавливался
+   *  в true — из-за этого release/lock во время инициализации молча терялся. */
+  const pendingActionRef = useRef<null | 'send' | 'discard' | 'lock'>(null);
   const durationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const warningTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const secondsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -183,11 +190,16 @@ export default function VoiceCapsule({
   const widthVal = useSharedValue(48);
   const slideProgress = useSharedValue(0);
   const lockProgress = useSharedValue(0);
-  const isTransitioning = useSharedValue(false);
+  /** Гарантирует, что release-действие обработается ровно один раз за жест
+   *  (даже если и onEnd, и onFinalize успеют сработать). */
+  const hasHandledReleaseValue = useSharedValue(false);
 
-  // "Send" swap icon animation (mic -> checkmark, WhatsApp/Telegram-style)
+  // "Send" swap icon animation (mic -> paper-plane, Telegram-style)
   const sendIconOpacity = useSharedValue(0);
   const sendIconScale = useSharedValue(0.6);
+  const sendIconTranslateX = useSharedValue(0);
+  const sendIconTranslateY = useSharedValue(0);
+  const sendIconRotate = useSharedValue(0);
 
   // Waveform heights (0 to 1)
   const wave1 = useSharedValue(0.2);
@@ -448,23 +460,50 @@ export default function VoiceCapsule({
       return;
     }
 
-    // Brief "mic -> checkmark" send animation before collapsing into the
-    // processing spinner, so sending doesn't feel like an abrupt cut.
+    // Анимация mic → paper-plane перед отправкой (Telegram-style): pop-in,
+    // затем короткий «улёт» по диагонали с поворотом. Всё на UI-потоке через
+    // Reanimated — не нагружает JS-поток.
     setCapsuleState('sending');
     triggerHaptic('impactLight');
     widthVal.value = withTiming(100, { duration: 220 });
     sendIconOpacity.value = 0;
     sendIconScale.value = 0.6;
-    sendIconOpacity.value = withTiming(1, { duration: 120 });
+    sendIconTranslateX.value = 0;
+    sendIconTranslateY.value = 0;
+    sendIconRotate.value = 0;
+
+    sendIconOpacity.value = withSequence(
+      withTiming(1, { duration: 120 }), // pop-in
+      withTiming(1, { duration: 100 }), // задержка перед улётом
+      withTiming(0, { duration: 180 }) // fade во время улёта
+    );
     sendIconScale.value = withSequence(
       withTiming(1.15, { duration: 130 }),
-      withTiming(1, { duration: 100 })
+      withTiming(1, { duration: 100 }),
+      withTiming(0.82, { duration: 180 })
     );
-    await new Promise((resolve) => setTimeout(resolve, 240));
+    sendIconTranslateX.value = withDelay(230, withTiming(16, { duration: 180 }));
+    sendIconTranslateY.value = withDelay(230, withTiming(-14, { duration: 180 }));
+    sendIconRotate.value = withDelay(230, withTiming(18, { duration: 180 }));
+
+    await new Promise((resolve) => setTimeout(resolve, 410));
     if (unmountedRef.current) return;
 
     await transcribeAudio(uri);
-  }, [recorder, clearTimers, stopAnimations, transcribeAudio, setCapsuleState, widthVal, triggerHaptic, sendIconOpacity, sendIconScale]);
+  }, [
+    recorder,
+    clearTimers,
+    stopAnimations,
+    transcribeAudio,
+    setCapsuleState,
+    widthVal,
+    triggerHaptic,
+    sendIconOpacity,
+    sendIconScale,
+    sendIconTranslateX,
+    sendIconTranslateY,
+    sendIconRotate,
+  ]);
 
   // Start Recording
   const startRecording = async () => {
@@ -474,7 +513,8 @@ export default function VoiceCapsule({
     setCapsuleState('recording');
     widthVal.value = withTiming(rowWidth || 350, { duration: 250 });
 
-    stopRequestedRef.current = false;
+    isStartingRef.current = true;
+    pendingActionRef.current = null;
     hasTriggeredCancelHaptic.value = false;
     hasTriggeredLockHaptic.value = false;
 
@@ -487,6 +527,8 @@ export default function VoiceCapsule({
       const perm = await AudioModule.requestRecordingPermissionsAsync();
       if (perm.status !== 'granted') {
         Alert.alert('Нет доступа к микрофону', 'Разрешите доступ в настройках телефона.');
+        isStartingRef.current = false;
+        pendingActionRef.current = null;
         setCapsuleState('idle');
         widthVal.value = withTiming(48, { duration: 200 });
         return;
@@ -497,14 +539,22 @@ export default function VoiceCapsule({
       await recorder.record();
 
       startTimeRef.current = Date.now();
-      if (stopRequestedRef.current) {
-        stopRequestedRef.current = false;
-        stopRecordingInternal(false);
+      isStartingRef.current = false;
+
+      const pending = pendingActionRef.current;
+      pendingActionRef.current = null;
+
+      if (pending === 'send' || pending === 'discard') {
+        stopRecordingInternal(pending === 'discard');
         return;
       }
 
       startWaveformAnimations();
       triggerHaptic('impactMedium');
+
+      if (pending === 'lock') {
+        setCapsuleState('locked');
+      }
 
       // Seconds timer
       setTimerText('00:00');
@@ -531,6 +581,8 @@ export default function VoiceCapsule({
 
     } catch (err) {
       console.error('[VoiceCapsule] start recording error:', err);
+      isStartingRef.current = false;
+      pendingActionRef.current = null;
       setCapsuleState('idle');
       widthVal.value = withTiming(48, { duration: 200 });
       Alert.alert('Ошибка', 'Не удалось начать запись.');
@@ -560,12 +612,57 @@ export default function VoiceCapsule({
   }, [recorder, clearTimers, stopRecordingInternal]);
 
   // Gestures definition
-  const panGesture = Gesture.Pan()
-    .onBegin(() => {
-      if (isTransitioning.value) return;
-      isTransitioning.value = true;
+  //
+  // LongPress вместо одного Pan — Pan активируется (ACTIVE) только после
+  // смещения пальца ≥minDistance, а onEnd срабатывает только для этого
+  // перехода. Основной сценарий — держать палец неподвижно и говорить —
+  // часто не доводил жест до ACTIVE, и onEnd не срабатывал при отпускании:
+  // запись продолжала идти в фоне (баг "не останавливается при отпускании").
+  // LongPress активируется по ВРЕМЕНИ, поэтому onFinalize гарантированно
+  // срабатывает при любом исходе — успех, обрыв, системная отмена.
+  const handleRelease = useCallback(
+    (action: 'send' | 'discard' | 'lock') => {
+      if (isStartingRef.current) {
+        // recorder.record() ещё не резолвнулся — применим действие, как только будет готов
+        pendingActionRef.current = action;
+        return;
+      }
+      if (action === 'lock') {
+        setCapsuleState('locked');
+        return;
+      }
+      stopRecordingInternal(action === 'discard');
+    },
+    [stopRecordingInternal, setCapsuleState]
+  );
+
+  const longPressGesture = Gesture.LongPress()
+    .minDuration(0)
+    .maxDistance(100_000) // не даём жесту "провалиться" из-за свайпа отмены/блокировки
+    .onStart(() => {
+      hasHandledReleaseValue.value = false;
       runOnJS(startRecording)();
     })
+    .onFinalize(() => {
+      // Гарантированно срабатывает при любом завершении жеста — единая точка
+      // принятия решения send/discard/lock (см. комментарий выше).
+      if (hasHandledReleaseValue.value) return;
+      hasHandledReleaseValue.value = true;
+
+      const shouldCancel = slideProgress.value >= 80 || hasTriggeredCancelHaptic.value;
+      const shouldLock = lockProgress.value <= -60 || hasTriggeredLockHaptic.value;
+
+      if (shouldCancel) {
+        runOnJS(handleRelease)('discard');
+      } else if (shouldLock) {
+        runOnJS(handleRelease)('lock');
+      } else {
+        runOnJS(handleRelease)('send');
+      }
+    });
+
+  const panGesture = Gesture.Pan()
+    .minDistance(1)
     .onUpdate((event) => {
       slideProgress.value = event.translationX;
       lockProgress.value = event.translationY;
@@ -581,22 +678,11 @@ export default function VoiceCapsule({
         hasTriggeredLockHaptic.value = true;
         runOnJS(triggerHaptic)('impactLight');
       }
-    })
-    .onEnd((event) => {
-      isTransitioning.value = false;
-
-      // Intentional sticky cancel: once cancel line is crossed, cancellation is locked in even if dragged back.
-      const shouldCancel = event.translationX >= 80 || hasTriggeredCancelHaptic.value;
-      const shouldLock = event.translationY <= -60 || hasTriggeredLockHaptic.value;
-
-      if (shouldCancel) {
-        runOnJS(stopRecordingInternal)(true);
-      } else if (shouldLock) {
-        runOnJS(setCapsuleState)('locked');
-      } else {
-        runOnJS(stopRecordingInternal)(false);
-      }
     });
+
+  // Оба жеста трекают одно и то же касание одновременно — Pan никогда не
+  // "проваливает"/не отменяет LongPress, даже если сам не активировался.
+  const composedGesture = Gesture.Simultaneous(longPressGesture, panGesture);
 
   // Reanimated Styles
   const capsuleAnimatedStyle = useAnimatedStyle(() => {
@@ -665,7 +751,12 @@ export default function VoiceCapsule({
   // "Send" checkmark icon animated style
   const sendIconStyle = useAnimatedStyle(() => ({
     opacity: sendIconOpacity.value,
-    transform: [{ scale: sendIconScale.value }],
+    transform: [
+      { translateX: sendIconTranslateX.value },
+      { translateY: sendIconTranslateY.value },
+      { scale: sendIconScale.value },
+      { rotate: `${sendIconRotate.value}deg` },
+    ],
   }));
 
   // Render help colors
@@ -693,7 +784,7 @@ export default function VoiceCapsule({
       ) : null}
 
       {capsuleState === 'idle' ? (
-        <GestureDetector gesture={panGesture}>
+        <GestureDetector gesture={composedGesture}>
           <Animated.View style={[styles.capsule, styles.idleCapsule, capsuleAnimatedStyle]}>
             <Ionicons name="mic" size={24} color="#fff" />
 
@@ -706,7 +797,7 @@ export default function VoiceCapsule({
           </Animated.View>
         </GestureDetector>
       ) : capsuleState === 'recording' ? (
-        <GestureDetector gesture={panGesture}>
+        <GestureDetector gesture={composedGesture}>
           <Animated.View style={[styles.capsule, styles.recordingCapsule, capsuleAnimatedStyle, { backgroundColor: activeBg }]}>
             <View style={styles.recordingRow}>
               <Ionicons name="mic" size={20} color="#fff" />
@@ -755,14 +846,14 @@ export default function VoiceCapsule({
 
             {/* Send option */}
             <TouchableOpacity style={styles.lockActionButton} onPress={handleLockSend}>
-              <Ionicons name="checkmark-circle" size={26} color="#fff" />
+              <Ionicons name="send" size={22} color="#fff" />
             </TouchableOpacity>
           </View>
         </Animated.View>
       ) : capsuleState === 'sending' ? (
         <Animated.View style={[styles.capsule, styles.idleCapsule, capsuleAnimatedStyle]}>
           <Animated.View style={sendIconStyle}>
-            <Ionicons name="checkmark-circle" size={26} color="#fff" />
+            <Ionicons name="send" size={22} color="#fff" />
           </Animated.View>
         </Animated.View>
       ) : capsuleState === 'processing' ? (
