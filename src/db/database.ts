@@ -1711,7 +1711,7 @@ export function createProductAndResolvePendingSale(
 
     db.runSync(
       `UPDATE sales SET product_id = ?, buy_price = ?, profit = ?,
-       stock_updated = 1, is_pending_review = 0 WHERE id = ?`,
+       stock_updated = 1, is_pending_review = 0, synced = 0 WHERE id = ?`,
       [newProductId, bPrice, profit, saleId]
     );
   });
