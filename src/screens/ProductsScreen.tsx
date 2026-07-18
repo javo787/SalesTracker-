@@ -1044,7 +1044,9 @@ export default function ProductsScreen() {
                   <View style={styles.productLeft}>
                     <Text style={[styles.productName, themeStyles.text]}>{p.name}</Text>
                     <Text style={styles.productPrices}>
-                      {isOwner && `${t('addSale.buyPrice')}: ${p.buy_price} ${currency.symbol} · `}{t('addSale.sellPrice')}: {p.sell_price} {currency.symbol}
+                      {isOwner
+                        ? `${t('addSale.buyPrice')}: ${p.buy_price} ${currency.symbol}`
+                        : `${t('addSale.sellPrice')}: ${p.sell_price} ${currency.symbol}`}
                     </Text>
                   </View>
                   <View style={styles.productRight}>
@@ -1067,13 +1069,6 @@ export default function ProductsScreen() {
                         <Ionicons name="information-circle-outline" size={18} color={Colors.primary} />
                       </TouchableOpacity>
                     </View>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      {isOwner && (
-                        <Text style={styles.productProfit}>
-                          +{(p.sell_price - p.buy_price).toFixed(0)} {currency.symbol}
-                        </Text>
-                      )}
-                    </View>
                   </View>
                 </TouchableOpacity>
 
@@ -1089,18 +1084,29 @@ export default function ProductsScreen() {
                         <Text style={styles.statLabel}>{t('products.totalRevenue')}</Text>
                         <Text style={[styles.statValue, themeStyles.text]}>{stats?.total_revenue?.toFixed(0) || 0} {currency.symbol}</Text>
                       </View>
-                      {isOwner && (
-                        <View style={styles.statBox}>
-                          <Text style={styles.statLabel}>{t('products.totalProfit')}</Text>
-                          <Text style={[styles.statValue, { color: Colors.primary }]}>{stats?.total_profit?.toFixed(0) || 0} {currency.symbol}</Text>
-                        </View>
-                      )}
                     </View>
 
-                    <View style={[styles.infoRow, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 4 }]}>
-                      <Text style={styles.infoText}>
-                        {t('products.addedDate')}: {p.created_at ? new Date(p.created_at.replace(' ', 'T')).toLocaleDateString('ru-RU') : '—'}
-                      </Text>
+                    <Text style={[styles.infoText, { paddingHorizontal: 12, paddingTop: 8 }]}>
+                      {t('products.addedDate')}: {p.created_at ? new Date(p.created_at.replace(' ', 'T')).toLocaleDateString('ru-RU') : '—'}
+                      {isOwner && ` · ${t('addSale.sellPrice')}: ${p.sell_price} ${currency.symbol}`}
+                    </Text>
+
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, paddingTop: 8, paddingBottom: 12 }}>
+                      <TouchableOpacity
+                        onPress={() => {
+                          openAddVariantForm({
+                            article: p.article?.trim() || p.name?.trim() || '',
+                            displayName: p.name,
+                            variants: [p],
+                          });
+                        }}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderColor: Colors.primary, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}
+                      >
+                        <Ionicons name="add-circle-outline" size={14} color={Colors.primary} />
+                        <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: '600' }}>
+                          {t('products.addVariant')}
+                        </Text>
+                      </TouchableOpacity>
 
                       {(stats?.total_sold || 0) > 0 && (
                         <TouchableOpacity
@@ -1115,24 +1121,6 @@ export default function ProductsScreen() {
                           </Text>
                         </TouchableOpacity>
                       )}
-                    </View>
-
-                    <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 12, paddingBottom: 12 }}>
-                      <TouchableOpacity
-                        onPress={() => {
-                          openAddVariantForm({
-                            article: p.article?.trim() || p.name?.trim() || '',
-                            displayName: p.name,
-                            variants: [p],
-                          });
-                        }}
-                        style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
-                      >
-                        <Ionicons name="add-circle-outline" size={16} color={Colors.primary} />
-                        <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: '600' }}>
-                          {t('products.addVariant')}
-                        </Text>
-                      </TouchableOpacity>
                     </View>
 
                     <View style={styles.productActions}>
@@ -1212,8 +1200,12 @@ export default function ProductsScreen() {
                     <TouchableOpacity
                       onPress={() => openAddVariantForm(data)}
                       hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}
                     >
-                      <Ionicons name="add-circle-outline" size={22} color={Colors.primary} />
+                      <Ionicons name="add-circle-outline" size={16} color={Colors.primary} />
+                      <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: '600' }}>
+                        {t('products.addVariant')}
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -1246,11 +1238,6 @@ export default function ProductsScreen() {
                           ]}>
                             {v.stock}
                           </Text>
-                          {isOwner && (
-                            <Text style={[styles.productProfit, { fontSize: 12 }]}>
-                              +{(v.sell_price - v.buy_price).toFixed(0)} {currency.symbol}
-                            </Text>
-                          )}
                           <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={14} color="#aaa" />
                           <TouchableOpacity
                             onPress={(e) => {
@@ -1276,17 +1263,30 @@ export default function ProductsScreen() {
                               <Text style={styles.statLabel}>{t('products.totalRevenue')}</Text>
                               <Text style={[styles.statValue, themeStyles.text]}>{stats?.total_revenue?.toFixed(0) || 0} {currency.symbol}</Text>
                             </View>
-                            {isOwner && (
-                              <View style={styles.statBox}>
-                                <Text style={styles.statLabel}>{t('products.totalProfit')}</Text>
-                                <Text style={[styles.statValue, { color: Colors.primary }]}>{stats?.total_profit?.toFixed(0) || 0} {currency.symbol}</Text>
-                              </View>
-                            )}
                           </View>
-                          <View style={[styles.infoRow, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 4 }]}>
-                            <Text style={styles.infoText}>
-                              {t('products.addedDate')}: {v.created_at ? new Date(v.created_at.replace(' ', 'T')).toLocaleDateString('ru-RU') : '—'}
-                            </Text>
+
+                          <Text style={[styles.infoText, { paddingHorizontal: 12, paddingTop: 8 }]}>
+                            {t('products.addedDate')}: {v.created_at ? new Date(v.created_at.replace(' ', 'T')).toLocaleDateString('ru-RU') : '—'}
+                            {isOwner && ` · ${t('addSale.sellPrice')}: ${v.sell_price} ${currency.symbol}`}
+                          </Text>
+
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, paddingTop: 8, paddingBottom: 12 }}>
+                            <TouchableOpacity
+                              onPress={() => {
+                                openAddVariantForm({
+                                  article: v.article?.trim() || v.name?.trim() || '',
+                                  displayName: v.name,
+                                  variants: [v],
+                                });
+                              }}
+                              style={{ flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderColor: Colors.primary, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}
+                            >
+                              <Ionicons name="add-circle-outline" size={14} color={Colors.primary} />
+                              <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: '600' }}>
+                                {t('products.addVariant')}
+                              </Text>
+                            </TouchableOpacity>
+
                             {(stats?.total_sold || 0) > 0 && (
                               <TouchableOpacity
                                 onPress={() => {
@@ -1300,24 +1300,6 @@ export default function ProductsScreen() {
                                 </Text>
                               </TouchableOpacity>
                             )}
-                          </View>
-
-                          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 12, paddingBottom: 12 }}>
-                            <TouchableOpacity
-                              onPress={() => {
-                                openAddVariantForm({
-                                  article: v.article?.trim() || v.name?.trim() || '',
-                                  displayName: v.name,
-                                  variants: [v],
-                                });
-                              }}
-                              style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
-                            >
-                              <Ionicons name="add-circle-outline" size={16} color={Colors.primary} />
-                              <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: '600' }}>
-                                {t('products.addVariant')}
-                              </Text>
-                            </TouchableOpacity>
                           </View>
                           <View style={styles.productActions}>
                             <TouchableOpacity

@@ -370,6 +370,7 @@
     "article": "Artikul / Model",
     "color": "Rang / Xilma-xil",
     "addVariant": "+ Variant qo'shish",
+    "sameArticleGroupsVariants": "Bir xil artikul variantlarni bitta kartochkaga birlashtiradi",
     "variantsCount": "{{count}} rang"
   },
   "warehouse": {
