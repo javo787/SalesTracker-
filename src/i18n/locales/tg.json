@@ -375,6 +375,7 @@
     "article": "Артикул / Модел",
     "color": "Ранг / Навъ",
     "addVariant": "+ Навъи нав",
+    "sameArticleGroupsVariants": "Артикули якхела вариантҳоро дар як карточка муттаҳид мекунад",
     "variantsCount": "{{count}} навъ"
   },
   "warehouse": {

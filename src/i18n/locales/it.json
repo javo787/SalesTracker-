@@ -375,6 +375,7 @@
     "article": "Codice / Modello",
     "color": "Colore / Variante",
     "addVariant": "+ Aggiungi variante",
+    "sameArticleGroupsVariants": "Lo stesso codice raggruppa le varianti in un'unica scheda",
     "variantsCount": "{{count}} var."
   },
   "warehouse": {

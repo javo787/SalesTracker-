@@ -375,6 +375,7 @@
     "article": "Артикул / Модель",
     "color": "Цвет / Разновидность",
     "addVariant": "+ Добавить вариант",
+    "sameArticleGroupsVariants": "Одинаковый артикул объединяет варианты в одну карточку",
     "variantsCount": "{{count}} вар."
   },
   "warehouse": {

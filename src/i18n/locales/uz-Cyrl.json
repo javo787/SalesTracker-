@@ -375,6 +375,7 @@
     "article": "Артикул / Модел",
     "color": "Ранг / Хилма-хил",
     "addVariant": "+ Вариант қўшиш",
+    "sameArticleGroupsVariants": "Бир хил артикул вариантларни битта карточкага бирлаштиради",
     "variantsCount": "{{count}} ранг"
   },
   "warehouse": {

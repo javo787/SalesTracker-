@@ -23,6 +23,7 @@ import {
 } from '../db/database';
 import StockOperationModal from '../components/stock/StockOperationModal';
 import EditProductModal from '../components/products/EditProductModal';
+import AddVariantModal from '../components/products/AddVariantModal';
 
 const ProductDetailScreen = () => {
   const route = useRoute<any>();
@@ -44,6 +45,7 @@ const ProductDetailScreen = () => {
   const [stats, setStats] = useState<any>(null);
 
   const [editModalVisible, setEditModalVisible] = useState(false);
+  const [addVariantModalVisible, setAddVariantModalVisible] = useState(false);
 
   const [opModalVisible, setOpModalVisible] = useState(false);
   const [opType, setOpType] = useState<'stock_in' | 'waste' | 'correction'>('stock_in');
@@ -136,6 +138,14 @@ const ProductDetailScreen = () => {
     Alert.alert('Успешно', 'Товар обновлён');
   };
 
+  const handleVariantAdded = (created: any) => {
+    setAddVariantModalVisible(false);
+    Alert.alert(
+      '✅ Вариант добавлен',
+      created?.color ? `${created.name} · ${created.color}` : created?.name || ''
+    );
+  };
+
   const avgDailySales = useMemo(() => {
     // We need 30d stats. getProductSalesStats returns all-time.
     // Spec says: "compute avgDailySales = stats?.total_quantity_30d / 30 (use 30d stats)"
@@ -213,20 +223,10 @@ const ProductDetailScreen = () => {
               )}
             </View>
             {isOwner && (
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <TouchableOpacity
-                  onPress={() => navigation.navigate('Products', { openAddVariantFor: product })}
-                  style={[styles.editBtn, { paddingHorizontal: Spacing.sm }]}
-                  accessibilityLabel="Добавить вариант"
-                >
-                  <Ionicons name="add-circle-outline" size={20} color="#fff" />
-                </TouchableOpacity>
-
-                <TouchableOpacity onPress={() => setEditModalVisible(true)} style={styles.editBtn}>
-                  <Ionicons name="pencil" size={20} color="#fff" />
-                  <Text style={styles.editBtnText}>Редактировать</Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity onPress={() => setEditModalVisible(true)} style={styles.editBtn}>
+                <Ionicons name="pencil" size={20} color="#fff" />
+                <Text style={styles.editBtnText}>Редактировать</Text>
+              </TouchableOpacity>
             )}
           </View>
         </View>
@@ -239,7 +239,24 @@ const ProductDetailScreen = () => {
         onSaved={handleProductSaved}
       />
 
+      <AddVariantModal
+        visible={addVariantModalVisible}
+        baseProduct={product}
+        onClose={() => setAddVariantModalVisible(false)}
+        onSaved={handleVariantAdded}
+      />
+
       <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {isOwner && (
+          <TouchableOpacity
+            style={styles.addVariantRow}
+            onPress={() => setAddVariantModalVisible(true)}
+          >
+            <Ionicons name="add-circle-outline" size={18} color={Colors.primary} />
+            <Text style={styles.addVariantRowText}>{t('products.addVariant')}</Text>
+          </TouchableOpacity>
+        )}
+
         {/* Section B: KPI Cards */}
         <View style={styles.section}>
           <View style={styles.periodSelector}>
@@ -1097,7 +1114,24 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flex: 1,
-  }
+  },
+  addVariantRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    borderRadius: Radius.md,
+  },
+  addVariantRowText: {
+    color: Colors.primary,
+    fontSize: FontSize.sm,
+    fontWeight: '600',
+  },
 });
 
 export default ProductDetailScreen;
