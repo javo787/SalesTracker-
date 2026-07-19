@@ -127,7 +127,6 @@ function runMigrations() {
     CREATE INDEX IF NOT EXISTS idx_stock_movements_product_id ON stock_movements(product_id);
     CREATE INDEX IF NOT EXISTS idx_clients_name ON clients(name);
     CREATE INDEX IF NOT EXISTS idx_sales_synced ON sales(synced);
-    CREATE INDEX IF NOT EXISTS idx_sales_seller_id ON sales(seller_id);
     CREATE INDEX IF NOT EXISTS idx_products_synced ON products(synced);
   `);
 
@@ -444,9 +443,11 @@ function runMigrations() {
         db.execSync("ALTER TABLE expenses ADD COLUMN synced INTEGER DEFAULT 0");
       }
       // Бэкфилл: существующие локальные расходы владельца считаем его собственными
-      db.execSync(
-        "UPDATE expenses SET seller_id = user_id WHERE seller_id IS NULL"
-      );
+      db.execSync(`
+  CREATE INDEX IF NOT EXISTS idx_sales_seller_id ON sales(seller_id);
+  CREATE INDEX IF NOT EXISTS idx_sales_remote_id ON sales(remote_id);
+  CREATE INDEX IF NOT EXISTS idx_expenses_remote_id ON expenses(remote_id);
+`);
       db.runSync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_v10', 'done')");
     });
   }
