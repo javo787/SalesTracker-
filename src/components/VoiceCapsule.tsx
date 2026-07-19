@@ -639,6 +639,7 @@ export default function VoiceCapsule({
   const longPressGesture = Gesture.LongPress()
     .minDuration(0)
     .maxDistance(100_000) // не даём жесту "провалиться" из-за свайпа отмены/блокировки
+    .shouldCancelWhenOutside(false)
     .onStart(() => {
       hasHandledReleaseValue.value = false;
       runOnJS(startRecording)();
@@ -663,6 +664,7 @@ export default function VoiceCapsule({
 
   const panGesture = Gesture.Pan()
     .minDistance(1)
+    .shouldCancelWhenOutside(false)
     .onUpdate((event) => {
       slideProgress.value = event.translationX;
       lockProgress.value = event.translationY;
