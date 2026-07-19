@@ -13,6 +13,7 @@
       "env": {
         "EXPO_PUBLIC_ADS_API_URL": "https://torgo.vercel.app",
         "EXPO_PUBLIC_API_URL": "https://savdoapp.onrender.com",
+        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_ANDROID": "AIzaSyAhv2iV7mORjMnb3qzmRrD-Z5aKF6AiqTo", 
         "EXPO_PUBLIC_TELEGRAM_BOT_USERNAME": "Torgo_support_bot"
       }
     },
@@ -39,6 +40,7 @@
       "env": {
         "EXPO_PUBLIC_ADS_API_URL": "https://torgo.vercel.app",
         "EXPO_PUBLIC_API_URL": "https://savdoapp.onrender.com",
+        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_ANDROID": "AIzaSyAhv2iV7mORjMnb3qzmRrD-Z5aKF6AiqTo", 
         "EXPO_PUBLIC_TELEGRAM_BOT_USERNAME": "Torgo_support_bot"
       }
     }
