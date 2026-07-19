@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -227,6 +227,11 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
   const unmountedRef = useRef(false);
   /** Измеренная ширина контейнера — куда раскрывается капсула записи */
   const containerWidthRef = useRef(0);
+  /** Зеркало recState в ref — чтобы startRecording/composedGesture могли быть
+   *  стабильными по ссылке (useCallback/useMemo) и не пересоздаваться на каждый
+   *  ре-рендер (в т.ч. каждые 500мс от таймера). recState остаётся источником
+   *  истины для рендера, recStateRef — только для чтения внутри колбэков. */
+  const recStateRef = useRef<RecState>('idle');
 
   // ── Reanimated shared values (UI thread) ──────
   const widthVal = useSharedValue(48);
@@ -409,6 +414,7 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
       startTimeRef.current = null;
 
       const uri = await safeStopRecorder(recorder);
+      console.log('[VR-DEBUG] stopRecordingInternal', Date.now(), 'discard=', discard, 'durationMs=', durationMs, 'uri=', uri ? 'ok' : 'null');
 
       if (discard) {
         if (uri) FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
@@ -487,8 +493,8 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
   );
 
   // ── Start recording ──────────────────────────
-  const startRecording = async () => {
-    if (recState !== 'idle') return;
+  const startRecording = useCallback(async () => {
+    if (recStateRef.current !== 'idle') return;
 
     setShowOnboarding(false);
     setRecState('recording');
@@ -576,7 +582,17 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
       widthVal.value = withTiming(48, { duration: 200 });
       Alert.alert('Ошибка', 'Не удалось начать запись. Попробуйте ещё раз.');
     }
-  };
+  }, [
+    recorder,
+    stopRecordingInternal,
+    widthVal,
+    triggerHaptic,
+    startWaveformAnimations,
+    hasTriggeredCancelHaptic,
+    hasTriggeredLockHaptic,
+    slideProgress,
+    lockProgress,
+  ]);
 
   // ── Gesture (press, slide-to-cancel, slide-up-to-lock, release-to-send) ──
   //
@@ -598,6 +614,7 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
   // translationX/Y для свайп-отмены и свайп-блокировки.
   const handleRelease = useCallback(
     (action: 'send' | 'discard' | 'lock') => {
+      console.log('[VR-DEBUG] handleRelease', Date.now(), 'action=', action, 'isStarting=', isStartingRef.current);
       if (isStartingRef.current) {
         // recorder.record() ещё не резолвнулся — applyем действие, как только будет готов.
         // Раньше в этой ситуации действие просто терялось (см. startRecording).
@@ -613,60 +630,94 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
     [stopRecordingInternal]
   );
 
-  const longPressGesture = Gesture.LongPress()
-    .minDuration(0) // активируется сразу на касание — как раньше onBegin
-    .maxDistance(100_000) // не даём жесту «провалиться» из-за свайпа отмены/блокировки
-    .shouldCancelWhenOutside(false)
-    .onStart(() => {
-      hasHandledReleaseValue.value = false;
-      runOnJS(startRecording)();
-    })
-    .onFinalize(() => {
-      // onFinalize — ЕДИНСТВЕННЫЙ колбэк, который гарантированно вызывается
-      // при любом завершении жеста (успешное отпускание, обрыв, системная
-      // отмена). Именно поэтому решение send/discard/lock принимается здесь,
-      // а не в onEnd — так исключается сценарий, где запись зависает без
-      // единого способа её остановить.
-      if (hasHandledReleaseValue.value) return;
-      hasHandledReleaseValue.value = true;
+  const longPressGesture = useMemo(
+    () =>
+      Gesture.LongPress()
+        .minDuration(0) // активируется сразу на касание — как раньше onBegin
+        .maxDistance(100_000) // не даём жесту «провалиться» из-за свайпа отмены/блокировки
+        .shouldCancelWhenOutside(false)
+        .onStart(() => {
+          hasHandledReleaseValue.value = false;
+          console.log('[VR-DEBUG] onStart', Date.now());
+          runOnJS(startRecording)();
+        })
+        .onFinalize(() => {
+          // onFinalize — ЕДИНСТВЕННЫЙ колбэк, который гарантированно вызывается
+          // при любом завершении жеста (успешное отпускание, обрыв, системная
+          // отмена). Именно поэтому решение send/discard/lock принимается здесь,
+          // а не в onEnd — так исключается сценарий, где запись зависает без
+          // единого способа её остановить.
+          if (hasHandledReleaseValue.value) return;
+          hasHandledReleaseValue.value = true;
 
-      // Липкая отмена/блокировка: если порог был пройден хоть раз — считается,
-      // даже если палец вернули обратно перед отпусканием.
-      const shouldCancel = slideProgress.value >= CANCEL_THRESHOLD || hasTriggeredCancelHaptic.value;
-      const shouldLock = lockProgress.value <= LOCK_THRESHOLD || hasTriggeredLockHaptic.value;
+          // Липкая отмена/блокировка: если порог был пройден хоть раз — считается,
+          // даже если палец вернули обратно перед отпусканием.
+          const shouldCancel = slideProgress.value >= CANCEL_THRESHOLD || hasTriggeredCancelHaptic.value;
+          const shouldLock = lockProgress.value <= LOCK_THRESHOLD || hasTriggeredLockHaptic.value;
+          console.log(
+            '[VR-DEBUG] onFinalize',
+            Date.now(),
+            'slideProgress=',
+            slideProgress.value,
+            'lockProgress=',
+            lockProgress.value,
+            'shouldCancel=',
+            shouldCancel,
+            'shouldLock=',
+            shouldLock
+          );
 
-      if (shouldCancel) {
-        runOnJS(handleRelease)('discard');
-      } else if (shouldLock) {
-        runOnJS(handleRelease)('lock');
-      } else {
-        runOnJS(handleRelease)('send');
-      }
-    });
+          if (shouldCancel) {
+            runOnJS(handleRelease)('discard');
+          } else if (shouldLock) {
+            runOnJS(handleRelease)('lock');
+          } else {
+            runOnJS(handleRelease)('send');
+          }
+        }),
+    [startRecording, handleRelease, hasHandledReleaseValue, slideProgress, lockProgress, hasTriggeredCancelHaptic, hasTriggeredLockHaptic]
+  );
 
-  const panGesture = Gesture.Pan()
-    .minDistance(1)
-    .shouldCancelWhenOutside(false)
-    .onUpdate((event) => {
-      slideProgress.value = event.translationX;
-      lockProgress.value = event.translationY;
+  const panGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .minDistance(1)
+        .shouldCancelWhenOutside(false)
+        .onUpdate((event) => {
+          slideProgress.value = event.translationX;
+          lockProgress.value = event.translationY;
 
-      // X-порог (свайп вправо = отмена)
-      if (event.translationX >= CANCEL_THRESHOLD && !hasTriggeredCancelHaptic.value) {
-        hasTriggeredCancelHaptic.value = true;
-        runOnJS(triggerHaptic)('warning');
-      }
+          // X-порог (свайп вправо = отмена)
+          if (event.translationX >= CANCEL_THRESHOLD && !hasTriggeredCancelHaptic.value) {
+            hasTriggeredCancelHaptic.value = true;
+            runOnJS(triggerHaptic)('warning');
+          }
 
-      // Y-порог (свайп вверх = блокировка)
-      if (event.translationY <= LOCK_THRESHOLD && !hasTriggeredLockHaptic.value) {
-        hasTriggeredLockHaptic.value = true;
-        runOnJS(triggerHaptic)('impactLight');
-      }
-    });
+          // Y-порог (свайп вверх = блокировка)
+          if (event.translationY <= LOCK_THRESHOLD && !hasTriggeredLockHaptic.value) {
+            hasTriggeredLockHaptic.value = true;
+            runOnJS(triggerHaptic)('impactLight');
+          }
+        }),
+    [slideProgress, lockProgress, hasTriggeredCancelHaptic, hasTriggeredLockHaptic, triggerHaptic]
+  );
 
   // LongPress и Pan трекают ОДНО и то же касание одновременно — Pan никогда
   // не "проваливается"/не отменяет LongPress, даже если сам не активировался.
-  const composedGesture = Gesture.Simultaneous(longPressGesture, panGesture);
+  //
+  // ПОЧЕМУ useMemo (фикс после регрессии): composedGesture передаётся в
+  // <GestureDetector gesture={...}>. Если этот объект пересоздаётся на КАЖДЫЙ
+  // рендер (а компонент ре-рендерится каждые 500мс из-за setTimerText, пока
+  // идёт запись), RNGH вызывает RNGestureHandlerModule.updateGestureHandler()
+  // на нативной стороне ПРЯМО ПОСЕРЕДИНЕ активного касания — библиотека сама
+  // отмечает это в исходниках (GestureDetector/index.tsx: "Gesture config
+  // should be wrapped with useMemo to prevent unnecessary re-renders").
+  // Это и было причиной, почему отпускание/лок/отправка отваливались
+  // непредсказуемо уже ПОСЛЕ фикса с shouldCancelWhenOutside: сам жест ни разу
+  // не был мемоизирован, поэтому каждый тик таймера мог сбить трекинг
+  // активного касания. useMemo здесь — не оптимизация, а обязательное условие
+  // стабильности, как и явно рекомендует сама библиотека.
+  const composedGesture = useMemo(() => Gesture.Simultaneous(longPressGesture, panGesture), [longPressGesture, panGesture]);
 
   // ── Locked-state action buttons ───────────────
   // К моменту, когда рендерятся эти кнопки, recState уже 'locked', а значит
@@ -674,6 +725,10 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
   // recorder точно готов, вызывать stopRecordingInternal напрямую безопасно.
   const handleLockTrash = () => stopRecordingInternal(true);
   const handleLockSend = () => stopRecordingInternal(false);
+
+  useEffect(() => {
+    recStateRef.current = recState;
+  }, [recState]);
 
   // ── Language Persistence ─────────────────────
   const lastSystemLangRef = useRef(language);
