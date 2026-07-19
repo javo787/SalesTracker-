@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -175,6 +175,11 @@ export default function VoiceCapsule({
   const unmountedRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const startTimeRef = useRef<number | null>(null);
+  /** Зеркало capsuleState — чтобы startRecording/composedGesture могли быть
+   *  стабильными по ссылке и не пересоздаваться на каждый ре-рендер (в т.ч.
+   *  каждые 500мс от таймера). capsuleState остаётся источником истины для
+   *  рендера, capsuleStateRef — только для чтения внутри колбэков. */
+  const capsuleStateRef = useRef<CapsuleState>('idle');
   /** Флаг: recorder.record() ещё не резолвнулся — идёт асинхронная инициализация. */
   const isStartingRef = useRef(false);
   /** Действие (send/discard/lock), запрошенное пока recorder ещё готовился —
@@ -437,6 +442,7 @@ export default function VoiceCapsule({
     startTimeRef.current = null;
 
     const uri = await safeStopRecorder(recorder);
+    console.log('[VC-DEBUG] stopRecordingInternal', Date.now(), 'discard=', discard, 'durationMs=', durationMs, 'uri=', uri ? 'ok' : 'null');
 
     if (discard) {
       if (uri) FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
@@ -506,8 +512,8 @@ export default function VoiceCapsule({
   ]);
 
   // Start Recording
-  const startRecording = async () => {
-    if (capsuleState !== 'idle') return;
+  const startRecording = useCallback(async () => {
+    if (capsuleStateRef.current !== 'idle') return;
 
     setShowOnboarding(false);
     setCapsuleState('recording');
@@ -587,7 +593,17 @@ export default function VoiceCapsule({
       widthVal.value = withTiming(48, { duration: 200 });
       Alert.alert('Ошибка', 'Не удалось начать запись.');
     }
-  };
+  }, [
+    recorder,
+    stopRecordingInternal,
+    widthVal,
+    rowWidth,
+    triggerHaptic,
+    startWaveformAnimations,
+    setCapsuleState,
+    hasTriggeredCancelHaptic,
+    hasTriggeredLockHaptic,
+  ]);
 
   // AppState listening & unmount
   useEffect(() => {
@@ -622,6 +638,7 @@ export default function VoiceCapsule({
   // срабатывает при любом исходе — успех, обрыв, системная отмена.
   const handleRelease = useCallback(
     (action: 'send' | 'discard' | 'lock') => {
+      console.log('[VC-DEBUG] handleRelease', Date.now(), 'action=', action, 'isStarting=', isStartingRef.current);
       if (isStartingRef.current) {
         // recorder.record() ещё не резолвнулся — применим действие, как только будет готов
         pendingActionRef.current = action;
@@ -636,55 +653,85 @@ export default function VoiceCapsule({
     [stopRecordingInternal, setCapsuleState]
   );
 
-  const longPressGesture = Gesture.LongPress()
-    .minDuration(0)
-    .maxDistance(100_000) // не даём жесту "провалиться" из-за свайпа отмены/блокировки
-    .shouldCancelWhenOutside(false)
-    .onStart(() => {
-      hasHandledReleaseValue.value = false;
-      runOnJS(startRecording)();
-    })
-    .onFinalize(() => {
-      // Гарантированно срабатывает при любом завершении жеста — единая точка
-      // принятия решения send/discard/lock (см. комментарий выше).
-      if (hasHandledReleaseValue.value) return;
-      hasHandledReleaseValue.value = true;
+  const longPressGesture = useMemo(
+    () =>
+      Gesture.LongPress()
+        .minDuration(0)
+        .maxDistance(100_000) // не даём жесту "провалиться" из-за свайпа отмены/блокировки
+        .shouldCancelWhenOutside(false)
+        .onStart(() => {
+          hasHandledReleaseValue.value = false;
+          console.log('[VC-DEBUG] onStart', Date.now());
+          runOnJS(startRecording)();
+        })
+        .onFinalize(() => {
+          // Гарантированно срабатывает при любом завершении жеста — единая точка
+          // принятия решения send/discard/lock (см. комментарий выше).
+          if (hasHandledReleaseValue.value) return;
+          hasHandledReleaseValue.value = true;
 
-      const shouldCancel = slideProgress.value >= 80 || hasTriggeredCancelHaptic.value;
-      const shouldLock = lockProgress.value <= -60 || hasTriggeredLockHaptic.value;
+          const shouldCancel = slideProgress.value >= 80 || hasTriggeredCancelHaptic.value;
+          const shouldLock = lockProgress.value <= -60 || hasTriggeredLockHaptic.value;
+          console.log(
+            '[VC-DEBUG] onFinalize',
+            Date.now(),
+            'slideProgress=',
+            slideProgress.value,
+            'lockProgress=',
+            lockProgress.value,
+            'shouldCancel=',
+            shouldCancel,
+            'shouldLock=',
+            shouldLock
+          );
 
-      if (shouldCancel) {
-        runOnJS(handleRelease)('discard');
-      } else if (shouldLock) {
-        runOnJS(handleRelease)('lock');
-      } else {
-        runOnJS(handleRelease)('send');
-      }
-    });
+          if (shouldCancel) {
+            runOnJS(handleRelease)('discard');
+          } else if (shouldLock) {
+            runOnJS(handleRelease)('lock');
+          } else {
+            runOnJS(handleRelease)('send');
+          }
+        }),
+    [startRecording, handleRelease, hasHandledReleaseValue, slideProgress, lockProgress, hasTriggeredCancelHaptic, hasTriggeredLockHaptic]
+  );
 
-  const panGesture = Gesture.Pan()
-    .minDistance(1)
-    .shouldCancelWhenOutside(false)
-    .onUpdate((event) => {
-      slideProgress.value = event.translationX;
-      lockProgress.value = event.translationY;
+  const panGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .minDistance(1)
+        .shouldCancelWhenOutside(false)
+        .onUpdate((event) => {
+          slideProgress.value = event.translationX;
+          lockProgress.value = event.translationY;
 
-      // X threshold check (+80 rightward)
-      if (event.translationX >= 80 && !hasTriggeredCancelHaptic.value) {
-        hasTriggeredCancelHaptic.value = true;
-        runOnJS(triggerHaptic)('warning');
-      }
+          // X threshold check (+80 rightward)
+          if (event.translationX >= 80 && !hasTriggeredCancelHaptic.value) {
+            hasTriggeredCancelHaptic.value = true;
+            runOnJS(triggerHaptic)('warning');
+          }
 
-      // Y threshold check (-60 upward)
-      if (event.translationY <= -60 && !hasTriggeredLockHaptic.value) {
-        hasTriggeredLockHaptic.value = true;
-        runOnJS(triggerHaptic)('impactLight');
-      }
-    });
+          // Y threshold check (-60 upward)
+          if (event.translationY <= -60 && !hasTriggeredLockHaptic.value) {
+            hasTriggeredLockHaptic.value = true;
+            runOnJS(triggerHaptic)('impactLight');
+          }
+        }),
+    [slideProgress, lockProgress, hasTriggeredCancelHaptic, hasTriggeredLockHaptic, triggerHaptic]
+  );
 
   // Оба жеста трекают одно и то же касание одновременно — Pan никогда не
   // "проваливает"/не отменяет LongPress, даже если сам не активировался.
-  const composedGesture = Gesture.Simultaneous(longPressGesture, panGesture);
+  //
+  // ПОЧЕМУ useMemo (фикс после регрессии): без него этот объект пересоздаётся
+  // на каждый ре-рендер, а компонент ре-рендерится каждые 500мс от таймера
+  // (setTimerText), пока идёт запись. Каждый такой ре-рендер заставляет RNGH
+  // вызывать RNGestureHandlerModule.updateGestureHandler() на нативной стороне
+  // ПРЯМО ПОСЕРЕДИНЕ активного касания — сама библиотека отмечает это в
+  // исходниках (GestureDetector/index.tsx: "Gesture config should be wrapped
+  // with useMemo to prevent unnecessary re-renders"). Это и было причиной
+  // нестабильности release/lock/send уже ПОСЛЕ фикса shouldCancelWhenOutside.
+  const composedGesture = useMemo(() => Gesture.Simultaneous(longPressGesture, panGesture), [longPressGesture, panGesture]);
 
   // Reanimated Styles
   const capsuleAnimatedStyle = useAnimatedStyle(() => {
@@ -735,6 +782,10 @@ export default function VoiceCapsule({
   const handleLockSend = () => {
     stopRecordingInternal(false);
   };
+
+  useEffect(() => {
+    capsuleStateRef.current = capsuleState;
+  }, [capsuleState]);
 
   // Tap handler for batch state
   const handleBatchTap = () => {
