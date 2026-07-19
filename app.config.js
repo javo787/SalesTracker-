@@ -1,8 +1,10 @@
+const pkg = require('./package.json');
+
 module.exports = ({ config }) => ({
   expo: {
     name: "Torgo",
     slug: "torgo-app",
-    version: "1.0.0",
+    version: pkg.version,
     orientation: "portrait",
     icon: "./assets/icon.png",
     platforms: [
@@ -34,7 +36,7 @@ module.exports = ({ config }) => ({
     updates: {
       url: "https://u.expo.dev/9a8cb8e4-5c8c-4147-942b-46ea4c65fb4a"
     },
-    runtimeVersion: "1.0.0",
+    runtimeVersion: { policy: "fingerprint" },
     plugins: [
       [
         "expo-audio",
