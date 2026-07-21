@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { AugmentedRequest } from 'express-rate-limit';
 import compression from 'compression';
 import { loadSheddingMiddleware } from './middleware/loadShedding';
 import authRoutes from './routes/auth';
@@ -78,6 +78,17 @@ const voiceSaleLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: 'Слишком много голосовых запросов, подождите минуту.' },
+  // Фронтенд (VoiceCapsule.tsx/VoiceRecorder.tsx) уже умеет показывать точное
+  // число секунд до сброса лимита через body.retryAfterSeconds, но раньше это
+  // поле никогда не отправлялось — express-rate-limit по умолчанию шлёт только
+  // { message }. Считаем retryAfterSeconds из req.rateLimit.resetTime.
+  handler: (req, res, _next, options) => {
+    const resetTime = (req as AugmentedRequest).rateLimit?.resetTime;
+    const retryAfterSeconds = resetTime
+      ? Math.max(1, Math.ceil((new Date(resetTime).getTime() - Date.now()) / 1000))
+      : 60;
+    res.status(options.statusCode).json({ ...options.message, retryAfterSeconds });
+  },
 });
 
 const voiceDisambiguateLimiter = rateLimit({
