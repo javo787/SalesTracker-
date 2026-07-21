@@ -86,7 +86,8 @@ const translations: Record<string, Translation> = {
           {
             title: 'b) Collected Automatically:',
             content: [
-              'Voice clips sent to Groq (Whisper) for transcription only — not stored',
+              'Voice clips sent to Groq (Whisper) and Google Gemini for transcription and AI-assisted product matching — not stored on our servers',
+              'Device GPS location — only when you use the optional check-in feature',
               'Anonymous usage events via Firebase Analytics',
               'FCM push notification device token (for reminders you set)',
               'Advertising identifiers via Yandex Mobile Ads SDK',
@@ -95,7 +96,6 @@ const translations: Record<string, Translation> = {
           {
             title: 'c) We Do NOT Collect:',
             content: [
-              'GPS or precise location',
               'Contacts or phonebook',
               'Biometric data (Face ID runs on-device only, never transmitted)',
             ],
@@ -167,11 +167,14 @@ const translations: Record<string, Translation> = {
       { name: 'Photo Library', reason: 'attach product images (optional)' },
       { name: 'Face ID / Biometrics', reason: 'app lock, processed on-device only' },
       { name: 'Notifications', reason: 'reminders and debt alerts you configure' },
+      { name: 'Location', reason: 'only if you enable the optional check-in feature, to confirm you are at your point of sale' },
+      { name: 'Camera', reason: 'only to scan a QR code for the optional check-in feature — no photo is taken or stored' },
     ],
     thirdParty: [
       { service: 'Google Sign-In', purpose: 'Authentication', url: 'policies.google.com/privacy' },
       { service: 'Firebase Analytics & FCM', purpose: 'Analytics & push notifications', url: 'firebase.google.com/support/privacy' },
       { service: 'Groq (Whisper)', purpose: 'Voice-to-text', url: 'groq.com/privacy-policy' },
+      { service: 'Google Gemini API', purpose: 'AI-assisted voice transcription & sales-item matching', url: 'ai.google.dev/gemini-api/terms' },
       { service: 'Yandex Mobile Ads', purpose: 'In-app advertising', url: 'yandex.com/legal/confidential' },
       { service: 'Render', purpose: 'Backend hosting', url: 'render.com/privacy' },
     ],
@@ -214,7 +217,8 @@ const translations: Record<string, Translation> = {
           {
             title: 'б) Собирается автоматически:',
             content: [
-              'Голосовые клипы, отправляемые в Groq (Whisper) только для транскрипции — не хранятся',
+              'Голосовые клипы, отправляемые в Groq (Whisper) и Google Gemini для транскрипции и AI-сопоставления товаров — не хранятся на наших серверах',
+              'GPS-координаты устройства — только при использовании необязательной функции чек-ина',
               'Анонимные события использования через Firebase Analytics',
               'Токен устройства для push-уведомлений FCM (для установленных вами напоминаний)',
               'Рекламные идентификаторы через Yandex Mobile Ads SDK',
@@ -223,7 +227,6 @@ const translations: Record<string, Translation> = {
           {
             title: 'в) Мы НЕ собираем:',
             content: [
-              'GPS или точное местоположение',
               'Контакты или телефонную книгу',
               'Биометрические данные (Face ID работает только на устройстве, никогда не передается)',
             ],
@@ -295,11 +298,14 @@ const translations: Record<string, Translation> = {
       { name: 'Библиотека фотографий', reason: 'прикрепить изображения продуктов (необязательно)' },
       { name: 'Face ID / Биометрия', reason: 'блокировка приложения, обрабатывается только на устройстве' },
       { name: 'Уведомления', reason: 'напоминания и оповещения о долгах, которые вы настраиваете' },
+      { name: 'Геолокация', reason: 'только если вы включите необязательную функцию чек-ина, чтобы подтвердить, что вы находитесь в точке продаж' },
+      { name: 'Камера', reason: 'только для сканирования QR-кода в функции чек-ина — фото не делается и не сохраняется' },
     ],
     thirdParty: [
       { service: 'Google Sign-In', purpose: 'Аутентификация', url: 'policies.google.com/privacy' },
       { service: 'Firebase Analytics & FCM', purpose: 'Аналитика и push-уведомления', url: 'firebase.google.com/support/privacy' },
       { service: 'Groq (Whisper)', purpose: 'Голос в текст', url: 'groq.com/privacy-policy' },
+      { service: 'Google Gemini API', purpose: 'AI-транскрипция голоса и сопоставление товаров', url: 'ai.google.dev/gemini-api/terms' },
       { service: 'Yandex Mobile Ads', purpose: 'Внутриигровая реклама', url: 'yandex.com/legal/confidential' },
       { service: 'Render', purpose: 'Бэкэнд-хостинг', url: 'render.com/privacy' },
     ],
@@ -342,7 +348,8 @@ const translations: Record<string, Translation> = {
           {
             title: 'b) Avtomatik ravishda to\'planadigan ma\'lumotlar:',
             content: [
-              'Faqat transkripsiya uchun Groq (Whisper) ga yuborilgan ovozli kliplar — saqlanmaydi',
+              'Transkripsiya va AI yordamida mahsulotlarni moslashtirish uchun Groq (Whisper) va Google Gemini-ga yuborilgan ovozli kliplar — serverlarimizda saqlanmaydi',
+              'Qurilma GPS joylashuvi — faqat ixtiyoriy check-in funksiyasidan foydalanganingizda',
               'Firebase Analytics orqali anonim foydalanish hodisalari',
               'FCM push-bildirishnoma qurilma belgisi (siz o\'rnatgan eslatmalar uchun)',
               'Yandex Mobile Ads SDK orqali reklama identifikatorlari',
@@ -351,7 +358,6 @@ const translations: Record<string, Translation> = {
           {
             title: 'c) Biz to\'plamaydigan ma\'lumotlar:',
             content: [
-              'GPS yoki aniq joylashuv',
               'Kontaktlar yoki telefon kitobi',
               'Biometrik ma\'lumotlar (Face ID faqat qurilmada ishlaydi, hech qachon uzatilmaydi)',
             ],
@@ -423,11 +429,14 @@ const translations: Record<string, Translation> = {
       { name: 'Rasmlar kutubxonasi', reason: 'mahsulot rasmlarini biriktirish (ixtiyoriy)' },
       { name: 'Face ID / Biometriya', reason: 'ilovani bloklash, faqat qurilmada qayta ishlanadi' },
       { name: 'Bildirishnomalar', reason: 'siz sozlagan eslatmalar va qarz haqidagi ogohlantirishlar' },
+      { name: 'Joylashuv', reason: 'faqat ixtiyoriy check-in funksiyasini yoqqaningizda, savdo nuqtangizda ekanligingizni tasdiqlash uchun' },
+      { name: 'Kamera', reason: 'faqat check-in funksiyasida QR-kodni skanerlash uchun — hech qanday rasm olinmaydi va saqlanmaydi' },
     ],
     thirdParty: [
       { service: 'Google Sign-In', purpose: 'Autentifikatsiya', url: 'policies.google.com/privacy' },
       { service: 'Firebase Analytics & FCM', purpose: 'Analitika va push-bildirishnomalar', url: 'firebase.google.com/support/privacy' },
       { service: 'Groq (Whisper)', purpose: 'Ovozni matnga aylantirish', url: 'groq.com/privacy-policy' },
+      { service: 'Google Gemini API', purpose: 'Ovozni AI yordamida matnga aylantirish va mahsulotlarni moslashtirish', url: 'ai.google.dev/gemini-api/terms' },
       { service: 'Yandex Mobile Ads', purpose: 'Ilova ichidagi reklama', url: 'yandex.com/legal/confidential' },
       { service: 'Render', purpose: 'Backend xosting', url: 'render.com/privacy' },
     ],
@@ -470,7 +479,8 @@ const translations: Record<string, Translation> = {
           {
             title: 'б) Ба таври худкор ҷамъоварӣ карда мешавад:',
             content: [
-              'Клипҳои овозӣ ба Groq (Whisper) танҳо барои транскрипсия фиристода мешаванд — нигоҳ дошта намешаванд',
+              'Клипҳои овозӣ ба Groq (Whisper) ва Google Gemini барои транскрипсия ва мутобиқсозии молҳо тавассути AI фиристода мешаванд — дар серверҳои мо нигоҳ дошта намешаванд',
+              'Ҷойгиршавии GPS-и дастгоҳ — танҳо ҳангоми истифодаи хусусияти ихтиёрии чек-ин',
               'Рӯйдодҳои истифодаи беном тавассути Firebase Analytics',
               'Токени дастгоҳи огоҳиномаи FCM (барои ёдраскуниҳои муқарраркардаи шумо)',
               'Идентификаторҳои таблиғотӣ тавассути Yandex Mobile Ads SDK',
@@ -479,7 +489,6 @@ const translations: Record<string, Translation> = {
           {
             title: 'в) Мо ҷамъ намеорем:',
             content: [
-              'GPS ё макони дақиқ',
               'Тамос ё дафтари телефон',
               'Маълумоти биометрӣ (Face ID танҳо дар дастгоҳ кор мекунад, ҳеҷ гоҳ интиқол дода намешавад)',
             ],
@@ -551,11 +560,14 @@ const translations: Record<string, Translation> = {
       { name: 'Китобхонаи аксҳо', reason: 'замима кардани аксҳои маҳсулот (ихтиёрӣ)' },
       { name: 'Face ID / Биометрия', reason: 'қулфи барнома, танҳо дар дастгоҳ коркард мешавад' },
       { name: 'Огоҳиномаҳо', reason: 'ёдраскуниҳо ва огоҳиҳои қарзӣ, ки шумо танзим мекунед' },
+      { name: 'Ҷойгиршавӣ (Location)', reason: 'танҳо ҳангоми фаъол кардани хусусияти ихтиёрии чек-ин, барои тасдиқи ҳузури шумо дар нуқтаи фурӯш' },
+      { name: 'Камера', reason: 'танҳо барои сканкунии рамзи QR дар хусусияти чек-ин — ҳеҷ акс гирифта ё нигоҳ дошта намешавад' },
     ],
     thirdParty: [
       { service: 'Google Sign-In', purpose: 'Аутентификатсия', url: 'policies.google.com/privacy' },
       { service: 'Firebase Analytics & FCM', purpose: 'Таҳлил ва огоҳиномаҳо', url: 'firebase.google.com/support/privacy' },
       { service: 'Groq (Whisper)', purpose: 'Овоз ба матн', url: 'groq.com/privacy-policy' },
+      { service: 'Google Gemini API', purpose: 'Транскрипсияи овоз ва мутобиқсозии молҳо тавассути AI', url: 'ai.google.dev/gemini-api/terms' },
       { service: 'Yandex Mobile Ads', purpose: 'Таблиғ дар барнома', url: 'yandex.com/legal/confidential' },
       { service: 'Render', purpose: 'Backend хостинг', url: 'render.com/privacy' },
     ],
