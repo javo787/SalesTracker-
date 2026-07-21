@@ -164,6 +164,7 @@ export default function VoiceCapsule({
   const [voiceLang, setVoiceLang] = useState(language);
   const [timerText, setTimerText] = useState('00:00');
   const [showWarning, setShowWarning] = useState(false);
+  const [warningSecondsLeft, setWarningSecondsLeft] = useState(5);
   const [batchCount, setBatchCount] = useState(0);
   const [latestBatchResult, setLatestBatchResult] = useState<VoiceSaleResult | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -521,8 +522,6 @@ export default function VoiceCapsule({
 
     isStartingRef.current = true;
     pendingActionRef.current = null;
-    hasTriggeredCancelHaptic.value = false;
-    hasTriggeredLockHaptic.value = false;
 
     try {
       if (safeIsRecording(recorder)) {
@@ -564,12 +563,22 @@ export default function VoiceCapsule({
 
       // Seconds timer
       setTimerText('00:00');
+      setWarningSecondsLeft(Math.ceil((MAX_DURATION_MS - WARNING_MS) / 1000));
       const start = Date.now();
       secondsTimerRef.current = setInterval(() => {
-        const elapsedSecs = Math.floor((Date.now() - start) / 1000);
+        const elapsedMs = Date.now() - start;
+        const elapsedSecs = Math.floor(elapsedMs / 1000);
         const mins = Math.floor(elapsedSecs / 60).toString().padStart(2, '0');
         const secs = (elapsedSecs % 60).toString().padStart(2, '0');
         setTimerText(`${mins}:${secs}`);
+
+        // Настоящий обратный отсчёт для предупреждения о приближении к лимиту —
+        // раньше здесь всегда показывался статичный текст "5 сек" на протяжении
+        // всех последних 5 секунд записи, не убывая.
+        const remainingMs = MAX_DURATION_MS - elapsedMs;
+        if (remainingMs <= MAX_DURATION_MS - WARNING_MS) {
+          setWarningSecondsLeft(Math.max(0, Math.ceil(remainingMs / 1000)));
+        }
       }, 500);
 
       // Max limit timer
@@ -601,8 +610,6 @@ export default function VoiceCapsule({
     triggerHaptic,
     startWaveformAnimations,
     setCapsuleState,
-    hasTriggeredCancelHaptic,
-    hasTriggeredLockHaptic,
   ]);
 
   // AppState listening & unmount
@@ -660,7 +667,18 @@ export default function VoiceCapsule({
         .maxDistance(100_000) // не даём жесту "провалиться" из-за свайпа отмены/блокировки
         .shouldCancelWhenOutside(false)
         .onStart(() => {
+          // Сбрасываем ВСЕ флаги жеста синхронно на UI-потоке, в момент касания.
+          // Раньше hasTriggeredCancelHaptic/hasTriggeredLockHaptic сбрасывались
+          // только внутри startRecording (JS-поток, вызывается через runOnJS —
+          // т.е. асинхронно относительно этого worklet'а). Из-за этого panGesture
+          // (который стартует ОДНОВРЕМЕННО через Gesture.Simultaneous) мог успеть
+          // прочитать/записать эти shared values ДО того, как JS-поток долетал до
+          // сброса — и на очень быстром повторном жесте туда утекали значения от
+          // ПРЕДЫДУЩЕЙ записи (например, уже true после свайпа-отмены), из-за чего
+          // новая запись могла мгновенно посчитаться отменённой/залоченной.
           hasHandledReleaseValue.value = false;
+          hasTriggeredCancelHaptic.value = false;
+          hasTriggeredLockHaptic.value = false;
           console.log('[VC-DEBUG] onStart', Date.now());
           runOnJS(startRecording)();
         })
@@ -858,7 +876,7 @@ export default function VoiceCapsule({
 
               {showWarning ? (
                 <Text style={styles.warningTextCapsule} numberOfLines={1}>
-                  ⏱️ 5 сек
+                  ⏱️ {warningSecondsLeft} сек
                 </Text>
               ) : (
                 <View style={styles.waveformContainer}>

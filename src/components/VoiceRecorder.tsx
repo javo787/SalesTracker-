@@ -203,6 +203,7 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
   const [voiceLang, setVoiceLang] = useState(language);
   const [showInfo, setShowInfo] = useState(false);
   const [showWarning, setShowWarning] = useState(false);
+  const [warningSecondsLeft, setWarningSecondsLeft] = useState(5);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [timerText, setTimerText] = useState('00:00');
   const [hintText, setHintText] = useState('');
@@ -502,8 +503,6 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
 
     isStartingRef.current = true;
     pendingActionRef.current = null;
-    hasTriggeredCancelHaptic.value = false;
-    hasTriggeredLockHaptic.value = false;
     slideProgress.value = 0;
     lockProgress.value = 0;
 
@@ -554,12 +553,21 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
       }
 
       setTimerText('00:00');
+      setWarningSecondsLeft(Math.ceil((MAX_DURATION_MS - WARNING_MS) / 1000));
       const start = Date.now();
       secondsTimerRef.current = setInterval(() => {
-        const elapsedSecs = Math.floor((Date.now() - start) / 1000);
+        const elapsedMs = Date.now() - start;
+        const elapsedSecs = Math.floor(elapsedMs / 1000);
         const mins = Math.floor(elapsedSecs / 60).toString().padStart(2, '0');
         const secs = (elapsedSecs % 60).toString().padStart(2, '0');
         if (!unmountedRef.current) setTimerText(`${mins}:${secs}`);
+
+        // Настоящий обратный отсчёт вместо статичного "5 сек" на весь
+        // последний пятисекундный интервал перед лимитом записи.
+        const remainingMs = MAX_DURATION_MS - elapsedMs;
+        if (remainingMs <= MAX_DURATION_MS - WARNING_MS && !unmountedRef.current) {
+          setWarningSecondsLeft(Math.max(0, Math.ceil(remainingMs / 1000)));
+        }
       }, 500);
 
       // Авто-стоп по максимальной длительности
@@ -588,8 +596,6 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
     widthVal,
     triggerHaptic,
     startWaveformAnimations,
-    hasTriggeredCancelHaptic,
-    hasTriggeredLockHaptic,
     slideProgress,
     lockProgress,
   ]);
@@ -637,7 +643,14 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
         .maxDistance(100_000) // не даём жесту «провалиться» из-за свайпа отмены/блокировки
         .shouldCancelWhenOutside(false)
         .onStart(() => {
+          // См. аналогичный фикс/комментарий в VoiceCapsule.tsx: сбрасываем
+          // hasTriggeredCancelHaptic/hasTriggeredLockHaptic здесь же, синхронно
+          // на UI-потоке, а не внутри startRecording (JS-поток, через runOnJS) —
+          // иначе panGesture, стартующий одновременно, мог прочитать стухшие
+          // значения от предыдущей записи.
           hasHandledReleaseValue.value = false;
+          hasTriggeredCancelHaptic.value = false;
+          hasTriggeredLockHaptic.value = false;
           console.log('[VR-DEBUG] onStart', Date.now());
           runOnJS(startRecording)();
         })
@@ -942,7 +955,7 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
                   <Text style={styles.timerText}>{timerText}</Text>
 
                   {showWarning ? (
-                    <Text style={styles.warningTextCapsule} numberOfLines={1}>⏱️ 5 сек</Text>
+                    <Text style={styles.warningTextCapsule} numberOfLines={1}>⏱️ {warningSecondsLeft} сек</Text>
                   ) : (
                     <View style={styles.waveformContainer}>
                       <Animated.View style={[styles.waveBar, waveStyle1]} />
