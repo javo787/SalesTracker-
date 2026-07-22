@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   Modal, View, Text, TextInput, TouchableOpacity, ScrollView,
   StyleSheet, Alert, KeyboardAvoidingView, Platform,
+  UIManager, findNodeHandle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -74,6 +75,24 @@ export default function ResolvePendingSaleModal({
   const packageNameRef = useRef<any>(null);
   const unitsPerPackageRef = useRef<any>(null);
   const existingBuyPriceRef = useRef<any>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const linkSearchRef = useRef<any>(null);
+  const nameInputRef = useRef<any>(null);
+
+  const scrollToInput = (target: any) => {
+    const scrollNode = findNodeHandle(scrollRef.current);
+    const targetTag = findNodeHandle(target);
+    if (targetTag && scrollNode) {
+      UIManager.measureLayout(
+        targetTag,
+        scrollNode,
+        () => {}, // fail callback
+        (_x: number, y: number) => {
+          scrollRef.current?.scrollTo({ y: Math.max(y - 24, 0), animated: true });
+        }
+      );
+    }
+  };
 
   useEffect(() => {
     if (visible && sale) {
@@ -225,12 +244,13 @@ export default function ResolvePendingSaleModal({
               </TouchableOpacity>
             </View>
 
-            <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: '100%' }}>
+            <ScrollView ref={scrollRef} keyboardShouldPersistTaps="handled" style={{ maxHeight: '100%' }}>
               {mode === 'existing' ? (
                 <View>
                   <Text style={[styles.label, { color: themeStyles.text }]}>{t('addSale.productName')}</Text>
                   <View style={{ zIndex: 10, marginBottom: 4 }}>
                     <ProductAutocomplete
+                      ref={linkSearchRef}
                       inputStyle={[styles.input, { backgroundColor: themeStyles.inputBg, borderColor: themeStyles.inputBorder, color: themeStyles.text }]}
                       placeholder={t('addSale.productPlaceholder')}
                       placeholderTextColor={isDark ? '#888' : '#aaa'}
@@ -239,6 +259,7 @@ export default function ResolvePendingSaleModal({
                       onSelect={(product) => { setLinkSearch(product.name); setLinkProduct(product); }}
                       returnKeyType="next"
                       onSubmitEditing={() => existingBuyPriceRef.current?.focus()}
+                      onInputFocus={() => scrollToInput(linkSearchRef.current)}
                     />
                   </View>
                   <Text style={styles.hintText}>{t('products.leaveEmptyHint')}</Text>
@@ -254,6 +275,7 @@ export default function ResolvePendingSaleModal({
                     onChangeText={setExistingBuyPrice}
                     returnKeyType="done"
                     onSubmitEditing={handleSaveExisting}
+                    onFocus={(e) => scrollToInput(e.target)}
                   />
 
                   <TouchableOpacity
@@ -268,6 +290,7 @@ export default function ResolvePendingSaleModal({
                 <View>
                   <Text style={[styles.label, { color: themeStyles.text }]}>{t('addSale.productName')} *</Text>
                   <TextInput
+                    ref={nameInputRef}
                     style={[styles.input, { backgroundColor: themeStyles.inputBg, borderColor: themeStyles.inputBorder, color: themeStyles.text }]}
                     placeholder={t('addSale.productPlaceholder')}
                     placeholderTextColor={isDark ? '#888' : '#aaa'}
@@ -276,6 +299,7 @@ export default function ResolvePendingSaleModal({
                     returnKeyType="next"
                     onSubmitEditing={() => categoryRef.current?.focus()}
                     blurOnSubmit={false}
+                    onFocus={(e) => scrollToInput(e.target)}
                   />
 
                   <Text style={[styles.label, { color: themeStyles.text }]}>{t('products.category')}</Text>
@@ -289,6 +313,7 @@ export default function ResolvePendingSaleModal({
                     returnKeyType={getReturnKeyType(0)}
                     onSubmitEditing={getSubmitHandler(0)}
                     blurOnSubmit={false}
+                    onFocus={(e) => scrollToInput(e.target)}
                   />
 
                   <View style={styles.row}>
@@ -305,6 +330,7 @@ export default function ResolvePendingSaleModal({
                         returnKeyType={getReturnKeyType(1)}
                         onSubmitEditing={getSubmitHandler(1)}
                         blurOnSubmit={false}
+                        onFocus={(e) => scrollToInput(e.target)}
                       />
                     </View>
                     <View style={styles.half}>
@@ -320,6 +346,7 @@ export default function ResolvePendingSaleModal({
                         returnKeyType={getReturnKeyType(2)}
                         onSubmitEditing={getSubmitHandler(2)}
                         blurOnSubmit={false}
+                        onFocus={(e) => scrollToInput(e.target)}
                       />
                     </View>
                   </View>
@@ -338,6 +365,7 @@ export default function ResolvePendingSaleModal({
                         returnKeyType={getReturnKeyType(3)}
                         onSubmitEditing={getSubmitHandler(3)}
                         blurOnSubmit={false}
+                        onFocus={(e) => scrollToInput(e.target)}
                       />
                       <Text style={styles.hintText}>{t('products.stockNowHint')}</Text>
                     </View>
@@ -354,6 +382,7 @@ export default function ResolvePendingSaleModal({
                         returnKeyType={getReturnKeyType(4)}
                         onSubmitEditing={getSubmitHandler(4)}
                         blurOnSubmit={false}
+                        onFocus={(e) => scrollToInput(e.target)}
                       />
                     </View>
                   </View>
@@ -379,6 +408,7 @@ export default function ResolvePendingSaleModal({
                         returnKeyType={getReturnKeyType(5)}
                         onSubmitEditing={getSubmitHandler(5)}
                         blurOnSubmit={false}
+                        onFocus={(e) => scrollToInput(e.target)}
                       />
 
                       {color !== '' ? (
@@ -412,6 +442,7 @@ export default function ResolvePendingSaleModal({
                             placeholderTextColor={isDark ? '#888' : '#aaa'}
                             value={PRESET_COLORS.some(c => c.label === color) ? '' : color}
                             onChangeText={setColor}
+                            onFocus={(e) => scrollToInput(e.target)}
                           />
                           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
                             {PRESET_COLORS.map((preset) => {
@@ -455,6 +486,7 @@ export default function ResolvePendingSaleModal({
                         returnKeyType={getReturnKeyType(6)}
                         onSubmitEditing={getSubmitHandler(6)}
                         blurOnSubmit={false}
+                        onFocus={(e) => scrollToInput(e.target)}
                       />
 
                       <TouchableOpacity style={styles.checkboxRow} onPress={() => setHasPackages(!hasPackages)}>
@@ -481,6 +513,7 @@ export default function ResolvePendingSaleModal({
                               returnKeyType={getReturnKeyType(7)}
                               onSubmitEditing={getSubmitHandler(7)}
                               blurOnSubmit={false}
+                              onFocus={(e) => scrollToInput(e.target)}
                             />
                           </View>
                           <View style={styles.half}>
@@ -495,6 +528,7 @@ export default function ResolvePendingSaleModal({
                               onChangeText={setUnitsPerPackage}
                               returnKeyType={getReturnKeyType(8)}
                               onSubmitEditing={getSubmitHandler(8)}
+                              onFocus={(e) => scrollToInput(e.target)}
                             />
                           </View>
                         </View>

@@ -104,6 +104,7 @@ export default function AddSaleScreen(/* props */) {
   const [showFullClient, setShowFullClient] = useState(false);
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [maskBuyPrice, setMaskBuyPrice] = useState(true);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   const fields = [
     { ref: productInputRef, visible: true },
@@ -126,6 +127,20 @@ export default function AddSaleScreen(/* props */) {
       useNativeDriver: true,
     }).start();
   }, [capsuleState]);
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
+      setKeyboardVisible(true);
+    });
+    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardVisible(false);
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
 
   const isFormDirty = !!(
     productName || sellPrice || buyPrice || quantity || note ||
@@ -679,7 +694,7 @@ export default function AddSaleScreen(/* props */) {
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           >
             <TouchableWithoutFeedback>
-              <View style={[styles.voiceBar, themeStyles.card]}>
+              <View style={[styles.voiceBar, themeStyles.card, keyboardVisible && { paddingBottom: Spacing.xl }]}>
                 {voiceResult && (
                   <VoiceBatchReview
                     result={voiceResult}
