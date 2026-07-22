@@ -205,6 +205,7 @@ export default function AddExpenseModal({ visible, onClose, onSuccess }: AddExpe
                  onResult={handleVoiceResult}
                  onShowBatchReview={handleVoiceResult}
                  resetCapsuleTrigger={resetCapsuleTrigger}
+                 voiceContext="expense"
                />
                <Text style={styles.voiceHint}>{t('expenses.voiceHint')}</Text>
             </View>
