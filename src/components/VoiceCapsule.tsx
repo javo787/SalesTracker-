@@ -612,13 +612,31 @@ export default function VoiceCapsule({
     setCapsuleState,
   ]);
 
+  // Ref на самую свежую версию stopRecordingInternal — нужен, чтобы эффект
+  // ниже НЕ пересоздавался при каждом изменении ссылки на stopRecordingInternal.
+  // ПОЧЕМУ ЭТО ВАЖНО: stopRecordingInternal зависит от transcribeAudio, а тот —
+  // от onResult (проп из экрана-родителя). Если родитель передаёт onResult как
+  // обычную функцию без useCallback (не мемоизированную), она пересоздаётся на
+  // КАЖДОМ ре-рендере родителя — а ре-рендер родителя происходит, в том числе,
+  // из-за onStateChange(capsuleState) ниже. Раньше эффект AppState/unmount был
+  // завязан на stopRecordingInternal в зависимостях — значит при каждом таком
+  // ре-рендере его cleanup срабатывал ЗАНОВО и безусловно вызывал
+  // safeStopRecorder(recorder), которая тихо (fire-and-forget, без .then())
+  // останавливала АКТИВНУЮ запись прямо во время удержания кнопки, теряя uri.
+  // Именно поэтому запись длиннее ~1 тика ре-рендера отправлялась с uri=null,
+  // а мгновенные тапы (без единого лишнего ре-рендера) — нормально.
+  const stopRecordingInternalRef = useRef(stopRecordingInternal);
+  useEffect(() => {
+    stopRecordingInternalRef.current = stopRecordingInternal;
+  }, [stopRecordingInternal]);
+
   // AppState listening & unmount
   useEffect(() => {
     unmountedRef.current = false;
 
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
       if (next !== 'active' && safeIsRecording(recorder)) {
-        stopRecordingInternal(false);
+        stopRecordingInternalRef.current(false);
       }
     });
 
@@ -632,7 +650,7 @@ export default function VoiceCapsule({
         abortRef.current = null;
       }
     };
-  }, [recorder, clearTimers, stopRecordingInternal]);
+  }, [recorder, clearTimers]);
 
   // Gestures definition
   //
