@@ -16,7 +16,7 @@ import { useTranslation } from 'react-i18next';
 import { useAppContext } from '../../context/AppContext';
 import { ExpenseType, ExpenseCategory } from '../../types/expense';
 import CategoryPicker from './CategoryPicker';
-import VoiceRecorder from '../VoiceRecorder';
+import VoiceCapsule, { CapsuleState } from '../VoiceCapsule';
 import { VoiceSaleResult } from '../../types/voiceSale';
 import { useExpenses } from '../../hooks/useExpenses';
 import { analyticsService } from '../../services/analyticsService';
@@ -27,8 +27,6 @@ interface AddExpenseModalProps {
   onSuccess: () => void;
 }
 
-const EXPENSE_VOICE_PROMPT = "сомони, харид, нарх, обед, аренда, свет, вода, доставка, зарплата, лампочка, весы";
-
 export default function AddExpenseModal({ visible, onClose, onSuccess }: AddExpenseModalProps) {
   const { t } = useTranslation();
   const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
@@ -38,6 +36,9 @@ export default function AddExpenseModal({ visible, onClose, onSuccess }: AddExpe
   const [category, setCategory] = useState<ExpenseCategory>('other');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
+  const [rowWidth, setRowWidth] = useState(0);
+  const [resetCapsuleTrigger, setResetCapsuleTrigger] = useState(0);
+  const [voiceCapsuleState, setVoiceCapsuleState] = useState<CapsuleState>('idle');
 
   useEffect(() => {
     if (visible) {
@@ -46,6 +47,10 @@ export default function AddExpenseModal({ visible, onClose, onSuccess }: AddExpe
       setCategory('other');
       setAmount('');
       setDescription('');
+      // Модалка не размонтирует VoiceCapsule между открытиями — форсируем
+      // сброс капсулы в idle на случай, если прошлый раз её закрыли
+      // посреди записи/отправки.
+      setResetCapsuleTrigger((n) => n + 1);
     }
   }, [visible]);
 
@@ -127,8 +132,8 @@ export default function AddExpenseModal({ visible, onClose, onSuccess }: AddExpe
               <TouchableOpacity
                 style={[
                   styles.typeBtn,
-                  type === 'operational' && styles.typeBtnActive,
                   isDark ? styles.typeBtnDark : styles.typeBtnLight,
+                  type === 'operational' && styles.typeBtnActive,
                 ]}
                 onPress={() => setType('operational')}
               >
@@ -139,8 +144,8 @@ export default function AddExpenseModal({ visible, onClose, onSuccess }: AddExpe
               <TouchableOpacity
                 style={[
                   styles.typeBtn,
-                  type === 'inventory' && styles.typeBtnActive,
                   isDark ? styles.typeBtnDark : styles.typeBtnLight,
+                  type === 'inventory' && styles.typeBtnActive,
                 ]}
                 onPress={() => setType('inventory')}
               >
@@ -188,8 +193,17 @@ export default function AddExpenseModal({ visible, onClose, onSuccess }: AddExpe
               onChangeText={setDescription}
             />
 
-            <View style={styles.voiceSection}>
-               <VoiceRecorder onResult={handleVoiceResult} />
+            <View
+              style={styles.voiceSection}
+              onLayout={(e) => setRowWidth(e.nativeEvent.layout.width)}
+            >
+               <VoiceCapsule
+                 rowWidth={rowWidth}
+                 onStateChange={setVoiceCapsuleState}
+                 onResult={handleVoiceResult}
+                 onShowBatchReview={handleVoiceResult}
+                 resetCapsuleTrigger={resetCapsuleTrigger}
+               />
                <Text style={styles.voiceHint}>{t('expenses.voiceHint')}</Text>
             </View>
 
