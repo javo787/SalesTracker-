@@ -142,6 +142,11 @@ export default function VoiceBatchReview({ result, onConfirm, onCancel }: VoiceB
     setMatchResults(prev => ({ ...prev, [index]: { confidence: 'exact', match: product, candidates: [] } }));
   };
 
+  const handleMarkAsNew = (index: number) => {
+    handleUpdateItem(index, 'matchedProductId' as any, null);
+    setMatchResults(prev => ({ ...prev, [index]: { confidence: 'none', match: null, candidates: [] } }));
+  };
+
   const total = items.reduce((acc, item) => acc + (item.sell_price * item.quantity), 0);
 
   return (
@@ -198,6 +203,31 @@ export default function VoiceBatchReview({ result, onConfirm, onCancel }: VoiceB
               </TouchableOpacity>
             </View>
 
+            {matchResults[index]?.confidence === 'none' ? (
+              <View style={[styles.statusBadge, styles.statusBadgeNew]}>
+                <Text style={[styles.statusBadgeText, styles.statusBadgeTextNew]}>{t('addSale.newProductBadge')}</Text>
+              </View>
+            ) : null}
+
+            {matchResults[index]?.confidence === 'exact' || matchResults[index]?.confidence === 'fuzzy_confident' ? (
+              <View style={[styles.statusBadge, styles.statusBadgeMatched]}>
+                <Text style={[styles.statusBadgeText, styles.statusBadgeTextMatched]}>✓ {t('addSale.linkedTo', { name: matchResults[index].match?.name })}</Text>
+              </View>
+            ) : null}
+
+            {matchResults[index]?.confidence === 'ai_matched' ? (
+              <View style={styles.aiMatchedRow}>
+                <View style={[styles.statusBadge, styles.statusBadgeMatched]}>
+                  <Text style={[styles.statusBadgeText, styles.statusBadgeTextMatched]}>🤖 {t('addSale.aiMatched', { name: matchResults[index].match?.name })}</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setMatchResults(prev => ({ ...prev, [index]: { ...prev[index], confidence: 'ambiguous' } }))}
+                >
+                  <Text style={styles.editLink}>{t('common.edit')}</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
             <View style={styles.cardFields}>
               <View style={styles.fieldGroup}>
                 <Text style={[styles.fieldLabel, isDark && styles.fieldLabelDark]}>{t('addSale.sellPrice')}</Text>
@@ -222,22 +252,6 @@ export default function VoiceBatchReview({ result, onConfirm, onCancel }: VoiceB
                 />
               </View>
             </View>
-
-            {matchResults[index]?.confidence === 'exact' || matchResults[index]?.confidence === 'fuzzy_confident' ? (
-              <Text style={styles.matchBadge}>✓ {t('addSale.linkedTo', { name: matchResults[index].match?.name })}</Text>
-            ) : null}
-
-            {matchResults[index]?.confidence === 'ai_matched' ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Text style={[styles.matchBadge, { color: Colors.primary }]}>🤖 {t('addSale.aiMatched', { name: matchResults[index].match?.name })}</Text>
-                <TouchableOpacity
-                  onPress={() => setMatchResults(prev => ({ ...prev, [index]: { ...prev[index], confidence: 'ambiguous' } }))}
-                  style={{ marginTop: Spacing.sm }}
-                >
-                  <Text style={{ fontSize: 10, color: '#888', textDecorationLine: 'underline' }}>{t('common.edit')}</Text>
-                </TouchableOpacity>
-              </View>
-            ) : null}
 
             {(() => {
               const linked = matchResults[index]?.match;
@@ -288,6 +302,7 @@ export default function VoiceBatchReview({ result, onConfirm, onCancel }: VoiceB
                   candidates={matchResults[index].candidates}
                   isDark={isDark}
                   onSelect={(product) => handleVariantSelected(index, product)}
+                  onMarkNew={() => handleMarkAsNew(index)}
                 />
                 {smartLimitReached && !isPremium && (
                   <Text style={{ fontSize: 10, color: '#999', marginTop: 4 }}>
@@ -458,6 +473,42 @@ const styles = StyleSheet.create({
     color: '#34C759',
     marginTop: Spacing.sm,
     fontWeight: '500',
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radius.sm,
+    marginBottom: Spacing.sm,
+  },
+  statusBadgeNew: {
+    backgroundColor: '#E3F2FD',
+  },
+  statusBadgeMatched: {
+    backgroundColor: Colors.primaryLight,
+  },
+  statusBadgeText: {
+    fontSize: FontSize.xs,
+    fontWeight: '600',
+  },
+  statusBadgeTextNew: {
+    color: '#2196F3',
+  },
+  statusBadgeTextMatched: {
+    color: Colors.primaryDark,
+  },
+  aiMatchedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: Spacing.sm,
+  },
+  editLink: {
+    fontSize: 10,
+    color: '#888',
+    textDecorationLine: 'underline',
   },
   transcriptOnlyCard: {
     backgroundColor: '#fff',

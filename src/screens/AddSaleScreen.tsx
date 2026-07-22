@@ -836,6 +836,7 @@ export default function AddSaleScreen(/* props */) {
               setSelectedProduct(product);
               setAmbiguousCandidates([]);
             }}
+            onMarkNew={() => setAmbiguousCandidates([])}
           />
         )}
 
