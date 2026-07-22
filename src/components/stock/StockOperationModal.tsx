@@ -10,7 +10,7 @@ import { useShop } from '../../context/ShopContext';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import { addStockIn, addStockWaste, addStockCorrection } from '../../db/database';
-import VoiceRecorder from '../VoiceRecorder';
+import VoiceCapsule, { CapsuleState } from '../VoiceCapsule';
 import { VoiceSaleResult } from '../../types/voiceSale';
 
 interface StockOperationModalProps {
@@ -49,6 +49,9 @@ export default function StockOperationModal({
   const [price, setPrice] = useState('');
   const [unitType, setUnitType] = useState<'base' | 'package'>('base');
   const [note, setNote] = useState('');
+  const [rowWidth, setRowWidth] = useState(0);
+  const [resetCapsuleTrigger, setResetCapsuleTrigger] = useState(0);
+  const [voiceCapsuleState, setVoiceCapsuleState] = useState<CapsuleState>('idle');
 
   useEffect(() => {
     if (visible) {
@@ -57,6 +60,10 @@ export default function StockOperationModal({
       setPrice('');
       setUnitType('base');
       setNote('');
+      // Модалка не размонтирует VoiceCapsule между открытиями — форсируем
+      // сброс капсулы в idle на случай, если прошлый раз её закрыли
+      // посреди записи/отправки.
+      setResetCapsuleTrigger((n) => n + 1);
     }
   }, [visible, initialType, isOwner]);
 
@@ -247,8 +254,17 @@ export default function StockOperationModal({
               onChangeText={setNote}
             />
 
-            <View style={styles.voiceSection}>
-               <VoiceRecorder onResult={handleVoiceResult} />
+            <View
+              style={styles.voiceSection}
+              onLayout={(e) => setRowWidth(e.nativeEvent.layout.width)}
+            >
+               <VoiceCapsule
+                 rowWidth={rowWidth}
+                 onStateChange={setVoiceCapsuleState}
+                 onResult={handleVoiceResult}
+                 onShowBatchReview={handleVoiceResult}
+                 resetCapsuleTrigger={resetCapsuleTrigger}
+               />
             </View>
 
             <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
