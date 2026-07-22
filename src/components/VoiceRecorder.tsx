@@ -793,13 +793,22 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
     };
   }, []);
 
+  // См. подробный комментарий в VoiceCapsule.tsx — тот же фикс: разрываем
+  // зависимость эффекта ниже от нестабильной ссылки stopRecordingInternal
+  // (которая пересоздаётся из-за немемоизированного onResult у вызывающего
+  // экрана), чтобы cleanup не звал safeStopRecorder на активной записи.
+  const stopRecordingInternalRef = useRef(stopRecordingInternal);
+  useEffect(() => {
+    stopRecordingInternalRef.current = stopRecordingInternal;
+  }, [stopRecordingInternal]);
+
   // ── AppState & cleanup ───────────────────────
   useEffect(() => {
     unmountedRef.current = false;
 
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
       if (next !== 'active' && safeIsRecording(recorder)) {
-        stopRecordingInternal(false);
+        stopRecordingInternalRef.current(false);
       }
     });
 
@@ -816,7 +825,7 @@ export default function VoiceRecorder({ onResult, onClose }: VoiceRecorderProps)
         abortRef.current = null;
       }
     };
-  }, [recorder, clearTimers, stopRecordingInternal]);
+  }, [recorder, clearTimers]);
 
   // ── Processing hint text (Распознаём → Разбираем) ─────
   useEffect(() => {
