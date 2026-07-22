@@ -4,6 +4,7 @@ import {
   TextInput, ScrollView, KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useTranslation } from 'react-i18next';
 import { useAppContext } from '../../context/AppContext';
 import { useShop } from '../../context/ShopContext';
@@ -165,10 +166,11 @@ export default function StockOperationModal({
 
   return (
     <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        behavior="padding"
-        style={styles.centeredView}
-      >
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <KeyboardAvoidingView
+          behavior="padding"
+          style={styles.centeredView}
+        >
         <View style={[styles.modalView, isDark ? styles.modalDark : styles.modalLight]}>
           <View style={styles.header}>
             <View>
@@ -273,6 +275,7 @@ export default function StockOperationModal({
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
+      </GestureHandlerRootView>
     </Modal>
   );
 }

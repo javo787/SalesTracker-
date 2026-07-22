@@ -12,6 +12,7 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useTranslation } from 'react-i18next';
 import { useAppContext } from '../../context/AppContext';
 import { ExpenseType, ExpenseCategory } from '../../types/expense';
@@ -112,10 +113,11 @@ export default function AddExpenseModal({ visible, onClose, onSuccess }: AddExpe
       transparent={true}
       onRequestClose={onClose}
     >
-      <KeyboardAvoidingView
-        behavior="padding"
-        style={styles.centeredView}
-      >
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <KeyboardAvoidingView
+          behavior="padding"
+          style={styles.centeredView}
+        >
         <View style={[styles.modalView, isDark ? styles.modalDark : styles.modalLight]}>
           <View style={styles.header}>
             <Text style={[styles.title, isDark ? styles.textDark : styles.textLight]}>
@@ -213,6 +215,7 @@ export default function AddExpenseModal({ visible, onClose, onSuccess }: AddExpe
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
