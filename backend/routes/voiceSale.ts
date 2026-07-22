@@ -39,7 +39,7 @@ const RESPONSE_SCHEMA = {
   required: ["items", "language_detected", "truncated", "transcript"]
 };
 
-const SYSTEM_PROMPT = `Act as a professional retail assistant for merchants in Central Asia (Tajikistan/Uzbekistan).
+const SALES_SYSTEM_PROMPT = `Act as a professional retail assistant for merchants in Central Asia (Tajikistan/Uzbekistan).
 Your task is to accurately extract sales data from voice transcripts or audio.
 
 The seller may dictate MULTIPLE sales in one phrase - split them into separate items in the 'items' array.
@@ -57,6 +57,54 @@ Do not guess or invent numeric values that were not stated or clearly implied.
 Also return the field 'transcript' with your best plain-text transcription of what was said, in the original language(s) spoken, even if some words are unclear.
 
 Return ONLY a pure JSON object according to the schema.`;
+
+const EXPENSE_SYSTEM_PROMPT = `Act as a professional bookkeeping assistant for small shop owners in Central Asia (Tajikistan/Uzbekistan).
+Your task is to accurately extract business EXPENSE entries from voice transcripts or audio (NOT sales - this is money going OUT of the business: rent, utilities, delivery, salaries, repairs, supplies, taxes, etc).
+
+You must still respond using the 'items' array schema:
+- 'product_name' -> the expense description/category as stated (e.g. "аренда", "свет", "доставка", "зарплата продавцу").
+- 'sell_price' -> the expense amount that was paid or is owed.
+- 'buy_price' -> always 0 (not applicable to expenses).
+- 'quantity' -> always 1 (not applicable to expenses).
+
+Usually the speaker names ONE expense per phrase. Only split into multiple items if they clearly and separately dictate several distinct expenses (e.g. "аренда 500 сомони и свет 200 сомони" -> two items). Do not invent an expense that was not stated.
+
+For 'needs_confirmation': set to true if you are unsure about the amount (noise, ambiguous pronunciation, language mixing).
+If there are clearly more than 8 distinct expenses in the speech, include only the first 8 and set 'truncated' to true.
+
+Handle multilingual input (Russian, Tajik, Uzbek). Possible accents, noise, or mixing of languages.
+Do not guess or invent numeric values that were not stated or clearly implied.
+
+Also return the field 'transcript' with your best plain-text transcription of what was said, in the original language(s) spoken, even if some words are unclear.
+
+Return ONLY a pure JSON object according to the schema.`;
+
+const STOCK_SYSTEM_PROMPT = `Act as a professional inventory assistant for small shop owners in Central Asia (Tajikistan/Uzbekistan).
+Your task is to accurately extract inventory/stock entries from voice transcripts or audio - goods being received from a supplier, wasted/written off, or corrected in stock count (NOT retail sales to end customers).
+
+You must still respond using the 'items' array schema:
+- 'product_name' -> the name of the goods received/adjusted.
+- 'quantity' -> how many units, as stated.
+- 'buy_price' -> the purchase/cost price per unit paid to the supplier, if mentioned.
+- 'sell_price' -> always 0 (not applicable here; this is a stock operation, not a sale).
+
+The speaker may dictate MULTIPLE stock items in one phrase - split them into separate items in the 'items' array. If only one item is mentioned, return an array with one element. Do not combine different products into one item and do not invent products that were not in the speech.
+
+For 'needs_confirmation': set to true if you are unsure about any numeric field (noise, ambiguous pronunciation, language mixing).
+If there are clearly more than 8 items in the speech, include only the first 8 and set 'truncated' to true.
+
+Handle multilingual input (Russian, Tajik, Uzbek). Possible accents, noise, or mixing of languages.
+If quantity is not mentioned, set it to 1. Do not guess or invent numeric values that were not stated or clearly implied.
+
+Also return the field 'transcript' with your best plain-text transcription of what was said, in the original language(s) spoken, even if some words are unclear.
+
+Return ONLY a pure JSON object according to the schema.`;
+
+function getSystemPrompt(context: unknown): string {
+  if (context === 'expense') return EXPENSE_SYSTEM_PROMPT;
+  if (context === 'stock') return STOCK_SYSTEM_PROMPT;
+  return SALES_SYSTEM_PROMPT;
+}
 
 /**
  * If Gemini returned an empty product_name (often happens with poor
@@ -88,7 +136,7 @@ router.post('/', authMiddleware, requireShop, (req, res, next) => {
 }, async (req: AuthRequest, res: Response) => {
   const shopId = req.shopId;
   const userId = req.userId;
-  const { language, prompt } = req.body;
+  const { language, prompt, context } = req.body;
 
   if (!req.file) {
     return res.status(400).json({ error: 'missing_file' });
@@ -108,9 +156,10 @@ router.post('/', authMiddleware, requireShop, (req, res, next) => {
     const base64Audio = req.file.buffer.toString('base64');
     const mimeType = req.file.mimetype || 'audio/m4a';
 
+    const systemPrompt = getSystemPrompt(context);
     const promptWithHint = language
-      ? SYSTEM_PROMPT + `\n\nDetected app language hint: ${language}. Prioritize this language when transcribing/parsing unless audio clearly indicates otherwise.`
-      : SYSTEM_PROMPT;
+      ? systemPrompt + `\n\nDetected app language hint: ${language}. Prioritize this language when transcribing/parsing unless audio clearly indicates otherwise.`
+      : systemPrompt;
 
     // LEVEL 1: Gemini Audio
     console.log(`[voice-sale] Level 1: Gemini Audio (${GEMINI_MODELS.LEVEL_1})`, { shopId, userId });

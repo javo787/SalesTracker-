@@ -266,6 +266,7 @@ export default function StockOperationModal({
                  onResult={handleVoiceResult}
                  onShowBatchReview={handleVoiceResult}
                  resetCapsuleTrigger={resetCapsuleTrigger}
+                 voiceContext="stock"
                />
             </View>
 

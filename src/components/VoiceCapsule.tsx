@@ -46,6 +46,9 @@ interface VoiceCapsuleProps {
   onResult: (result: VoiceSaleResult) => void;
   onShowBatchReview?: (result: VoiceSaleResult) => void;
   resetCapsuleTrigger?: number; // to reset to idle from parent
+  /** Домен использования — влияет на промпт и словарь-подсказку на бэкенде.
+   *  По умолчанию 'sale' (продажи), т.к. это исходный/основной сценарий. */
+  voiceContext?: 'sale' | 'expense' | 'stock';
 }
 
 type GroqLangConfig = {
@@ -54,37 +57,50 @@ type GroqLangConfig = {
   model: string;
 };
 
+type VoiceContext = 'sale' | 'expense' | 'stock';
+
+// ─────────────────────────────────────────────
+// Vocabulary hints (Whisper "prompt" param) per domain.
+// Продажи — розничные товары; расходы — статьи расходов торговой точки;
+// склад — приёмка/списание товара (количество, закупочная цена).
+// ─────────────────────────────────────────────
+const VOCAB_HINTS: Record<VoiceContext, Record<'tg' | 'uz' | 'ru', string>> = {
+  sale: {
+    tg: 'нарх, фурӯш, сомонӣ, килограмм, дона, миқдор, кило, фоида, харид, анбор, мол, ' +
+      'помидор, пиёз, картошка, орд, шакар, равған, гӯшт, мурғ, биринҷ, нон',
+    uz: 'narx, sotuv, som, kilogram, dona, miqdor, kilo, foyda, xarid, ombor, mahsulot, ' +
+      'помидор, пиёз, картошка, un, shakar, moy, go\'sht, tovuq, guruch, non, ' +
+      'нарх, сом, дона, миқдор',
+    ru: 'нарх, продажа, сомони, килограмм, штука, количество, кило, прибыль, ' +
+      'закупка, склад, товар, помидор, лук, картошка, мука, сахар, масло',
+  },
+  expense: {
+    tg: 'сомонӣ, харид, нарх, хӯрок, иҷора, барқ, об, интернет, расонидан, маош, лампа, тарозу, молиёт',
+    uz: 'som, xarid, narx, ovqat, ijara, svet, suv, internet, yetkazib berish, maosh, lampa, soliq',
+    ru: 'сомони, расход, аренда, свет, вода, интернет, доставка, зарплата, лампочка, ' +
+      'обед, ремонт, транспорт, налог, связь',
+  },
+  stock: {
+    tg: 'сомонӣ, харид, нархи хариди, миқдор, дона, килограмм, қуттӣ, анбор, партия, таъминкунанда, брак',
+    uz: 'som, xarid narxi, miqdor, dona, kilogram, quti, ombor, partiya, yetkazib beruvchi, brak',
+    ru: 'сомони, закупочная цена, количество, штук, килограмм, коробка, поставка, ' +
+      'партия, поставщик, склад, брак, списание, недостача',
+  },
+};
+
 // ─────────────────────────────────────────────
 // Language configuration
 // ─────────────────────────────────────────────
-function getLangConfig(appLang: string): GroqLangConfig {
+function getLangConfig(appLang: string, context: VoiceContext = 'sale'): GroqLangConfig {
+  const hints = VOCAB_HINTS[context] ?? VOCAB_HINTS.sale;
   switch (appLang) {
     case 'tg':
-      return {
-        language: undefined,
-        prompt:
-          'нарх, фурӯш, сомонӣ, килограмм, дона, миқдор, кило, фоида, харид, анбор, мол, ' +
-          'помидор, пиёз, картошка, орд, шакар, равған, гӯшт, мурғ, биринҷ, нон',
-        model: 'whisper-large-v3-turbo',
-      };
+      return { language: undefined, prompt: hints.tg, model: 'whisper-large-v3-turbo' };
     case 'uz':
-      return {
-        language: undefined,
-        prompt:
-          'narx, sotuv, som, kilogram, dona, miqdor, kilo, foyda, xarid, ombor, mahsulot, ' +
-          'помидор, пиёз, картошка, un, shakar, moy, go\'sht, tovuq, guruch, non, ' +
-          'нарх, сом, дона, миқдор',
-        model: 'whisper-large-v3-turbo',
-      };
+      return { language: undefined, prompt: hints.uz, model: 'whisper-large-v3-turbo' };
     case 'ru':
     default:
-      return {
-        language: undefined, // auto-detect
-        prompt:
-          'нарх, продажа, сомони, килограмм, штука, количество, кило, прибыль, ' +
-          'закупка, склад, товар, помидор, лук, картошка, мука, сахар, масло',
-        model: 'whisper-large-v3-turbo',
-      };
+      return { language: undefined, prompt: hints.ru, model: 'whisper-large-v3-turbo' };
   }
 }
 
@@ -154,6 +170,7 @@ export default function VoiceCapsule({
   onResult,
   onShowBatchReview,
   resetCapsuleTrigger,
+  voiceContext = 'sale',
 }: VoiceCapsuleProps) {
   const { t } = useTranslation();
   const { resolvedTheme, language } = useAppContext();
@@ -341,12 +358,13 @@ export default function VoiceCapsule({
       };
       const mimeType = mimeMap[ext] ?? 'audio/m4a';
 
-      const { language: groqLang, prompt, model } = getLangConfig(voiceLang);
+      const { language: groqLang, prompt, model } = getLangConfig(voiceLang, voiceContext);
 
       const parameters: Record<string, string> = {
         model,
         prompt,
         response_format: 'json',
+        context: voiceContext,
       };
       if (groqLang) {
         parameters.language = groqLang;
