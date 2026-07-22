@@ -1072,17 +1072,30 @@ export default function AddSaleScreen(/* props */) {
           {paymentType === 'full' && contextSellerMode === 'wholesale' && (
             <View style={{ marginTop: Spacing.md }}>
               {showFullClient ? (
-                <ClientAutocomplete
-                  value={clientName}
-                  phone={clientPhone}
-                  onChange={setClientName}
-                  onChangePhone={setClientPhone}
-                  onSelect={(c) => {
-                    setClientName(c.name);
-                    setClientPhone(c.phone);
-                    setClientId(c.id);
-                  }}
-                />
+                <View>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <Text style={[styles.label, themeStyles.text, { marginTop: 0 }]}>{t('addSale.addClientOptional')}</Text>
+                    <TouchableOpacity onPress={() => {
+                      setShowFullClient(false);
+                      setClientName('');
+                      setClientPhone('');
+                      setClientId(null);
+                    }}>
+                      <Ionicons name="close-circle-outline" size={18} color="#888" />
+                    </TouchableOpacity>
+                  </View>
+                  <ClientAutocomplete
+                    value={clientName}
+                    phone={clientPhone}
+                    onChange={setClientName}
+                    onChangePhone={setClientPhone}
+                    onSelect={(c) => {
+                      setClientName(c.name);
+                      setClientPhone(c.phone);
+                      setClientId(c.id);
+                    }}
+                  />
+                </View>
               ) : (
                 <TouchableOpacity onPress={() => setShowFullClient(true)} style={styles.addClientBtn}>
                   <Ionicons name="person-outline" size={18} color={Colors.primary} />
@@ -1233,7 +1246,12 @@ export default function AddSaleScreen(/* props */) {
                 color="#fff"
                 style={{ marginRight: 8 }}
               />
-              <Text style={styles.saveBtnText} numberOfLines={1}>
+              <Text
+                style={styles.saveBtnText}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.8}
+              >
                 {cartItems.length > 0
                   ? t('addSale.checkoutBtn', { total: cartTotal.toLocaleString(), symbol: currency.symbol })
                   : (isSaved ? t('common.saved') : t('addSale.saveBtn'))
@@ -1415,6 +1433,7 @@ const styles = StyleSheet.create({
     ...Shadow.md,
     flexDirection: 'row',
     justifyContent: 'center',
+    height: 48,
   },
   saveBtnText: { color: '#fff', fontSize: FontSize.lg, fontWeight: 'bold' },
   autocomplete: {
@@ -1507,7 +1526,7 @@ const styles = StyleSheet.create({
   actionsRowContainer: {
     position: 'relative',
     width: '100%',
-    minHeight: 56,
+    minHeight: 48,
     marginTop: Spacing.xl,
     justifyContent: 'center',
   },
@@ -1527,7 +1546,7 @@ const styles = StyleSheet.create({
   },
   addToCartBtn: {
     width: 56,
-    height: 56,
+    height: 48,
     borderRadius: Radius.lg,
     backgroundColor: Colors.primary,
     justifyContent: 'center',
