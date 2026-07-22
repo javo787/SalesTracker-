@@ -352,7 +352,7 @@ export default function ProfileScreen() {
           <Text style={[styles.statValue, themeStyles.text, { fontSize: 14 }]} numberOfLines={1}>
             {stats?.bestProduct?.name || '—'}
           </Text>
-          <Text style={styles.statSub}>{stats?.bestProduct ? `+${stats.bestProduct.profit.toLocaleString()} ${currency.symbol}` : ''}</Text>
+          <Text style={styles.statSub}>{stats?.bestProduct ? `+${(stats.bestProduct.profit || 0).toLocaleString()} ${currency.symbol}` : ''}</Text>
         </View>
       </View>
 

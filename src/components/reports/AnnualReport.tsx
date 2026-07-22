@@ -361,7 +361,7 @@ export default function AnnualReport() {
               >
                 <Text style={[styles.tableCell, themeStyles.text, { flex: 1.2 }]}>{MONTH_SHORT[m.month - 1]}</Text>
                 <Text style={[styles.tableCell, themeStyles.text]}>{m.revenue.toLocaleString()}</Text>
-                <Text style={[styles.tableCell, themeStyles.text]}>{m.profit.toLocaleString()}</Text>
+                <Text style={[styles.tableCell, themeStyles.text]}>{(m.profit || 0).toLocaleString()}</Text>
                 <Text style={[styles.tableCell, themeStyles.text]}>{m.expenses.toLocaleString()}</Text>
                 <Text style={[
                   styles.tableCell,

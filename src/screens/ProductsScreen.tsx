@@ -1432,7 +1432,7 @@ export default function ProductsScreen() {
                       </Text>
                       {isOwner && (
                         <Text style={[styles.historyProfit, { color: Colors.primary }]}>
-                          {t('common.profit')}: +{s.profit.toFixed(0)} {currency.symbol}
+                          {t('common.profit')}: +{(s.profit || 0).toFixed(0)} {currency.symbol}
                         </Text>
                       )}
                     </View>

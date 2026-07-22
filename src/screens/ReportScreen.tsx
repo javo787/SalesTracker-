@@ -332,7 +332,7 @@ export default function ReportScreen() {
     if (chartMetric === 'revenue') {
       sales.forEach((s: any) => add(s.created_at, s.sell_price * s.quantity));
     } else if (chartMetric === 'salesProfit') {
-      sales.forEach((s: any) => add(s.created_at, s.profit));
+      sales.forEach((s: any) => add(s.created_at, s.profit || 0));
       expenses.filter((e: any) => e.type === 'operational').forEach((e: any) => add(e.created_at, -e.amount));
     } else {
       sales.forEach((s: any) => add(s.created_at, s.sell_price * s.quantity));
@@ -911,7 +911,7 @@ export default function ReportScreen() {
                     </Text>
                     {isOwner && (
                       <Text style={styles.saleProfit}>
-                        +{sale.profit.toLocaleString()} {currency.symbol}
+                        +{(sale.profit || 0).toLocaleString()} {currency.symbol}
                       </Text>
                     )}
                   </View>
