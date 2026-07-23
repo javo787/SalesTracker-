@@ -28,7 +28,7 @@ export default function ProductsScreen() {
   const route = useRoute<any>();
   const { resolvedTheme, currency, defaultMinStockAlert, sellerMode } = useAppContext(); const isDark = resolvedTheme === "dark";
   const { addExpense } = useExpenses();
-  const { isOwner } = useShop();
+  const { isOwner, can } = useShop();
   const [products, setProducts] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -303,12 +303,15 @@ export default function ProductsScreen() {
   };
 
   const handleSave = () => {
-    if (!name.trim() || !buyPrice || !sellPrice) {
+    if (!name.trim() || (isOwner && !buyPrice) || !sellPrice) {
       Alert.alert(t('common.error'), t('products.errorRequired'));
       return;
     }
 
-    const bPrice = parseFloat(buyPrice);
+    // Продавец с правом manage_products не видит поле закупочной цены —
+    // бэкенд её всё равно отбросит при синхронизации не-владельцем, но
+    // локально в SQLite поле не может остаться пустым/NaN.
+    const bPrice = isOwner ? parseFloat(buyPrice) : (parseFloat(buyPrice) || 0);
     const sPrice = parseFloat(sellPrice);
     const st = parseFloat(stock) || 0;
     const alert = parseFloat(minStockAlert) || 0;
@@ -586,7 +589,7 @@ export default function ProductsScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       keyboardShouldPersistTaps="handled"
     >
-      {isOwner && (
+      {(isOwner || can('manage_products')) && (
         <TouchableOpacity
           style={[styles.addBtn, editingId ? { backgroundColor: '#FF9800' } : null]}
           onPress={() => {
@@ -713,21 +716,23 @@ export default function ProductsScreen() {
           </View>
 
           <View style={styles.row}>
-            <View style={styles.half}>
-              <Text style={[styles.label, themeStyles.text]}>{t('addSale.buyPrice')} *</Text>
-              <TextInput
-                ref={buyPriceRef}
-                style={[styles.input, themeStyles.input]}
-                placeholder="0"
-                placeholderTextColor={isDark ? '#888' : '#aaa'}
-                keyboardType="numeric"
-                value={buyPrice}
-                onChangeText={setBuyPrice}
-                returnKeyType={getReturnKeyType(2)}
-                onSubmitEditing={getSubmitHandler(2)}
-                blurOnSubmit={false}
-              />
-            </View>
+            {isOwner && (
+              <View style={styles.half}>
+                <Text style={[styles.label, themeStyles.text]}>{t('addSale.buyPrice')} *</Text>
+                <TextInput
+                  ref={buyPriceRef}
+                  style={[styles.input, themeStyles.input]}
+                  placeholder="0"
+                  placeholderTextColor={isDark ? '#888' : '#aaa'}
+                  keyboardType="numeric"
+                  value={buyPrice}
+                  onChangeText={setBuyPrice}
+                  returnKeyType={getReturnKeyType(2)}
+                  onSubmitEditing={getSubmitHandler(2)}
+                  blurOnSubmit={false}
+                />
+              </View>
+            )}
             <View style={styles.half}>
               <Text style={[styles.label, themeStyles.text]}>{t('addSale.sellPrice')} *</Text>
               <TextInput
@@ -950,7 +955,7 @@ export default function ProductsScreen() {
             </View>
           )}
 
-          {buyPrice && sellPrice && (
+          {isOwner && buyPrice && sellPrice && (
             <View style={styles.marginPreview}>
               <Text style={styles.marginText}>
                 {t('products.margin')}: {(parseFloat(sellPrice) - parseFloat(buyPrice)).toFixed(1)} {currency.symbol}
@@ -1092,21 +1097,23 @@ export default function ProductsScreen() {
                     </Text>
 
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, paddingTop: 8, paddingBottom: 12 }}>
-                      <TouchableOpacity
-                        onPress={() => {
-                          openAddVariantForm({
-                            article: p.article?.trim() || p.name?.trim() || '',
-                            displayName: p.name,
-                            variants: [p],
-                          });
-                        }}
-                        style={{ flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderColor: Colors.primary, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}
-                      >
-                        <Ionicons name="add-circle-outline" size={14} color={Colors.primary} />
-                        <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: '600' }}>
-                          {t('products.addVariant')}
-                        </Text>
-                      </TouchableOpacity>
+                      {(isOwner || can('manage_products')) && (
+                        <TouchableOpacity
+                          onPress={() => {
+                            openAddVariantForm({
+                              article: p.article?.trim() || p.name?.trim() || '',
+                              displayName: p.name,
+                              variants: [p],
+                            });
+                          }}
+                          style={{ flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderColor: Colors.primary, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}
+                        >
+                          <Ionicons name="add-circle-outline" size={14} color={Colors.primary} />
+                          <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: '600' }}>
+                            {t('products.addVariant')}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
 
                       {(stats?.total_sold || 0) > 0 && (
                         <TouchableOpacity
@@ -1271,21 +1278,23 @@ export default function ProductsScreen() {
                           </Text>
 
                           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, paddingTop: 8, paddingBottom: 12 }}>
-                            <TouchableOpacity
-                              onPress={() => {
-                                openAddVariantForm({
-                                  article: v.article?.trim() || v.name?.trim() || '',
-                                  displayName: v.name,
-                                  variants: [v],
-                                });
-                              }}
-                              style={{ flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderColor: Colors.primary, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}
-                            >
-                              <Ionicons name="add-circle-outline" size={14} color={Colors.primary} />
-                              <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: '600' }}>
-                                {t('products.addVariant')}
-                              </Text>
-                            </TouchableOpacity>
+                            {(isOwner || can('manage_products')) && (
+                              <TouchableOpacity
+                                onPress={() => {
+                                  openAddVariantForm({
+                                    article: v.article?.trim() || v.name?.trim() || '',
+                                    displayName: v.name,
+                                    variants: [v],
+                                  });
+                                }}
+                                style={{ flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderColor: Colors.primary, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}
+                              >
+                                <Ionicons name="add-circle-outline" size={14} color={Colors.primary} />
+                                <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: '600' }}>
+                                  {t('products.addVariant')}
+                                </Text>
+                              </TouchableOpacity>
+                            )}
 
                             {(stats?.total_sold || 0) > 0 && (
                               <TouchableOpacity

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Alert, RefreshControl, ActivityIndicator
+  Alert, RefreshControl, ActivityIndicator, Modal, Switch
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useTranslation } from 'react-i18next';
@@ -14,6 +14,29 @@ import { Colors, Shadow } from '../constants/theme';
 import { useAppContext } from '../context/AppContext';
 import { ShopMember, SellerStats } from '../types/auth';
 import { todayLocalDate } from '../db/database';
+
+// Единое место описания всех переключаемых прав продавца — labels/описания
+// используются и в модалке настройки, и в компактной сводке на карточке.
+const PERMISSION_DEFS = [
+  {
+    key: 'manage_products' as const,
+    icon: 'cube-outline' as const,
+    title: 'Товары',
+    desc: 'Добавлять и редактировать товары (без доступа к закупочным ценам)',
+  },
+  {
+    key: 'manage_debtors' as const,
+    icon: 'wallet-outline' as const,
+    title: 'Долги',
+    desc: 'Создавать и закрывать долги покупателей',
+  },
+  {
+    key: 'manage_team' as const,
+    icon: 'people-outline' as const,
+    title: 'Команда',
+    desc: 'Видеть статистику команды, приглашать и удалять продавцов',
+  },
+];
 
 export default function SellersScreen() {
   const { t } = useTranslation();
@@ -32,6 +55,7 @@ export default function SellersScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [togglingPermKey, setTogglingPermKey] = useState<string | null>(null);
+  const [permissionsModalUserId, setPermissionsModalUserId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     if (!isOwner && !can('manage_team')) return;
@@ -68,7 +92,7 @@ export default function SellersScreen() {
     loadData();
   };
 
-  const togglePermission = async (member: ShopMember, perm: 'manage_debtors' | 'manage_team') => {
+  const togglePermission = async (member: ShopMember, perm: 'manage_debtors' | 'manage_team' | 'manage_products') => {
     const key = `${member.userId}:${perm}`;
     if (togglingPermKey) return; // один тоггл за раз — избегаем гонки при быстром двойном тапе
 
@@ -145,6 +169,13 @@ export default function SellersScreen() {
     );
   };
 
+  const getPermissionSummary = (member: ShopMember): string => {
+    const granted = member.permissions || [];
+    if (granted.length === 0) return 'Нет доп. доступов';
+    if (granted.length >= PERMISSION_DEFS.length) return 'Все доступы';
+    return PERMISSION_DEFS.filter(p => granted.includes(p.key)).map(p => p.title).join(', ');
+  };
+
   const handleMemberActions = (member: ShopMember) => {
     const options: { text: string; style?: 'cancel' | 'default' | 'destructive'; onPress?: () => void }[] = [
       {
@@ -160,6 +191,14 @@ export default function SellersScreen() {
         text: t('sellers.makeOwnerTitle') || 'Make Owner',
         style: 'default',
         onPress: () => handleTransferOwnership(member.userId, member.displayName)
+      });
+    }
+
+    if (isOwner && member.role !== 'owner') {
+      options.unshift({
+        text: 'Настроить доступы',
+        style: 'default',
+        onPress: () => setPermissionsModalUserId(member.userId)
       });
     }
 
@@ -291,6 +330,7 @@ export default function SellersScreen() {
   const totalRevenue = stats.reduce((sum, s) => sum + (s.revenue || 0), 0);
 
   return (
+    <>
     <ScrollView
       style={[styles.container, themeStyles.container]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -406,36 +446,29 @@ export default function SellersScreen() {
                   </View>
 
                   {isOwner && member.role === 'seller' && (
-                    <View style={[styles.permissionsRow, { borderTopColor: isDark ? '#333' : '#EEE' }]}>
-                      {(['manage_debtors', 'manage_team'] as const).map((perm) => {
-                        const permKey = `${member.userId}:${perm}`;
-                        const active = member.permissions?.includes(perm);
-                        const isToggling = togglingPermKey === permKey;
-                        return (
-                          <TouchableOpacity
-                            key={perm}
-                            disabled={!!togglingPermKey}
-                            style={[
-                              styles.permissionChip,
-                              active ? styles.permissionChipActive : themeStyles.periodBtn,
-                              isToggling && { opacity: 0.6 }
-                            ]}
-                            onPress={() => togglePermission(member, perm)}
-                          >
-                            {isToggling ? (
-                              <ActivityIndicator size="small" color={active ? '#FFF' : Colors.primary} />
-                            ) : (
-                              <Text style={[
-                                styles.permissionChipText,
-                                active ? styles.permissionChipTextActive : themeStyles.periodText
-                              ]}>
-                                {perm === 'manage_debtors' ? 'Управление долгами' : 'Управление командой'}
-                              </Text>
-                            )}
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
+                    <TouchableOpacity
+                      style={[styles.permSummaryRow, { borderTopColor: isDark ? '#333' : '#EEE' }]}
+                      onPress={() => setPermissionsModalUserId(member.userId)}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons
+                        name={(member.permissions?.length || 0) > 0 ? 'key' : 'key-outline'}
+                        size={14}
+                        color={(member.permissions?.length || 0) > 0 ? Colors.primary : (isDark ? '#777' : '#AAA')}
+                      />
+                      <Text
+                        style={[
+                          styles.permSummaryText,
+                          themeStyles.memberSub,
+                          (member.permissions?.length || 0) > 0 && { color: Colors.primary },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {getPermissionSummary(member)}
+                      </Text>
+                      <View style={{ flex: 1 }} />
+                      <Ionicons name="chevron-forward" size={16} color={isDark ? '#555' : '#CCC'} />
+                    </TouchableOpacity>
                   )}
                 </View>
               </View>
@@ -521,6 +554,75 @@ export default function SellersScreen() {
 
       <View style={{ height: 40 }} />
     </ScrollView>
+
+    <Modal
+      visible={!!permissionsModalUserId}
+      transparent
+      animationType="slide"
+      onRequestClose={() => setPermissionsModalUserId(null)}
+    >
+      <View style={styles.permModalOverlay}>
+        <TouchableOpacity
+          style={StyleSheet.absoluteFill}
+          activeOpacity={1}
+          onPress={() => setPermissionsModalUserId(null)}
+        />
+        {(() => {
+          const activeMember = members.find(m => m.userId === permissionsModalUserId);
+          if (!activeMember) return null;
+          return (
+            <View style={[styles.permModalSheet, themeStyles.card]}>
+              <View style={styles.permModalHandle} />
+              <Text style={[styles.permModalTitle, themeStyles.text]}>
+                Доступы — {activeMember.displayName}
+              </Text>
+              <Text style={[styles.permModalSubtitle, themeStyles.memberSub]}>
+                Что этот продавец может делать помимо обычных продаж
+              </Text>
+
+              {PERMISSION_DEFS.map((def) => {
+                const permKey = `${activeMember.userId}:${def.key}`;
+                const active = !!activeMember.permissions?.includes(def.key);
+                const isToggling = togglingPermKey === permKey;
+                return (
+                  <View key={def.key} style={[styles.permRow, { borderTopColor: isDark ? '#2A2A2A' : '#F0F0F0' }]}>
+                    <View style={[
+                      styles.permIconWrap,
+                      { backgroundColor: active ? Colors.primaryLight : (isDark ? '#2A2A2A' : '#F5F5F5') }
+                    ]}>
+                      <Ionicons name={def.icon} size={20} color={active ? Colors.primary : (isDark ? '#888' : '#999')} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.permRowTitle, themeStyles.text]}>{def.title}</Text>
+                      <Text style={[styles.permRowDesc, themeStyles.memberSub]}>{def.desc}</Text>
+                    </View>
+                    {isToggling ? (
+                      <ActivityIndicator size="small" color={Colors.primary} style={{ width: 51 }} />
+                    ) : (
+                      <Switch
+                        value={active}
+                        onValueChange={() => togglePermission(activeMember, def.key)}
+                        trackColor={{ false: '#767577', true: Colors.primary }}
+                        thumbColor="#fff"
+                        disabled={!!togglingPermKey}
+                      />
+                    )}
+                  </View>
+                );
+              })}
+
+              <TouchableOpacity
+                style={styles.permModalCloseBtn}
+                onPress={() => setPermissionsModalUserId(null)}
+              >
+                <Text style={styles.permModalCloseBtnText}>Готово</Text>
+              </TouchableOpacity>
+            </View>
+          );
+        })()}
+      </View>
+    </Modal>
+    </>
   );
 }
 
@@ -607,28 +709,60 @@ const styles = StyleSheet.create({
   settingsTextWrap: { flex: 1 },
   settingsTitle: { fontSize: 15, fontWeight: '600' },
   settingsDesc: { fontSize: 12, marginTop: 2, opacity: 0.7 },
-  permissionsRow: {
+  permSummaryRow: {
     flexDirection: 'row',
-    gap: 8,
+    alignItems: 'center',
+    gap: 6,
     marginTop: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
     paddingTop: 12,
   },
-  permissionChip: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'transparent',
+  permSummaryText: { fontSize: 13, fontWeight: '500' },
+  permModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
   },
-  permissionChipActive: {
+  permModalSheet: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 32,
+  },
+  permModalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#CCC',
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  permModalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 4 },
+  permModalSubtitle: { fontSize: 13, marginBottom: 8 },
+  permRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  permIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  permRowTitle: { fontSize: 15, fontWeight: '600' },
+  permRowDesc: { fontSize: 12, marginTop: 2, opacity: 0.7, lineHeight: 16 },
+  permModalCloseBtn: {
+    marginTop: 20,
     backgroundColor: Colors.primary,
+    borderRadius: 12,
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  permissionChipText: {
-    fontSize: 12,
-  },
-  permissionChipTextActive: {
-    color: '#fff',
-    fontWeight: '600',
-  },
+  permModalCloseBtnText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
 });
