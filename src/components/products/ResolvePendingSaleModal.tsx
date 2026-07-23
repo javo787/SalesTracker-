@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   Modal, View, Text, TextInput, TouchableOpacity, ScrollView,
   StyleSheet, Alert, KeyboardAvoidingView, Platform,
-  UIManager, findNodeHandle,
+  UIManager, findNodeHandle, Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -79,8 +79,11 @@ export default function ResolvePendingSaleModal({
   const linkSearchRef = useRef<any>(null);
   const nameInputRef = useRef<any>(null);
 
+  const focusedFieldRef = useRef<any>(null);
+
   const scrollToInput = (target: any) => {
-    const scrollNode = findNodeHandle(scrollRef.current);
+    focusedFieldRef.current = target;
+    const scrollNode = scrollRef.current?.getInnerViewNode?.();
     const targetTag = findNodeHandle(target);
     if (targetTag && scrollNode) {
       UIManager.measureLayout(
@@ -93,6 +96,13 @@ export default function ResolvePendingSaleModal({
       );
     }
   };
+
+  useEffect(() => {
+    const sub = Keyboard.addListener('keyboardDidShow', () => {
+      if (focusedFieldRef.current) scrollToInput(focusedFieldRef.current);
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     if (visible && sale) {
