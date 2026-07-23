@@ -62,6 +62,12 @@ module.exports = ({ config }) => ({
         }
       ],
       [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Геолокация используется только при чек-ине, чтобы подтвердить ваше присутствие в магазине"
+        }
+      ],
+      [
         "@react-native-google-signin/google-signin",
         {
           "androidClientId": "265164441201-u27ifvp09fl36976hauoh9qv8jeulsv5.apps.googleusercontent.com",
