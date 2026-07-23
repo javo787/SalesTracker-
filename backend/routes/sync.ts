@@ -35,13 +35,19 @@ router.post('/push', authMiddleware, requireShop, async (req: AuthRequest, res) 
   const sellerObjectId = new mongoose.Types.ObjectId(req.userId!);
 
   try {
-    // PRODUCTS: only owner can push
-    if (products && Array.isArray(products) && req.role === 'owner') {
-      const allowedProductFields = [
-        'name', 'buy_price', 'sell_price', 'stock', 'min_stock_alert',
-        'base_unit', 'has_packages', 'package_name', 'units_per_package',
-        'category', 'updated_at', 'is_deleted',
-      ];
+    // PRODUCTS: owner can push everything; a seller with 'manage_products'
+    // can create/edit products too, but buy_price stays owner-only (same
+    // boundary already enforced on the pull side below — a seller must not
+    // see OR set the cost price, even if they're allowed to manage the catalog).
+    const canManageProducts = req.role === 'owner' || req.permissions?.includes('manage_products');
+    if (products && Array.isArray(products) && canManageProducts) {
+      const allowedProductFields = req.role === 'owner'
+        ? ['name', 'buy_price', 'sell_price', 'stock', 'min_stock_alert',
+           'base_unit', 'has_packages', 'package_name', 'units_per_package',
+           'category', 'updated_at', 'is_deleted']
+        : ['name', 'sell_price', 'stock', 'min_stock_alert',
+           'base_unit', 'has_packages', 'package_name', 'units_per_package',
+           'category', 'updated_at', 'is_deleted'];
 
       const productOps = products.map((p: any) => {
         const update: Record<string, any> = {
