@@ -62,6 +62,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSellerName(null); setInviteCode(null);
       setPermissions([]);
       AsyncStorage.removeItem('shop_permissions').catch(() => {});
+      AsyncStorage.removeItem('last_pull_asOf').catch(() => {});
+      AsyncStorage.removeItem('last_sync_at').catch(() => {});
       setShopRevoked(true);
     });
 
@@ -122,6 +124,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       persistSession({ ...result, sellerName: userName });
 
       try {
+        // Явно гарантируем полный (не дельта-) синк при создании магазина —
+        // не полагаемся на то, что last_pull_asOf от предыдущей сессии на
+        // этом устройстве уже был корректно вычищен где-то ещё.
+        await AsyncStorage.removeItem('last_pull_asOf');
         await SyncService.pull();
       } catch (pullErr) {
         console.warn('Initial pull after createShop failed:', pullErr);
@@ -144,6 +150,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       persistSession({ ...result, sellerName: userName });
 
       try {
+        // Та же подстраховка, что в createShop — см. комментарий там.
+        await AsyncStorage.removeItem('last_pull_asOf');
         await SyncService.pull();
       } catch (pullErr) {
         console.warn('Initial pull after joinShop failed:', pullErr);
@@ -236,6 +244,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSellerName(null); setInviteCode(null);
       setPermissions([]);
       await AsyncStorage.removeItem('shop_permissions');
+      // Курсор дельта-синка (last_pull_asOf/last_sync_at) не привязан к
+      // конкретному магазину — без сброса здесь он утекает в СЛЕДУЮЩУЮ сессию
+      // на этом устройстве (например, если это же устройство потом станет
+      // продавцом в другом магазине) и все "старые" для нового since данные
+      // навсегда перестают попадать в дельту.
+      await AsyncStorage.removeItem('last_pull_asOf');
+      await AsyncStorage.removeItem('last_sync_at');
       return { ok: true };
     } catch (e: any) {
       if (e.message?.includes('TRANSFER_REQUIRED') || e.status === 409) {

@@ -164,7 +164,30 @@ export const SyncService = {
         }
         dedupeRepairNeeded = Date.now() >= Number(scheduledAt);
       }
-      const lastPullAsOf = dedupeRepairNeeded ? null : await AsyncStorage.getItem('last_pull_asOf');
+
+      // Одноразовый полный ресинк ТОВАРОВ — ТОЛЬКО для продавцов. Чинит
+      // последствия бага, при котором last_pull_asOf не сбрасывался при
+      // выходе/отзыве доступа из магазина и был не привязан к конкретному
+      // магазину: если устройство раньше уже было в КАКОМ-ТО магазине
+      // (тем же или другим), продавец при вступлении в новый магазин мог
+      // унаследовать чужой/старый курсор дельта-синка — и тогда все товары,
+      // добавленные владельцем ДО этого курсора, никогда не попадали в
+      // дельту (since всегда фильтрует только "что изменилось после").
+      // Товаров у магазина обычно немного (десятки-сотни), в отличие от
+      // истории продаж, так что нагрузка на бэкенд от полного ресинка здесь
+      // не проблема — размазываем по той же схеме на всякий случай.
+      let productsRepairNeeded = false;
+      if (!isOwner && !(await AsyncStorage.getItem('products_resync_repair_v1'))) {
+        let scheduledAt = await AsyncStorage.getItem('products_resync_repair_at');
+        if (!scheduledAt) {
+          scheduledAt = String(Date.now() + Math.random() * 5 * 60 * 1000);
+          await AsyncStorage.setItem('products_resync_repair_at', scheduledAt);
+        }
+        productsRepairNeeded = Date.now() >= Number(scheduledAt);
+      }
+
+      const forceFullResync = dedupeRepairNeeded || productsRepairNeeded;
+      const lastPullAsOf = forceFullResync ? null : await AsyncStorage.getItem('last_pull_asOf');
       const url = lastPullAsOf ? `/sync/pull?since=${encodeURIComponent(lastPullAsOf)}` : '/sync/pull';
 
       const data = await withRetry(() => api.get<{
@@ -348,6 +371,9 @@ export const SyncService = {
       }
       if (dedupeRepairNeeded) {
         await AsyncStorage.setItem('sales_dedupe_repair_v1', 'done');
+      }
+      if (productsRepairNeeded) {
+        await AsyncStorage.setItem('products_resync_repair_v1', 'done');
       }
     } catch (error) {
       console.warn('Sync pull failed:', error);
