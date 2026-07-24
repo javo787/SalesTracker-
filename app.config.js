@@ -94,8 +94,6 @@ module.exports = ({ config }) => ({
       bundleIdentifier: "com.torgo.app",
       googleServicesFile: "./GoogleService-Info.plist",
       infoPlist: {
-        "NSSpeechRecognitionUsageDescription": "Allow $(PRODUCT_NAME) to use speech recognition.",
-        "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to use the microphone.",
         "LSApplicationQueriesSchemes": ["tg"]
       }
     },
