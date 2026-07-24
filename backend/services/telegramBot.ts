@@ -44,3 +44,18 @@ export function notifyAdmin(text: string): void {
     });
   }
 }
+
+const ALERT_COOLDOWN_MS = 10 * 60 * 1000; // 10 минут
+const lastAlertAt: Record<string, number> = {};
+
+/**
+ * Same as notifyAdmin, but suppresses repeats of the same alert `key`
+ * within ALERT_COOLDOWN_MS — чтобы шквал одинаковых ошибок за минуту не
+ * закидал админа сотней одинаковых сообщений в Telegram.
+ */
+export function alertOnce(key: string, text: string): void {
+  const now = Date.now();
+  if (now - (lastAlertAt[key] || 0) < ALERT_COOLDOWN_MS) return;
+  lastAlertAt[key] = now;
+  notifyAdmin(text);
+}

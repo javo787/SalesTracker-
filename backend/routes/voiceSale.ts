@@ -4,6 +4,7 @@ import { authMiddleware, AuthRequest, requireShop } from '../middleware/authMidd
 import { fetchGeminiWithRotation, GEMINI_MODELS, parseGeminiJSON, normalizeVoiceSaleResult } from '../utils/gemini';
 import { transcribeAudio } from '../utils/transcribe';
 import { fetchCerebrasChat } from '../utils/cerebras';
+import { alertOnce } from '../services/telegramBot';
 import axios from 'axios';
 
 const router = express.Router();
@@ -231,6 +232,10 @@ router.post('/', authMiddleware, requireShop, (req, res, next) => {
     } catch (e) {
       console.error('[voice-sale] Whisper failed', e);
       clearTimeout(timeoutId);
+      alertOnce(
+        'voice-all-providers-down',
+        `🔴 <b>Голосовой ввод: все провайдеры недоступны</b>\nWhisper упал после того, как уже не сработал Gemini (L1 + fallback).\nМагазин: ${shopId}\nОшибка: ${(e as any)?.message || 'н/д'}`
+      );
       return res.status(503).json({ error: 'all_providers_down' });
     }
 
@@ -376,9 +381,17 @@ router.post('/', authMiddleware, requireShop, (req, res, next) => {
     clearTimeout(timeoutId);
     logStep('pipeline_error', { errorName: error.name, errorMessage: error.message });
     if (error.name === 'AbortError') {
+      alertOnce(
+        'voice-pipeline-timeout',
+        `⏱️ <b>Голосовой ввод: таймаут пайплайна (25с)</b>\nМагазин: ${shopId}`
+      );
       return res.status(504).json({ error: 'pipeline_timeout' });
     }
     console.error('[voice-sale] Unexpected error:', error);
+    alertOnce(
+      'voice-internal-error',
+      `🔴 <b>Голосовой ввод: непойманная ошибка</b>\nМагазин: ${shopId}\n${error?.name || 'Error'}: ${error?.message || 'н/д'}`
+    );
     return res.status(500).json({ error: 'internal_error' });
   }
 });

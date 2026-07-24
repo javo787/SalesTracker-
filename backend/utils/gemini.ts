@@ -1,15 +1,5 @@
 import axios from 'axios';
-import { notifyAdmin } from '../services/telegramBot';
-
-const ALERT_COOLDOWN_MS = 10 * 60 * 1000; // 10 минут
-const lastAlertAt: Record<string, number> = {};
-
-function alertOnce(key: string, text: string) {
-  const now = Date.now();
-  if (now - (lastAlertAt[key] || 0) < ALERT_COOLDOWN_MS) return;
-  lastAlertAt[key] = now;
-  notifyAdmin(text);
-}
+import { alertOnce } from '../services/telegramBot';
 
 const GEMINI_API_KEYS = [
   process.env.GEMINI_API_KEY,

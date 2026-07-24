@@ -408,6 +408,21 @@ export default function VoiceCapsule({
       }
 
       if (result.status !== 200 && result.status !== 201) {
+        const errCode: string | undefined = body?.error;
+        const FRIENDLY_ERRORS: Record<string, string> = {
+          file_too_large: 'Запись слишком длинная. Попробуйте короче.',
+          no_speech_detected: 'Речь не распознана. Попробуйте сказать чётче и ближе к микрофону.',
+          all_providers_down: 'Сервис распознавания речи перегружен. Попробуйте через минуту.',
+          pipeline_timeout: 'Не удалось распознать за отведённое время. Проверьте связь и попробуйте снова.',
+          internal_error: 'Произошла ошибка на сервере. Мы уже получили уведомление об этом.',
+        };
+        const FRIENDLY_BY_STATUS: Record<number, string> = {
+          503: 'Сервис распознавания речи перегружен. Попробуйте через минуту.',
+          504: 'Не удалось распознать за отведённое время. Проверьте связь и попробуйте снова.',
+          500: 'Произошла ошибка на сервере. Мы уже получили уведомление об этом.',
+        };
+        const friendly = (errCode && FRIENDLY_ERRORS[errCode]) || FRIENDLY_BY_STATUS[result.status];
+        if (friendly) throw new Error(friendly);
         const detail = body?.error?.message ?? body?.message ?? 'Ошибка API';
         throw new Error(`[${result.status}] ${detail}`);
       }
