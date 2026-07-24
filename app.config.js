@@ -39,6 +39,15 @@ module.exports = ({ config }) => ({
     runtimeVersion: { policy: "fingerprint" },
     plugins: [
       [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#1D9E75",
+          "imageWidth": 200
+        }
+      ],
+      [
         "expo-audio",
         {
           "microphonePermission": "Разрешите доступ к микрофону для использования голосового ввода",
