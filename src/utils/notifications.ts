@@ -148,3 +148,45 @@ export async function showRemoteNotification(title: string, body: string, data?:
     trigger: null,
   });
 }
+
+export function getNotificationLanguage(lang: string | null | undefined): 'ru' | 'tg' | 'uz' {
+  if (!lang) return 'ru';
+  const cleanLang = lang.toLowerCase();
+  if (cleanLang === 'tg') return 'tg';
+  if (cleanLang === 'uz' || cleanLang === 'uz-cyrl') return 'uz';
+  return 'ru';
+}
+
+export async function updateLanguageSubscription(newLang: string, oldLang?: string) {
+  try {
+    const newTopicLang = getNotificationLanguage(newLang);
+    const newTopic = `app_announcements_${newTopicLang}`;
+
+    if (oldLang) {
+      const oldTopicLang = getNotificationLanguage(oldLang);
+      const oldTopic = `app_announcements_${oldTopicLang}`;
+      if (oldTopic !== newTopic) {
+        console.log(`[Push] Unsubscribing from old topic: ${oldTopic}`);
+        await messaging().unsubscribeFromTopic(oldTopic).catch(err => {
+          console.warn(`[Push] Failed to unsubscribe from ${oldTopic}:`, err);
+        });
+      }
+    } else {
+      // Unsubscribe from other possible topics to ensure a clean state
+      const possibleLangs: Array<'ru' | 'tg' | 'uz'> = ['ru', 'tg', 'uz'];
+      for (const pl of possibleLangs) {
+        if (pl !== newTopicLang) {
+          const oldTopic = `app_announcements_${pl}`;
+          await messaging().unsubscribeFromTopic(oldTopic).catch(() => {});
+        }
+      }
+      // Also unsubscribe from the deprecated single 'app_announcements' topic
+      await messaging().unsubscribeFromTopic('app_announcements').catch(() => {});
+    }
+
+    console.log(`[Push] Subscribing to topic: ${newTopic}`);
+    await messaging().subscribeToTopic(newTopic);
+  } catch (err) {
+    console.warn('[Push] Failed to update language subscription:', err);
+  }
+}

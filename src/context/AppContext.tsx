@@ -3,6 +3,7 @@ import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import i18n from '../i18n/i18n';
 import { ALL_CURRENCIES, CURRENCIES_MAP, CurrencyDef } from '../constants/currencies';
+import { updateLanguageSubscription } from '../utils/notifications';
 
 type Theme = 'light' | 'dark' | 'system';
 
@@ -112,10 +113,12 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   }, []);
 
   const setLanguage = useCallback(async (lang: string) => {
+    const oldLang = language;
     setLanguageState(lang);
     await AsyncStorage.setItem('app_language', lang);
     await i18n.changeLanguage(lang);
-  }, []);
+    await updateLanguageSubscription(lang, oldLang);
+  }, [language]);
 
   const setNotificationsEnabled = useCallback(async (enabled: boolean) => {
     setNotificationsEnabledState(enabled);

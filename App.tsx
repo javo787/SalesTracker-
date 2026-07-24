@@ -13,7 +13,7 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import { I18nextProvider, useTranslation } from 'react-i18next';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initDatabase, getOverdueDebts } from './src/db/database';
-import { requestPermissions, showRemoteNotification, notifyOverdueDebts, registerFCMToken, setupPushHandlers } from './src/utils/notifications';
+import { requestPermissions, showRemoteNotification, notifyOverdueDebts, registerFCMToken, setupPushHandlers, updateLanguageSubscription } from './src/utils/notifications';
 import { SyncService } from './src/services/syncService';
 import i18n from './src/i18n/i18n';
 import messaging from '@react-native-firebase/messaging';
@@ -298,7 +298,9 @@ function DrawerNavigator() {
 
 async function setupPushNotifications() {
   await messaging().requestPermission();
-  await messaging().subscribeToTopic('app_announcements');
+  const savedLang = await AsyncStorage.getItem('app_language');
+  const initialLang = savedLang || 'ru';
+  await updateLanguageSubscription(initialLang);
 }
 
 const enableImmersiveMode = async () => {
