@@ -26,6 +26,7 @@ export default function AdminPage() {
     targetUrl: '',
     active: true,
     priority: 0,
+    ctaText: '',
   });
 
   const [newWholesale, setNewWholesale] = useState({
@@ -145,7 +146,7 @@ export default function AdminPage() {
         body: JSON.stringify(newAd),
       });
       if (res.ok) {
-        setNewAd({ title: '', subtitle: '', imageUrl: '', targetUrl: '', active: true, priority: 0 });
+        setNewAd({ title: '', subtitle: '', imageUrl: '', targetUrl: '', active: true, priority: 0, ctaText: '' });
         fetchDirectAds();
         setMessage('Объявление добавлено');
       }
@@ -325,6 +326,7 @@ export default function AdminPage() {
               <input placeholder="Подзаголовок" value={newAd.subtitle} onChange={e => setNewAd({...newAd, subtitle: e.target.value})} required style={{ display: 'block', width: '100%', marginBottom: 10, padding: 8 }} />
               <input placeholder="URL картинки" value={newAd.imageUrl} onChange={e => setNewAd({...newAd, imageUrl: e.target.value})} required style={{ display: 'block', width: '100%', marginBottom: 10, padding: 8 }} />
               <input placeholder="URL перехода" value={newAd.targetUrl} onChange={e => setNewAd({...newAd, targetUrl: e.target.value})} required style={{ display: 'block', width: '100%', marginBottom: 10, padding: 8 }} />
+              <input placeholder="CTA текст (необязательно, например: Подробнее)" value={newAd.ctaText} onChange={e => setNewAd({...newAd, ctaText: e.target.value})} style={{ display: 'block', width: '100%', marginBottom: 10, padding: 8 }} />
               <input type="number" placeholder="Приоритет (чем выше, тем раньше)" value={newAd.priority} onChange={e => setNewAd({...newAd, priority: parseInt(e.target.value)})} required style={{ display: 'block', width: '100%', marginBottom: 10, padding: 8 }} />
               <button type="submit" style={{ padding: '10px 20px', backgroundColor: '#1D9E75', color: 'white', border: 'none', borderRadius: 4 }}>Добавить</button>
             </form>
@@ -337,6 +339,7 @@ export default function AdminPage() {
                   <div>
                     <strong>{ad.title}</strong> ({ad.priority})<br/>
                     <small>{ad.subtitle}</small><br/>
+                    {ad.ctaText ? <><small style={{ color: '#555' }}>Кнопка: {ad.ctaText}</small><br/></> : null}
                     <span>Кликов: {ad.clicks || 0}</span>
                   </div>
                   <div>

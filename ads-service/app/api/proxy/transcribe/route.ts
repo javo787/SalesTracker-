@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     // Passing the parsed FormData directly breaks the multipart boundary
     // when Node fetch tries to re-serialize it, causing Groq to reject with 401.
     const groqForm = new FormData();
-    incomingForm.forEach((value, key) => {
+    (incomingForm as any).forEach((value: any, key: string) => {
       groqForm.append(key, value);
     });
 

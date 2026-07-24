@@ -15,6 +15,7 @@ export interface DirectAdConfig {
   targetUrl: string;
   active: boolean;
   priority: number;
+  ctaText?: string;
 }
 
 class AdService {
