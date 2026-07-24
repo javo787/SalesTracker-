@@ -834,6 +834,40 @@ export function getStockMovements(productId: number, limit: number = 20) {
   );
 }
 
+export function getUnsyncedStockMovements() {
+  return db.getAllSync('SELECT * FROM stock_movements WHERE synced = 0');
+}
+
+export function markStockMovementsSynced(ids: string[]) {
+  if (ids.length === 0) return;
+  db.withTransactionSync(() => {
+    for (const id of ids) {
+      db.runSync('UPDATE stock_movements SET synced = 1 WHERE id = ?', [id]);
+    }
+  });
+}
+
+// Вставка движений, пришедших от других устройств этого магазина (pull).
+// id — тот же UUID, что был сгенерирован на устройстве-авторе, поэтому
+// INSERT OR IGNORE корректно пропускает строку на самом устройстве-авторе
+// (она там уже есть) и вставляет её как новую на всех остальных.
+export function insertStockMovementsFromSync(movements: any[]) {
+  if (movements.length === 0) return;
+  db.withTransactionSync(() => {
+    for (const m of movements) {
+      db.runSync(
+        `INSERT OR IGNORE INTO stock_movements
+          (id, product_id, type, quantity_change, price_per_unit, note, created_at, synced, seller_id, seller_name)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+        [
+          m.clientId, m.productLocalId, m.type, m.quantityChange,
+          m.pricePerUnit, m.note, m.createdAt, m.sellerId || null, m.sellerName || null,
+        ]
+      );
+    }
+  });
+}
+
 export function getLastPurchaseInfo(productId: number): { price_per_unit: number; created_at: string } | null {
   return db.getFirstSync(
     "SELECT price_per_unit, created_at FROM stock_movements WHERE product_id = ? AND type = 'stock_in' ORDER BY created_at DESC LIMIT 1",

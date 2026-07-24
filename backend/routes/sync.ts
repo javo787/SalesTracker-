@@ -3,6 +3,7 @@ import Sale from '../models/Sale';
 import Product from '../models/Product';
 import User from '../models/User';
 import Expense from '../models/Expense';
+import StockMovement from '../models/StockMovement';
 import { authMiddleware, requireShop, AuthRequest } from '../middleware/authMiddleware';
 import mongoose from 'mongoose';
 
@@ -30,7 +31,7 @@ function invalidateShopProductsCache(shopId: string) {
 
 // POST /sync/push
 router.post('/push', authMiddleware, requireShop, async (req: AuthRequest, res) => {
-  const { sales, products, expenses } = req.body;
+  const { sales, products, expenses, stockMovements } = req.body;
   const shopObjectId = new mongoose.Types.ObjectId(req.shopId!);
   const sellerObjectId = new mongoose.Types.ObjectId(req.userId!);
 
@@ -74,6 +75,38 @@ router.post('/push', authMiddleware, requireShop, async (req: AuthRequest, res) 
       if (productOps.length > 0) {
         await Product.bulkWrite(productOps);
         invalidateShopProductsCache(req.shopId!);
+      }
+    }
+
+    // STOCK MOVEMENTS: append-only журнал, дедуп по clientId (UUID с клиента).
+    // stock_in может логировать любой сотрудник (так уже разрешено в UI —
+    // приёмка товара), waste/correction/edit — только владелец (тоже уже
+    // так в UI, здесь просто дублируем эту же проверку на бэкенде).
+    if (stockMovements && Array.isArray(stockMovements)) {
+      const allowedMovementTypes = req.role === 'owner'
+        ? ['stock_in', 'waste', 'correction', 'edit']
+        : ['stock_in'];
+      const validMovements = stockMovements.filter((m: any) => allowedMovementTypes.includes(m.type));
+
+      for (const m of validMovements) {
+        try {
+          await StockMovement.create({
+            shopId: shopObjectId,
+            productLocalId: m.product_id,
+            clientId: m.id,
+            type: m.type,
+            quantityChange: m.quantity_change,
+            pricePerUnit: m.price_per_unit ?? null,
+            note: m.note,
+            sellerId: m.seller_id || req.userId,
+            sellerName: m.seller_name || req.sellerName,
+            createdAt: m.created_at,
+          });
+        } catch (e: any) {
+          // 11000 = дубликат по {shopId, clientId} — уже синкнуто раньше,
+          // это нормально при повторном push (withRetry на фронте и т.п.).
+          if (e.code !== 11000) throw e;
+        }
       }
     }
 
@@ -247,7 +280,22 @@ router.get('/pull', authMiddleware, requireShop, async (req: AuthRequest, res) =
     }
     const expenses = await Expense.find(expensesQuery).lean();
 
-    res.json({ products, sales, expenses, role: req.role, shopId: req.shopId, asOf });
+    // Stock movements: журнал доступен всем в магазине (важно видеть, кто
+    // и когда трогал остаток), но цена за единицу (себестоимость на
+    // приёмке) — та же граница, что и buy_price у товара: только владелец.
+    const movementsQuery: any = { shopId: shopObjectId };
+    if (sinceDate) {
+      movementsQuery.serverCreatedAt = { $gte: sinceDate };
+    }
+    const movementsRaw = await StockMovement.find(movementsQuery).lean();
+    const stockMovements = movementsRaw.map((m: any) => {
+      if (!isOwner) {
+        return { ...m, pricePerUnit: null };
+      }
+      return m;
+    });
+
+    res.json({ products, sales, expenses, stockMovements, role: req.role, shopId: req.shopId, asOf });
   } catch (error) {
     console.error('Pull error:', error);
     res.status(500).json({ message: 'Error during pull sync' });
