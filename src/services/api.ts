@@ -1,4 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { clearShopSession } from '../db/database';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
@@ -40,6 +41,8 @@ class ApiClient {
       if (errorData.message?.includes('Not a member of any shop')) {
         this.emitRevoked();
         clearShopSession();
+        AsyncStorage.removeItem('last_pull_asOf').catch(() => {});
+        AsyncStorage.removeItem('last_sync_at').catch(() => {});
         throw new Error('SHOP_ACCESS_REVOKED');
       }
       // Other 403 (e.g. requireOwner on seller request)
