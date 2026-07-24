@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState } from 'react-native';
 import { api } from './api';
-import { getProducts, getProductsForSync, getSalesByPeriod, getShopSession, getUnsyncedSales, getUnsyncedExpenses, getUnsyncedCheckIn, updateCheckInSyncResult } from '../db/database';
+import { getProducts, getProductsForSync, getSalesByPeriod, getShopSession, getUnsyncedSales, getUnsyncedExpenses, getUnsyncedCheckIn, updateCheckInSyncResult, getUnsyncedStockMovements, markStockMovementsSynced, insertStockMovementsFromSync } from '../db/database';
 import * as SQLite from 'expo-sqlite';
 
 const db = SQLite.openDatabaseSync('savdo.db'); // Note: Keeping database name 'savdo.db' to avoid data loss as per instructions.
@@ -94,10 +94,12 @@ export const SyncService = {
       const salesToSend = getUnsyncedSales();
       const productsToSend = isOwner ? getProductsForSync() : [];
       const expensesToSend = getUnsyncedExpenses();
+      const stockMovementsToSend = getUnsyncedStockMovements();
 
       const payload: any = {
         sales: salesToSend,
         expenses: expensesToSend,
+        stockMovements: stockMovementsToSend,
       };
 
       if (isOwner) {
@@ -119,6 +121,7 @@ export const SyncService = {
           db.runSync('UPDATE expenses SET synced = 1 WHERE id = ?', [e.id]);
         }
       });
+      markStockMovementsSynced((stockMovementsToSend as any[]).map(m => m.id));
     } catch (error) {
       console.warn('Sync push failed:', error);
     } finally {
@@ -194,6 +197,7 @@ export const SyncService = {
         products: any[];
         sales: any[];
         expenses: any[];
+        stockMovements: any[];
         role: string;
         asOf: string;
       }>(url));
@@ -249,6 +253,14 @@ export const SyncService = {
           }
         });
         await new Promise(resolve => setTimeout(resolve, 0)); // yield to event loop between chunks
+      }
+
+      // Stock movements sync — append-only, вставляем через INSERT OR IGNORE
+      // (см. insertStockMovementsFromSync): на устройстве-авторе строка с
+      // таким id уже есть и просто пропускается, на остальных — вставляется.
+      for (const batch of chunk(data.stockMovements || [], CHUNK_SIZE)) {
+        insertStockMovementsFromSync(batch);
+        await new Promise(resolve => setTimeout(resolve, 0));
       }
 
       // Sales sync
