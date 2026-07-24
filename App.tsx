@@ -28,6 +28,7 @@ import { ShopProvider, useShop } from './src/context/ShopContext';
 import { AppLockProvider, useAppLock } from './src/context/AppLockContext';
 import { useNewsUnread } from './src/hooks/useNewsUnread';
 import { Ionicons } from '@expo/vector-icons';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { FEATURES } from './src/config/features';
 import { Colors, DarkTheme as DarkColors, LightTheme as LightColors, Radius, Shadow } from './src/constants/theme';
 
@@ -597,46 +598,48 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <View style={{ flex: 1 }}>
-        <AppContextProvider>
-          <AuthProvider>
-            <ShopProvider>
-              <AppLockProvider>
-                <I18nextProvider i18n={i18n}>
-                  {dbError ? (
-                    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-                      <Ionicons name="alert-circle-outline" size={64} color="#FF6B6B" />
-                      <Text style={{ fontSize: 18, fontWeight: 'bold', marginTop: 16, textAlign: 'center' }}>
-                        Ошибка базы данных
-                      </Text>
-                      <Text style={{ fontSize: 14, color: '#666', marginTop: 8, textAlign: 'center' }}>
-                        Не удалось запустить приложение. Пожалуйста, попробуйте перезагрузить его.
-                      </Text>
-                      <Text style={{ fontSize: 12, color: '#999', marginTop: 16 }}>
-                        {dbError.message}
-                      </Text>
-                    </View>
-                  ) : (
-                    <ErrorBoundary>
-                      <AppContent onReady={handleAppContentReady} />
-                    </ErrorBoundary>
-                  )}
-                </I18nextProvider>
-              </AppLockProvider>
-            </ShopProvider>
-          </AuthProvider>
-        </AppContextProvider>
+      <KeyboardProvider>
+        <View style={{ flex: 1 }}>
+          <AppContextProvider>
+            <AuthProvider>
+              <ShopProvider>
+                <AppLockProvider>
+                  <I18nextProvider i18n={i18n}>
+                    {dbError ? (
+                      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+                        <Ionicons name="alert-circle-outline" size={64} color="#FF6B6B" />
+                        <Text style={{ fontSize: 18, fontWeight: 'bold', marginTop: 16, textAlign: 'center' }}>
+                          Ошибка базы данных
+                        </Text>
+                        <Text style={{ fontSize: 14, color: '#666', marginTop: 8, textAlign: 'center' }}>
+                          Не удалось запустить приложение. Пожалуйста, попробуйте перезагрузить его.
+                        </Text>
+                        <Text style={{ fontSize: 12, color: '#999', marginTop: 16 }}>
+                          {dbError.message}
+                        </Text>
+                      </View>
+                    ) : (
+                      <ErrorBoundary>
+                        <AppContent onReady={handleAppContentReady} />
+                      </ErrorBoundary>
+                    )}
+                  </I18nextProvider>
+                </AppLockProvider>
+              </ShopProvider>
+            </AuthProvider>
+          </AppContextProvider>
 
-        {!isAppSplashScreenHidden && (
-          <AppSplashScreen
-            ready={isAppReady}
-            onHidden={() => {
-              setIsAppSplashScreenHidden(true);
-              SplashScreen.hideAsync().catch(() => {});
-            }}
-          />
-        )}
-      </View>
+          {!isAppSplashScreenHidden && (
+            <AppSplashScreen
+              ready={isAppReady}
+              onHidden={() => {
+                setIsAppSplashScreenHidden(true);
+                SplashScreen.hideAsync().catch(() => {});
+              }}
+            />
+          )}
+        </View>
+      </KeyboardProvider>
     </SafeAreaProvider>
   );
 }
