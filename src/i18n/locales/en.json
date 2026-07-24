@@ -1,6 +1,7 @@
 {
   "common": {
     "guest": "Guest",
+    "ctaDefault": "Learn More",
     "save": "Save",
     "saved": "Saved!",
     "cancel": "Cancel",

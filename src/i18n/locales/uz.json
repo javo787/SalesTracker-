@@ -1,6 +1,7 @@
 {
   "common": {
     "guest": "Mehmon",
+    "ctaDefault": "Batafsil",
     "save": "Saqlash",
     "saved": "Saqlandi!",
     "cancel": "Bekor qilish",
