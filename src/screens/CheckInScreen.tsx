@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
   Animated
@@ -58,6 +58,12 @@ export default function CheckInScreen() {
   const [activeView, setActiveView] = useState<'menu' | 'gps' | 'nfc' | 'qr' | 'success'>('menu');
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Bumped whenever a GPS/NFC attempt starts or is cancelled. A running
+  // attempt captures its own id and checks it before touching state, so a
+  // late resolution after Cancel (or after a newer attempt started) is
+  // silently ignored instead of clobbering whatever the user is doing now.
+  const attemptIdRef = useRef(0);
 
   // Determine enabled methods
   const enabledMethods = useMemo(() => {
@@ -126,6 +132,7 @@ export default function CheckInScreen() {
 
   // 1. GPS Flow
   const triggerGps = useCallback(async () => {
+    const myAttemptId = ++attemptIdRef.current;
     setActiveView('gps');
     setErrorMessage(null);
     setStatusMessage(t('checkIn.checkingGps'));
@@ -159,27 +166,33 @@ export default function CheckInScreen() {
         },
       });
 
+      if (attemptIdRef.current !== myAttemptId) return; // cancelled or superseded — ignore
       handleSuccess(res.status);
     } catch (err: any) {
+      if (attemptIdRef.current !== myAttemptId) return; // cancelled or superseded — ignore
       handleError(err);
     }
   }, [submitCheckIn, handleSuccess, handleError, t]);
 
   // 2. NFC Flow
   const triggerNfc = useCallback(async () => {
+    const myAttemptId = ++attemptIdRef.current;
     setActiveView('nfc');
     setErrorMessage(null);
     setStatusMessage(t('checkIn.checkingNfc'));
     try {
       await NfcManager.requestTechnology(NfcTech.Ndef);
       const tag = await NfcManager.getTag();
+      if (attemptIdRef.current !== myAttemptId) return; // cancelled or superseded — ignore
       if (tag && tag.id) {
         const res = await submitCheckIn('nfc', { nfcTagUid: tag.id });
+        if (attemptIdRef.current !== myAttemptId) return; // cancelled or superseded — ignore
         handleSuccess(res.status);
       } else {
         throw new Error('NFC tag reading failed');
       }
     } catch (err: any) {
+      if (attemptIdRef.current !== myAttemptId) return; // cancelled or superseded — ignore
       handleError(err);
     } finally {
       NfcManager.cancelTechnologyRequest().catch(() => {});
@@ -289,7 +302,19 @@ export default function CheckInScreen() {
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={[styles.statusMsg, themeStyles.textSub, { marginTop: 16 }]}>{statusMessage}</Text>
-          <TouchableOpacity style={[styles.cancelBtn, { marginTop: 24 }]} onPress={() => setActiveView('menu')}>
+          <TouchableOpacity
+            style={[styles.cancelBtn, { marginTop: 24 }]}
+            onPress={() => {
+              // Invalidate this attempt so its eventual result (success or
+              // error) is ignored instead of surfacing later on top of
+              // whatever the user does next.
+              attemptIdRef.current++;
+              if (activeView === 'nfc') {
+                NfcManager.cancelTechnologyRequest().catch(() => {});
+              }
+              setActiveView('menu');
+            }}
+          >
             <Text style={styles.cancelBtnText}>{t('common.cancel')}</Text>
           </TouchableOpacity>
         </View>
