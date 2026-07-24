@@ -45,9 +45,11 @@ export default function AdminPage() {
     images: [] as string[],
   });
 
-  const [notifTitle, setNotifTitle] = useState('');
-  const [notifBody, setNotifBody] = useState('');
+  const [notifRU, setNotifRU] = useState({ title: '', body: '' });
+  const [notifTG, setNotifTG] = useState({ title: '', body: '' });
+  const [notifUZ, setNotifUZ] = useState({ title: '', body: '' });
   const [notifUrl, setNotifUrl] = useState('');
+  const [notifImageUrl, setNotifImageUrl] = useState('');
   const [sendingNotif, setSendingNotif] = useState(false);
 
   const fetchDirectAds = async (pwd = password) => {
@@ -228,14 +230,39 @@ export default function AdminPage() {
     e.preventDefault();
     setSendingNotif(true);
     try {
+      const languages: Record<string, { title: string; body: string }> = {};
+      if (notifRU.title.trim() && notifRU.body.trim()) {
+        languages.ru = { title: notifRU.title.trim(), body: notifRU.body.trim() };
+      }
+      if (notifTG.title.trim() && notifTG.body.trim()) {
+        languages.tg = { title: notifTG.title.trim(), body: notifTG.body.trim() };
+      }
+      if (notifUZ.title.trim() && notifUZ.body.trim()) {
+        languages.uz = { title: notifUZ.title.trim(), body: notifUZ.body.trim() };
+      }
+
+      if (Object.keys(languages).length === 0) {
+        setMessage('Ошибка: Заполните хотя бы один язык (заголовок и текст)');
+        setSendingNotif(false);
+        return;
+      }
+
       const res = await fetch('/api/admin/notifications', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-admin-password': password },
-        body: JSON.stringify({ title: notifTitle, body: notifBody, url: notifUrl || undefined }),
+        body: JSON.stringify({
+          url: notifUrl || undefined,
+          imageUrl: notifImageUrl || undefined,
+          languages
+        }),
       });
       if (res.ok) {
         setMessage('Уведомление отправлено');
-        setNotifTitle(''); setNotifBody(''); setNotifUrl('');
+        setNotifRU({ title: '', body: '' });
+        setNotifTG({ title: '', body: '' });
+        setNotifUZ({ title: '', body: '' });
+        setNotifUrl('');
+        setNotifImageUrl('');
       } else {
         const err = await res.json();
         setMessage(`Ошибка: ${err.error || 'неизвестно'}`);
@@ -499,13 +526,37 @@ export default function AdminPage() {
       )}
 
       {activeTab === 'notifications' && (
-        <div style={{ backgroundColor: '#f0f0f0', padding: 20, borderRadius: 8, color: '#000', maxWidth: 500 }}>
-          <h3>Отправить уведомление всем пользователям</h3>
+        <div style={{ backgroundColor: '#f0f0f0', padding: 20, borderRadius: 8, color: '#000', maxWidth: 600 }}>
+          <h3>Отправить уведомление по языковым топикам</h3>
+          <p style={{ fontSize: 13, color: '#666', marginBottom: 15 }}>
+            Заполните поля для каждого языка, на котором вы хотите отправить уведомление. Если язык оставлен пустым, на него отправлено не будет.
+          </p>
           <form onSubmit={handleSendNotification}>
-            <input placeholder="Заголовок" value={notifTitle} onChange={e => setNotifTitle(e.target.value)} required style={{ display: 'block', width: '100%', marginBottom: 10, padding: 8 }} />
-            <textarea placeholder="Текст уведомления" value={notifBody} onChange={e => setNotifBody(e.target.value)} required style={{ display: 'block', width: '100%', marginBottom: 10, padding: 8, height: 80 }} />
-            <input placeholder="Ссылка (необязательно)" value={notifUrl} onChange={e => setNotifUrl(e.target.value)} style={{ display: 'block', width: '100%', marginBottom: 10, padding: 8 }} />
-            <button type="submit" disabled={sendingNotif} style={{ padding: '10px 20px', backgroundColor: '#1D9E75', color: 'white', border: 'none', borderRadius: 4 }}>
+            <div style={{ marginBottom: 15, borderBottom: '1px solid #ccc', paddingBottom: 15 }}>
+              <h4 style={{ margin: '0 0 10px 0' }}>Русский (RU)</h4>
+              <input placeholder="Заголовок (RU)" value={notifRU.title} onChange={e => setNotifRU({...notifRU, title: e.target.value})} style={{ display: 'block', width: '100%', marginBottom: 8, padding: 8, boxSizing: 'border-box' }} />
+              <textarea placeholder="Текст уведомления (RU)" value={notifRU.body} onChange={e => setNotifRU({...notifRU, body: e.target.value})} style={{ display: 'block', width: '100%', padding: 8, height: 60, boxSizing: 'border-box' }} />
+            </div>
+
+            <div style={{ marginBottom: 15, borderBottom: '1px solid #ccc', paddingBottom: 15 }}>
+              <h4 style={{ margin: '0 0 10px 0' }}>Таджикский (TG)</h4>
+              <input placeholder="Заголовок (TG)" value={notifTG.title} onChange={e => setNotifTG({...notifTG, title: e.target.value})} style={{ display: 'block', width: '100%', marginBottom: 8, padding: 8, boxSizing: 'border-box' }} />
+              <textarea placeholder="Текст уведомления (TG)" value={notifTG.body} onChange={e => setNotifTG({...notifTG, body: e.target.value})} style={{ display: 'block', width: '100%', padding: 8, height: 60, boxSizing: 'border-box' }} />
+            </div>
+
+            <div style={{ marginBottom: 15, borderBottom: '1px solid #ccc', paddingBottom: 15 }}>
+              <h4 style={{ margin: '0 0 10px 0' }}>Узбекский (UZ)</h4>
+              <input placeholder="Заголовок (UZ)" value={notifUZ.title} onChange={e => setNotifUZ({...notifUZ, title: e.target.value})} style={{ display: 'block', width: '100%', marginBottom: 8, padding: 8, boxSizing: 'border-box' }} />
+              <textarea placeholder="Текст уведомления (UZ)" value={notifUZ.body} onChange={e => setNotifUZ({...notifUZ, body: e.target.value})} style={{ display: 'block', width: '100%', padding: 8, height: 60, boxSizing: 'border-box' }} />
+            </div>
+
+            <div style={{ marginBottom: 15 }}>
+              <h4 style={{ margin: '0 0 10px 0' }}>Общие параметры</h4>
+              <input placeholder="Ссылка (необязательно)" value={notifUrl} onChange={e => setNotifUrl(e.target.value)} style={{ display: 'block', width: '100%', marginBottom: 10, padding: 8, boxSizing: 'border-box' }} />
+              <input placeholder="URL картинки (необязательно)" value={notifImageUrl} onChange={e => setNotifImageUrl(e.target.value)} style={{ display: 'block', width: '100%', marginBottom: 10, padding: 8, boxSizing: 'border-box' }} />
+            </div>
+
+            <button type="submit" disabled={sendingNotif} style={{ padding: '10px 20px', backgroundColor: '#1D9E75', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
               {sendingNotif ? 'Отправка...' : 'Отправить'}
             </button>
           </form>

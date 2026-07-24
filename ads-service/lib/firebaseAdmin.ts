@@ -21,12 +21,13 @@ export async function sendPushToTopic(
   topic: string,
   title: string,
   body: string,
-  data?: Record<string, string>
+  data?: Record<string, string>,
+  imageUrl?: string
 ) {
   const messaging = getFirebaseAdmin();
   await messaging.send({
     topic,
-    notification: { title, body },
+    notification: imageUrl ? { title, body, imageUrl } : { title, body },
     data,
   });
 }
