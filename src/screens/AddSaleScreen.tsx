@@ -46,6 +46,7 @@ type CartItem = {
   buyPrice: number;
   note: string;
   unitLabel: string;
+  unitType: 'base' | 'package';
 };
 
 export default function AddSaleScreen(/* props */) {
@@ -66,6 +67,7 @@ export default function AddSaleScreen(/* props */) {
   const [note, setNote] = useState('');
   const [salePricePlaceholder, setSalePricePlaceholder] = useState<number | null>(null);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [editingCartItem, setEditingCartItem] = useState<CartItem | null>(null);
 
   const productInputRef = useRef<any>(null);
   const [paymentType, setPaymentType] = useState<'full' | 'partial' | 'debt'>('full');
@@ -148,6 +150,10 @@ export default function AddSaleScreen(/* props */) {
   );
 
   const handleClearForm = () => {
+    if (editingCartItem) {
+      setCartItems(prev => [...prev, editingCartItem]);
+      setEditingCartItem(null);
+    }
     setProductName(''); setSellPrice(''); setBuyPrice('');
     setQuantity(''); setNote('');
     setSelectedProduct(null); setSalePricePlaceholder(null);
@@ -218,7 +224,8 @@ export default function AddSaleScreen(/* props */) {
         sellPrice: sPrice,
         buyPrice: bPrice,
         note: note.trim(),
-        unitLabel: getUnitLabel(qty, selectedProduct)
+        unitLabel: getUnitLabel(qty, selectedProduct),
+        unitType
       };
       return [...prev, newItem];
     });
@@ -228,9 +235,65 @@ export default function AddSaleScreen(/* props */) {
     setQuantity(''); setNote('');
     setSelectedProduct(null); setSalePricePlaceholder(null);
     setShowNoteInput(false);
+    setUnitType('base');
+    setEditingCartItem(null);
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setTimeout(() => productInputRef.current?.focus(), 100);
+  };
+
+  // Загружает товар из списка обратно в форму для редактирования.
+  // Сам товар удаляется из cartItems здесь; вернуть его можно через
+  // handleClearForm (кнопка "Очистить" появляется, пока форма не пустая) —
+  // она проверяет editingCartItem и кладёт товар обратно в список.
+  const loadCartItemIntoForm = (item: CartItem) => {
+    setProductName(item.productName);
+    setSellPrice(String(item.sellPrice));
+    setBuyPrice(String(item.buyPrice));
+    setNote(item.note);
+    setSelectedProduct(item.product);
+
+    const canBePackage = item.product?.has_packages === 1 && item.product?.is_continuous !== 1;
+    if (item.unitType === 'package' && canBePackage) {
+      const unitsPerPackage = item.product?.units_per_package || 1;
+      setUnitType('package');
+      setQuantity(String(item.quantity / unitsPerPackage));
+    } else {
+      setUnitType('base');
+      setQuantity(String(item.quantity));
+    }
+
+    setEditingCartItem(item);
+    setCartItems(prev => prev.filter(i => i.id !== item.id));
+    setTimeout(() => productInputRef.current?.focus(), 100);
+  };
+
+  // Что делать при тапе по товару в списке: если в форме уже есть
+  // валидные данные другого товара — сначала сохраняем их в список,
+  // чтобы не потерять; если данные неполные — спрашиваем подтверждение;
+  // если форма пустая — просто загружаем товар.
+  const handleCartItemPress = (item: CartItem) => {
+    if (!productName.trim()) {
+      loadCartItemIntoForm(item);
+      return;
+    }
+
+    const finalSellPrice = sellPrice || (salePricePlaceholder ? String(salePricePlaceholder) : '');
+    const currentFormIsValid = !!finalSellPrice && (!isOwner || !!buyPrice);
+
+    if (currentFormIsValid) {
+      addToCart();
+      loadCartItemIntoForm(item);
+    } else {
+      Alert.alert(
+        t('addSale.unsavedDataTitle'),
+        t('addSale.unsavedDataMessage'),
+        [
+          { text: t('common.cancel'), style: 'cancel' },
+          { text: t('common.continue'), style: 'destructive', onPress: () => loadCartItemIntoForm(item) },
+        ]
+      );
+    }
   };
 
   const handleShareReceipt = async () => {
@@ -472,7 +535,8 @@ export default function AddSaleScreen(/* props */) {
         sellPrice: it.sell_price,
         buyPrice: it.buy_price,
         note: '',
-        unitLabel: resolvedUnitLabel
+        unitLabel: resolvedUnitLabel,
+        unitType
       };
     });
 
@@ -512,7 +576,8 @@ export default function AddSaleScreen(/* props */) {
           sellPrice: sPrice,
           buyPrice: bPrice,
           note: note.trim(),
-          unitLabel: getUnitLabel(qty, selectedProduct)
+          unitLabel: getUnitLabel(qty, selectedProduct),
+          unitType
         });
       }
     }
@@ -736,18 +801,7 @@ export default function AddSaleScreen(/* props */) {
                   <TouchableOpacity
                     key={item.id}
                     style={[styles.cartItem, index === cartItems.length - 1 && { borderBottomWidth: 0 }]}
-                    onPress={() => {
-                      setProductName(item.productName);
-                      setQuantity(String(item.quantity));
-                      setSellPrice(String(item.sellPrice));
-                      setBuyPrice(String(item.buyPrice));
-                      setNote(item.note);
-                      setSelectedProduct(item.product);
-                      if (item.product?.has_packages) {
-                        setUnitType('base'); // Reset to base for editing
-                      }
-                      setCartItems((prev: CartItem[]) => prev.filter((i: CartItem) => i.id !== item.id));
-                    }}
+                    onPress={() => handleCartItemPress(item)}
                   >
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.cartItemName, themeStyles.text]}>{item.productName}</Text>
@@ -755,7 +809,10 @@ export default function AddSaleScreen(/* props */) {
                     </View>
                     <View style={{ alignItems: 'flex-end' }}>
                       <Text style={[styles.cartItemTotal, themeStyles.text]}>{(item.sellPrice * item.quantity).toLocaleString()} {currency.symbol}</Text>
-                      <TouchableOpacity onPress={() => setCartItems((prev: CartItem[]) => prev.filter((i: CartItem) => i.id !== item.id))}>
+                      <TouchableOpacity
+                        onPress={() => setCartItems((prev: CartItem[]) => prev.filter((i: CartItem) => i.id !== item.id))}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
                         <Ionicons name="trash-outline" size={18} color="#FF3B30" />
                       </TouchableOpacity>
                     </View>
@@ -809,6 +866,13 @@ export default function AddSaleScreen(/* props */) {
             </TouchableOpacity>
           )}
         </View>
+
+        {editingCartItem && (
+          <View style={styles.editingBanner}>
+            <Ionicons name="create-outline" size={14} color={Colors.primary} />
+            <Text style={styles.editingBannerText}>{t('addSale.editingItemBanner')}</Text>
+          </View>
+        )}
 
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Text style={[styles.label, themeStyles.text]}>{t('addSale.productName')} *</Text>
@@ -1503,6 +1567,21 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#2196F3',
     fontWeight: 'bold',
+  },
+  editingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.primaryLight,
+    borderRadius: Radius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginBottom: 12,
+  },
+  editingBannerText: {
+    fontSize: 12,
+    color: Colors.primaryDark,
+    fontWeight: '500',
   },
   noteLink: {
     paddingVertical: Spacing.sm,
