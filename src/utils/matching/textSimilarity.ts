@@ -104,10 +104,20 @@ export function crossScriptSimilarity(a: string, b: string): number {
  * поэтому используется простая проверка на префикс (с учётом транслита).
  */
 export function tokenAwareSimilarity(query: string, target: string): number {
-  const wholeStringScore = crossScriptSimilarity(query, target);
-
+  const normalizedQuery = tokenize(query).join(' ');
   const queryTokens = tokenize(query);
   const targetTokens = tokenize(target);
+
+  // Для очень коротких запросов (1-2 символа) Jaro-Winkler по ВСЕЙ строке
+  // целиком (без токенизации) даёт завышенный, ненадёжный результат —
+  // короткая строка может "случайно" найти совпадающие буквы где угодно
+  // в длинной строке (напр. "ку" против "рубашка Daniel" давал 0.55 из-за
+  // букв к/у, найденных где-то в длинной строке). Для коротких запросов
+  // полагаемся ТОЛЬКО на токенизированное сравнение с его startsWith-правилом
+  // для коротких токенов, не подмешивая необработанный whole-string скор.
+  const isShortQuery = normalizedQuery.length > 0 && normalizedQuery.length <= 2;
+  const wholeStringScore = isShortQuery ? 0 : crossScriptSimilarity(query, target);
+
   if (queryTokens.length === 0 || targetTokens.length === 0) return wholeStringScore;
 
   let bestTokenScore = 0;
