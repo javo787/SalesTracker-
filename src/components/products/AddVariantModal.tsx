@@ -11,6 +11,7 @@ import { PRESET_COLORS, getColorHex, ColorCircle } from '../../constants/colors'
 import { addProduct } from '../../db/database';
 import { useFieldChain } from '../../hooks/useFieldChain';
 import { analyticsService } from '../../services/analyticsService';
+import { SyncService } from '../../services/syncService';
 
 interface AddVariantModalProps {
   visible: boolean;
@@ -110,6 +111,7 @@ export default function AddVariantModal({ visible, baseProduct, onClose, onSaved
         isContinuous ? 1 : 0, finalArticle, finalColor
       );
       analyticsService.logEvent('product_added', { product_id: result?.lastInsertRowId, via: 'add_variant' });
+      SyncService.pushDebounced();
 
       onSaved({
         id: result?.lastInsertRowId,

@@ -13,6 +13,7 @@ import {
 import { useShop } from '../context/ShopContext';
 import { ProductAutocomplete } from '../components/sales/ProductAutocomplete';
 import { analyticsService } from '../services/analyticsService';
+import { SyncService } from '../services/syncService';
 import { useAppContext } from '../context/AppContext';
 import { useExpenses } from '../hooks/useExpenses';
 import { useFieldChain } from '../hooks/useFieldChain';
@@ -322,9 +323,14 @@ export default function ProductsScreen() {
     if (editingId) {
       updateProduct(editingId, name.trim(), bPrice, sPrice, st, alert, baseUnit, hasPackages ? 1 : 0, packageName, uPerPkg, cat, isContinuous ? 1 : 0, article.trim() || null, color.trim() || null);
       analyticsService.logEvent('product_updated', { product_id: editingId });
+      // Эагерный пуш: товары раньше уходили на сервер только при сворачивании
+      // приложения или попутно со следующей продажей — теперь так же, как
+      // и продажи в AddSaleScreen, шлём сразу же (с debounce).
+      SyncService.pushDebounced();
     } else {
       const result = addProduct(name.trim(), bPrice, sPrice, st, alert, baseUnit, hasPackages ? 1 : 0, packageName, uPerPkg, cat, isContinuous ? 1 : 0, article.trim() || null, color.trim() || null);
       analyticsService.logEvent('product_added', { product_id: result.lastInsertRowId });
+      SyncService.pushDebounced();
 
       // Suggest adding expense for purchase cost
       const totalPurchaseCost = bPrice * st;
@@ -1514,6 +1520,7 @@ export default function ProductsScreen() {
                               item.last_sell_price || 0,
                               0
                             );
+                            SyncService.pushDebounced();
                             Alert.alert(t('common.saved'), t('products.quickAdded'));
                             const newList = unregistered.filter((_, i) => i !== idx);
                             setUnregistered(newList);

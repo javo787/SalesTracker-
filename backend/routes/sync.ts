@@ -4,10 +4,52 @@ import Product from '../models/Product';
 import User from '../models/User';
 import Expense from '../models/Expense';
 import StockMovement from '../models/StockMovement';
+import ShopMember from '../models/ShopMember';
 import { authMiddleware, requireShop, AuthRequest } from '../middleware/authMiddleware';
+import { sendSilentDataMessage } from '../services/firebase';
 import mongoose from 'mongoose';
 
 const router = express.Router();
+
+// Короткий per-shop cooldown, чтобы при частых мелких push (debounce на клиенте
+// и так сглаживает большинство случаев, но не все — например пачка отдельных
+// stock_in подряд) не слать лишние FCM-сообщения сверх необходимого. Сама
+// инвалидация дешёвая (data-only, без показа пользователю), это просто гигиена
+// на стороне Firebase API, а не защита от перегрузки.
+const FANOUT_COOLDOWN_MS = 5000;
+const lastFanoutAt = new Map<string, number>();
+
+// Будит другие открытые устройства этого магазина тихим data-only пушем,
+// чтобы они сразу подтянули изменения через pull() — вместо того, чтобы
+// каждое устройство само поллило /sync/pull раз в N секунд "на всякий случай".
+// Fire-and-forget: ошибки здесь никогда не должны ронять сам /sync/push.
+async function notifyOtherShopMembers(shopObjectId: mongoose.Types.ObjectId, excludeUserId: mongoose.Types.ObjectId) {
+  const shopKey = shopObjectId.toString();
+  const now = Date.now();
+  const last = lastFanoutAt.get(shopKey) || 0;
+  if (now - last < FANOUT_COOLDOWN_MS) return;
+  lastFanoutAt.set(shopKey, now);
+
+  try {
+    const members = await ShopMember.find({ shopId: shopObjectId, isActive: true, userId: { $ne: excludeUserId } })
+      .select('userId')
+      .lean();
+    if (members.length === 0) return;
+
+    const userIds = members.map(m => m.userId);
+    const users = await User.find({
+      _id: { $in: userIds },
+      fcmToken: { $ne: null },
+      notificationsEnabled: true,
+    }).select('fcmToken').lean();
+
+    await Promise.all(
+      users.map(u => sendSilentDataMessage(u.fcmToken as string, { type: 'shop_sync', shopId: shopKey }))
+    );
+  } catch (err) {
+    console.warn('notifyOtherShopMembers failed (non-fatal):', err);
+  }
+}
 
 // Короткий in-memory кэш полного списка товаров магазина — сглаживает всплеск,
 // когда несколько продавцов одного магазина открывают приложение почти одновременно.
@@ -75,6 +117,7 @@ router.post('/push', authMiddleware, requireShop, async (req: AuthRequest, res) 
       if (productOps.length > 0) {
         await Product.bulkWrite(productOps);
         invalidateShopProductsCache(req.shopId!);
+        notifyOtherShopMembers(shopObjectId, sellerObjectId);
       }
     }
 
@@ -107,6 +150,9 @@ router.post('/push', authMiddleware, requireShop, async (req: AuthRequest, res) 
           // это нормально при повторном push (withRetry на фронте и т.п.).
           if (e.code !== 11000) throw e;
         }
+      }
+      if (validMovements.length > 0) {
+        notifyOtherShopMembers(shopObjectId, sellerObjectId);
       }
     }
 

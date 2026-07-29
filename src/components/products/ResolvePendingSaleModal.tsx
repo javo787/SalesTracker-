@@ -10,6 +10,7 @@ import { useAppContext } from '../../context/AppContext';
 import { Colors, LightTheme, DarkTheme, Radius, Shadow } from '../../constants/theme';
 import { PRESET_COLORS, getColorHex, ColorCircle } from '../../constants/colors';
 import { resolvePendingSale, createProductAndResolvePendingSale } from '../../db/database';
+import { SyncService } from '../../services/syncService';
 import { AutocompleteResult } from '../../types/product';
 import { ProductAutocomplete } from '../sales/ProductAutocomplete';
 import { useFieldChain } from '../../hooks/useFieldChain';
@@ -135,6 +136,7 @@ export default function ResolvePendingSaleModal({
     try {
       const productId = linkProduct?.id ? parseInt(linkProduct.id) : null;
       resolvePendingSale(sale.id, productId, bPrice);
+      SyncService.pushDebounced();
       onResolved();
       closeAndReset();
     } finally {
@@ -170,6 +172,7 @@ export default function ResolvePendingSaleModal({
         article: article.trim() || null,
         color: color.trim() || null,
       });
+      SyncService.pushDebounced();
       onResolved();
       closeAndReset();
     } finally {

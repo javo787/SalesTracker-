@@ -577,6 +577,12 @@ export default function App() {
 
   useEffect(() => {
     const unsubscribe = messaging().onMessage(async remoteMessage => {
+      // Тихий data-only пуш от бэкенда: кто-то в магазине запушил товары/остатки —
+      // подтягиваем сразу, без показа уведомления пользователю.
+      if (remoteMessage.data?.type === 'shop_sync') {
+        SyncService.pull().catch(err => console.warn('shop_sync pull failed:', err));
+        return;
+      }
       await showRemoteNotification(
         remoteMessage.notification?.title ?? 'Torgo',
         remoteMessage.notification?.body ?? '',
