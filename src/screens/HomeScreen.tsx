@@ -148,7 +148,12 @@ export default function HomeScreen() {
 
   const { resolvedTheme, currency, sellerMode: contextSellerMode, showGreeting, showDailyTip } = useAppContext(); const isDark = resolvedTheme === "dark";
   const { user } = useAuth();
-  const { isOwner, isSeller, sellerName, shopId } = useShop();
+  const { isOwner, isSeller, sellerName, shopId, can } = useShop();
+  // Полный паритет с владельцем: вся команда (не только себя) — manage_team;
+  // прибыль — manage_products. Чек-ин (!isOwner ниже) НЕ меняем — это про то,
+  // кто обязан отмечаться, а не про права.
+  const canSeeAllSales = isOwner || can('manage_team');
+  const canSeeCosts = isOwner || can('manage_products');
   const navigation = useNavigation<any>();
   const { hasUnread } = useNewsUnread();
   const { todayStatus, checkInStatus } = useCheckInStatus();
@@ -166,16 +171,16 @@ export default function HomeScreen() {
 
   const loadData = () => {
     const userId = user?._id || 'guest';
-    const s = isOwner ? getStats(1) : getMyStats(userId, 1);
+    const s = canSeeAllSales ? getStats(1) : getMyStats(userId, 1);
     setStats(s);
-    const s7 = isOwner ? getStats(7) : getMyStats(userId, 7);
+    const s7 = canSeeAllSales ? getStats(7) : getMyStats(userId, 7);
     setStats7(s7);
-    const sales = isOwner ? getSalesToday() : getMySalesToday(userId);
+    const sales = canSeeAllSales ? getSalesToday() : getMySalesToday(userId);
     setTodaySales(sales);
     if (contextSellerMode === 'wholesale') {
       setDebtSummary(getDebtSummary());
     }
-    if (isOwner) {
+    if (canSeeAllSales) {
       setPendingReviewCount(getPendingReviewCount());
     }
   };
@@ -306,7 +311,7 @@ export default function HomeScreen() {
         </TouchableOpacity>
       )}
 
-      {isOwner && pendingReviewCount > 0 && (
+      {canSeeAllSales && pendingReviewCount > 0 && (
         <TouchableOpacity
           style={[styles.pendingWidget, themeStyles.card]}
           onPress={() => navigation.navigate('Products', { filter: 'pending' })}
@@ -395,7 +400,7 @@ export default function HomeScreen() {
           themeStyles={themeStyles}
           trend={revenueTrend}
         />
-        {isOwner && (
+        {canSeeCosts && (
           <StatCard
             label={t('common.profit')}
             value={stats.profit}

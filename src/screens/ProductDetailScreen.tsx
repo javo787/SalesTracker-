@@ -32,7 +32,11 @@ const ProductDetailScreen = () => {
   const { product: initialProduct } = route.params;
   const { resolvedTheme, currency } = useAppContext();
   const isDark = resolvedTheme === 'dark';
-  const { isOwner, isSeller } = useShop();
+  const { isOwner, isSeller, can } = useShop();
+  // Полный паритет с владельцем: закупочные цены/маржа/долги/расходы этого товара — manage_products;
+  // кто из команды сделал продажу/движение склада — manage_team.
+  const canSeeCosts = isOwner || can('manage_products');
+  const canSeeTeamInfo = isOwner || can('manage_team');
 
   const [product, setProduct] = useState(initialProduct);
   const [activeTab, setActiveTab] = useState<'sales' | 'stock' | 'debts' | 'expenses'>('sales');
@@ -65,11 +69,11 @@ const ProductDetailScreen = () => {
     setStockMovements(getStockMovements(product.id, 100));
     setChartData(getProductSalesByDay(product.id, 14));
 
-    if (isOwner) {
+    if (canSeeCosts) {
       setDebts(getDebtsByProductId(product.id));
       setExpenses(getProductExpenses(product.id));
     }
-  }, [product.id, isOwner]);
+  }, [product.id, canSeeCosts]);
 
   useFocusEffect(
     useCallback(() => {
@@ -207,7 +211,7 @@ const ProductDetailScreen = () => {
 
           <View style={styles.priceRow}>
             <View style={styles.breakevenInfo}>
-              {isOwner ? (
+              {canSeeCosts ? (
                 <>
                   <Text style={styles.priceInfoText}>
                     Закупка: <Text style={styles.bold}>{product.buy_price}</Text> ·
@@ -222,7 +226,7 @@ const ProductDetailScreen = () => {
                 </Text>
               )}
             </View>
-            {isOwner && (
+            {canSeeCosts && (
               <TouchableOpacity onPress={() => setEditModalVisible(true)} style={styles.editBtn}>
                 <Ionicons name="pencil" size={20} color="#fff" />
                 <Text style={styles.editBtnText}>Редактировать</Text>
@@ -247,7 +251,7 @@ const ProductDetailScreen = () => {
       />
 
       <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {isOwner && (
+        {canSeeCosts && (
           <TouchableOpacity
             style={styles.addVariantRow}
             onPress={() => setAddVariantModalVisible(true)}
@@ -302,7 +306,7 @@ const ProductDetailScreen = () => {
                 { label: 'Запас дней', value: forecastDays !== null ? `${forecastDays}` : '—', suffix: 'дней' },
               ];
 
-              return cards.filter(c => !c.ownerOnly || isOwner).map((card, idx) => (
+              return cards.filter(c => !c.ownerOnly || canSeeCosts).map((card, idx) => (
                 <View key={idx} style={[styles.kpiCard, { backgroundColor: themeStyles.card }]}>
                   <Text style={styles.kpiLabel}>{card.label}</Text>
                   <Text style={[styles.kpiValue, { color: themeStyles.text }]}>
@@ -310,7 +314,7 @@ const ProductDetailScreen = () => {
                   </Text>
                 </View>
               ));
-            }, [period, salesHistory, product.base_unit, currency.symbol, isOwner, themeStyles, forecastDays])}
+            }, [period, salesHistory, product.base_unit, currency.symbol, canSeeCosts, themeStyles, forecastDays])}
           </ScrollView>
         </View>
 
@@ -395,7 +399,7 @@ const ProductDetailScreen = () => {
           >
             <Text style={[styles.tabText, { color: activeTab === 'stock' ? Colors.primary : themeStyles.textSecondary }]}>Склад</Text>
           </TouchableOpacity>
-          {isOwner && (
+          {canSeeCosts && (
             <>
               <TouchableOpacity
                 style={[styles.tab, activeTab === 'debts' && styles.activeTab]}
@@ -426,12 +430,12 @@ const ProductDetailScreen = () => {
                         {new Date(item.created_at.replace(' ', 'T')).toLocaleDateString('ru-RU')} {new Date(item.created_at.replace(' ', 'T')).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
                       </Text>
                       <Text style={[styles.historyQty, { color: themeStyles.text }]}>{item.quantity} {product.base_unit} × {item.sell_price} {currency.symbol}</Text>
-                      {isOwner && item.seller_name && (
+                      {canSeeTeamInfo && item.seller_name && (
                         <Text style={styles.sellerName}>Продавец: {item.seller_name}</Text>
                       )}
                       {item.note && <Text style={styles.historyNote}>{item.note}</Text>}
                     </View>
-                    {isOwner && (
+                    {canSeeCosts && (
                       <TouchableOpacity onPress={() => handleDeleteSale(item.id)} style={styles.deleteBtn}>
                         <Ionicons name="trash-outline" size={20} color={Colors.danger} />
                       </TouchableOpacity>
@@ -477,7 +481,7 @@ const ProductDetailScreen = () => {
                           {product.initial_stock != null ? product.initial_stock : product.stock} {product.base_unit || t('reports.pcs')}
                         </Text>
                       </Text>
-                      {isOwner && (product.initial_buy_price ?? product.buy_price) > 0 && (
+                      {canSeeCosts && (product.initial_buy_price ?? product.buy_price) > 0 && (
                         <Text style={{ fontSize: 12, color: '#888' }}>
                           {t('addSale.buyPrice')}:{' '}
                           <Text style={{ color: isDark ? '#CCC' : '#333', fontWeight: '500' }}>
@@ -522,7 +526,7 @@ const ProductDetailScreen = () => {
 
                         {item.type === 'edit' ? (
                           (() => {
-                            const visibleDiff = isOwner
+                            const visibleDiff = canSeeCosts
                               ? editDiff
                               : editDiff?.filter(d => d.field !== 'buy_price');
                             return visibleDiff && visibleDiff.length > 0 ? (
@@ -540,10 +544,10 @@ const ProductDetailScreen = () => {
                             <Text style={[styles.historyQty, { color: themeStyles.text, fontWeight: 'bold' }]}>
                               {item.quantity_change > 0 ? '+' : ''}{item.quantity_change} {product.base_unit}
                             </Text>
-                            {isOwner && item.price_per_unit > 0 && (
+                            {canSeeCosts && item.price_per_unit > 0 && (
                               <Text style={styles.historyPrices}>Цена: {item.price_per_unit} {currency.symbol}</Text>
                             )}
-                            {isOwner && item.seller_name && (
+                            {canSeeTeamInfo && item.seller_name && (
                               <Text style={styles.sellerName}>Продавец: {item.seller_name}</Text>
                             )}
                             {item.note && <Text style={styles.historyNote}>{item.note}</Text>}
@@ -658,7 +662,7 @@ const ProductDetailScreen = () => {
           <Text style={styles.fabBtnText}>Приём</Text>
         </TouchableOpacity>
 
-        {isOwner && (
+        {canSeeCosts && (
           <>
             <TouchableOpacity
               style={styles.fabBtn}

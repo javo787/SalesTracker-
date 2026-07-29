@@ -29,7 +29,7 @@ export default function StockOperationModal({
   const { resolvedTheme, currency } = useAppContext();
   const isDark = resolvedTheme === 'dark';
   const { t } = useTranslation();
-  const { isOwner, role, sellerName } = useShop();
+  const { isOwner, can, role, sellerName } = useShop();
   const { user } = useAuth();
 
   const currentSellerId = user?._id || null;
@@ -41,8 +41,10 @@ export default function StockOperationModal({
     correction: t('warehouse.correction'),
   };
 
-  // Продавцу доступен только приём товара — списание и сверку делает владелец
-  const availableTypes = (isOwner
+  const canManageStock = isOwner || can('manage_products');
+
+  // Полный доступ к списанию/сверке — owner или manage_products; иначе только приём товара
+  const availableTypes = (canManageStock
     ? ['stock_in', 'waste', 'correction']
     : ['stock_in']) as ('stock_in' | 'waste' | 'correction')[];
 
@@ -57,7 +59,7 @@ export default function StockOperationModal({
 
   useEffect(() => {
     if (visible) {
-      setType(isOwner ? initialType : 'stock_in');
+      setType(canManageStock ? initialType : 'stock_in');
       setQuantity('');
       setPrice('');
       setUnitType('base');
@@ -67,10 +69,10 @@ export default function StockOperationModal({
       // посреди записи/отправки.
       setResetCapsuleTrigger((n) => n + 1);
     }
-  }, [visible, initialType, isOwner]);
+  }, [visible, initialType, canManageStock]);
 
   const handleSave = () => {
-    if (!isOwner && type !== 'stock_in') {
+    if (!canManageStock && type !== 'stock_in') {
       Alert.alert(t('common.error'), t('sellers.ownerOnly') || 'Доступно только владельцу магазина');
       return;
     }

@@ -224,7 +224,7 @@ router.get('/members', authMiddleware, requireShop, requirePermission('manage_te
   }
 });
 
-router.patch('/members/:userId/permissions', authMiddleware, requireShop, requireOwner, async (req: AuthRequest, res) => {
+router.patch('/members/:userId/permissions', authMiddleware, requireShop, requirePermission('manage_team'), async (req: AuthRequest, res) => {
   try {
     const { userId } = req.params;
     const { permissions } = req.body;
@@ -492,7 +492,7 @@ router.get('/seller-stats', authMiddleware, requireShop, requirePermission('mana
 });
 
 // GET /shop/audit-log — лента событий команды (owner only)
-router.get('/audit-log', authMiddleware, requireShop, requireOwner, async (req: AuthRequest, res) => {
+router.get('/audit-log', authMiddleware, requireShop, requirePermission('manage_team'), async (req: AuthRequest, res) => {
   try {
     const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 30, 1), 100);
     const logs = await ShopAuditLog.find({ shopId: req.shopId })
@@ -506,7 +506,7 @@ router.get('/audit-log', authMiddleware, requireShop, requireOwner, async (req: 
 });
 
 // GET /shop/checkin-settings — get presence check-in settings (owner only)
-router.get('/checkin-settings', authMiddleware, requireShop, requireOwner, async (req: AuthRequest, res) => {
+router.get('/checkin-settings', authMiddleware, requireShop, requirePermission('manage_checkin'), async (req: AuthRequest, res) => {
   try {
     const shop = await Shop.findById(req.shopId);
     if (!shop) return res.status(404).json({ message: 'Shop not found' });
@@ -551,7 +551,7 @@ router.get('/checkin-settings', authMiddleware, requireShop, requireOwner, async
 });
 
 // PATCH /shop/checkin-settings — update presence check-in settings (owner only)
-router.patch('/checkin-settings', authMiddleware, requireShop, requireOwner, async (req: AuthRequest, res) => {
+router.patch('/checkin-settings', authMiddleware, requireShop, requirePermission('manage_checkin'), async (req: AuthRequest, res) => {
   try {
     const { enabled, verificationMode, gps, nfc, qr } = req.body;
 
@@ -661,7 +661,7 @@ router.patch('/checkin-settings', authMiddleware, requireShop, requireOwner, asy
 });
 
 // POST /shop/checkin-settings/nfc/register — register physical NFC tag (owner only)
-router.post('/checkin-settings/nfc/register', authMiddleware, requireShop, requireOwner, async (req: AuthRequest, res) => {
+router.post('/checkin-settings/nfc/register', authMiddleware, requireShop, requirePermission('manage_checkin'), async (req: AuthRequest, res) => {
   try {
     const { tagUid } = req.body;
     if (!tagUid || typeof tagUid !== 'string') {
@@ -696,7 +696,7 @@ router.post('/checkin-settings/nfc/register', authMiddleware, requireShop, requi
 });
 
 // POST /shop/checkin-settings/qr/rotate — manually rotate current QR code token (owner only)
-router.post('/checkin-settings/qr/rotate', authMiddleware, requireShop, requireOwner, async (req: AuthRequest, res) => {
+router.post('/checkin-settings/qr/rotate', authMiddleware, requireShop, requirePermission('manage_checkin'), async (req: AuthRequest, res) => {
   try {
     const shop = await Shop.findById(req.shopId);
     if (!shop) return res.status(404).json({ message: 'Shop not found' });

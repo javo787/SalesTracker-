@@ -78,17 +78,12 @@ router.post('/push', authMiddleware, requireShop, async (req: AuthRequest, res) 
   const sellerObjectId = new mongoose.Types.ObjectId(req.userId!);
 
   try {
-    // PRODUCTS: owner can push everything; a seller with 'manage_products'
-    // can create/edit products too, but buy_price stays owner-only (same
-    // boundary already enforced on the pull side below — a seller must not
-    // see OR set the cost price, even if they're allowed to manage the catalog).
+    // PRODUCTS: owner or a seller with 'manage_products' can push everything,
+    // including buy_price — full parity, no owner-only carve-out (same
+    // boundary mirrored on the pull side below).
     const canManageProducts = req.role === 'owner' || req.permissions?.includes('manage_products');
     if (products && Array.isArray(products) && canManageProducts) {
-      const allowedProductFields = req.role === 'owner'
-        ? ['name', 'buy_price', 'sell_price', 'stock', 'min_stock_alert',
-           'base_unit', 'has_packages', 'package_name', 'units_per_package',
-           'category', 'updated_at', 'is_deleted']
-        : ['name', 'sell_price', 'stock', 'min_stock_alert',
+      const allowedProductFields = ['name', 'buy_price', 'sell_price', 'stock', 'min_stock_alert',
            'base_unit', 'has_packages', 'package_name', 'units_per_package',
            'category', 'updated_at', 'is_deleted'];
 
@@ -122,14 +117,15 @@ router.post('/push', authMiddleware, requireShop, async (req: AuthRequest, res) 
     }
 
     // STOCK MOVEMENTS: append-only журнал, дедуп по clientId (UUID с клиента).
-    // stock_in может логировать любой сотрудник (так уже разрешено в UI —
-    // приёмка товара), waste/correction/edit — только владелец (тоже уже
-    // так в UI, здесь просто дублируем эту же проверку на бэкенде).
+    // stock_in доступен любому сотруднику (приёмка товара), остальные типы
+    // (waste/correction/edit) — owner или seller с 'manage_products', та же
+    // граница, что и на управление каталогом.
     if (stockMovements && Array.isArray(stockMovements)) {
-      const allowedMovementTypes = req.role === 'owner'
+      const allowedMovementTypes = canManageProducts
         ? ['stock_in', 'waste', 'correction', 'edit']
         : ['stock_in'];
       const validMovements = stockMovements.filter((m: any) => allowedMovementTypes.includes(m.type));
+
 
       for (const m of validMovements) {
         try {
@@ -263,6 +259,12 @@ router.post('/push', authMiddleware, requireShop, async (req: AuthRequest, res) 
 router.get('/pull', authMiddleware, requireShop, async (req: AuthRequest, res) => {
   const shopObjectId = new mongoose.Types.ObjectId(req.shopId!);
   const isOwner = req.role === 'owner';
+  // Полный паритет с владельцем: закупочные цены/маржа — та же граница, что
+  // и право редактировать каталог; видимость данных всей команды (а не
+  // только своих продаж/расходов) — та же граница, что и право управлять
+  // командой (manage_team и так уже подразумевает "видеть статистику команды").
+  const canSeeFinancials = isOwner || !!req.permissions?.includes('manage_products');
+  const canSeeAllSales = isOwner || !!req.permissions?.includes('manage_team');
   const { since } = req.query;
   const asOf = new Date().toISOString();
 
@@ -271,7 +273,7 @@ router.get('/pull', authMiddleware, requireShop, async (req: AuthRequest, res) =
     // сохранённый из предыдущего asOf) в реальный Date один раз.
     const sinceDate = since ? new Date(since as string) : null;
 
-    // Products: everyone gets them, but buy_price is owner only
+    // Products: everyone gets them, but buy_price needs manage_products (or owner)
     // Include all products including deleted ones for sync purposes
     const allProducts = await getShopProductsCached(shopObjectId);
     // Фильтруем по serverUpdatedAt (серверный Date), а НЕ по клиентскому
@@ -284,8 +286,8 @@ router.get('/pull', authMiddleware, requireShop, async (req: AuthRequest, res) =
       : allProducts;
 
     const products = productsRaw.map((p: any) => {
-      if (!isOwner) {
-        // Seller MUST NOT get buy_price
+      if (!canSeeFinancials) {
+        // No manage_products permission — buy_price stays hidden
         const { buy_price, ...rest } = p;
         return { ...rest, buy_price: null };
       }
@@ -293,10 +295,10 @@ router.get('/pull', authMiddleware, requireShop, async (req: AuthRequest, res) =
     });
 
     // Sales:
-    // - owner gets all shop sales
-    // - seller gets only their own
+    // - owner or manage_team seller gets all shop sales
+    // - otherwise, only their own
     const salesQuery: any = { shopId: shopObjectId };
-    if (!isOwner) {
+    if (!canSeeAllSales) {
       salesQuery.sellerId = new mongoose.Types.ObjectId(req.userId!);
     }
     if (sinceDate) {
@@ -308,17 +310,17 @@ router.get('/pull', authMiddleware, requireShop, async (req: AuthRequest, res) =
     const salesRaw = await Sale.find(salesQuery).lean();
 
     const sales = salesRaw.map((s: any) => {
-      if (!isOwner) {
-        // Seller MUST NOT get buy_price and profit
+      if (!canSeeFinancials) {
+        // No manage_products permission — buy_price and profit stay hidden
         const { buy_price, profit, ...rest } = s;
         return { ...rest, buy_price: null, profit: null };
       }
       return s;
     });
 
-    // Expenses: owner получает все расходы магазина, продавец — только свои
+    // Expenses: owner/manage_team получают все расходы магазина, остальные — только свои
     const expensesQuery: any = { shopId: shopObjectId };
-    if (!isOwner) {
+    if (!canSeeAllSales) {
       expensesQuery.sellerId = new mongoose.Types.ObjectId(req.userId!);
     }
     if (sinceDate) {
@@ -328,14 +330,14 @@ router.get('/pull', authMiddleware, requireShop, async (req: AuthRequest, res) =
 
     // Stock movements: журнал доступен всем в магазине (важно видеть, кто
     // и когда трогал остаток), но цена за единицу (себестоимость на
-    // приёмке) — та же граница, что и buy_price у товара: только владелец.
+    // приёмке) — та же граница, что и buy_price у товара: manage_products/owner.
     const movementsQuery: any = { shopId: shopObjectId };
     if (sinceDate) {
       movementsQuery.serverCreatedAt = { $gte: sinceDate };
     }
     const movementsRaw = await StockMovement.find(movementsQuery).lean();
     const stockMovements = movementsRaw.map((m: any) => {
-      if (!isOwner) {
+      if (!canSeeFinancials) {
         return { ...m, pricePerUnit: null };
       }
       return m;

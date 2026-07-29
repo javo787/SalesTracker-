@@ -30,6 +30,10 @@ export default function ProductsScreen() {
   const { resolvedTheme, currency, defaultMinStockAlert, sellerMode } = useAppContext(); const isDark = resolvedTheme === "dark";
   const { addExpense } = useExpenses();
   const { isOwner, can } = useShop();
+  // Полный паритет с владельцем: закупочные цены/маржа/склад — manage_products;
+  // обзор pending-review продаж команды — manage_team.
+  const canSeeCosts = isOwner || can('manage_products');
+  const canReviewTeamSales = isOwner || can('manage_team');
   const [products, setProducts] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -126,7 +130,7 @@ export default function ProductsScreen() {
     setUnregistered(unreg);
 
     // Load pending review sales
-    if (isOwner) {
+    if (canReviewTeamSales) {
       const pending = db.getAllSync("SELECT * FROM sales WHERE is_pending_review = 1 ORDER BY created_at DESC") as any[];
       setPendingSales(pending);
     }
@@ -304,15 +308,12 @@ export default function ProductsScreen() {
   };
 
   const handleSave = () => {
-    if (!name.trim() || (isOwner && !buyPrice) || !sellPrice) {
+    if (!name.trim() || (canSeeCosts && !buyPrice) || !sellPrice) {
       Alert.alert(t('common.error'), t('products.errorRequired'));
       return;
     }
 
-    // Продавец с правом manage_products не видит поле закупочной цены —
-    // бэкенд её всё равно отбросит при синхронизации не-владельцем, но
-    // локально в SQLite поле не может остаться пустым/NaN.
-    const bPrice = isOwner ? parseFloat(buyPrice) : (parseFloat(buyPrice) || 0);
+    const bPrice = canSeeCosts ? parseFloat(buyPrice) : (parseFloat(buyPrice) || 0);
     const sPrice = parseFloat(sellPrice);
     const st = parseFloat(stock) || 0;
     const alert = parseFloat(minStockAlert) || 0;
@@ -526,7 +527,7 @@ export default function ProductsScreen() {
             </TouchableOpacity>
           )}
 
-          {isOwner && pendingSales.length > 0 && (
+          {canReviewTeamSales && pendingSales.length > 0 && (
             <TouchableOpacity
               style={[styles.chip, themeStyles.chip, activeFilter === 'pending' && styles.chipActive]}
               onPress={() => setActiveFilter('pending')}
@@ -722,7 +723,7 @@ export default function ProductsScreen() {
           </View>
 
           <View style={styles.row}>
-            {isOwner && (
+            {canSeeCosts && (
               <View style={styles.half}>
                 <Text style={[styles.label, themeStyles.text]}>{t('addSale.buyPrice')} *</Text>
                 <TextInput
@@ -961,7 +962,7 @@ export default function ProductsScreen() {
             </View>
           )}
 
-          {isOwner && buyPrice && sellPrice && (
+          {canSeeCosts && buyPrice && sellPrice && (
             <View style={styles.marginPreview}>
               <Text style={styles.marginText}>
                 {t('products.margin')}: {(parseFloat(sellPrice) - parseFloat(buyPrice)).toFixed(1)} {currency.symbol}
@@ -1055,7 +1056,7 @@ export default function ProductsScreen() {
                   <View style={styles.productLeft}>
                     <Text style={[styles.productName, themeStyles.text]}>{p.name}</Text>
                     <Text style={styles.productPrices}>
-                      {isOwner
+                      {canSeeCosts
                         ? `${t('addSale.buyPrice')}: ${p.buy_price} ${currency.symbol}`
                         : `${t('addSale.sellPrice')}: ${p.sell_price} ${currency.symbol}`}
                     </Text>
@@ -1099,7 +1100,7 @@ export default function ProductsScreen() {
 
                     <Text style={[styles.infoText, { paddingHorizontal: 12, paddingTop: 8 }]}>
                       {t('products.addedDate')}: {p.created_at ? new Date(p.created_at.replace(' ', 'T')).toLocaleDateString('ru-RU') : '—'}
-                      {isOwner && ` · ${t('addSale.sellPrice')}: ${p.sell_price} ${currency.symbol}`}
+                      {canSeeCosts && ` · ${t('addSale.sellPrice')}: ${p.sell_price} ${currency.symbol}`}
                     </Text>
 
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, paddingTop: 8, paddingBottom: 12 }}>
@@ -1157,7 +1158,7 @@ export default function ProductsScreen() {
                         <Ionicons name="cash-outline" size={18} color="#1D9E75" />
                         <Text style={styles.actionBtnText}>{t('products.sellBtn')}</Text>
                       </TouchableOpacity>
-                      {isOwner && (
+                      {canSeeCosts && (
                         <>
                           <TouchableOpacity
                             style={styles.actionBtn}
@@ -1280,7 +1281,7 @@ export default function ProductsScreen() {
 
                           <Text style={[styles.infoText, { paddingHorizontal: 12, paddingTop: 8 }]}>
                             {t('products.addedDate')}: {v.created_at ? new Date(v.created_at.replace(' ', 'T')).toLocaleDateString('ru-RU') : '—'}
-                            {isOwner && ` · ${t('addSale.sellPrice')}: ${v.sell_price} ${currency.symbol}`}
+                            {canSeeCosts && ` · ${t('addSale.sellPrice')}: ${v.sell_price} ${currency.symbol}`}
                           </Text>
 
                           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, paddingTop: 8, paddingBottom: 12 }}>
@@ -1337,7 +1338,7 @@ export default function ProductsScreen() {
                               <Ionicons name="cash-outline" size={18} color="#1D9E75" />
                               <Text style={styles.actionBtnText}>{t('products.sellBtn')}</Text>
                             </TouchableOpacity>
-                            {isOwner && (
+                            {canSeeCosts && (
                               <>
                                 <TouchableOpacity
                                   style={styles.actionBtn}
@@ -1445,7 +1446,7 @@ export default function ProductsScreen() {
                       <Text style={styles.historyPrices}>
                         {t('common.revenue')}: {s.sell_price * s.quantity} {currency.symbol}
                       </Text>
-                      {isOwner && (
+                      {canSeeCosts && (
                         <Text style={[styles.historyProfit, { color: Colors.primary }]}>
                           {t('common.profit')}: +{(s.profit || 0).toFixed(0)} {currency.symbol}
                         </Text>

@@ -53,7 +53,9 @@ export default function AddSaleScreen(/* props */) {
   const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const { resolvedTheme, currency, language, sellerMode: contextSellerMode, isPremium } = useAppContext(); const isDark = resolvedTheme === "dark";
-  const { isOwner, isSeller, sellerName, role, shopName } = useShop();
+  const { isOwner, isSeller, sellerName, role, shopName, can } = useShop();
+  // Полный паритет с владельцем при праве manage_products — видит и вводит закупочные цены
+  const canSeeCosts = isOwner || can('manage_products');
   const { user } = useAuth();
   const userId = user?._id || 'guest';
 
@@ -111,7 +113,7 @@ export default function AddSaleScreen(/* props */) {
   const fields = [
     { ref: productInputRef, visible: true },
     { ref: sellPriceRef, visible: true },
-    { ref: buyPriceRef, visible: isOwner && !(maskBuyPrice && selectedProduct) },
+    { ref: buyPriceRef, visible: canSeeCosts && !(maskBuyPrice && selectedProduct) },
     { ref: quantityInputRef, visible: true },
     { ref: noteRef, visible: showNoteInput || note !== '' },
   ];
@@ -178,7 +180,7 @@ export default function AddSaleScreen(/* props */) {
       return;
     }
 
-    if (isOwner && !buyPrice) {
+    if (canSeeCosts && !buyPrice) {
       Alert.alert(t('common.error'), t('addSale.errorPrices'));
       return;
     }
@@ -279,7 +281,7 @@ export default function AddSaleScreen(/* props */) {
     }
 
     const finalSellPrice = sellPrice || (salePricePlaceholder ? String(salePricePlaceholder) : '');
-    const currentFormIsValid = !!finalSellPrice && (!isOwner || !!buyPrice);
+    const currentFormIsValid = !!finalSellPrice && (!canSeeCosts || !!buyPrice);
 
     if (currentFormIsValid) {
       addToCart();
@@ -551,7 +553,7 @@ export default function AddSaleScreen(/* props */) {
     // If form is filled, add it as last item
     if (productName.trim()) {
       const finalSellPrice = sellPrice || (salePricePlaceholder ? String(salePricePlaceholder) : '');
-      if (finalSellPrice && (!isOwner || buyPrice)) {
+      if (finalSellPrice && (!canSeeCosts || buyPrice)) {
         const sPrice = parseFloat(finalSellPrice);
         const bPrice = parseFloat(buyPrice) || 0;
         let qty = parseFloat(quantity) || 1;
@@ -953,7 +955,7 @@ export default function AddSaleScreen(/* props */) {
               blurOnSubmit={false}
             />
           </View>
-          {isOwner && (
+          {canSeeCosts && (
             <View style={styles.halfField}>
               <Text style={[styles.label, themeStyles.text]}>{t('addSale.buyPrice')} *</Text>
               {maskBuyPrice && selectedProduct ? (
@@ -1285,7 +1287,7 @@ export default function AddSaleScreen(/* props */) {
                 {(parseFloat(sellPrice || String(salePricePlaceholder)) * (parseFloat(quantity) || 1)).toLocaleString()} {currency.symbol}
               </Text>
             </View>
-            {isOwner && (
+            {canSeeCosts && (
               <View style={styles.previewRow}>
                 <Text style={[styles.previewLabel, themeStyles.text]}>{t('common.profit')}:</Text>
                 <Text style={[styles.previewValue, { color: '#1D9E75' }]}>
@@ -1388,7 +1390,7 @@ export default function AddSaleScreen(/* props */) {
 
                 <Text style={[styles.successText, themeStyles.text]}>{lastSaved.name}</Text>
                 <Text style={[styles.successText, themeStyles.text]}>{t('common.revenue')}: {lastSaved.revenue} {currency.symbol}</Text>
-                {isOwner && <Text style={styles.successProfit}>{t('common.profit')}: +{lastSaved.profit} {currency.symbol}</Text>}
+                {canSeeCosts && <Text style={styles.successProfit}>{t('common.profit')}: +{lastSaved.profit} {currency.symbol}</Text>}
               </View>
             )}
           </ScrollView>

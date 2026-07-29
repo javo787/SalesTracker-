@@ -71,7 +71,11 @@ const showRewardedAd = async (adUnitId: string): Promise<boolean> => {
 export default function ReportScreen() {
   const { t, i18n } = useTranslation();
   const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark"; const themeStyles = isDark ? darkStyles : lightStyles;
-  const { isOwner, role } = useShop();
+  const { isOwner, role, can } = useShop();
+  // Полный паритет с владельцем: видеть команду целиком (не только себя) —
+  // manage_team; видеть прибыль/закупочные цены — manage_products.
+  const canSeeAllSales = isOwner || can('manage_team');
+  const canSeeCosts = isOwner || can('manage_products');
   const { user, isGuest } = useAuth();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
@@ -120,22 +124,22 @@ export default function ReportScreen() {
     const userId = (user as any)?._id || 'guest';
 
     if (p === 'custom' && range) {
-      setStats(isOwner ? (selectedSellerId ? getMyStats(selectedSellerId, 0, range.from, range.to) : getStats(0, range.from, range.to)) : getMyStats(userId, 3650)); // Fallback to a year for custom range for sellers as getMyStats doesn't support custom range yet
-      setSales(getSalesByPeriod(0, range.from, range.to, isOwner ? selectedSellerId : userId));
-      const expStats = getExpenseStats(0, range.from, range.to, isOwner ? selectedSellerId : null);
-      setExpenseTotal(isOwner ? expStats.total : 0);
-      setOperationalExpenseTotal(isOwner ? expStats.operational : 0);
-      setExpenses(isOwner ? getExpenses(0, range.from, range.to, selectedSellerId) as any[] : []);
+      setStats(canSeeAllSales ? (selectedSellerId ? getMyStats(selectedSellerId, 0, range.from, range.to) : getStats(0, range.from, range.to)) : getMyStats(userId, 3650)); // Fallback to a year for custom range for sellers as getMyStats doesn't support custom range yet
+      setSales(getSalesByPeriod(0, range.from, range.to, canSeeAllSales ? selectedSellerId : userId));
+      const expStats = getExpenseStats(0, range.from, range.to, canSeeAllSales ? selectedSellerId : null);
+      setExpenseTotal(canSeeAllSales ? expStats.total : 0);
+      setOperationalExpenseTotal(canSeeAllSales ? expStats.operational : 0);
+      setExpenses(canSeeAllSales ? getExpenses(0, range.from, range.to, selectedSellerId) as any[] : []);
     } else {
       const days = typeof p === 'number' ? p : 1;
-      setStats(isOwner ? (selectedSellerId ? getMyStats(selectedSellerId, days) : getStats(days)) : getMyStats(userId, days));
-      setSales(getSalesByPeriod(days, undefined, undefined, isOwner ? selectedSellerId : userId));
-      const expStats = getExpenseStats(days, undefined, undefined, isOwner ? selectedSellerId : null);
-      setExpenseTotal(isOwner ? expStats.total : 0);
-      setOperationalExpenseTotal(isOwner ? expStats.operational : 0);
-      setExpenses(isOwner ? getExpenses(days, undefined, undefined, selectedSellerId) as any[] : []);
+      setStats(canSeeAllSales ? (selectedSellerId ? getMyStats(selectedSellerId, days) : getStats(days)) : getMyStats(userId, days));
+      setSales(getSalesByPeriod(days, undefined, undefined, canSeeAllSales ? selectedSellerId : userId));
+      const expStats = getExpenseStats(days, undefined, undefined, canSeeAllSales ? selectedSellerId : null);
+      setExpenseTotal(canSeeAllSales ? expStats.total : 0);
+      setOperationalExpenseTotal(canSeeAllSales ? expStats.operational : 0);
+      setExpenses(canSeeAllSales ? getExpenses(days, undefined, undefined, selectedSellerId) as any[] : []);
     }
-  }, [isOwner, user, isGuest, selectedSellerId]);
+  }, [canSeeAllSales, user, isGuest, selectedSellerId]);
 
   const checkRegPrompt = useCallback(async () => {
     if (!isGuest) return;
@@ -188,14 +192,14 @@ export default function ReportScreen() {
 
   const displayPeriodLabel = useMemo(() => {
     const label = getPeriodLabel();
-    if (isOwner && selectedSellerId) {
+    if (canSeeAllSales && selectedSellerId) {
       const member = members.find(m => m.userId === selectedSellerId);
       if (member) {
         return t('reports.scopedPeriodLabel', { sellerName: member.displayName, periodLabel: label });
       }
     }
     return label;
-  }, [getPeriodLabel, isOwner, selectedSellerId, members, t]);
+  }, [getPeriodLabel, canSeeAllSales, selectedSellerId, members, t]);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -217,7 +221,7 @@ export default function ReportScreen() {
       ),
       headerRight: () => (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, marginRight: 16 }}>
-          {isOwner && (
+          {(canSeeAllSales || canSeeCosts) && (
             <TouchableOpacity
               onPress={() => setShowExportModal(true)}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -234,7 +238,7 @@ export default function ReportScreen() {
         </View>
       ),
     });
-  }, [navigation, isDark, isOwner, period, dateRange, i18n.language]);
+  }, [navigation, isDark, canSeeAllSales, canSeeCosts, period, dateRange, i18n.language]);
 
   const checkExportCache = useCallback(async () => {
     const label = displayPeriodLabel;
@@ -249,7 +253,7 @@ export default function ReportScreen() {
     checkForecast();
     checkExportCache();
 
-    if (isOwner) {
+    if (canSeeAllSales) {
       api.get<{ members: ShopMember[] }>('/shop/members?limit=100')
         .then(res => {
           if (res && res.members) {
@@ -258,7 +262,7 @@ export default function ReportScreen() {
         })
         .catch(err => console.error('Failed to fetch members in ReportScreen:', err));
     }
-  }, [period, dateRange, loadData, checkRegPrompt, checkExtendedUnlock, checkForecast, checkExportCache, isOwner]));
+  }, [period, dateRange, loadData, checkRegPrompt, checkExtendedUnlock, checkForecast, checkExportCache, canSeeAllSales]));
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -659,7 +663,7 @@ export default function ReportScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       {/* Period + Export header */}
-      {isOwner && members.length > 0 && (
+      {canSeeAllSales && members.length > 0 && (
         <View style={styles.headerControls}>
           {/* Row 3: scrollable seller chips */}
           <ScrollView
@@ -763,7 +767,7 @@ export default function ReportScreen() {
         )}
       </View>
 
-      {period === 365 && isOwner ? (
+      {period === 365 && canSeeCosts ? (
         <AnnualReport />
       ) : (
         <>
@@ -807,14 +811,14 @@ export default function ReportScreen() {
           {/* Главные цифры */}
           <View style={styles.statsGrid}>
             <TouchableOpacity
-              style={[styles.statCard, { backgroundColor: '#1D9E75', width: isOwner ? '47%' : '100%' }, chartMetric === 'revenue' && styles.statCardActive]}
+              style={[styles.statCard, { backgroundColor: '#1D9E75', width: canSeeCosts ? '47%' : '100%' }, chartMetric === 'revenue' && styles.statCardActive]}
               onPress={() => setChartMetric('revenue')}
             >
               <Text style={styles.statLabel}>{t('common.revenue')}</Text>
               <Text style={styles.statValue}>{stats.revenue.toLocaleString()}</Text>
               <Text style={styles.statCurrency}>{currency.symbol}</Text>
             </TouchableOpacity>
-            {isOwner && (
+            {canSeeCosts && (
               <>
                 <TouchableOpacity
                   style={[styles.statCard, { backgroundColor: '#3B6D11' }, chartMetric === 'salesProfit' && styles.statCardActive]}
@@ -909,7 +913,7 @@ export default function ReportScreen() {
                     <Text style={[styles.saleRevenue, themeStyles.text]}>
                       {(sale.sell_price * sale.quantity).toLocaleString()} {currency.symbol}
                     </Text>
-                    {isOwner && (
+                    {canSeeCosts && (
                       <Text style={styles.saleProfit}>
                         +{(sale.profit || 0).toLocaleString()} {currency.symbol}
                       </Text>

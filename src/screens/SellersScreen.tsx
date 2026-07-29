@@ -22,7 +22,7 @@ const PERMISSION_DEFS = [
     key: 'manage_products' as const,
     icon: 'cube-outline' as const,
     title: 'Товары',
-    desc: 'Добавлять и редактировать товары (без доступа к закупочным ценам)',
+    desc: 'Добавлять и редактировать товары, включая закупочные цены; все операции со складом',
   },
   {
     key: 'manage_debtors' as const,
@@ -34,7 +34,13 @@ const PERMISSION_DEFS = [
     key: 'manage_team' as const,
     icon: 'people-outline' as const,
     title: 'Команда',
-    desc: 'Видеть статистику команды, приглашать и удалять продавцов',
+    desc: 'Статистика всей команды, приглашать/удалять продавцов, настраивать их доступы, журнал действий',
+  },
+  {
+    key: 'manage_checkin' as const,
+    icon: 'location-outline' as const,
+    title: 'Чек-ин',
+    desc: 'Настраивать проверку присутствия: частоту, режим, QR и NFC',
   },
 ];
 
@@ -194,7 +200,7 @@ export default function SellersScreen() {
       });
     }
 
-    if (isOwner && member.role !== 'owner') {
+    if ((isOwner || can('manage_team')) && member.role !== 'owner') {
       options.unshift({
         text: 'Настроить доступы',
         style: 'default',
@@ -445,7 +451,7 @@ export default function SellersScreen() {
                     )}
                   </View>
 
-                  {isOwner && member.role === 'seller' && (
+                  {(isOwner || can('manage_team')) && member.role === 'seller' && (
                     <TouchableOpacity
                       style={[styles.permSummaryRow, { borderTopColor: isDark ? '#333' : '#EEE' }]}
                       onPress={() => setPermissionsModalUserId(member.userId)}

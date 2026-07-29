@@ -26,7 +26,7 @@ export default function CheckInSettingsScreen() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
-  const { isOwner, refreshShopInfo } = useShop();
+  const { isOwner, can, refreshShopInfo } = useShop();
   const { resolvedTheme } = useAppContext();
   const isDark = resolvedTheme === 'dark';
   const themeStyles = isDark ? darkStyles : lightStyles;
@@ -50,11 +50,11 @@ export default function CheckInSettingsScreen() {
   }, []);
 
   useEffect(() => {
-    if (!isOwner) {
+    if (!isOwner && !can('manage_checkin')) {
       Alert.alert(t('common.error'), t('sellers.ownerOnly') || "Доступно только владельцу магазина");
       navigation.goBack();
     }
-  }, [isOwner, navigation, t]);
+  }, [isOwner, can, navigation, t]);
 
   const handleMasterToggle = async (val: boolean) => {
     if (!settings) return;
@@ -295,7 +295,7 @@ export default function CheckInSettingsScreen() {
     }
   };
 
-  if (!isOwner) {
+  if (!isOwner && !can('manage_checkin')) {
     return null;
   }
 
