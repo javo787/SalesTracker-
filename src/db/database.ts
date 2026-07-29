@@ -1,5 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 import { notifyLowStock } from '../utils/notifications';
+import { tokenAwareSimilarity } from '../utils/matching/textSimilarity';
 
 const db = SQLite.openDatabaseSync('savdo.db'); // Note: Database name remains 'savdo.db' to maintain data continuity.
 
@@ -1522,9 +1523,39 @@ export function searchProductsForAutocomplete(query: string) {
     `);
   }
 
-  // Search by query
-  return db.getAllSync(`
-    WITH SalesAgg AS (
+  // Search by query.
+  //
+  // Раньше здесь был строго префиксный фильтр (`LIKE query || '%'`) — товар
+  // "рубашка Daniel" не находился по запросу "Daniel", потому что название
+  // не НАЧИНАЕТСЯ с "Daniel", а лишь содержит это слово. Плюс кириллица и
+  // латиница ("Даниел" vs "Daniel") побайтово никогда не совпадали.
+  //
+  // Каталог магазина забираем целиком (без текстового фильтра в SQL —
+  // магазины небольшие, тот же подход уже используется в matchProductByName
+  // для голосового ввода) и ранжируем в JS через tokenAwareSimilarity —
+  // тот же алгоритм, что и в голосовом пайплайне, чтобы поведение при вводе
+  // текста и при голосовом вводе совпадало. Для истории (разовые продажи вне
+  // каталога) фильтр расширен с "начинается с" до "содержит где угодно" —
+  // полноценный fuzzy там не даёт большого выигрыша, так как это не стабильный
+  // каталог, а одноразовые исторические записи.
+  const catalogRows = db.getAllSync<any>(`
+    SELECT
+      CAST(p.id AS TEXT) as id,
+      p.name,
+      p.name as baseName,
+      'catalog' as source,
+      p.buy_price as purchasePrice,
+      sa.lastSalePrice,
+      COALESCE(sa.salesCount, 0) as salesCount,
+      sa.lastSoldAt,
+      p.base_unit, p.has_packages, p.package_name, p.units_per_package, p.is_continuous, p.stock,
+      p.article, p.color,
+      CASE WHEN p.color IS NOT NULL AND p.color != ''
+           THEN p.name || ' · ' || p.color
+           ELSE p.name
+      END AS displayName
+    FROM products p
+    LEFT JOIN (
       SELECT product_id,
              COUNT(*) as salesCount,
              MAX(created_at) as lastSoldAt,
@@ -1532,8 +1563,24 @@ export function searchProductsForAutocomplete(query: string) {
       FROM sales
       WHERE product_id IS NOT NULL
       GROUP BY product_id
-    ),
-    HistoryAgg AS (
+    ) sa ON p.id = sa.product_id
+    WHERE p.is_deleted = 0
+  `);
+
+  const historyRows = db.getAllSync<any>(`
+    SELECT
+      NULL as id,
+      ha.product_name as name,
+      ha.product_name as baseName,
+      'history' as source,
+      ha.purchasePrice,
+      ha.lastSalePrice,
+      ha.salesCount,
+      ha.lastSoldAt,
+      'шт' as base_unit, 0 as has_packages, NULL as package_name, 1 as units_per_package, 0 as is_continuous, 0 as stock,
+      NULL as article, NULL as color,
+      ha.product_name as displayName
+    FROM (
       SELECT
         product_name,
         COUNT(*) as salesCount,
@@ -1542,57 +1589,34 @@ export function searchProductsForAutocomplete(query: string) {
         (SELECT s2.sell_price FROM sales s2 WHERE s2.product_name = sales.product_name AND s2.product_id IS NULL ORDER BY s2.created_at DESC LIMIT 1) as lastSalePrice
       FROM sales
       WHERE product_id IS NULL
-        AND product_name LIKE ? || '%'
+        AND product_name LIKE '%' || ? || '%'
         AND product_name NOT IN (SELECT name FROM products)
       GROUP BY product_name
-    ),
-    CatalogMatches AS (
-      SELECT
-        CAST(p.id AS TEXT) as id,
-        p.name,
-        p.name as baseName,
-        'catalog' as source,
-        p.buy_price as purchasePrice,
-        sa.lastSalePrice,
-        COALESCE(sa.salesCount, 0) as salesCount,
-        sa.lastSoldAt,
-        p.base_unit, p.has_packages, p.package_name, p.units_per_package, p.is_continuous, p.stock,
-        p.article, p.color,
-        CASE WHEN p.color IS NOT NULL AND p.color != ''
-             THEN p.name || ' · ' || p.color
-             ELSE p.name
-        END AS displayName
-      FROM products p
-      LEFT JOIN SalesAgg sa ON p.id = sa.product_id
-      WHERE (p.name LIKE ? || '%' OR p.article LIKE ? || '%') AND p.is_deleted = 0
-    ),
-    HistoryMatches AS (
-      SELECT
-        NULL as id,
-        ha.product_name as name,
-        ha.product_name as baseName,
-        'history' as source,
-        ha.purchasePrice,
-        ha.lastSalePrice,
-        ha.salesCount,
-        ha.lastSoldAt,
-        'шт' as base_unit, 0 as has_packages, NULL as package_name, 1 as units_per_package, 0 as is_continuous, 0 as stock,
-        NULL as article, NULL as color,
-        ha.product_name as displayName
-      FROM HistoryAgg ha
-    )
-    SELECT * FROM (
-      SELECT id, displayName as name, source, purchasePrice, lastSalePrice, salesCount, lastSoldAt, base_unit, has_packages, package_name, units_per_package, is_continuous, stock, article, color, baseName FROM CatalogMatches
-      UNION ALL
-      SELECT id, displayName as name, source, purchasePrice, lastSalePrice, salesCount, lastSoldAt, base_unit, has_packages, package_name, units_per_package, is_continuous, stock, article, color, baseName FROM HistoryMatches
-    ) AS CombinedResults
-    ORDER BY
-      CASE WHEN source = 'catalog' THEN 0 ELSE 1 END,
-      CASE WHEN source = 'catalog' THEN article ELSE NULL END NULLS LAST,
-      CASE WHEN source = 'catalog' THEN baseName ELSE name END,
-      color
-    LIMIT 8
-  `, [query, query, query]);
+    ) ha
+  `, [query]);
+
+  const AUTOCOMPLETE_MIN_SCORE = 0.3;
+
+  return [...catalogRows, ...historyRows]
+    .map(row => {
+      const nameScore = tokenAwareSimilarity(query, row.baseName as string);
+      // Артикул/SKU ищем тоже — старый запрос матчил и по name, и по article.
+      const articleScore = row.article ? tokenAwareSimilarity(query, row.article as string) : 0;
+      return { row, score: Math.max(nameScore, articleScore) };
+    })
+    .filter(s => s.score >= AUTOCOMPLETE_MIN_SCORE)
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      // При равном score — как и раньше: каталог перед историей, дальше по артикулу/имени/цвету.
+      if (a.row.source !== b.row.source) return a.row.source === 'catalog' ? -1 : 1;
+      const articleCmp = String(a.row.article ?? '').localeCompare(String(b.row.article ?? ''));
+      if (articleCmp !== 0) return articleCmp;
+      const nameCmp = String(a.row.baseName ?? '').localeCompare(String(b.row.baseName ?? ''));
+      if (nameCmp !== 0) return nameCmp;
+      return String(a.row.color ?? '').localeCompare(String(b.row.color ?? ''));
+    })
+    .slice(0, 8)
+    .map(s => ({ ...s.row, name: s.row.displayName }));
 }
 
 // ── Shop Session ────────────────────────────────────
