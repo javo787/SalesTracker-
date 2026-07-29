@@ -11,6 +11,7 @@ import { useShop } from '../../context/ShopContext';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import { addStockIn, addStockWaste, addStockCorrection } from '../../db/database';
+import { SyncService } from '../../services/syncService';
 import VoiceCapsule, { CapsuleState } from '../VoiceCapsule';
 import { VoiceSaleResult } from '../../types/voiceSale';
 
@@ -87,6 +88,7 @@ export default function StockOperationModal({
         return;
       }
       addStockIn(product.id, qty, p, unitType, note, currentSellerId, currentSellerName);
+      SyncService.pushDebounced();
 
       if (role === 'seller') {
         api.post('/stock/receipt-log', {
@@ -112,6 +114,7 @@ export default function StockOperationModal({
       saveWaste(qty);
     } else if (type === 'correction') {
       addStockCorrection(product.id, qty, note);
+      SyncService.pushDebounced();
     }
 
     onSuccess();
@@ -124,6 +127,7 @@ export default function StockOperationModal({
       Alert.alert('Ошибка', result.message || 'Недостаточно на складе');
       return;
     }
+    SyncService.pushDebounced();
     onSuccess();
     onClose();
   };

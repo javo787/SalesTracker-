@@ -91,8 +91,18 @@ export const SyncService = {
       }
 
       const isOwner = session.role === 'owner';
+      // Продавец с делегированным правом 'manage_products' тоже может
+      // создавать/редактировать товары (см. ProductsScreen.tsx, can('manage_products')),
+      // и бэкенд (routes/sync.ts, canManageProducts) уже давно умеет принимать
+      // такие изменения от него. Раньше здесь проверялся только isOwner, поэтому
+      // товары, добавленные/изменённые таким продавцом, никогда не попадали в
+      // payload — они молча оставались только в его локальной SQLite навсегда.
+      const cachedPerms = await AsyncStorage.getItem('shop_permissions');
+      const permissions: string[] = cachedPerms ? JSON.parse(cachedPerms) : [];
+      const canManageProducts = isOwner || permissions.includes('manage_products');
+
       const salesToSend = getUnsyncedSales();
-      const productsToSend = isOwner ? getProductsForSync() : [];
+      const productsToSend = canManageProducts ? getProductsForSync() : [];
       const expensesToSend = getUnsyncedExpenses();
       const stockMovementsToSend = getUnsyncedStockMovements();
 
@@ -102,7 +112,7 @@ export const SyncService = {
         stockMovements: stockMovementsToSend,
       };
 
-      if (isOwner) {
+      if (canManageProducts) {
         payload.products = productsToSend;
       }
 
@@ -243,11 +253,12 @@ export const SyncService = {
                   name = ?,
                   ${isOwner ? 'buy_price = ?,' : 'buy_price = NULL,'}
                   sell_price = ?, stock = ?, min_stock_alert = ?,
-                  base_unit = ?, category = ?, synced = 1, is_deleted = ?, updated_at = ?
+                  base_unit = ?, has_packages = ?, package_name = ?, units_per_package = ?,
+                  category = ?, synced = 1, is_deleted = ?, updated_at = ?
                 WHERE id = ?`,
                 isOwner
-                  ? [p.name, p.buy_price, p.sell_price, p.stock, p.min_stock_alert, p.base_unit, p.category, p.is_deleted || 0, p.updated_at, p.localId]
-                  : [p.name, p.sell_price, p.stock, p.min_stock_alert, p.base_unit, p.category, p.is_deleted || 0, p.updated_at, p.localId]
+                  ? [p.name, p.buy_price, p.sell_price, p.stock, p.min_stock_alert, p.base_unit, p.has_packages || 0, p.package_name, p.units_per_package || 1, p.category, p.is_deleted || 0, p.updated_at, p.localId]
+                  : [p.name, p.sell_price, p.stock, p.min_stock_alert, p.base_unit, p.has_packages || 0, p.package_name, p.units_per_package || 1, p.category, p.is_deleted || 0, p.updated_at, p.localId]
               );
             }
           }

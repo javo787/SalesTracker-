@@ -9,6 +9,7 @@ import { useAppContext } from '../../context/AppContext';
 import { Colors, LightTheme, DarkTheme, Radius, Shadow } from '../../constants/theme';
 import { PRESET_COLORS, getColorHex, ColorCircle } from '../../constants/colors';
 import { updateProduct } from '../../db/database';
+import { SyncService } from '../../services/syncService';
 import { useFieldChain } from '../../hooks/useFieldChain';
 
 interface EditProductModalProps {
@@ -110,6 +111,7 @@ export default function EditProductModal({ visible, product, onClose, onSaved }:
         hasPackages ? 1 : 0, packageName, uPerPkg, cat,
         isContinuous ? 1 : 0, finalArticle, finalColor
       );
+      SyncService.pushDebounced();
 
       onSaved({
         ...product,
