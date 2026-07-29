@@ -36,11 +36,29 @@ function setSyncingStatus(value: boolean) {
   statusListeners.forEach(listener => listener(value));
 }
 
+// --- Сигнал "локальные данные изменились после pull()" ---
+// Раньше экраны перечитывали БД только по useFocusEffect (смена фокуса
+// навигации), поэтому уже открытый экран не узнавал о новых данных,
+// пришедших в фоне (например, по тихому shop_sync пушу или по обычному
+// pull() при возврате из фона), пока пользователь не уходил с экрана и не
+// возвращался обратно. Экраны подписываются через SyncService.onDataChanged.
+type DataChangeListener = () => void;
+const dataChangeListeners = new Set<DataChangeListener>();
+
+function notifyDataChanged() {
+  dataChangeListeners.forEach(listener => listener());
+}
+
 export const SyncService = {
   subscribe(listener: SyncStatusListener): () => void {
     statusListeners.add(listener);
     listener(isSyncing);
     return () => statusListeners.delete(listener);
+  },
+
+  onDataChanged(listener: DataChangeListener): () => void {
+    dataChangeListeners.add(listener);
+    return () => dataChangeListeners.delete(listener);
   },
 
   getIsSyncing(): boolean {
@@ -398,6 +416,7 @@ export const SyncService = {
       if (productsRepairNeeded) {
         await AsyncStorage.setItem('products_resync_repair_v1', 'done');
       }
+      notifyDataChanged();
     } catch (error) {
       console.warn('Sync pull failed:', error);
     } finally {

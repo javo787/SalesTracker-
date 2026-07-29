@@ -164,6 +164,11 @@ export default function ProductsScreen() {
   useFocusEffect(useCallback(() => { loadProducts(); }, []));
 
   useEffect(() => {
+    const unsubscribe = SyncService.onDataChanged(() => loadProducts());
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
     if (sellerMode === 'retail' && activeFilter === 'debts') {
       setActiveFilter('all');
     }
