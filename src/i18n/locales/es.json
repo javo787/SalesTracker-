@@ -398,7 +398,11 @@
     "typeStockIn": "Entrada",
     "typeWaste": "Salida",
     "typeCorrection": "Ajuste",
-    "typeSale": "Venta"
+    "typeSale": "Venta",
+    "voiceMultipleItemsTitle": "Se reconocieron varios artículos",
+    "voiceMultipleItemsMsg": "La grabación mencionó varios artículos. Se usó \"{{heard}}\" para \"{{product}}\". Revisa los valores antes de guardar.",
+    "voiceMismatchTitle": "Podría tratarse de otro producto",
+    "voiceMismatchMsg": "La grabación parece describir \"{{heard}}\", no \"{{product}}\". Revisa los números antes de guardar."
   },
   "reports": {
     "title": "Reportes",

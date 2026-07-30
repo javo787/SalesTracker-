@@ -401,7 +401,11 @@
     "typeStockIn": "Receive",
     "typeWaste": "Write-off",
     "typeCorrection": "Audit",
-    "typeSale": "Sale"
+    "typeSale": "Sale",
+    "voiceMultipleItemsTitle": "Multiple items recognized",
+    "voiceMultipleItemsMsg": "The recording mentioned several items. Used \"{{heard}}\" for \"{{product}}\". Please check the values before saving.",
+    "voiceMismatchTitle": "This might be a different product",
+    "voiceMismatchMsg": "The recording seems to describe \"{{heard}}\", not \"{{product}}\". Please check the numbers before saving."
   },
   "reports": {
     "title": "Reports",

@@ -396,7 +396,11 @@
     "typeStockIn": "Kirim",
     "typeWaste": "Chiqim",
     "typeCorrection": "Taqqoslash",
-    "typeSale": "Sotuv"
+    "typeSale": "Sotuv",
+    "voiceMultipleItemsTitle": "Bir nechta mahsulot aniqlandi",
+    "voiceMultipleItemsMsg": "Yozuvda bir nechta mahsulot aytilgan. \"{{product}}\" uchun \"{{heard}}\" ishlatildi. Saqlashdan oldin qiymatlarni tekshiring.",
+    "voiceMismatchTitle": "Ehtimol, bu boshqa mahsulot",
+    "voiceMismatchMsg": "Yozuvga ko'ra, gap \"{{heard}}\" haqida bo'lishi mumkin, \"{{product}}\" emas. Saqlashdan oldin raqamlarni tekshiring."
   },
   "reports": {
     "title": "Hisobotlar",

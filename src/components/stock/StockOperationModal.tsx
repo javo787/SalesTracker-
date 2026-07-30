@@ -12,7 +12,12 @@ import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import { addStockIn, addStockWaste, addStockCorrection } from '../../db/database';
 import VoiceCapsule, { CapsuleState } from '../VoiceCapsule';
-import { VoiceSaleResult } from '../../types/voiceSale';
+import { VoiceSaleResult, VoiceSaleItem } from '../../types/voiceSale';
+import { tokenAwareSimilarity } from '../../utils/matching/textSimilarity';
+
+// Ниже которого считаем, что распознанный товар — вероятно, не тот, что
+// открыт в модалке (тот же порог, что и POSSIBLE_THRESHOLD в productMatching.ts).
+const MISMATCH_WARNING_THRESHOLD = 0.5;
 
 interface StockOperationModalProps {
   visible: boolean;
@@ -129,14 +134,53 @@ export default function StockOperationModal({
   };
 
   const handleVoiceResult = (result: VoiceSaleResult) => {
-    const text = result.transcript || result.items[0]?.product_name || '';
+    if (!result.items || result.items.length === 0) {
+      if (result.transcript) setNote(result.transcript);
+      return;
+    }
+
+    let item: VoiceSaleItem = result.items[0];
+
+    if (result.items.length > 1 && product?.name) {
+      // Продиктовано несколько позиций, а модалка привязана к ОДНОМУ товару —
+      // раньше здесь молча брали result.items[0], остальное терялось без
+      // единого следа. Теперь ищем позицию, которая реально похожа на
+      // открытый товар (tokenAwareSimilarity — тот же матчер, что и в
+      // голосовых продажах), и явно предупреждаем, что было сказано больше.
+      let best = result.items[0];
+      let bestScore = tokenAwareSimilarity(best.product_name || '', product.name);
+      for (const candidate of result.items.slice(1)) {
+        const score = tokenAwareSimilarity(candidate.product_name || '', product.name);
+        if (score > bestScore) {
+          best = candidate;
+          bestScore = score;
+        }
+      }
+      item = best;
+      Alert.alert(
+        t('warehouse.voiceMultipleItemsTitle'),
+        t('warehouse.voiceMultipleItemsMsg', { product: product.name, heard: item.product_name })
+      );
+    }
+
+    const text = result.transcript || item?.product_name || '';
     setNote(text);
-    const item = result.items[0];
+
     if (item?.quantity && item.quantity > 0) {
       setQuantity(String(item.quantity));
     }
     if (type === 'stock_in' && item?.buy_price && item.buy_price > 0) {
       setPrice(String(item.buy_price));
+    }
+
+    if (product?.name && item?.product_name) {
+      const matchScore = tokenAwareSimilarity(item.product_name, product.name);
+      if (matchScore < MISMATCH_WARNING_THRESHOLD) {
+        Alert.alert(
+          t('warehouse.voiceMismatchTitle'),
+          t('warehouse.voiceMismatchMsg', { heard: item.product_name, product: product.name })
+        );
+      }
     }
   };
 
@@ -184,6 +228,23 @@ export default function StockOperationModal({
             </TouchableOpacity>
           </View>
 
+          {/* Голос — первым делом, до полей формы: не завязан на скролл
+              и не может оказаться перекрытым клавиатурой, которая иначе
+              выскакивает сразу же из-за autoFocus на поле количества ниже. */}
+          <View
+            style={styles.voiceSection}
+            onLayout={(e) => setRowWidth(e.nativeEvent.layout.width)}
+          >
+             <VoiceCapsule
+               rowWidth={rowWidth}
+               onStateChange={setVoiceCapsuleState}
+               onResult={handleVoiceResult}
+               onShowBatchReview={handleVoiceResult}
+               resetCapsuleTrigger={resetCapsuleTrigger}
+               voiceContext="stock"
+             />
+          </View>
+
           <ScrollView style={styles.form} keyboardShouldPersistTaps="handled">
             {availableTypes.length > 1 && renderTabs()}
 
@@ -198,7 +259,6 @@ export default function StockOperationModal({
                 keyboardType="numeric"
                 value={quantity}
                 onChangeText={setQuantity}
-                autoFocus
               />
               {product?.has_packages === 1 && type === 'stock_in' && (
                 <View style={styles.unitSwitcher}>
@@ -255,20 +315,6 @@ export default function StockOperationModal({
               value={note}
               onChangeText={setNote}
             />
-
-            <View
-              style={styles.voiceSection}
-              onLayout={(e) => setRowWidth(e.nativeEvent.layout.width)}
-            >
-               <VoiceCapsule
-                 rowWidth={rowWidth}
-                 onStateChange={setVoiceCapsuleState}
-                 onResult={handleVoiceResult}
-                 onShowBatchReview={handleVoiceResult}
-                 resetCapsuleTrigger={resetCapsuleTrigger}
-                 voiceContext="stock"
-               />
-            </View>
 
             <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
               <Text style={styles.saveBtnText}>{t('common.save')}</Text>

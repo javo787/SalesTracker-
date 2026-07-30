@@ -401,7 +401,11 @@
     "typeStockIn": "Entrada",
     "typeWaste": "Baixa",
     "typeCorrection": "Ajuste",
-    "typeSale": "Venda"
+    "typeSale": "Venda",
+    "voiceMultipleItemsTitle": "Vários itens reconhecidos",
+    "voiceMultipleItemsMsg": "A gravação mencionou vários itens. Foi usado \"{{heard}}\" para \"{{product}}\". Confira os valores antes de salvar.",
+    "voiceMismatchTitle": "Pode ser outro produto",
+    "voiceMismatchMsg": "A gravação parece descrever \"{{heard}}\", não \"{{product}}\". Confira os números antes de salvar."
   },
   "reports": {
     "title": "Relatórios",

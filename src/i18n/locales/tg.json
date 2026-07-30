@@ -401,7 +401,11 @@
     "typeStockIn": "Даромад",
     "typeWaste": "Хориҷ",
     "typeCorrection": "Санҷиш",
-    "typeSale": "Фурӯш"
+    "typeSale": "Фурӯш",
+    "voiceMultipleItemsTitle": "Якчанд мол муайян шуд",
+    "voiceMultipleItemsMsg": "Дар сабт якчанд мол зикр шудааст. Барои «{{product}}» «{{heard}}» истифода шуд. Пеш аз нигоҳ доштан арзишҳоро тафтиш кунед.",
+    "voiceMismatchTitle": "Эҳтимол, сухан дар бораи моли дигар аст",
+    "voiceMismatchMsg": "Тибқи сабт, сухан метавонист дар бораи «{{heard}}» бошад, на «{{product}}». Пеш аз нигоҳ доштан рақамҳоро тафтиш кунед."
   },
   "reports": {
     "title": "Ҳисоботҳо",

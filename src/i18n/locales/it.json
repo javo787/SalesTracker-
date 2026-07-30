@@ -401,7 +401,11 @@
     "typeStockIn": "Carico",
     "typeWaste": "Scarico",
     "typeCorrection": "Rettifica",
-    "typeSale": "Vendita"
+    "typeSale": "Vendita",
+    "voiceMultipleItemsTitle": "Riconosciuti più articoli",
+    "voiceMultipleItemsMsg": "La registrazione menziona più articoli. Usato \"{{heard}}\" per \"{{product}}\". Controlla i valori prima di salvare.",
+    "voiceMismatchTitle": "Potrebbe trattarsi di un altro prodotto",
+    "voiceMismatchMsg": "La registrazione sembra descrivere \"{{heard}}\", non \"{{product}}\". Controlla i numeri prima di salvare."
   },
   "reports": {
     "title": "Report",

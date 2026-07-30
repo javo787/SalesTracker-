@@ -401,7 +401,11 @@
     "typeStockIn": "Кирим",
     "typeWaste": "Чиқим",
     "typeCorrection": "Таққослаш",
-    "typeSale": "Сотув"
+    "typeSale": "Сотув",
+    "voiceMultipleItemsTitle": "Бир нечта маҳсулот аниқланди",
+    "voiceMultipleItemsMsg": "Ёзувда бир нечта маҳсулот айтилган. \"{{product}}\" учун \"{{heard}}\" ишлатилди. Сақлашдан олдин қийматларни текширинг.",
+    "voiceMismatchTitle": "Эҳтимол, бу бошқа маҳсулот",
+    "voiceMismatchMsg": "Ёзувга кўра, гап \"{{heard}}\" ҳақида бўлиши мумкин, \"{{product}}\" эмас. Сақлашдан олдин рақамларни текширинг."
   },
   "reports": {
     "title": "Ҳисоботлар",

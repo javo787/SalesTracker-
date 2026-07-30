@@ -401,7 +401,11 @@
     "typeStockIn": "Приход",
     "typeWaste": "Списание",
     "typeCorrection": "Сверка",
-    "typeSale": "Продажа"
+    "typeSale": "Продажа",
+    "voiceMultipleItemsTitle": "Распознано несколько товаров",
+    "voiceMultipleItemsMsg": "В записи упомянуто несколько позиций. Для «{{product}}» использована «{{heard}}». Проверьте значения перед сохранением.",
+    "voiceMismatchTitle": "Похоже, речь о другом товаре",
+    "voiceMismatchMsg": "Судя по записи, речь могла идти о «{{heard}}», а не о «{{product}}». Проверьте цифры перед сохранением."
   },
   "reports": {
     "title": "Отчёты",
