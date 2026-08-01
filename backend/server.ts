@@ -15,6 +15,7 @@ import stockRoutes from './routes/stock';
 import telegramRoutes from './routes/telegram';
 import voiceSaleRoutes from './routes/voiceSale';
 import voiceDisambiguateRoutes from './routes/voiceDisambiguate';
+import invoiceScanRoutes from './routes/invoiceScan';
 import checkinRoutes from './routes/checkin';
 
 dotenv.config();
@@ -99,6 +100,17 @@ const voiceDisambiguateLimiter = rateLimit({
   message: { message: 'Слишком много запросов, подождите минуту.' },
 });
 
+// Скан накладной по фото - тяжелее голосового запроса (vision-вызов к Gemini),
+// поэтому лимит чуть строже voiceSaleLimiter; одна накладная сканируется редко,
+// не пачками по 10 раз в минуту.
+const invoiceScanLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Слишком много запросов на скан накладной, подождите минуту.' },
+});
+
 // Строгий лимит на вступление по инвайт-коду — защита от перебора 6-символьного кода.
 const shopJoinLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -115,6 +127,7 @@ app.use('/auth', authLimiter);
 app.use('/shop/join', shopJoinLimiter); // ДО app.use('/shop', shopRoutes) ниже
 app.use('/voice-sale', voiceSaleLimiter);
 app.use('/voice-disambiguate', voiceDisambiguateLimiter);
+app.use('/invoice-scan', invoiceScanLimiter);
 
 app.use(express.json({ limit: '2mb' })); // reduced from 10mb
 
@@ -134,6 +147,7 @@ app.use('/stock', stockRoutes);
 app.use('/telegram', telegramRoutes);
 app.use('/voice-sale', voiceSaleRoutes);
 app.use('/voice-disambiguate', voiceDisambiguateRoutes);
+app.use('/invoice-scan', invoiceScanRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
