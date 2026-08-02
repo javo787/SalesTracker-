@@ -5,7 +5,7 @@ import { fetchGeminiWithRotation, GEMINI_MODELS, parseGeminiJSON, normalizeVoice
 import { transcribeAudio } from '../utils/transcribe';
 import { fetchCerebrasChat } from '../utils/cerebras';
 import { alertOnce } from '../services/telegramBot';
-import Product from '../models/Product';
+import { buildCatalogHint } from '../utils/catalogHint';
 import axios from 'axios';
 
 const router = express.Router();
@@ -108,40 +108,9 @@ function getSystemPrompt(context: unknown): string {
   return SALES_SYSTEM_PROMPT;
 }
 
-// Этап 4 плана по фиксу автокомплита: каталог-осведомлённое извлечение.
-// Раньше извлечение (Gemini Audio / Whisper+Gemini) не знало о существующих
-// товарах магазина вообще — "product_name" извлекался вслепую как свободный
-// текст, а сопоставление с каталогом происходило ПОСЛЕ, только на клиенте
-// (см. src/utils/productMatching.ts). Это работало, но лишало модель
-// контекста уже на этапе транскрибации/извлечения: если продавец произносит
-// название нечётко, модель не знала, что "Daniel" — это существующий товар,
-// а не непонятное слово.
-//
-// Список ограничен 150 названиями (сортировка по недавней активности —
-// есть индекс {shopId, serverUpdatedAt}), чтобы не раздувать промпт для
-// крупных каталогов. Не блокирует пайплайн при ошибке — это подсказка,
-// а не обязательная зависимость.
-const CATALOG_HINT_LIMIT = 150;
-
-async function buildCatalogHint(shopId?: string): Promise<string> {
-  if (!shopId) return '';
-  try {
-    const products = await Product.find({ shopId, is_deleted: 0 })
-      .select('name')
-      .sort({ serverUpdatedAt: -1 })
-      .limit(CATALOG_HINT_LIMIT)
-      .lean();
-
-    const names = Array.from(new Set(products.map(p => p.name).filter(Boolean)));
-    if (!names.length) return '';
-
-    return `\n\nKnown product catalog for this shop (for reference only): ${names.join(', ')}.
-If the audio clearly refers to one of these products (even with a slightly different pronunciation, accent, or partial name), use the EXACT name from this list in 'product_name'. Do not force a match to this list if you are not reasonably confident, and do not invent a product from this list that was not actually mentioned.`;
-  } catch (e) {
-    console.error('[voice-sale] Failed to build catalog hint', e);
-    return '';
-  }
-}
+// Каталог-осведомлённое извлечение (buildCatalogHint) вынесено в
+// ../utils/catalogHint.ts, чтобы invoiceScan.ts могло переиспользовать
+// тот же запрос к каталогу магазина под свою формулировку промпта.
 
 /**
  * If Gemini returned an empty product_name (often happens with poor
