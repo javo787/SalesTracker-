@@ -19,6 +19,7 @@ import { useExpenses } from '../hooks/useExpenses';
 import { useFieldChain } from '../hooks/useFieldChain';
 import StockOperationModal from '../components/stock/StockOperationModal';
 import StockHistorySheet from '../components/stock/StockHistorySheet';
+import InvoiceScanModal from '../components/stock/InvoiceScanModal';
 import ResolvePendingSaleModal from '../components/products/ResolvePendingSaleModal';
 import { Colors, LightTheme, DarkTheme, Radius, Shadow } from '../constants/theme';
 import { PRESET_COLORS, getColorHex, ColorCircle } from '../constants/colors';
@@ -96,6 +97,7 @@ export default function ProductsScreen() {
   const [opType, setOpType] = useState<'stock_in' | 'waste' | 'correction'>('stock_in');
   const [moreCategoriesVisible, setMoreCategoriesVisible] = useState(false);
   const [historyVisible, setHistoryVisible] = useState(false);
+  const [invoiceScanVisible, setInvoiceScanVisible] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
 
   const [resolveSaleTarget, setResolveSaleTarget] = useState<any | null>(null);
@@ -602,21 +604,32 @@ export default function ProductsScreen() {
       keyboardShouldPersistTaps="handled"
     >
       {(isOwner || can('manage_products')) && (
-        <TouchableOpacity
-          style={[styles.addBtn, editingId ? { backgroundColor: '#FF9800' } : null]}
-          onPress={() => {
-            if (showForm) {
-              setShowForm(false);
-              resetForm();
-            } else {
-              setShowForm(true);
-            }
-          }}
-        >
-          <Text style={styles.addBtnText}>
-            {showForm ? '✕ ' + t('common.cancel') : (editingId ? '✎ ' + t('common.edit') : '+ ' + t('products.addProduct'))}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.addBtnRow}>
+          <TouchableOpacity
+            style={[styles.addBtn, editingId ? { backgroundColor: '#FF9800' } : null]}
+            onPress={() => {
+              if (showForm) {
+                setShowForm(false);
+                resetForm();
+              } else {
+                setShowForm(true);
+              }
+            }}
+          >
+            <Text style={styles.addBtnText}>
+              {showForm ? '✕ ' + t('common.cancel') : (editingId ? '✎ ' + t('common.edit') : '+ ' + t('products.addProduct'))}
+            </Text>
+          </TouchableOpacity>
+
+          {!showForm && !editingId && (
+            <TouchableOpacity
+              style={[styles.addBtn, styles.scanInvoiceBtn]}
+              onPress={() => setInvoiceScanVisible(true)}
+            >
+              <Text style={styles.addBtnText}>📷 {t('products.scanInvoice')}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       )}
 
       {showForm && (
@@ -1472,6 +1485,11 @@ export default function ProductsScreen() {
         onResolved={loadProducts}
       />
 
+      <InvoiceScanModal
+        visible={invoiceScanVisible}
+        onClose={() => setInvoiceScanVisible(false)}
+      />
+
       {/* Unregistered Products Quick Add Modal */}
       <Modal
         visible={showUnregisteredModal}
@@ -1665,11 +1683,18 @@ const styles = StyleSheet.create({
   clearIcon: {
     padding: 4,
   },
+  addBtnRow: {
+    flexDirection: 'row', gap: 10,
+    marginHorizontal: 16, marginTop: 16, marginBottom: 16,
+  },
   addBtn: {
-    margin: 16, backgroundColor: '#1D9E75',
+    flex: 1, backgroundColor: '#1D9E75',
     borderRadius: Radius.lg, padding: 14, alignItems: 'center',
   },
   addBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  // Отличается цветом от addBtn, чтобы визуально не путать "добавить товар
+  // вручную" со "сканировать накладную" — обе кнопки делят строку 50/50.
+  scanInvoiceBtn: { backgroundColor: '#5B6EE8' },
   form: {
     marginHorizontal: 16, marginBottom: 8,
     borderRadius: Radius.lg, padding: 16,

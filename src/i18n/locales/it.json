@@ -380,7 +380,8 @@
     "color": "Colore / Variante",
     "addVariant": "+ Aggiungi variante",
     "sameArticleGroupsVariants": "Lo stesso codice raggruppa le varianti in un'unica scheda",
-    "variantsCount": "{{count}} var."
+    "variantsCount": "{{count}} var.",
+    "scanInvoice": "Scansiona fattura"
   },
   "warehouse": {
     "stockIn": "Carico",
@@ -401,7 +402,26 @@
     "typeStockIn": "Carico",
     "typeWaste": "Scarico",
     "typeCorrection": "Rettifica",
-    "typeSale": "Vendita"
+    "typeSale": "Vendita",
+    "invoiceScanTitle": "Scansiona fattura",
+    "invoiceScanIntro": "Fotografa la fattura: leggerò le voci",
+    "invoiceScanTakePhoto": "Scatta foto",
+    "invoiceScanChooseGallery": "Dalla galleria",
+    "invoiceScanProcessing": "Lettura fattura...",
+    "invoiceScanRetake": "Rifai foto",
+    "invoiceScanItemsFound": "Voci trovate: {{count}}",
+    "invoiceScanNeedsReview": "Da controllare",
+    "invoiceScanLineMismatch": "{{computed}} calcolato, non {{stated}}",
+    "invoiceScanGrandMismatch": "Le voci sommano {{computed}}, ma la fattura indica {{stated}}",
+    "invoiceScanFailedTitle": "Impossibile leggere la foto",
+    "invoiceScanFailedBody": "Prova a rifare la foto con più luce, oppure aggiungi le voci manualmente",
+    "invoiceScanEmpty": "Nessuna voce trovata nella foto",
+    "invoiceScanPreviewNote": "Questa è solo un'anteprima: il salvataggio in magazzino arriverà nella prossima fase",
+    "invoiceScanQuantity": "Qtà",
+    "invoiceScanUnitPrice": "Prezzo",
+    "invoiceScanSupplierPrefix": "Fornitore: {{name}}",
+    "invoiceScanGrandTotalLabel": "Totale fattura: {{total}}",
+    "invoiceScanPermissionDenied": "È necessario l'accesso alla fotocamera o alla galleria"
   },
   "reports": {
     "title": "Report",

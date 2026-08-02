@@ -380,7 +380,8 @@
     "color": "Ранг / Хилма-хил",
     "addVariant": "+ Вариант қўшиш",
     "sameArticleGroupsVariants": "Бир хил артикул вариантларни битта карточкага бирлаштиради",
-    "variantsCount": "{{count}} ранг"
+    "variantsCount": "{{count}} ранг",
+    "scanInvoice": "Накладнойни сканерлаш"
   },
   "warehouse": {
     "stockIn": "Қабул қилиш",
@@ -401,7 +402,26 @@
     "typeStockIn": "Кирим",
     "typeWaste": "Чиқим",
     "typeCorrection": "Таққослаш",
-    "typeSale": "Сотув"
+    "typeSale": "Сотув",
+    "invoiceScanTitle": "Накладнойни сканерлаш",
+    "invoiceScanIntro": "Накладнойдан сурат олинг — мен позицияларни ўқийман",
+    "invoiceScanTakePhoto": "Сурат олиш",
+    "invoiceScanChooseGallery": "Галереядан",
+    "invoiceScanProcessing": "Накладнойни ўқияпман...",
+    "invoiceScanRetake": "Қайта олиш",
+    "invoiceScanItemsFound": "Топилган позициялар: {{count}}",
+    "invoiceScanNeedsReview": "Текширинг",
+    "invoiceScanLineMismatch": "Ҳисоб {{computed}}, {{stated}} эмас",
+    "invoiceScanGrandMismatch": "Позициялар жами {{computed}}, накладнойда эса {{stated}}",
+    "invoiceScanFailedTitle": "Суратни ўқиб бўлмади",
+    "invoiceScanFailedBody": "Яхшироқ ёруғликда қайта суратга олинг ёки позицияларни қўлда қўшинг",
+    "invoiceScanEmpty": "Суратда бирорта позиция топилмади",
+    "invoiceScanPreviewNote": "Бу фақат кўриб чиқиш — омборга сақлаш кейинги босқичда қўшилади",
+    "invoiceScanQuantity": "Миқдор",
+    "invoiceScanUnitPrice": "Нарх",
+    "invoiceScanSupplierPrefix": "Етказиб берувчи: {{name}}",
+    "invoiceScanGrandTotalLabel": "Накладной жами: {{total}}",
+    "invoiceScanPermissionDenied": "Камера ёки галереяга рухсат керак"
   },
   "reports": {
     "title": "Ҳисоботлар",
