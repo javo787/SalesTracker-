@@ -380,7 +380,8 @@
     "color": "Color / Variant",
     "addVariant": "+ Add variant",
     "sameArticleGroupsVariants": "The same article groups variants into one card",
-    "variantsCount": "{{count}} var."
+    "variantsCount": "{{count}} var.",
+    "scanInvoice": "Scan invoice"
   },
   "warehouse": {
     "stockIn": "Receive",
@@ -401,7 +402,26 @@
     "typeStockIn": "Receive",
     "typeWaste": "Write-off",
     "typeCorrection": "Audit",
-    "typeSale": "Sale"
+    "typeSale": "Sale",
+    "invoiceScanTitle": "Scan invoice",
+    "invoiceScanIntro": "Photograph the invoice — I'll read the line items",
+    "invoiceScanTakePhoto": "Take photo",
+    "invoiceScanChooseGallery": "From gallery",
+    "invoiceScanProcessing": "Reading invoice...",
+    "invoiceScanRetake": "Retake",
+    "invoiceScanItemsFound": "Items found: {{count}}",
+    "invoiceScanNeedsReview": "Needs review",
+    "invoiceScanLineMismatch": "{{computed}} calculated, not {{stated}}",
+    "invoiceScanGrandMismatch": "Line items add up to {{computed}}, but the invoice says {{stated}}",
+    "invoiceScanFailedTitle": "Couldn't read the photo",
+    "invoiceScanFailedBody": "Try retaking it in better lighting, or add items manually",
+    "invoiceScanEmpty": "No items found in the photo",
+    "invoiceScanPreviewNote": "This is a preview only — saving to stock is coming in the next stage",
+    "invoiceScanQuantity": "Qty",
+    "invoiceScanUnitPrice": "Price",
+    "invoiceScanSupplierPrefix": "Supplier: {{name}}",
+    "invoiceScanGrandTotalLabel": "Invoice total: {{total}}",
+    "invoiceScanPermissionDenied": "Camera or gallery access is needed"
   },
   "reports": {
     "title": "Reports",

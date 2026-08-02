@@ -380,7 +380,8 @@
     "color": "Ранг / Навъ",
     "addVariant": "+ Навъи нав",
     "sameArticleGroupsVariants": "Артикули якхела вариантҳоро дар як карточка муттаҳид мекунад",
-    "variantsCount": "{{count}} навъ"
+    "variantsCount": "{{count}} навъ",
+    "scanInvoice": "Хониши накладная"
   },
   "warehouse": {
     "stockIn": "Қабул",
@@ -401,7 +402,26 @@
     "typeStockIn": "Даромад",
     "typeWaste": "Хориҷ",
     "typeCorrection": "Санҷиш",
-    "typeSale": "Фурӯш"
+    "typeSale": "Фурӯш",
+    "invoiceScanTitle": "Хониши накладная",
+    "invoiceScanIntro": "Аз накладная сурат гиред — ман позицияҳоро мехонам",
+    "invoiceScanTakePhoto": "Аксбардорӣ",
+    "invoiceScanChooseGallery": "Аз галерея",
+    "invoiceScanProcessing": "Накладная хонда истодаам...",
+    "invoiceScanRetake": "Аз нав гирифтан",
+    "invoiceScanItemsFound": "Позицияҳо ёфт шуданд: {{count}}",
+    "invoiceScanNeedsReview": "Тафтиш кунед",
+    "invoiceScanLineMismatch": "Ҳисоб {{computed}}, на {{stated}}",
+    "invoiceScanGrandMismatch": "Ҷамъи позицияҳо {{computed}}, дар накладная бошад {{stated}}",
+    "invoiceScanFailedTitle": "Аксро хонда натавонистам",
+    "invoiceScanFailedBody": "Дар рӯшноии беҳтар аз нав гиред ё позицияҳоро дастӣ илова кунед",
+    "invoiceScanEmpty": "Дар акс ягон позиция ёфт нашуд",
+    "invoiceScanPreviewNote": "Ин танҳо намоиш аст — сабт ба анбор дар марҳилаи оянда илова мешавад",
+    "invoiceScanQuantity": "Миқдор",
+    "invoiceScanUnitPrice": "Нарх",
+    "invoiceScanSupplierPrefix": "Таъминкунанда: {{name}}",
+    "invoiceScanGrandTotalLabel": "Ҷамъи накладная: {{total}}",
+    "invoiceScanPermissionDenied": "Дастрасӣ ба камера ё галерея лозим аст"
   },
   "reports": {
     "title": "Ҳисоботҳо",

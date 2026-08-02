@@ -380,7 +380,8 @@
     "color": "Цвет / Разновидность",
     "addVariant": "+ Добавить вариант",
     "sameArticleGroupsVariants": "Одинаковый артикул объединяет варианты в одну карточку",
-    "variantsCount": "{{count}} вар."
+    "variantsCount": "{{count}} вар.",
+    "scanInvoice": "Скан накладной"
   },
   "warehouse": {
     "stockIn": "Приёмка",
@@ -401,7 +402,26 @@
     "typeStockIn": "Приход",
     "typeWaste": "Списание",
     "typeCorrection": "Сверка",
-    "typeSale": "Продажа"
+    "typeSale": "Продажа",
+    "invoiceScanTitle": "Скан накладной",
+    "invoiceScanIntro": "Сфотографируйте накладную — я прочитаю позиции",
+    "invoiceScanTakePhoto": "Сделать фото",
+    "invoiceScanChooseGallery": "Из галереи",
+    "invoiceScanProcessing": "Читаю накладную...",
+    "invoiceScanRetake": "Переснять",
+    "invoiceScanItemsFound": "Найдено позиций: {{count}}",
+    "invoiceScanNeedsReview": "Проверьте",
+    "invoiceScanLineMismatch": "{{computed}} по расчёту, а не {{stated}}",
+    "invoiceScanGrandMismatch": "Сумма позиций {{computed}}, а в накладной указано {{stated}}",
+    "invoiceScanFailedTitle": "Не удалось прочитать фото",
+    "invoiceScanFailedBody": "Попробуйте переснять при лучшем освещении или добавьте позиции вручную",
+    "invoiceScanEmpty": "Ни одной позиции не найдено",
+    "invoiceScanPreviewNote": "Это тестовый просмотр — сохранение на склад появится на следующем этапе",
+    "invoiceScanQuantity": "Кол-во",
+    "invoiceScanUnitPrice": "Цена",
+    "invoiceScanSupplierPrefix": "Поставщик: {{name}}",
+    "invoiceScanGrandTotalLabel": "Итог по накладной: {{total}}",
+    "invoiceScanPermissionDenied": "Нужен доступ к камере или галерее"
   },
   "reports": {
     "title": "Отчёты",

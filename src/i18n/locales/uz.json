@@ -375,7 +375,8 @@
     "color": "Rang / Xilma-xil",
     "addVariant": "+ Variant qo'shish",
     "sameArticleGroupsVariants": "Bir xil artikul variantlarni bitta kartochkaga birlashtiradi",
-    "variantsCount": "{{count}} rang"
+    "variantsCount": "{{count}} rang",
+    "scanInvoice": "Nakladnoyni skanerlash"
   },
   "warehouse": {
     "stockIn": "Qabul qilish",
@@ -396,7 +397,26 @@
     "typeStockIn": "Kirim",
     "typeWaste": "Chiqim",
     "typeCorrection": "Taqqoslash",
-    "typeSale": "Sotuv"
+    "typeSale": "Sotuv",
+    "invoiceScanTitle": "Nakladnoyni skanerlash",
+    "invoiceScanIntro": "Nakladnoydan surat oling — men pozitsiyalarni o'qiyman",
+    "invoiceScanTakePhoto": "Surat olish",
+    "invoiceScanChooseGallery": "Galereyadan",
+    "invoiceScanProcessing": "Nakladnoyni o'qiyapman...",
+    "invoiceScanRetake": "Qayta olish",
+    "invoiceScanItemsFound": "Topilgan pozitsiyalar: {{count}}",
+    "invoiceScanNeedsReview": "Tekshiring",
+    "invoiceScanLineMismatch": "Hisob {{computed}}, {{stated}} emas",
+    "invoiceScanGrandMismatch": "Pozitsiyalar jami {{computed}}, nakladnoyda esa {{stated}}",
+    "invoiceScanFailedTitle": "Suratni o'qib bo'lmadi",
+    "invoiceScanFailedBody": "Yaxshiroq yorug'likda qayta suratga oling yoki pozitsiyalarni qo'lda qo'shing",
+    "invoiceScanEmpty": "Suratda birorta pozitsiya topilmadi",
+    "invoiceScanPreviewNote": "Bu faqat ko'rib chiqish — omborga saqlash keyingi bosqichda qo'shiladi",
+    "invoiceScanQuantity": "Miqdor",
+    "invoiceScanUnitPrice": "Narx",
+    "invoiceScanSupplierPrefix": "Yetkazib beruvchi: {{name}}",
+    "invoiceScanGrandTotalLabel": "Nakladnoy jami: {{total}}",
+    "invoiceScanPermissionDenied": "Kamera yoki galereyaga ruxsat kerak"
   },
   "reports": {
     "title": "Hisobotlar",
