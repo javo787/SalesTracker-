@@ -238,45 +238,120 @@ export const SyncService = {
       }
 
       // Products sync
+      //
+      // Bug fix: same class of bug as the sales fix below, and just as
+      // destructive — `id` on the local `products` table is a per-device
+      // SQLite AUTOINCREMENT counter, not a globally unique identifier. This
+      // was safe while only the owner's device ever created/pushed products
+      // (a single writer -> a single id-space, so every other device could
+      // safely store the incoming row under that same `id`). Once a seller
+      // with `manage_products` started pushing products too, each device's
+      // independent counter could land on the same number for two totally
+      // unrelated products. The old code matched purely by `id = p.localId`,
+      // so an unrelated product sharing that number got silently UPDATEd
+      // with someone else's data, or hard-DELETEd if the colliding remote
+      // row was soft-deleted — this is very likely the "products/sales
+      // disappear or turn into a different item after a while" bug (the
+      // sales themselves are never touched by sync, but the product they
+      // point to can be silently rewritten or removed out from under them).
+      //
+      // Fix: dedupe by the server's globally unique remote_id first, exactly
+      // like sales/expenses. Only fall back to a bare `id = p.localId` match
+      // when this device is the original author of that row (never yet
+      // linked to a remote_id) — safe because `id` is this device's own
+      // AUTOINCREMENT, unique within this one database. For a product this
+      // device has never seen before, keep inserting it under the same
+      // numeric id when that slot is free (so `sales.product_id`, which is
+      // a bare local number, still points at the right row in the common
+      // case) — but if that slot is already taken by an unrelated product,
+      // never overwrite it; insert as a new row and let SQLite pick a free id.
       for (const batch of chunk(data.products, CHUNK_SIZE)) {
         db.withTransactionSync(() => {
           for (const p of batch) {
-            // Use localId for mapping, NOT autoincrement id
-            const existing = db.getFirstSync('SELECT id FROM products WHERE id = ?', [p.localId]);
+            const remoteId = p._id ? String(p._id) : null;
 
-            if (p.is_deleted) {
-               db.runSync('DELETE FROM products WHERE id = ?', [p.localId]);
-               continue;
+            const byRemoteId = remoteId
+              ? (db.getFirstSync('SELECT id FROM products WHERE remote_id = ?', [remoteId]) as { id: number } | null)
+              : null;
+
+            if (byRemoteId) {
+              if (p.is_deleted) {
+                db.runSync('DELETE FROM products WHERE id = ?', [byRemoteId.id]);
+              } else {
+                db.runSync(
+                  `UPDATE products SET
+                    name = ?,
+                    ${isOwner ? 'buy_price = ?,' : 'buy_price = NULL,'}
+                    sell_price = ?, stock = ?, min_stock_alert = ?,
+                    base_unit = ?, has_packages = ?, package_name = ?, units_per_package = ?,
+                    category = ?, synced = 1, is_deleted = ?, updated_at = ?, remote_id = ?
+                  WHERE id = ?`,
+                  isOwner
+                    ? [p.name, p.buy_price, p.sell_price, p.stock, p.min_stock_alert, p.base_unit, p.has_packages || 0, p.package_name, p.units_per_package || 1, p.category, p.is_deleted || 0, p.updated_at, remoteId, byRemoteId.id]
+                    : [p.name, p.sell_price, p.stock, p.min_stock_alert, p.base_unit, p.has_packages || 0, p.package_name, p.units_per_package || 1, p.category, p.is_deleted || 0, p.updated_at, remoteId, byRemoteId.id]
+                );
+              }
+              continue;
             }
 
-            if (!existing) {
+            const ownUnlinkedRow = p.localId
+              ? db.getFirstSync('SELECT id FROM products WHERE id = ? AND remote_id IS NULL', [p.localId])
+              : null;
+
+            if (ownUnlinkedRow) {
+              if (p.is_deleted) {
+                db.runSync('DELETE FROM products WHERE id = ?', [p.localId]);
+              } else {
+                db.runSync(
+                  `UPDATE products SET
+                    name = ?,
+                    ${isOwner ? 'buy_price = ?,' : 'buy_price = NULL,'}
+                    sell_price = ?, stock = ?, min_stock_alert = ?,
+                    base_unit = ?, has_packages = ?, package_name = ?, units_per_package = ?,
+                    category = ?, synced = 1, is_deleted = ?, updated_at = ?, remote_id = ?
+                  WHERE id = ?`,
+                  isOwner
+                    ? [p.name, p.buy_price, p.sell_price, p.stock, p.min_stock_alert, p.base_unit, p.has_packages || 0, p.package_name, p.units_per_package || 1, p.category, p.is_deleted || 0, p.updated_at, remoteId, p.localId]
+                    : [p.name, p.sell_price, p.stock, p.min_stock_alert, p.base_unit, p.has_packages || 0, p.package_name, p.units_per_package || 1, p.category, p.is_deleted || 0, p.updated_at, remoteId, p.localId]
+                );
+              }
+              continue;
+            }
+
+            if (p.is_deleted) continue; // never had it locally — nothing to delete
+
+            const collidesWithUnrelatedRow = p.localId
+              ? db.getFirstSync('SELECT id FROM products WHERE id = ?', [p.localId])
+              : null;
+
+            if (collidesWithUnrelatedRow) {
+              // Same numeric id already used by a different, unrelated
+              // product on this device — do NOT touch it. Insert as a new
+              // row instead, letting SQLite assign the next free id.
               db.runSync(
                 `INSERT INTO products (
-                  id, name, buy_price, sell_price, stock, min_stock_alert,
+                  name, buy_price, sell_price, stock, min_stock_alert,
                   base_unit, has_packages, package_name, units_per_package,
-                  category, updated_at, synced, is_deleted, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+                  category, updated_at, synced, is_deleted, created_at, remote_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
                 [
-                  p.localId, p.name,
-                  isOwner ? p.buy_price : null,
-                  p.sell_price, p.stock, p.min_stock_alert || 0,
-                  p.base_unit || 'шт', p.has_packages || 0,
-                  p.package_name, p.units_per_package || 1,
-                  p.category, p.updated_at, p.is_deleted || 0, p.created_at
+                  p.name, isOwner ? p.buy_price : null, p.sell_price, p.stock, p.min_stock_alert || 0,
+                  p.base_unit || 'шт', p.has_packages || 0, p.package_name, p.units_per_package || 1,
+                  p.category, p.updated_at, p.is_deleted || 0, p.created_at, remoteId
                 ]
               );
             } else {
               db.runSync(
-                `UPDATE products SET
-                  name = ?,
-                  ${isOwner ? 'buy_price = ?,' : 'buy_price = NULL,'}
-                  sell_price = ?, stock = ?, min_stock_alert = ?,
-                  base_unit = ?, has_packages = ?, package_name = ?, units_per_package = ?,
-                  category = ?, synced = 1, is_deleted = ?, updated_at = ?
-                WHERE id = ?`,
-                isOwner
-                  ? [p.name, p.buy_price, p.sell_price, p.stock, p.min_stock_alert, p.base_unit, p.has_packages || 0, p.package_name, p.units_per_package || 1, p.category, p.is_deleted || 0, p.updated_at, p.localId]
-                  : [p.name, p.sell_price, p.stock, p.min_stock_alert, p.base_unit, p.has_packages || 0, p.package_name, p.units_per_package || 1, p.category, p.is_deleted || 0, p.updated_at, p.localId]
+                `INSERT INTO products (
+                  id, name, buy_price, sell_price, stock, min_stock_alert,
+                  base_unit, has_packages, package_name, units_per_package,
+                  category, updated_at, synced, is_deleted, created_at, remote_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
+                [
+                  p.localId, p.name, isOwner ? p.buy_price : null, p.sell_price, p.stock, p.min_stock_alert || 0,
+                  p.base_unit || 'шт', p.has_packages || 0, p.package_name, p.units_per_package || 1,
+                  p.category, p.updated_at, p.is_deleted || 0, p.created_at, remoteId
+                ]
               );
             }
           }
