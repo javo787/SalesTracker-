@@ -81,6 +81,23 @@ router.post('/push', authMiddleware, requireShop, async (req: AuthRequest, res) 
     // PRODUCTS: owner or a seller with 'manage_products' can push everything,
     // including buy_price — full parity, no owner-only carve-out (same
     // boundary mirrored on the pull side below).
+    //
+    // Bug fix: this used to upsert on {shopId, localId} alone. `localId` is
+    // just the pushing device's own SQLite AUTOINCREMENT counter — it was
+    // never unique across devices, only within one device's database. That
+    // was harmless while only the owner's device ever pushed products (a
+    // single writer -> a single id-space), but once a seller with
+    // manage_products started pushing products too (each with their own
+    // independent counter, also starting at 1, 2, 3...), two completely
+    // unrelated products from different devices could land on the same
+    // localId number. The upsert filter didn't check who authored the
+    // document, so the second push silently overwrote (or, if is_deleted,
+    // permanently removed) a totally unrelated product belonging to someone
+    // else. Fix: match existing products by their real Mongo _id (sent back
+    // from a previous pull as remote_id) whenever the client already knows
+    // it; a product the client has never synced before is always a plain
+    // insert (never an upsert keyed on the collision-prone localId), so it
+    // can never clobber someone else's document.
     const canManageProducts = req.role === 'owner' || req.permissions?.includes('manage_products');
     if (products && Array.isArray(products) && canManageProducts) {
       const allowedProductFields = ['name', 'buy_price', 'sell_price', 'stock', 'min_stock_alert',
@@ -101,13 +118,22 @@ router.post('/push', authMiddleware, requireShop, async (req: AuthRequest, res) 
         // локальное время устройства владельца без TZ и в другом формате,
         // строковое сравнение с since (полный ISO 8601) даёт неверный результат.
         update.serverUpdatedAt = new Date();
-        return {
-          updateOne: {
-            filter: { shopId: shopObjectId, localId: p.id },
-            update: { $set: update },
-            upsert: true,
-          },
-        };
+
+        if (p.remote_id) {
+          // Already-synced product — target it by its real, globally unique
+          // _id. No upsert: if the document is somehow gone, do nothing
+          // rather than resurrecting it under someone else's localId.
+          return {
+            updateOne: {
+              filter: { _id: new mongoose.Types.ObjectId(p.remote_id), shopId: shopObjectId },
+              update: { $set: update },
+            },
+          };
+        }
+        // Never synced before — always a fresh document, so it can never
+        // collide with an existing one just because the numeric localId
+        // happens to match.
+        return { insertOne: { document: update } };
       });
       if (productOps.length > 0) {
         await Product.bulkWrite(productOps);
