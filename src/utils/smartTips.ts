@@ -1,10 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TFunction } from 'i18next';
 import { getStats, getSalesByPeriod, getProducts, getExpenseStats } from '../db/database';
+import { toLocalDateStr } from './dateRange';
 
 export async function getSmartTip(t: TFunction, currency: string): Promise<string> {
   const todayDate = new Date();
-  const todayStr = todayDate.toISOString().split('T')[0];
+  const todayStr = toLocalDateStr(todayDate);
   const cacheKey = `smart_tip_${todayStr}`;
 
   try {
@@ -54,12 +55,16 @@ async function generateTip(t: TFunction, currency: string): Promise<string> {
     }
   } else if (stats1.count === 0) {
     // Check yesterday if today has no sales
-    const salesYesterday = getSalesByPeriod(2).filter((s: any) => {
-      const d = new Date(s.created_at).toISOString().split('T')[0];
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      return d === yesterday.toISOString().split('T')[0];
-    });
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = toLocalDateStr(yesterday);
+    // created_at уже хранится как 'YYYY-MM-DD HH:MM:SS' в локальном времени
+    // (см. nowLocalISO() в db/database.ts) — сравниваем срез строки напрямую,
+    // без new Date(...).toISOString(), который переводит в UTC и на раннем
+    // утре (00:00–04:59 локального времени) сдвигал дату на день назад.
+    const salesYesterday = getSalesByPeriod(2).filter(
+      (s: any) => s.created_at.slice(0, 10) === yesterdayStr
+    );
 
     if (salesYesterday.length > 0) {
       const yesterdayRevenue = salesYesterday.reduce((sum: number, s: any) => sum + s.sell_price * s.quantity, 0);
@@ -111,9 +116,6 @@ async function generateTip(t: TFunction, currency: string): Promise<string> {
   const saleDays = new Set(last30DaysSales.map(s => s.created_at.split(' ')[0]));
   let streak = 0;
   const tempDate = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const toLocalDateStr = (d: Date) =>
-    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   while (saleDays.has(toLocalDateStr(tempDate))) {
     streak++;
     tempDate.setDate(tempDate.getDate() - 1);

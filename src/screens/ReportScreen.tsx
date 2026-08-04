@@ -16,6 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as XLSX from 'xlsx';
 import { getStats, getSalesByPeriod, deleteSale, getExpenseStats, getExpenses, getMyStats } from '../db/database';
 import { arrayBufferToBase64 } from '../utils/excelUtils';
+import { toLocalDateStr } from '../utils/dateRange';
 import { useAppContext } from '../context/AppContext';
 import { useShop } from '../context/ShopContext';
 import AnnualReport from '../components/reports/AnnualReport';
@@ -444,9 +445,6 @@ export default function ReportScreen() {
 
   const calculateGrowth = useCallback(() => {
     if (typeof period !== 'number') return null;
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const toLocalDateStr = (d: Date) =>
-      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
     const d = new Date();
     d.setDate(d.getDate() - period);
     const toDate = toLocalDateStr(d);

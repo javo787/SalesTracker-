@@ -7,5 +7,8 @@
  */
 module.exports = {
   testEnvironment: 'node',
-  testMatch: ['<rootDir>/src/utils/matching/**/*.test.ts'],
+  testMatch: [
+    '<rootDir>/src/utils/matching/**/*.test.ts',
+    '<rootDir>/src/utils/__tests__/*.test.ts',
+  ],
 };

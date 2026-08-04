@@ -1,29 +1,9 @@
 import * as SQLite from 'expo-sqlite';
 import { notifyLowStock } from '../utils/notifications';
 import { tokenAwareSimilarity } from '../utils/matching/textSimilarity';
+import { nowLocalISO, todayLocalDate, startOfDaysAgoLocalStr, endOfTodayLocalStr } from '../utils/dateRange';
 
 const db = SQLite.openDatabaseSync('savdo.db'); // Note: Database name remains 'savdo.db' to maintain data continuity.
-
-function nowLocalISO(): string {
-  // Возвращает локальное время устройства в формате 'YYYY-MM-DD HH:MM:SS'
-  // БЕЗ конвертации в UTC (в отличие от toISOString())
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
-
-function todayLocalDate(): string {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-function daysAgoLocalISO(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
 
 function runMigrations() {
   db.execSync(`
@@ -946,11 +926,11 @@ export function getSalesByPeriod(days: number, fromDate?: string, toDate?: strin
     return db.getAllSync(query, params);
   }
   const query = sellerId
-    ? "SELECT * FROM sales WHERE seller_id = ? AND created_at >= ? ORDER BY created_at DESC"
-    : "SELECT * FROM sales WHERE created_at >= ? ORDER BY created_at DESC";
+    ? "SELECT * FROM sales WHERE seller_id = ? AND created_at >= ? AND created_at <= ? ORDER BY created_at DESC"
+    : "SELECT * FROM sales WHERE created_at >= ? AND created_at <= ? ORDER BY created_at DESC";
   const params = sellerId
-    ? [sellerId, daysAgoLocalISO(days)]
-    : [daysAgoLocalISO(days)];
+    ? [sellerId, startOfDaysAgoLocalStr(days), endOfTodayLocalStr()]
+    : [startOfDaysAgoLocalStr(days), endOfTodayLocalStr()];
   return db.getAllSync(query, params);
 }
 
@@ -1001,11 +981,11 @@ export function getStats(days: number = 1, fromDate?: string, toDate?: string, s
       COALESCE(SUM(profit), 0) as profit,
       COALESCE(COUNT(*), 0) as count
     FROM sales 
-    WHERE ${sellerId ? 'seller_id = ? AND ' : ''}created_at >= ?
+    WHERE ${sellerId ? 'seller_id = ? AND ' : ''}created_at >= ? AND created_at <= ?
   `;
   const params = sellerId
-    ? [sellerId, daysAgoLocalISO(days)]
-    : [daysAgoLocalISO(days)];
+    ? [sellerId, startOfDaysAgoLocalStr(days), endOfTodayLocalStr()]
+    : [startOfDaysAgoLocalStr(days), endOfTodayLocalStr()];
   const result = db.getFirstSync(query, params) as any;
   return result;
 }
@@ -1040,8 +1020,10 @@ export function getExpenses(days: number = 1, fromDate?: string, toDate?: string
       : [fromDate + ' 00:00:00', toDate + ' 23:59:59'];
     return db.getAllSync(query, params);
   }
-  const query = `SELECT * FROM expenses WHERE ${sellerId ? 'seller_id = ? AND ' : ''}created_at >= ? ORDER BY created_at DESC`;
-  const params = sellerId ? [sellerId, daysAgoLocalISO(days)] : [daysAgoLocalISO(days)];
+  const query = `SELECT * FROM expenses WHERE ${sellerId ? 'seller_id = ? AND ' : ''}created_at >= ? AND created_at <= ? ORDER BY created_at DESC`;
+  const params = sellerId
+    ? [sellerId, startOfDaysAgoLocalStr(days), endOfTodayLocalStr()]
+    : [startOfDaysAgoLocalStr(days), endOfTodayLocalStr()];
   return db.getAllSync(query, params);
 }
 
@@ -1071,9 +1053,11 @@ export function getExpenseStats(days: number = 1, fromDate?: string, toDate?: st
       COALESCE(SUM(CASE WHEN type = 'inventory' THEN amount ELSE 0 END), 0) as inventory,
       COALESCE(SUM(amount), 0) as total
     FROM expenses
-    WHERE ${sellerId ? 'seller_id = ? AND ' : ''}created_at >= ?
+    WHERE ${sellerId ? 'seller_id = ? AND ' : ''}created_at >= ? AND created_at <= ?
   `;
-  const params = sellerId ? [sellerId, daysAgoLocalISO(days)] : [daysAgoLocalISO(days)];
+  const params = sellerId
+    ? [sellerId, startOfDaysAgoLocalStr(days), endOfTodayLocalStr()]
+    : [startOfDaysAgoLocalStr(days), endOfTodayLocalStr()];
   const result = db.getFirstSync(query, params) as any;
   return result;
 }
@@ -1920,8 +1904,8 @@ export function getMyStats(sellerId: string, days: number = 1, fromDate?: string
       COALESCE(SUM(profit), 0) as profit,
       COALESCE(COUNT(*), 0) as count
     FROM sales
-    WHERE seller_id = ? AND created_at >= ?
-  `, [sellerId, daysAgoLocalISO(days)]) as any;
+    WHERE seller_id = ? AND created_at >= ? AND created_at <= ?
+  `, [sellerId, startOfDaysAgoLocalStr(days), endOfTodayLocalStr()]) as any;
   return result;
 }
 
