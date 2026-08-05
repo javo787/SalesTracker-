@@ -20,7 +20,11 @@ import { useShop } from '../context/ShopContext';
 import { useAppLock } from '../context/AppLockContext';
 import { getConversionRate } from '../utils/currencyRates';
 import { reviewService } from '../services/reviewService';
-import { convertAllAmounts, clearAllData, getProducts, getSalesByPeriod, getExpenses, importBackupData } from '../db/database';
+import {
+  convertAllAmounts, clearAllData, importBackupData,
+  getAllProductsForSync, getAllSalesForBackup, getAllExpensesForBackup, getAllClientsForBackup,
+  getAllDebtsForBackup, getAllDebtPaymentsForBackup, getAllStockMovementsForBackup, getAllOrdersForBackup,
+} from '../db/database';
 
 const LANGUAGES = [
   { code: 'ru',      label: 'Русский'   },
@@ -337,9 +341,16 @@ export default function SettingsScreen(props: any) {
         exportedAt: new Date().toISOString(),
         appVersion: Constants.expoConfig?.version,
         currency: currency.code,
-        products: getProducts(),
-        sales: getSalesByPeriod(3650),
-        expenses: getExpenses(3650),
+        // getAllProductsForSync — вообще все товары, включая мягко удалённые
+        // (getProducts их отфильтровывает, а для полного бэкапа они нужны)
+        products: getAllProductsForSync(),
+        sales: getAllSalesForBackup(),
+        expenses: getAllExpensesForBackup(),
+        clients: getAllClientsForBackup(),
+        debts: getAllDebtsForBackup(),
+        debtPayments: getAllDebtPaymentsForBackup(),
+        stockMovements: getAllStockMovementsForBackup(),
+        orders: getAllOrdersForBackup(),
       };
       const json = JSON.stringify(data, null, 2);
       const fileName = `torgo_backup_${Date.now()}.json`;

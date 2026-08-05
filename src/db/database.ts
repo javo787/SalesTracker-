@@ -1082,60 +1082,173 @@ const safeNum = (v: any, def = 0) =>
   isFinite(parseFloat(v)) ? parseFloat(v) : def;
 const safeStr = (v: any, def: any = '') =>
   typeof v === 'string' ? (v === 'null' ? def : v.slice(0, 500)) : (v === null || v === undefined ? def : String(v).slice(0, 500));
+// Для необязательных числовых полей / внешних ключей: пусто -> null, а не 0
+// (0 — валидное значение суммы/цены и его нельзя путать с "нет данных")
+const safeNumOrNull = (v: any) =>
+  v === null || v === undefined || v === '' ? null : (isFinite(parseFloat(v)) ? parseFloat(v) : null);
+
+// ── Полные данные без фильтров/лимитов — используются только для бэкапа ──
+// (в отличие от getProducts/getSalesByPeriod/getExpenses, которые фильтруют
+// удалённые товары или ограничивают период, здесь нужны АБСОЛЮТНО все записи)
+export function getAllSalesForBackup() {
+  return db.getAllSync('SELECT * FROM sales ORDER BY id ASC');
+}
+
+export function getAllExpensesForBackup() {
+  return db.getAllSync('SELECT * FROM expenses ORDER BY id ASC');
+}
+
+export function getAllClientsForBackup() {
+  return db.getAllSync('SELECT * FROM clients ORDER BY id ASC');
+}
+
+export function getAllDebtsForBackup() {
+  return db.getAllSync('SELECT * FROM debts ORDER BY id ASC');
+}
+
+export function getAllDebtPaymentsForBackup() {
+  return db.getAllSync('SELECT * FROM debt_payments ORDER BY id ASC');
+}
+
+export function getAllStockMovementsForBackup() {
+  return db.getAllSync('SELECT * FROM stock_movements ORDER BY created_at ASC');
+}
+
+export function getAllOrdersForBackup() {
+  return db.getAllSync('SELECT * FROM orders ORDER BY id ASC');
+}
 
 export function importBackupData(data: any) {
   db.withTransactionSync(() => {
-    // Clear all existing data
+    // Очищаем все таблицы с пользовательскими данными.
+    // Порядок: сначала дочерние записи, потом родительские — на случай,
+    // если в будущем включат PRAGMA foreign_keys.
     db.runSync('DELETE FROM debt_payments');
     db.runSync('DELETE FROM debts');
-    db.runSync('DELETE FROM clients');
+    db.runSync('DELETE FROM stock_movements');
     db.runSync('DELETE FROM sales');
+    db.runSync('DELETE FROM orders');
+    db.runSync('DELETE FROM clients');
     db.runSync('DELETE FROM products');
     db.runSync('DELETE FROM expenses');
-    db.runSync('DELETE FROM stock_movements');
     try {
-      db.runSync("DELETE FROM sqlite_sequence WHERE name IN ('products','sales','expenses','clients','debts','debt_payments','stock_movements')");
+      db.runSync("DELETE FROM sqlite_sequence WHERE name IN ('products','sales','expenses','clients','debts','debt_payments','stock_movements','orders')");
     } catch (e) {}
 
-    // Import products
+    // 1) Товары (склад) — без зависимостей
     if (Array.isArray(data.products)) {
       data.products.forEach((p: any) => {
         db.runSync(
           `INSERT INTO products (
             id, name, buy_price, sell_price, stock, min_stock_alert,
             base_unit, has_packages, package_name, units_per_package,
-            category, updated_at, synced, is_deleted, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            category, updated_at, synced, is_deleted, created_at,
+            remote_id, article, is_continuous, color, initial_stock, initial_buy_price
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             p.id, safeStr(p.name), safeNum(p.buy_price), safeNum(p.sell_price), safeNum(p.stock), safeNum(p.min_stock_alert, 0),
             safeStr(p.base_unit, 'шт'), safeNum(p.has_packages, 0), safeStr(p.package_name, null), safeNum(p.units_per_package, 1),
-            safeStr(p.category, null), safeStr(p.updated_at, nowLocalISO()), safeNum(p.synced, 0), safeNum(p.is_deleted, 0), safeStr(p.created_at, nowLocalISO())
+            safeStr(p.category, null), safeStr(p.updated_at, nowLocalISO()), safeNum(p.synced, 0), safeNum(p.is_deleted, 0), safeStr(p.created_at, nowLocalISO()),
+            safeStr(p.remote_id, null), safeStr(p.article, null), safeNum(p.is_continuous, 0), safeStr(p.color, null),
+            safeNumOrNull(p.initial_stock), safeNumOrNull(p.initial_buy_price)
           ]
         );
       });
     }
 
-    // Import sales
+    // 2) Клиенты — без зависимостей
+    if (Array.isArray(data.clients)) {
+      data.clients.forEach((c: any) => {
+        db.runSync(
+          `INSERT INTO clients (id, name, phone, note, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+          [c.id, safeStr(c.name), safeStr(c.phone, null), safeStr(c.note, null), safeStr(c.created_at, nowLocalISO()), safeStr(c.updated_at, nowLocalISO())]
+        );
+      });
+    }
+
+    // 3) Заказы — ссылаются на клиентов
+    if (Array.isArray(data.orders)) {
+      data.orders.forEach((o: any) => {
+        db.runSync(
+          `INSERT INTO orders (id, client_id, seller_id, seller_name, total_amount, payment_type, status, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            o.id, safeNumOrNull(o.client_id), safeStr(o.seller_id, null), safeStr(o.seller_name, null),
+            safeNum(o.total_amount), safeStr(o.payment_type, null), safeStr(o.status, 'completed'), safeStr(o.note, null), safeStr(o.created_at, nowLocalISO())
+          ]
+        );
+      });
+    }
+
+    // 4) Продажи — ссылаются на товары и заказы
     if (Array.isArray(data.sales)) {
       data.sales.forEach((s: any) => {
         db.runSync(
           `INSERT INTO sales (
-            id, product_id, product_name, quantity, sell_price, buy_price, profit, note, stock_updated, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            id, product_id, product_name, quantity, sell_price, buy_price, profit, note, stock_updated, created_at,
+            seller_id, seller_name, stock_warning, remote_id, order_id, is_pending_review, synced
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
-            s.id, s.product_id, safeStr(s.product_name), safeNum(s.quantity), safeNum(s.sell_price), safeNum(s.buy_price), safeNum(s.profit), safeStr(s.note, null), safeNum(s.stock_updated, 0), safeStr(s.created_at)
+            s.id, safeNumOrNull(s.product_id), safeStr(s.product_name), safeNum(s.quantity, 1), safeNum(s.sell_price),
+            safeNumOrNull(s.buy_price), safeNumOrNull(s.profit), safeStr(s.note, null), safeNum(s.stock_updated, 0), safeStr(s.created_at, nowLocalISO()),
+            safeStr(s.seller_id, null), safeStr(s.seller_name, null), safeNum(s.stock_warning, 0), safeStr(s.remote_id, null),
+            safeNumOrNull(s.order_id), safeNum(s.is_pending_review, 0), safeNum(s.synced, 0)
           ]
         );
       });
     }
 
-    // Import expenses
+    // 5) Долги — ссылаются на клиентов, продажи и заказы
+    if (Array.isArray(data.debts)) {
+      data.debts.forEach((d: any) => {
+        db.runSync(
+          `INSERT INTO debts (
+            id, client_id, sale_id, amount_total, amount_paid, status, due_date, note, created_at, updated_at, notification_id, order_id
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            d.id, d.client_id, safeNumOrNull(d.sale_id), safeNum(d.amount_total), safeNum(d.amount_paid, 0), safeStr(d.status, 'active'),
+            safeStr(d.due_date, null), safeStr(d.note, null), safeStr(d.created_at, nowLocalISO()), safeStr(d.updated_at, nowLocalISO()),
+            safeStr(d.notification_id, null), safeNumOrNull(d.order_id)
+          ]
+        );
+      });
+    }
+
+    // 6) Платежи по долгам — ссылаются на долги
+    if (Array.isArray(data.debtPayments)) {
+      data.debtPayments.forEach((dp: any) => {
+        db.runSync(
+          `INSERT INTO debt_payments (id, debt_id, amount, note, created_at) VALUES (?, ?, ?, ?, ?)`,
+          [dp.id, dp.debt_id, safeNum(dp.amount), safeStr(dp.note, null), safeStr(dp.created_at, nowLocalISO())]
+        );
+      });
+    }
+
+    // 7) История движений склада (приход/списание/коррекции) — ссылается на товары
+    if (Array.isArray(data.stockMovements)) {
+      data.stockMovements.forEach((m: any) => {
+        db.runSync(
+          `INSERT INTO stock_movements (
+            id, product_id, type, quantity_change, price_per_unit, note, created_at, synced, seller_id, seller_name
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            m.id, m.product_id, safeStr(m.type), safeNum(m.quantity_change), safeNumOrNull(m.price_per_unit),
+            safeStr(m.note, null), safeStr(m.created_at, nowLocalISO()), safeNum(m.synced, 0), safeStr(m.seller_id, null), safeStr(m.seller_name, null)
+          ]
+        );
+      });
+    }
+
+    // 8) Расходы — необязательная ссылка на товар
     if (Array.isArray(data.expenses)) {
       data.expenses.forEach((e: any) => {
         db.runSync(
-          `INSERT INTO expenses (id, type, category, amount, description, linked_product_id, created_at, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO expenses (
+            id, type, category, amount, description, linked_product_id, created_at, user_id, seller_id, seller_name, remote_id, synced
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
-            e.id, safeStr(e.type), safeStr(e.category), safeNum(e.amount), safeStr(e.description, null), e.linked_product_id, safeStr(e.created_at), safeStr(e.user_id)
+            e.id, safeStr(e.type), safeStr(e.category), safeNum(e.amount), safeStr(e.description, null), safeNumOrNull(e.linked_product_id),
+            safeStr(e.created_at, nowLocalISO()), safeStr(e.user_id), safeStr(e.seller_id, null), safeStr(e.seller_name, null),
+            safeStr(e.remote_id, null), safeNum(e.synced, 0)
           ]
         );
       });
