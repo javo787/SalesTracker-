@@ -98,7 +98,7 @@ export default function SellersScreen() {
     loadData();
   };
 
-  const togglePermission = async (member: ShopMember, perm: 'manage_debtors' | 'manage_team' | 'manage_products') => {
+  const togglePermission = async (member: ShopMember, perm: 'manage_debtors' | 'manage_team' | 'manage_products' | 'manage_checkin') => {
     const key = `${member.userId}:${perm}`;
     if (togglingPermKey) return; // один тоггл за раз — избегаем гонки при быстром двойном тапе
 
