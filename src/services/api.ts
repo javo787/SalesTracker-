@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { clearShopSession } from '../db/database';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
+const DEFAULT_TIMEOUT_MS = 15000;
 
 type RevokedCallback = () => void;
 
@@ -18,6 +19,20 @@ class ApiClient {
 
   private emitRevoked() {
     this.revokedCallbacks.forEach(cb => cb());
+  }
+
+  // Раньше fetch() вызывался без таймаута вообще — при недоступном или
+  // "просыпающемся" бэкенде запрос мог виснуть неограниченно долго.
+  // Особенно критично там, где на такой запрос завязан экран загрузки
+  // (см. AuthContext) — без таймаута нет верхней границы ожидания.
+  private async fetchWithTimeout(url: string, options: RequestInit, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<Response> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 
   private async getHeaders() {
@@ -61,7 +76,7 @@ class ApiClient {
   async get<T>(path: string): Promise<T> {
     if (!API_URL) throw new Error('API URL not configured');
     const headers = await this.getHeaders();
-    const response = await fetch(`${API_URL}${path}`, {
+    const response = await this.fetchWithTimeout(`${API_URL}${path}`, {
       method: 'GET',
       headers,
     });
@@ -71,7 +86,7 @@ class ApiClient {
   async post<T>(path: string, body: any): Promise<T> {
     if (!API_URL) throw new Error('API URL not configured');
     const headers = await this.getHeaders();
-    const response = await fetch(`${API_URL}${path}`, {
+    const response = await this.fetchWithTimeout(`${API_URL}${path}`, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
@@ -82,7 +97,7 @@ class ApiClient {
   async patch<T>(path: string, body: any): Promise<T> {
     if (!API_URL) throw new Error('API URL not configured');
     const headers = await this.getHeaders();
-    const response = await fetch(`${API_URL}${path}`, {
+    const response = await this.fetchWithTimeout(`${API_URL}${path}`, {
       method: 'PATCH',
       headers,
       body: JSON.stringify(body),
@@ -93,7 +108,7 @@ class ApiClient {
   async delete<T>(path: string): Promise<T> {
     if (!API_URL) throw new Error('API URL not configured');
     const headers = await this.getHeaders();
-    const response = await fetch(`${API_URL}${path}`, {
+    const response = await this.fetchWithTimeout(`${API_URL}${path}`, {
       method: 'DELETE',
       headers,
     });

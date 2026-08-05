@@ -5,7 +5,29 @@ import { nowLocalISO, todayLocalDate, startOfDaysAgoLocalStr, endOfTodayLocalStr
 
 const db = SQLite.openDatabaseSync('savdo.db'); // Note: Database name remains 'savdo.db' to maintain data continuity.
 
+// ВАЖНО: при добавлении новой миграции schema_vN не забудьте увеличить это
+// значение — иначе для существующих пользователей она будет молча
+// пропущена fast path'ом ниже.
+const CURRENT_SCHEMA_VERSION = '10';
+
 function runMigrations() {
+  // app_meta должна существовать до любой проверки версии схемы.
+  db.execSync('CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT)');
+
+  // Fast path: раньше на КАЖДОМ холодном старте выполнялось ~12
+  // последовательных синхронных SELECT'ов (schema_v2..schema_v10 +
+  // tz_migration_v1) на JS-потоке ещё до первого рендера React — даже
+  // когда всё давно смигрировано и все они возвращают "уже сделано".
+  // Теперь в конце этой функции пишется общий флаг schema_version; если он
+  // уже на актуальной версии — выходим одним SELECT'ом, не трогая
+  // остальные ~460 строк (они остаются как есть, без изменений).
+  const versionRow = db.getFirstSync(
+    "SELECT value FROM app_meta WHERE key = 'schema_version'"
+  ) as { value: string } | null;
+  if (versionRow?.value === CURRENT_SCHEMA_VERSION) {
+    return;
+  }
+
   db.execSync(`
     CREATE TABLE IF NOT EXISTS products (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -471,6 +493,11 @@ function runMigrations() {
     CREATE INDEX IF NOT EXISTS idx_sales_remote_id ON sales(remote_id);
     CREATE INDEX IF NOT EXISTS idx_expenses_remote_id ON expenses(remote_id);
   `);
+
+  db.runSync(
+    "INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_version', ?)",
+    [CURRENT_SCHEMA_VERSION]
+  );
 }
 
 // Схема и миграции выполняются синхронно прямо при загрузке этого модуля —

@@ -34,24 +34,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const storedUser = await AuthService.getStoredUser();
       if (storedUser) {
         setUser(storedUser);
-        // Validate with server in background if not local guest
+        // Валидация с сервером — по-настоящему в фоне, не блокирует
+        // isLoading/сплэш. Раньше здесь стоял await: открытие приложения
+        // ждало полный round-trip к /profile на КАЖДОМ холодном старте
+        // (без таймаута на fetch — при недоступном/просыпающемся бэкенде
+        // это могло растянуться на многие секунды), хотя валидных
+        // локальных данных уже достаточно, чтобы отрисовать интерфейс.
         if (storedUser._id !== 'local_guest') {
-          try {
-            const freshUser = await api.get<User>('/profile');
-            setUser(freshUser);
-            const token = await AuthService.getStoredToken();
-            if (token) {
-              AuthService.saveAuthData({ token, user: freshUser });
-            }
-          } catch (e) {
-            console.warn('Failed to validate session with server');
-            const token = await AuthService.getStoredToken();
-            if (!token) setUser(null);
-          }
+          validateSessionInBackground();
         }
       }
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const validateSessionInBackground = async () => {
+    try {
+      const freshUser = await api.get<User>('/profile');
+      setUser(freshUser);
+      const token = await AuthService.getStoredToken();
+      if (token) {
+        AuthService.saveAuthData({ token, user: freshUser });
+      }
+    } catch (e) {
+      console.warn('Failed to validate session with server');
+      const token = await AuthService.getStoredToken();
+      if (!token) setUser(null);
     }
   };
 
