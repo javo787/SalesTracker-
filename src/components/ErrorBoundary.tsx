@@ -5,6 +5,13 @@ import * as Updates from 'expo-updates';
 
 interface Props {
   children: React.ReactNode;
+  // Вызывается сразу при перехвате ошибки рендера, ДО того как пользователь
+  // успеет нажать «Перезапустить». Нужен родителю (App.tsx), чтобы принудительно
+  // скрыть сплэш-оверлей: тот скрывается только когда AppContent сам вызовет
+  // onReady(), а если AppContent упал при первом рендере — onReady() никогда
+  // не будет вызван, и этот экран (с кнопкой «Перезапустить») навсегда
+  // останется невидимым ПОД сплэшем.
+  onError?: () => void;
 }
 
 interface State {
@@ -36,6 +43,7 @@ export default class ErrorBoundary extends React.Component<Props, State> {
     // TODO: как только в проект будет добавлен Sentry/аналог — отправлять
     // сюда же. Пока хотя бы логируем, чтобы было видно в adb logcat.
     console.error('[ErrorBoundary] Необработанная ошибка рендера:', error, info.componentStack);
+    this.props.onError?.();
   }
 
   handleRestart = async () => {

@@ -46,8 +46,16 @@ const ProductSchema: Schema = new Schema({
   serverUpdatedAt: { type: Date, default: Date.now },
 });
 
-// Composite index for efficient upserting during sync
-ProductSchema.index({ shopId: 1, localId: 1 }, { unique: true });
+// ВАЖНО: индекс должен быть составным с userId. Раньше был {shopId, localId}
+// без userId — а localId это локальный SQLite AUTOINCREMENT конкретного
+// устройства, не глобальный идентификатор. Как только товары стал пушить не
+// только владелец, но и любой продавец с правом manage_products (у каждого
+// устройства своя независимая последовательность localId, тоже начинающаяся
+// с 1,2,3...), два разных человека с совпавшим по числу localId могли молча
+// перезаписать/удалить ЧУЖОЙ, никак не связанный товар. Реальная кросс-девайсная
+// идентификация товара теперь всегда идёт через Mongo _id (см. sync.ts —
+// апдейт по remote_id, а не по localId), это лишь защитный composite-индекс.
+ProductSchema.index({ shopId: 1, userId: 1, localId: 1 }, { unique: true });
 ProductSchema.index({ shopId: 1, serverUpdatedAt: 1 });
 
 export default mongoose.model<IProduct>('Product', ProductSchema);

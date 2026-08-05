@@ -548,9 +548,22 @@ export default function App() {
   const [dbError, setDbError] = useState<Error | null>(null);
   const [isAppContentReady, setIsAppContentReady] = useState(false);
   const [isAppSplashScreenHidden, setIsAppSplashScreenHidden] = useState(false);
+  // Раньше сплэш скрывался ТОЛЬКО через isAppContentReady, которую выставляет
+  // сам AppContent изнутри своего useEffect. Если AppContent (или что-то в его
+  // дереве) падало при самом первом рендере — ErrorBoundary ловил ошибку и
+  // рисовал экран "Что-то пошло не так" с кнопкой "Перезапустить", но
+  // AppContent так и не успевал вызвать onReady(). В итоге сплэш (полноэкранный
+  // непрозрачный оверлей с zIndex:10) навсегда оставался поверх этого экрана,
+  // и приложение выглядело как "зависшее на сплэше", хотя рабочий recovery-экран
+  // был прямо под ним. isAppCrashed позволяет крешу тоже снимать сплэш.
+  const [isAppCrashed, setIsAppCrashed] = useState(false);
 
   const handleAppContentReady = useCallback(() => {
     setIsAppContentReady(true);
+  }, []);
+
+  const handleAppContentCrash = useCallback(() => {
+    setIsAppCrashed(true);
   }, []);
 
   useEffect(() => {
@@ -602,7 +615,7 @@ export default function App() {
     return () => subscription.remove();
   }, []);
 
-  const isAppReady = dbError ? true : (isDbReady && isAppContentReady);
+  const isAppReady = (dbError || isAppCrashed) ? true : (isDbReady && isAppContentReady);
 
   return (
     <SafeAreaProvider>
@@ -627,7 +640,7 @@ export default function App() {
                         </Text>
                       </View>
                     ) : (
-                      <ErrorBoundary>
+                      <ErrorBoundary onError={handleAppContentCrash}>
                         <AppContent onReady={handleAppContentReady} />
                       </ErrorBoundary>
                     )}
