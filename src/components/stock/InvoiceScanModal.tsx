@@ -10,18 +10,22 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as SecureStore from 'expo-secure-store';
 import { useAppContext } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
+import { useShop } from '../../context/ShopContext';
 import { Colors, Radius, Spacing, Shadow } from '../../constants/theme';
-import { InvoiceScanItem, InvoiceScanResult } from '../../types/invoiceScan';
-import { getProducts } from '../../db/database';
+import { InvoiceScanItem, InvoiceScanResult, InvoiceScanApplyItem } from '../../types/invoiceScan';
+import { getProducts, applyInvoiceScan, findPossibleDuplicateInvoiceScan } from '../../db/database';
 import { matchProductByName, ProductMatchResult } from '../../utils/productMatching';
 import { AutocompleteResult, Product } from '../../types/product';
 import { SmartMatchQuotaService } from '../../services/SmartMatchQuotaService';
+import { SyncService } from '../../services/syncService';
 import { api } from '../../services/api';
 import { VariantPicker } from '../sales/VariantPicker';
 
 interface Props {
   visible: boolean;
   onClose: () => void;
+  onSaved?: () => void;
 }
 
 type ScanStage = 'intro' | 'uploading' | 'review' | 'failed';
@@ -36,9 +40,16 @@ type ScanStage = 'intro' | 'uploading' | 'review' | 'failed';
  * matchedProductId/matchConfidence на каждом item уже готовы к тому,
  * чтобы этап 4 их просто использовал.
  */
-export default function InvoiceScanModal({ visible, onClose }: Props) {
+/**
+ * Этап 4 (финальный) фичи "склад по фото накладной": сохранение на склад
+ * одной транзакцией (applyInvoiceScan), обязательная цена продажи для
+ * новых товаров, защита от повторного скана, единый push() после сохранения.
+ */
+export default function InvoiceScanModal({ visible, onClose, onSaved }: Props) {
   const { t } = useTranslation();
   const { resolvedTheme, currency, isPremium } = useAppContext();
+  const { user } = useAuth();
+  const { sellerName } = useShop();
   const isDark = resolvedTheme === 'dark';
 
   const [stage, setStage] = useState<ScanStage>('intro');
@@ -49,9 +60,13 @@ export default function InvoiceScanModal({ visible, onClose }: Props) {
   const [matchResults, setMatchResults] = useState<Record<number, ProductMatchResult>>({});
   const [smartLimitReached, setSmartLimitReached] = useState(false);
   const [remainingQuota, setRemainingQuota] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const catalogRef = useRef<AutocompleteResult[]>([]);
   const productsByIdRef = useRef<Map<number, Product>>(new Map());
+
+  const currentSellerId = user?._id || null;
+  const currentSellerName = sellerName || user?.name || null;
 
   const resetAndClose = () => {
     abortRef.current?.abort();
@@ -62,6 +77,7 @@ export default function InvoiceScanModal({ visible, onClose }: Props) {
     setErrorMessage(null);
     setMatchResults({});
     setSmartLimitReached(false);
+    setSaving(false);
     onClose();
   };
 
@@ -161,13 +177,14 @@ export default function InvoiceScanModal({ visible, onClose }: Props) {
 
       const parsed = body as InvoiceScanResult;
       setResult(parsed);
+      const itemsWithSellPrice = parsed.items.map(it => ({ ...it, sell_price: null }));
 
       if (parsed.source === 'scan_failed' || parsed.items.length === 0) {
-        setItems(parsed.items);
+        setItems(itemsWithSellPrice);
         setStage('failed');
       } else {
         setStage('review');
-        runMatching(parsed.items);
+        runMatching(itemsWithSellPrice);
       }
     } catch (e: any) {
       if (e.name === 'AbortError') return;
@@ -352,6 +369,66 @@ export default function InvoiceScanModal({ visible, onClose }: Props) {
       }
       return copy;
     });
+  };
+
+  const buildInvoiceNote = () => {
+    const dateStr = new Date().toLocaleDateString('ru-RU');
+    const supplierSuffix = result?.supplier_hint ? ` (${result.supplier_hint})` : '';
+    return `📷 накладная от ${dateStr}${supplierSuffix}`;
+  };
+
+  const doSave = async () => {
+    setSaving(true);
+    try {
+      const applyItems: InvoiceScanApplyItem[] = items.map(it => ({
+        matchedProductId: it.matchedProductId ?? null,
+        product_name: it.product_name,
+        variant: it.variant,
+        category_guess: it.category_guess,
+        quantity: it.quantity,
+        unit_price: it.unit_price,
+        sell_price: it.sell_price,
+      }));
+
+      applyInvoiceScan(applyItems, buildInvoiceNote(), currentSellerId, currentSellerName);
+      // Один push на всю накладную, не по одному на позицию - fire-and-forget,
+      // как и в остальных местах приложения после мутаций склада.
+      SyncService.push().catch(err => console.warn('[InvoiceScanModal] sync push failed', err));
+
+      Alert.alert(t('common.success'), t('warehouse.invoiceScanSavedMessage', { count: applyItems.length }));
+      onSaved?.();
+      resetAndClose();
+    } catch (e: any) {
+      Alert.alert(t('common.error'), e?.message || t('warehouse.invoiceScanFailedTitle'));
+      setSaving(false);
+    }
+  };
+
+  const handleSave = () => {
+    const missing = items.filter(it => it.matchedProductId === null && (it.sell_price === null || it.sell_price <= 0));
+    if (missing.length > 0) {
+      Alert.alert(
+        t('common.error'),
+        t('warehouse.invoiceScanMissingSellPrice', { names: missing.map(m => m.product_name).join(', ') })
+      );
+      return;
+    }
+
+    const totalValue = items.reduce((sum, it) => sum + it.quantity * it.unit_price, 0);
+    const dup = findPossibleDuplicateInvoiceScan(totalValue, items.length);
+    if (dup.isDuplicate) {
+      Alert.alert(
+        t('warehouse.invoiceScanDuplicateTitle'),
+        t('warehouse.invoiceScanDuplicateBody'),
+        [
+          { text: t('common.cancel'), style: 'cancel' },
+          { text: t('warehouse.invoiceScanDuplicateConfirm'), style: 'destructive', onPress: () => doSave() },
+        ]
+      );
+      return;
+    }
+
+    doSave();
   };
 
   return (
@@ -574,16 +651,42 @@ export default function InvoiceScanModal({ visible, onClose }: Props) {
                         placeholderTextColor={isDark ? '#888' : '#aaa'}
                       />
                     </View>
+
+                    {item.matchedProductId === null && (
+                      <View style={[styles.categoryRow, !item.sell_price && styles.sellPriceRowMissing]}>
+                        <Text style={styles.itemFieldLabel}>
+                          {t('warehouse.invoiceScanSellPrice')} {!item.sell_price ? '*' : ''}
+                        </Text>
+                        <TextInput
+                          style={[styles.categoryInput, isDark ? styles.textWhite : styles.textBlack]}
+                          value={item.sell_price !== null ? String(item.sell_price) : ''}
+                          onChangeText={(v) => updateItem(index, { sell_price: v ? Number(v.replace(',', '.')) || null : null })}
+                          keyboardType="numeric"
+                          placeholder={t('warehouse.invoiceScanSellPricePlaceholder') ?? undefined}
+                          placeholderTextColor={isDark ? '#888' : '#aaa'}
+                        />
+                      </View>
+                    )}
                   </View>
                 ))}
 
                 <View style={{ height: 20 }} />
               </ScrollView>
 
-              <View style={styles.previewNoteBox}>
-                <Ionicons name="information-circle-outline" size={16} color={Colors.info} />
-                <Text style={styles.previewNoteText}>{t('warehouse.invoiceScanPreviewNote')}</Text>
-              </View>
+              <TouchableOpacity
+                style={[styles.primaryBtn, saving && { opacity: 0.6 }]}
+                onPress={handleSave}
+                disabled={saving || items.length === 0}
+              >
+                {saving ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
+                )}
+                <Text style={styles.primaryBtnText}>
+                  {saving ? t('warehouse.invoiceScanSaving') : t('warehouse.invoiceScanSave')}
+                </Text>
+              </TouchableOpacity>
             </>
           )}
         </View>
@@ -826,18 +929,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     padding: 0,
   },
-  previewNoteBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: Colors.infoLight,
-    borderRadius: Radius.md,
-    padding: 10,
-    marginTop: 8,
-  },
-  previewNoteText: {
-    flex: 1,
-    fontSize: 12,
-    color: Colors.info,
+  sellPriceRowMissing: {
+    backgroundColor: Colors.warningLight,
+    marginHorizontal: -12,
+    paddingHorizontal: 12,
+    paddingBottom: 8,
   },
 });

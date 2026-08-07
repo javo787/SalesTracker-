@@ -411,12 +411,20 @@
     "invoiceScanFailedTitle": "Suratni o'qib bo'lmadi",
     "invoiceScanFailedBody": "Yaxshiroq yorug'likda qayta suratga oling yoki pozitsiyalarni qo'lda qo'shing",
     "invoiceScanEmpty": "Suratda birorta pozitsiya topilmadi",
-    "invoiceScanPreviewNote": "Bu faqat ko'rib chiqish — omborga saqlash keyingi bosqichda qo'shiladi",
     "invoiceScanQuantity": "Miqdor",
     "invoiceScanUnitPrice": "Narx",
     "invoiceScanSupplierPrefix": "Yetkazib beruvchi: {{name}}",
     "invoiceScanGrandTotalLabel": "Nakladnoy jami: {{total}}",
-    "invoiceScanPermissionDenied": "Kamera yoki galereyaga ruxsat kerak"
+    "invoiceScanPermissionDenied": "Kamera yoki galereyaga ruxsat kerak",
+    "invoiceScanSellPrice": "Sotish narxi",
+    "invoiceScanSellPricePlaceholder": "Yangi mahsulot uchun majburiy",
+    "invoiceScanMissingSellPrice": "{{names}} uchun sotish narxini kiriting",
+    "invoiceScanDuplicateTitle": "Bu allaqachon skanerlangandek ko'rinadi",
+    "invoiceScanDuplicateBody": "Yaqinda shunga o'xshash miqdordagi pozitsiya va summa bilan kirim allaqachon qayd etilgan. Baribir saqlaysizmi?",
+    "invoiceScanDuplicateConfirm": "Baribir saqlash",
+    "invoiceScanSavedMessage": "Omborga qo'shildi: {{count}} pozitsiya",
+    "invoiceScanSaving": "Saqlanmoqda...",
+    "invoiceScanSave": "Omborga saqlash"
   },
   "reports": {
     "title": "Hisobotlar",

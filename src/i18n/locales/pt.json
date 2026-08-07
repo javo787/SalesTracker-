@@ -416,12 +416,20 @@
     "invoiceScanFailedTitle": "Não foi possível ler a foto",
     "invoiceScanFailedBody": "Tente tirar a foto novamente com mais luz, ou adicione os itens manualmente",
     "invoiceScanEmpty": "Nenhum item encontrado na foto",
-    "invoiceScanPreviewNote": "Isto é apenas uma prévia — salvar no estoque virá na próxima etapa",
     "invoiceScanQuantity": "Qtd.",
     "invoiceScanUnitPrice": "Preço",
     "invoiceScanSupplierPrefix": "Fornecedor: {{name}}",
     "invoiceScanGrandTotalLabel": "Total da fatura: {{total}}",
-    "invoiceScanPermissionDenied": "É necessário acesso à câmera ou galeria"
+    "invoiceScanPermissionDenied": "É necessário acesso à câmera ou galeria",
+    "invoiceScanSellPrice": "Preço de venda",
+    "invoiceScanSellPricePlaceholder": "Obrigatório para um novo produto",
+    "invoiceScanMissingSellPrice": "Defina o preço de venda para: {{names}}",
+    "invoiceScanDuplicateTitle": "Isso parece já ter sido escaneado",
+    "invoiceScanDuplicateBody": "Uma entrada recente com número de itens e total semelhantes já foi registrada. Salvar esta fatura mesmo assim?",
+    "invoiceScanDuplicateConfirm": "Salvar mesmo assim",
+    "invoiceScanSavedMessage": "Adicionado ao estoque: {{count}} item(ns)",
+    "invoiceScanSaving": "Salvando...",
+    "invoiceScanSave": "Salvar no estoque"
   },
   "reports": {
     "title": "Relatórios",
