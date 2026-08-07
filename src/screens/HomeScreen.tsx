@@ -1,8 +1,8 @@
 import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet,
+  View, Text, StyleSheet,
   TouchableOpacity, RefreshControl, Alert, PanResponder, Animated as RNAnimated,
-  Dimensions
+  useWindowDimensions, FlatList
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -60,7 +60,7 @@ const SaleListItem = React.memo(({ sale, onDelete, isDark, currency, t, i18n, th
       <TouchableOpacity
         style={styles.deleteBackground}
         onPress={() => {
-          onDelete();
+          onDelete(sale);
           reset();
         }}
       >
@@ -136,7 +136,7 @@ function StatCard({ label, value, currency, unit, icon, color, themeStyles, tren
 
 export default function HomeScreen() {
   const { t, i18n } = useTranslation();
-  const { width: SCREEN_W } = Dimensions.get('window');
+  const { width: SCREEN_W } = useWindowDimensions();
   // 3 chips, horizontal padding 16*2=32, gaps 8*2=16 → available = SCREEN_W - 48
   // On wide screens (≥390px) use normal sizes, scale down proportionally below that
   const chipScale = Math.min(1, (SCREEN_W - 48) / 342); // 342 = natural width of 3 chips
@@ -169,7 +169,7 @@ export default function HomeScreen() {
   const lastLoadRef = useRef<number>(0);
   const lastTipRef = useRef<number>(0);
 
-  const loadData = () => {
+  const loadData = useCallback(() => {
     const userId = user?._id || 'guest';
     const s = canSeeAllSales ? getStats(1) : getMyStats(userId, 1);
     setStats(s);
@@ -183,12 +183,12 @@ export default function HomeScreen() {
     if (canSeeAllSales) {
       setPendingReviewCount(getPendingReviewCount());
     }
-  };
+  }, [user?._id, canSeeAllSales, contextSellerMode]);
 
-  const loadTip = async () => {
+  const loadTip = useCallback(async () => {
     const tip = await getSmartTip(t, currency.symbol);
     setDailyTip(tip);
-  };
+  }, [t, currency.symbol]);
 
   useFocusEffect(useCallback(() => {
     const now = Date.now();
@@ -200,7 +200,7 @@ export default function HomeScreen() {
       loadTip();
       lastTipRef.current = now;
     }
-  }, [t, currency.symbol]));
+  }, [loadData, loadTip]));
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -211,7 +211,7 @@ export default function HomeScreen() {
     setRefreshing(false);
   };
 
-  const handleDeleteSale = (sale: any) => {
+  const handleDeleteSale = useCallback((sale: any) => {
     Alert.alert(
       t('reports.deleteSaleTitle'),
       t('reports.deleteSaleMsg', { name: sale.product_name }),
@@ -227,7 +227,7 @@ export default function HomeScreen() {
         }
       ]
     );
-  };
+  }, [t, loadData]);
 
   const themeStyles = isDark ? darkStyles : lightStyles;
 
@@ -254,190 +254,205 @@ export default function HomeScreen() {
   };
 
   return (
-    <ScrollView
+    <FlatList
       style={[styles.container, themeStyles.container]}
+      data={todaySales}
+      keyExtractor={(sale: any) => String(sale.id)}
+      renderItem={({ item }: { item: any }) => (
+        <SaleListItem
+          sale={item}
+          onDelete={handleDeleteSale}
+          isDark={isDark}
+          currency={currency}
+          t={t}
+          i18n={i18n}
+          themeStyles={themeStyles}
+        />
+      )}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-    >
-      {/* Заголовок */}
-      {showGreeting && (
-        <LinearGradient
-          colors={[Colors.primary, Colors.primaryDark]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.header}
-        >
-          <View style={styles.headerTopRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.headerTitle}>{getGreeting()}</Text>
-              <Text style={styles.headerDate}>
-                {new Date().toLocaleDateString(i18n.language === 'tg' ? 'tg-TJ' : i18n.language === 'uz' ? 'uz-UZ' : 'ru-RU', {
-                  day: 'numeric', month: 'long', year: 'numeric'
-                })}
-              </Text>
+      ListHeaderComponent={
+        <>
+          {/* Заголовок */}
+          {showGreeting && (
+            <LinearGradient
+              colors={[Colors.primary, Colors.primaryDark]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.header}
+            >
+              <View style={styles.headerTopRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.headerTitle}>{getGreeting()}</Text>
+                  <Text style={styles.headerDate}>
+                    {new Date().toLocaleDateString(i18n.language === 'tg' ? 'tg-TJ' : i18n.language === 'uz' ? 'uz-UZ' : 'ru-RU', {
+                      day: 'numeric', month: 'long', year: 'numeric'
+                    })}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => navigation.navigate('News')} style={styles.newsBtn}>
+                  <Ionicons name="newspaper-outline" size={22} color="#fff" />
+                  {hasUnread && <View style={styles.newsBadgeDot} />}
+                </TouchableOpacity>
+              </View>
+            </LinearGradient>
+          )}
+
+          <CurrencyConversionBanner />
+
+          {!isOwner && checkInStatus.enabled && todayStatus !== 'confirmed' && (
+            <TouchableOpacity
+              style={styles.checkInBanner}
+              onPress={() => navigation.navigate('CheckIn')}
+              activeOpacity={0.82}
+            >
+              <LinearGradient
+                colors={['#FF9800', '#F57C00']}
+                style={styles.checkInGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              >
+                <View style={styles.checkInBannerContent}>
+                  <Ionicons name="location" size={24} color="#FFF" />
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={styles.checkInBannerTitle}>{t('checkIn.bannerTitle')}</Text>
+                    <Text style={styles.checkInBannerDesc}>
+                      {todayStatus === 'partial' ? t('checkIn.statusPartial') : t('checkIn.bannerDesc')}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#FFF" />
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
+
+          {canSeeAllSales && pendingReviewCount > 0 && (
+            <TouchableOpacity
+              style={[styles.pendingWidget, themeStyles.card]}
+              onPress={() => navigation.navigate('Products', { filter: 'pending' })}
+              activeOpacity={0.7}
+            >
+              <View style={styles.pendingWidgetLeft}>
+                <View style={[styles.pendingIconBg, isDark && { backgroundColor: '#332615' }]}>
+                  <Ionicons name="alert-circle" size={24} color="#FF9500" />
+                </View>
+                <View>
+                  <Text style={[styles.pendingLabel, themeStyles.text]}>{t('sellers.pendingReviewTitle')}</Text>
+                  <Text style={styles.pendingSub}>{t('sellers.pendingReviewDesc', { count: pendingReviewCount })}</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#FF9500" />
+            </TouchableOpacity>
+          )}
+
+          {contextSellerMode === 'wholesale' && debtSummary.total_remaining > 0 && (
+            <TouchableOpacity
+              style={[styles.debtWidget, themeStyles.card]}
+              onPress={() => navigation.navigate('Debtors')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.debtWidgetLeft}>
+                <Text style={styles.debtWidgetIcon}>📋</Text>
+                <View>
+                  <Text style={styles.debtWidgetLabel}>{t('debtors.totalOwed')}</Text>
+                  <Text style={styles.debtWidgetCount}>
+                    {t('debtors.debtorCount', { count: debtSummary.debtor_count })}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.debtWidgetRight}>
+                <Text style={[styles.debtWidgetAmount, themeStyles.text]}>
+                  {debtSummary.total_remaining.toLocaleString()} {currency.symbol}
+                </Text>
+                <Ionicons name="chevron-forward" size={16} color="#1D9E75" />
+              </View>
+            </TouchableOpacity>
+          )}
+
+          {/* Карточки статистики */}
+          {showDailyTip && dailyTip ? (
+            <View style={[styles.tipCard, themeStyles.card]}>
+              <View style={styles.tipHeader}>
+                <Text style={styles.tipEmoji}>💡</Text>
+                <Text style={styles.tipTitle}>{t('home.tipTitle')}</Text>
+              </View>
+              <Text style={[styles.tipText, themeStyles.text]}>{dailyTip}</Text>
             </View>
-            <TouchableOpacity onPress={() => navigation.navigate('News')} style={styles.newsBtn}>
-              <Ionicons name="newspaper-outline" size={22} color="#fff" />
-              {hasUnread && <View style={styles.newsBadgeDot} />}
+          ) : null}
+
+          {/* Quick Actions */}
+          <View style={[styles.quickActions, { gap: chipGap }]}>
+            <TouchableOpacity
+              style={[styles.actionChip, { backgroundColor: Colors.primaryLight, flex: 1, paddingHorizontal: chipPaddingH, paddingVertical: chipPaddingV }]}
+              onPress={() => navigation.navigate('Sale')}
+            >
+              <Ionicons name="add-circle-outline" size={chipIconSize} color={Colors.primary} />
+              <Text style={[styles.actionText, { color: Colors.primary, fontSize: chipFontSize }]}>{t('tabs.sale')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionChip, { backgroundColor: Colors.dangerLight, flex: 1, paddingHorizontal: chipPaddingH, paddingVertical: chipPaddingV }]}
+              onPress={() => navigation.navigate('Expenses')}
+            >
+              <Ionicons name="receipt-outline" size={chipIconSize} color={Colors.danger} />
+              <Text style={[styles.actionText, { color: Colors.danger, fontSize: chipFontSize }]}>{t('tabs.expenses')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionChip, { backgroundColor: Colors.infoLight, flex: 1, paddingHorizontal: chipPaddingH, paddingVertical: chipPaddingV }]}
+              onPress={() => navigation.navigate('Calculator')}
+            >
+              <Ionicons name="calculator-outline" size={chipIconSize} color={Colors.info} />
+              <Text style={[styles.actionText, { color: Colors.info, fontSize: chipFontSize }]}>{t('tabs.calculator')}</Text>
             </TouchableOpacity>
           </View>
-        </LinearGradient>
-      )}
 
-      <CurrencyConversionBanner />
-
-      {!isOwner && checkInStatus.enabled && todayStatus !== 'confirmed' && (
-        <TouchableOpacity
-          style={styles.checkInBanner}
-          onPress={() => navigation.navigate('CheckIn')}
-          activeOpacity={0.82}
-        >
-          <LinearGradient
-            colors={['#FF9800', '#F57C00']}
-            style={styles.checkInGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-          >
-            <View style={styles.checkInBannerContent}>
-              <Ionicons name="location" size={24} color="#FFF" />
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.checkInBannerTitle}>{t('checkIn.bannerTitle')}</Text>
-                <Text style={styles.checkInBannerDesc}>
-                  {todayStatus === 'partial' ? t('checkIn.statusPartial') : t('checkIn.bannerDesc')}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#FFF" />
-            </View>
-          </LinearGradient>
-        </TouchableOpacity>
-      )}
-
-      {canSeeAllSales && pendingReviewCount > 0 && (
-        <TouchableOpacity
-          style={[styles.pendingWidget, themeStyles.card]}
-          onPress={() => navigation.navigate('Products', { filter: 'pending' })}
-          activeOpacity={0.7}
-        >
-          <View style={styles.pendingWidgetLeft}>
-            <View style={[styles.pendingIconBg, isDark && { backgroundColor: '#332615' }]}>
-              <Ionicons name="alert-circle" size={24} color="#FF9500" />
-            </View>
-            <View>
-              <Text style={[styles.pendingLabel, themeStyles.text]}>{t('sellers.pendingReviewTitle')}</Text>
-              <Text style={styles.pendingSub}>{t('sellers.pendingReviewDesc', { count: pendingReviewCount })}</Text>
-            </View>
+          <View style={styles.statsRow}>
+            <StatCard
+              label={t('common.revenue')}
+              value={stats.revenue}
+              currency={currency.symbol}
+              icon="cash-outline"
+              color="#1D9E75"
+              themeStyles={themeStyles}
+              trend={revenueTrend}
+            />
+            {canSeeCosts && (
+              <StatCard
+                label={t('common.profit')}
+                value={stats.profit}
+                currency={currency.symbol}
+                icon="trending-up-outline"
+                color="#0C447C"
+                themeStyles={themeStyles}
+                trend={profitTrend}
+              />
+            )}
           </View>
-          <Ionicons name="chevron-forward" size={18} color="#FF9500" />
-        </TouchableOpacity>
-      )}
 
-  {contextSellerMode === 'wholesale' && debtSummary.total_remaining > 0 && (
-    <TouchableOpacity
-      style={[styles.debtWidget, themeStyles.card]}
-      onPress={() => navigation.navigate('Debtors')}
-      activeOpacity={0.7}
-    >
-      <View style={styles.debtWidgetLeft}>
-        <Text style={styles.debtWidgetIcon}>📋</Text>
-        <View>
-          <Text style={styles.debtWidgetLabel}>{t('debtors.totalOwed')}</Text>
-          <Text style={styles.debtWidgetCount}>
-            {t('debtors.debtorCount', { count: debtSummary.debtor_count })}
-          </Text>
-        </View>
-      </View>
-      <View style={styles.debtWidgetRight}>
-        <Text style={[styles.debtWidgetAmount, themeStyles.text]}>
-          {debtSummary.total_remaining.toLocaleString()} {currency.symbol}
-        </Text>
-        <Ionicons name="chevron-forward" size={16} color="#1D9E75" />
-      </View>
-    </TouchableOpacity>
-  )}
-
-      {/* Карточки статистики */}
-      {showDailyTip && dailyTip ? (
-        <View style={[styles.tipCard, themeStyles.card]}>
-          <View style={styles.tipHeader}>
-            <Text style={styles.tipEmoji}>💡</Text>
-            <Text style={styles.tipTitle}>{t('home.tipTitle')}</Text>
+          <View style={styles.statsRow}>
+            <StatCard
+              label={t('home.salesCount')}
+              value={stats.count}
+              unit={t('reports.pcs')}
+              icon="cart-outline"
+              color="#854F0B"
+              themeStyles={themeStyles}
+            />
+            <StatCard
+              label={t('home.avgCheck')}
+              value={stats.count > 0 ? Math.round(stats.revenue / stats.count) : 0}
+              currency={currency.symbol}
+              icon="calculator-outline"
+              color="#3B6D11"
+              themeStyles={themeStyles}
+            />
           </View>
-          <Text style={[styles.tipText, themeStyles.text]}>{dailyTip}</Text>
-        </View>
-      ) : null}
 
-      {/* Quick Actions */}
-      <View style={[styles.quickActions, { gap: chipGap }]}>
-        <TouchableOpacity
-          style={[styles.actionChip, { backgroundColor: Colors.primaryLight, flex: 1, paddingHorizontal: chipPaddingH, paddingVertical: chipPaddingV }]}
-          onPress={() => navigation.navigate('Sale')}
-        >
-          <Ionicons name="add-circle-outline" size={chipIconSize} color={Colors.primary} />
-          <Text style={[styles.actionText, { color: Colors.primary, fontSize: chipFontSize }]}>{t('tabs.sale')}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.actionChip, { backgroundColor: Colors.dangerLight, flex: 1, paddingHorizontal: chipPaddingH, paddingVertical: chipPaddingV }]}
-          onPress={() => navigation.navigate('Expenses')}
-        >
-          <Ionicons name="receipt-outline" size={chipIconSize} color={Colors.danger} />
-          <Text style={[styles.actionText, { color: Colors.danger, fontSize: chipFontSize }]}>{t('tabs.expenses')}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.actionChip, { backgroundColor: Colors.infoLight, flex: 1, paddingHorizontal: chipPaddingH, paddingVertical: chipPaddingV }]}
-          onPress={() => navigation.navigate('Calculator')}
-        >
-          <Ionicons name="calculator-outline" size={chipIconSize} color={Colors.info} />
-          <Text style={[styles.actionText, { color: Colors.info, fontSize: chipFontSize }]}>{t('tabs.calculator')}</Text>
-        </TouchableOpacity>
-      </View>
+          {FEATURES.WHOLESALE_ENABLED && contextSellerMode === 'retail' && <WholesalePromoStrip />}
 
-      <View style={styles.statsRow}>
-        <StatCard
-          label={t('common.revenue')}
-          value={stats.revenue}
-          currency={currency.symbol}
-          icon="cash-outline"
-          color="#1D9E75"
-          themeStyles={themeStyles}
-          trend={revenueTrend}
-        />
-        {canSeeCosts && (
-          <StatCard
-            label={t('common.profit')}
-            value={stats.profit}
-            currency={currency.symbol}
-            icon="trending-up-outline"
-            color="#0C447C"
-            themeStyles={themeStyles}
-            trend={profitTrend}
-          />
-        )}
-      </View>
-
-      <View style={styles.statsRow}>
-        <StatCard
-          label={t('home.salesCount')}
-          value={stats.count}
-          unit={t('reports.pcs')}
-          icon="cart-outline"
-          color="#854F0B"
-          themeStyles={themeStyles}
-        />
-        <StatCard
-          label={t('home.avgCheck')}
-          value={stats.count > 0 ? Math.round(stats.revenue / stats.count) : 0}
-          currency={currency.symbol}
-          icon="calculator-outline"
-          color="#3B6D11"
-          themeStyles={themeStyles}
-        />
-      </View>
-
-      {FEATURES.WHOLESALE_ENABLED && contextSellerMode === 'retail' && <WholesalePromoStrip />}
-
-      {/* Последние продажи */}
-      <Text style={[styles.sectionTitle, themeStyles.text]}>{t('home.recentSales')}</Text>
-
-      {todaySales.length === 0 ? (
+          {/* Последние продажи */}
+          <Text style={[styles.sectionTitle, themeStyles.text]}>{t('home.recentSales')}</Text>
+        </>
+      }
+      ListEmptyComponent={
         <View style={styles.empty}>
           <Ionicons name="cart-outline" size={48} color={isDark ? '#444' : '#CCC'} />
           <Text style={styles.emptyText}>{t('home.noSales')}</Text>
@@ -449,21 +464,8 @@ export default function HomeScreen() {
             <Text style={styles.addSaleCtaText}>{t('home.addSaleCta')}</Text>
           </TouchableOpacity>
         </View>
-      ) : (
-        todaySales.map((sale: any) => (
-          <SaleListItem
-            key={String(sale.id)}
-            sale={sale}
-            onDelete={() => handleDeleteSale(sale)}
-            isDark={isDark}
-            currency={currency}
-            t={t}
-            i18n={i18n}
-            themeStyles={themeStyles}
-          />
-        ))
-      )}
-    </ScrollView>
+      }
+    />
   );
 }
 
