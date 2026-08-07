@@ -3,6 +3,7 @@ import multer from 'multer';
 import { authMiddleware, AuthRequest, requireShop } from '../middleware/authMiddleware';
 import { fetchGeminiWithRotation, GEMINI_MODELS, parseGeminiJSON } from '../utils/gemini';
 import { alertOnce } from '../services/telegramBot';
+import { buildInvoiceCatalogHint } from '../utils/catalogHint';
 
 const router = express.Router();
 
@@ -203,10 +204,18 @@ router.post('/', authMiddleware, requireShop, (req, res, next) => {
     const base64Image = req.file.buffer.toString('base64');
     const mimeType = req.file.mimetype || 'image/jpeg';
 
+    // Тот же приём, что и в voiceSale.ts: подмешиваем названия уже известных
+    // товаров магазина, чтобы повторяющиеся бренды (обычная ситуация для
+    // одного и того же поставщика) распознавались с ТЕМ ЖЕ написанием, что
+    // уже в каталоге, а не немного другой транслитерацией каждый раз - это
+    // напрямую улучшает точность последующего matchProductByName на клиенте.
+    const catalogHint = await buildInvoiceCatalogHint(shopId);
+    if (catalogHint) logStep('catalog_hint_ready', { hintChars: catalogHint.length });
+
     const requestPayload = {
       contents: [{
         parts: [
-          { text: INVOICE_SCAN_SYSTEM_PROMPT },
+          { text: INVOICE_SCAN_SYSTEM_PROMPT + catalogHint },
           { inline_data: { mime_type: mimeType, data: base64Image } }
         ]
       }],

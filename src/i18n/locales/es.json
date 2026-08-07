@@ -413,12 +413,20 @@
     "invoiceScanFailedTitle": "No se pudo leer la foto",
     "invoiceScanFailedBody": "Intenta repetir la foto con mejor luz, o añade los artículos manualmente",
     "invoiceScanEmpty": "No se encontraron artículos en la foto",
-    "invoiceScanPreviewNote": "Esto es solo una vista previa: guardar en el inventario llegará en la próxima etapa",
     "invoiceScanQuantity": "Cant.",
     "invoiceScanUnitPrice": "Precio",
     "invoiceScanSupplierPrefix": "Proveedor: {{name}}",
     "invoiceScanGrandTotalLabel": "Total de la factura: {{total}}",
-    "invoiceScanPermissionDenied": "Se necesita acceso a la cámara o la galería"
+    "invoiceScanPermissionDenied": "Se necesita acceso a la cámara o la galería",
+    "invoiceScanSellPrice": "Precio de venta",
+    "invoiceScanSellPricePlaceholder": "Obligatorio para un producto nuevo",
+    "invoiceScanMissingSellPrice": "Indica el precio de venta de: {{names}}",
+    "invoiceScanDuplicateTitle": "Parece que ya se escaneó esto",
+    "invoiceScanDuplicateBody": "Ya se registró una entrada reciente con un número de artículos y total similares. ¿Guardar esta factura de todos modos?",
+    "invoiceScanDuplicateConfirm": "Guardar de todos modos",
+    "invoiceScanSavedMessage": "Añadido al inventario: {{count}} artículo(s)",
+    "invoiceScanSaving": "Guardando...",
+    "invoiceScanSave": "Guardar en el inventario"
   },
   "reports": {
     "title": "Reportes",

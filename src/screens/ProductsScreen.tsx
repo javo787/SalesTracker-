@@ -1488,6 +1488,7 @@ export default function ProductsScreen() {
       <InvoiceScanModal
         visible={invoiceScanVisible}
         onClose={() => setInvoiceScanVisible(false)}
+        onSaved={loadProducts}
       />
 
       {/* Unregistered Products Quick Add Modal */}

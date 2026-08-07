@@ -10,30 +10,46 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as SecureStore from 'expo-secure-store';
 import { useAppContext } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
+import { useShop } from '../../context/ShopContext';
 import { Colors, Radius, Spacing, Shadow } from '../../constants/theme';
-import { InvoiceScanItem, InvoiceScanResult } from '../../types/invoiceScan';
+import { InvoiceScanItem, InvoiceScanResult, InvoiceScanApplyItem } from '../../types/invoiceScan';
+import { getProducts, applyInvoiceScan, findPossibleDuplicateInvoiceScan } from '../../db/database';
+import { matchProductByName, ProductMatchResult } from '../../utils/productMatching';
+import { AutocompleteResult, Product } from '../../types/product';
+import { SmartMatchQuotaService } from '../../services/SmartMatchQuotaService';
+import { SyncService } from '../../services/syncService';
+import { api } from '../../services/api';
+import { VariantPicker } from '../sales/VariantPicker';
 
 interface Props {
   visible: boolean;
   onClose: () => void;
+  onSaved?: () => void;
 }
 
 type ScanStage = 'intro' | 'uploading' | 'review' | 'failed';
 
 /**
- * Этап 2 фичи "склад по фото накладной": захват фото, сжатие, вызов
- * /invoice-scan, простой редактируемый список найденных позиций.
+ * Этап 3 фичи "склад по фото накладной": добавлено сопоставление с
+ * каталогом магазина (matchProductByName -> /voice-disambiguate для
+ * неоднозначных случаев, тот же паттерн, что VoiceBatchReview.tsx для
+ * голосовых продаж) и наследование категории от найденного товара.
  *
- * Сознательно НЕТ на этом этапе:
- * - сопоставления с каталогом магазина (matchProductByName/voice-disambiguate) — этап 3;
- * - сохранения на склад (applyInvoiceScan) — этап 4, чтобы не плодить дубли
- *   товаров раньше, чем появится сопоставление с уже существующими.
- * Это осознанно "тестовый просмотр" — чтобы можно было проверить, насколько
- * хорошо AI читает реальные накладные, до того как достраивать остальное.
+ * Всё ещё НЕТ сохранения на склад (applyInvoiceScan) - это этап 4.
+ * matchedProductId/matchConfidence на каждом item уже готовы к тому,
+ * чтобы этап 4 их просто использовал.
  */
-export default function InvoiceScanModal({ visible, onClose }: Props) {
+/**
+ * Этап 4 (финальный) фичи "склад по фото накладной": сохранение на склад
+ * одной транзакцией (applyInvoiceScan), обязательная цена продажи для
+ * новых товаров, защита от повторного скана, единый push() после сохранения.
+ */
+export default function InvoiceScanModal({ visible, onClose, onSaved }: Props) {
   const { t } = useTranslation();
-  const { resolvedTheme, currency } = useAppContext();
+  const { resolvedTheme, currency, isPremium } = useAppContext();
+  const { user } = useAuth();
+  const { sellerName } = useShop();
   const isDark = resolvedTheme === 'dark';
 
   const [stage, setStage] = useState<ScanStage>('intro');
@@ -41,7 +57,16 @@ export default function InvoiceScanModal({ visible, onClose }: Props) {
   const [result, setResult] = useState<InvoiceScanResult | null>(null);
   const [items, setItems] = useState<InvoiceScanItem[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [matchResults, setMatchResults] = useState<Record<number, ProductMatchResult>>({});
+  const [smartLimitReached, setSmartLimitReached] = useState(false);
+  const [remainingQuota, setRemainingQuota] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const catalogRef = useRef<AutocompleteResult[]>([]);
+  const productsByIdRef = useRef<Map<number, Product>>(new Map());
+
+  const currentSellerId = user?._id || null;
+  const currentSellerName = sellerName || user?.name || null;
 
   const resetAndClose = () => {
     abortRef.current?.abort();
@@ -50,6 +75,9 @@ export default function InvoiceScanModal({ visible, onClose }: Props) {
     setResult(null);
     setItems([]);
     setErrorMessage(null);
+    setMatchResults({});
+    setSmartLimitReached(false);
+    setSaving(false);
     onClose();
   };
 
@@ -149,12 +177,14 @@ export default function InvoiceScanModal({ visible, onClose }: Props) {
 
       const parsed = body as InvoiceScanResult;
       setResult(parsed);
-      setItems(parsed.items);
+      const itemsWithSellPrice = parsed.items.map(it => ({ ...it, sell_price: null }));
 
       if (parsed.source === 'scan_failed' || parsed.items.length === 0) {
+        setItems(itemsWithSellPrice);
         setStage('failed');
       } else {
         setStage('review');
+        runMatching(itemsWithSellPrice);
       }
     } catch (e: any) {
       if (e.name === 'AbortError') return;
@@ -163,8 +193,242 @@ export default function InvoiceScanModal({ visible, onClose }: Props) {
     }
   };
 
+  /**
+   * Локальное сопоставление (Левенштейн+транслитерация, см.
+   * utils/productMatching.ts) для каждой позиции против ПОЛНОГО каталога
+   * магазина, плюс наследование категории у сопоставленных товаров.
+   * Доминирующая категория среди уже сопоставленных позиций этой же
+   * накладной - разумный дефолт для реально новых товаров: одна накладная
+   * обычно = один поставщик = одна товарная группа.
+   */
+  const runMatching = (scannedItems: InvoiceScanItem[]) => {
+    SmartMatchQuotaService.getRemainingToday(isPremium).then(setRemainingQuota);
+
+    const products = getProducts() as Product[];
+    productsByIdRef.current = new Map(products.map((p: Product) => [p.id, p]));
+    catalogRef.current = products.map((p: Product): AutocompleteResult => ({
+      id: String(p.id),
+      name: p.name,
+      source: 'catalog',
+      purchasePrice: p.buy_price,
+      lastSalePrice: p.sell_price,
+      salesCount: 0,
+      lastSoldAt: null,
+      article: p.article,
+      color: p.color,
+    }));
+
+    const results: Record<number, ProductMatchResult> = {};
+    const working = [...scannedItems];
+    const matchedCategories: string[] = [];
+
+    working.forEach((item, idx) => {
+      const m = matchProductByName(item.product_name, catalogRef.current);
+      results[idx] = m;
+      if (m.confidence === 'exact' || m.confidence === 'fuzzy_confident') {
+        const id = m.match?.id ? parseInt(m.match.id, 10) : null;
+        const category = id !== null ? productsByIdRef.current.get(id)?.category : null;
+        working[idx] = {
+          ...item,
+          matchedProductId: id,
+          matchConfidence: m.confidence,
+          category_guess: category || item.category_guess,
+        };
+        if (category) matchedCategories.push(category);
+      }
+    });
+
+    const dominantCategory = matchedCategories.length
+      ? Object.entries(
+          matchedCategories.reduce<Record<string, number>>((acc, c) => {
+            acc[c] = (acc[c] || 0) + 1;
+            return acc;
+          }, {})
+        ).sort((a, b) => b[1] - a[1])[0][0]
+      : null;
+
+    working.forEach((item, idx) => {
+      if (results[idx].confidence === 'none' && !item.category_guess && dominantCategory) {
+        working[idx] = { ...item, category_guess: dominantCategory };
+      }
+    });
+
+    setMatchResults(results);
+    setItems(working);
+    tryAiDisambiguation(working, results);
+  };
+
+  const tryAiDisambiguation = async (
+    workingItems: InvoiceScanItem[],
+    results: Record<number, ProductMatchResult>,
+  ) => {
+    let canUseSmart = await SmartMatchQuotaService.canUseSmartMatch(isPremium);
+    if (!canUseSmart) {
+      setSmartLimitReached(true);
+      return;
+    }
+
+    for (let i = 0; i < workingItems.length; i++) {
+      const m = results[i];
+      if (m?.confidence !== 'ambiguous' || m.candidates.length === 0) continue;
+
+      try {
+        const transcript = [workingItems[i].product_name, workingItems[i].variant].filter(Boolean).join(' ');
+        const data: any = await api.post('/voice-disambiguate', {
+          transcript,
+          candidates: m.candidates.map(c => ({
+            id: c.id, name: c.name, color: c.color, size: c.article, price: c.purchasePrice,
+          })),
+        });
+
+        await SmartMatchQuotaService.consumeUsage();
+        setRemainingQuota(prev => (prev !== null ? Math.max(0, prev - 1) : prev));
+
+        if (data.matched_candidate_id && data.confidence === 'high') {
+          const picked = m.candidates.find(c => c.id === String(data.matched_candidate_id));
+          if (picked) {
+            setMatchResults(prev => ({ ...prev, [i]: { confidence: 'ai_matched', match: picked, candidates: m.candidates } }));
+            setItems(prev => {
+              const copy = [...prev];
+              const id = picked.id ? parseInt(picked.id, 10) : null;
+              const category = id !== null ? productsByIdRef.current.get(id)?.category : null;
+              copy[i] = {
+                ...copy[i],
+                matchedProductId: id,
+                matchConfidence: 'ai_matched',
+                category_guess: category || copy[i].category_guess,
+              };
+              return copy;
+            });
+          }
+        }
+
+        canUseSmart = await SmartMatchQuotaService.canUseSmartMatch(isPremium);
+        if (!canUseSmart) {
+          setSmartLimitReached(true);
+          break;
+        }
+      } catch (e) {
+        console.warn('[InvoiceScanModal] voice-disambiguate error:', e);
+      }
+    }
+  };
+
+  const handleVariantSelected = (index: number, product: AutocompleteResult) => {
+    const id = product.id ? parseInt(product.id, 10) : null;
+    const category = id !== null ? productsByIdRef.current.get(id)?.category : null;
+    setMatchResults(prev => ({ ...prev, [index]: { confidence: 'exact', match: product, candidates: [] } }));
+    setItems(prev => {
+      const copy = [...prev];
+      copy[index] = {
+        ...copy[index],
+        matchedProductId: id,
+        matchConfidence: 'exact',
+        category_guess: category || copy[index].category_guess,
+      };
+      return copy;
+    });
+  };
+
+  const handleMarkAsNew = (index: number) => {
+    setMatchResults(prev => ({ ...prev, [index]: { confidence: 'none', match: null, candidates: [] } }));
+    setItems(prev => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], matchedProductId: null, matchConfidence: 'none' };
+      return copy;
+    });
+  };
+
+  const handleRemoveItem = (index: number) => {
+    setItems(prev => prev.filter((_, i) => i !== index));
+    setMatchResults(prev => {
+      const next: Record<number, ProductMatchResult> = {};
+      Object.entries(prev).forEach(([k, v]) => {
+        const i = Number(k);
+        if (i < index) next[i] = v;
+        else if (i > index) next[i - 1] = v;
+      });
+      return next;
+    });
+  };
+
   const updateItem = (index: number, patch: Partial<InvoiceScanItem>) => {
-    setItems(prev => prev.map((it, i) => (i === index ? { ...it, ...patch } : it)));
+    setItems(prev => {
+      const copy = prev.map((it, i) => (i === index ? { ...it, ...patch } : it));
+      if (typeof patch.product_name === 'string') {
+        const m = matchProductByName(patch.product_name, catalogRef.current);
+        setMatchResults(mr => ({ ...mr, [index]: m }));
+        const id = (m.confidence === 'exact' || m.confidence === 'fuzzy_confident') && m.match?.id
+          ? parseInt(m.match.id, 10)
+          : null;
+        copy[index] = {
+          ...copy[index],
+          matchedProductId: id,
+          matchConfidence: m.confidence === 'none' ? undefined : m.confidence,
+        };
+      }
+      return copy;
+    });
+  };
+
+  const buildInvoiceNote = () => {
+    const dateStr = new Date().toLocaleDateString('ru-RU');
+    const supplierSuffix = result?.supplier_hint ? ` (${result.supplier_hint})` : '';
+    return `📷 накладная от ${dateStr}${supplierSuffix}`;
+  };
+
+  const doSave = async () => {
+    setSaving(true);
+    try {
+      const applyItems: InvoiceScanApplyItem[] = items.map(it => ({
+        matchedProductId: it.matchedProductId ?? null,
+        product_name: it.product_name,
+        variant: it.variant,
+        category_guess: it.category_guess,
+        quantity: it.quantity,
+        unit_price: it.unit_price,
+        sell_price: it.sell_price,
+      }));
+
+      applyInvoiceScan(applyItems, buildInvoiceNote(), currentSellerId, currentSellerName);
+      // Один push на всю накладную, не по одному на позицию - fire-and-forget,
+      // как и в остальных местах приложения после мутаций склада.
+      SyncService.push().catch(err => console.warn('[InvoiceScanModal] sync push failed', err));
+
+      Alert.alert(t('common.success'), t('warehouse.invoiceScanSavedMessage', { count: applyItems.length }));
+      onSaved?.();
+      resetAndClose();
+    } catch (e: any) {
+      Alert.alert(t('common.error'), e?.message || t('warehouse.invoiceScanFailedTitle'));
+      setSaving(false);
+    }
+  };
+
+  const handleSave = () => {
+    const missing = items.filter(it => it.matchedProductId === null && (it.sell_price === null || it.sell_price <= 0));
+    if (missing.length > 0) {
+      Alert.alert(
+        t('common.error'),
+        t('warehouse.invoiceScanMissingSellPrice', { names: missing.map(m => m.product_name).join(', ') })
+      );
+      return;
+    }
+
+    const totalValue = items.reduce((sum, it) => sum + it.quantity * it.unit_price, 0);
+    const dup = findPossibleDuplicateInvoiceScan(totalValue, items.length);
+    if (dup.isDuplicate) {
+      Alert.alert(
+        t('warehouse.invoiceScanDuplicateTitle'),
+        t('warehouse.invoiceScanDuplicateBody'),
+        [
+          { text: t('common.cancel'), style: 'cancel' },
+          { text: t('warehouse.invoiceScanDuplicateConfirm'), style: 'destructive', onPress: () => doSave() },
+        ]
+      );
+      return;
+    }
+
+    doSave();
   };
 
   return (
@@ -236,6 +500,11 @@ export default function InvoiceScanModal({ visible, onClose }: Props) {
                       {t('warehouse.invoiceScanSupplierPrefix', { name: result.supplier_hint })}
                     </Text>
                   )}
+                  {!isPremium && remainingQuota !== null && (
+                    <Text style={styles.summaryText}>
+                      {t('addSale.smartMatchRemaining', { count: remainingQuota })}
+                    </Text>
+                  )}
                 </View>
 
                 {result.grand_total !== null && (
@@ -270,13 +539,19 @@ export default function InvoiceScanModal({ visible, onClose }: Props) {
                       </View>
                     )}
 
-                    <TextInput
-                      style={[styles.itemNameInput, isDark ? styles.textWhite : styles.textBlack]}
-                      value={item.product_name}
-                      onChangeText={(v) => updateItem(index, { product_name: v })}
-                      placeholder={t('addSale.productName') ?? undefined}
-                      placeholderTextColor={isDark ? '#888' : '#aaa'}
-                    />
+                    <View style={styles.cardHeaderRow}>
+                      <TextInput
+                        style={[styles.itemNameInput, isDark ? styles.textWhite : styles.textBlack]}
+                        value={item.product_name}
+                        onChangeText={(v) => updateItem(index, { product_name: v })}
+                        placeholder={t('addSale.productName') ?? undefined}
+                        placeholderTextColor={isDark ? '#888' : '#aaa'}
+                      />
+                      <TouchableOpacity onPress={() => handleRemoveItem(index)}>
+                        <Ionicons name="close-circle" size={20} color="#FF3B30" />
+                      </TouchableOpacity>
+                    </View>
+
                     {item.variant ? (
                       <TextInput
                         style={[styles.itemVariantInput, isDark ? styles.textGray : styles.textDarkGray]}
@@ -284,6 +559,51 @@ export default function InvoiceScanModal({ visible, onClose }: Props) {
                         onChangeText={(v) => updateItem(index, { variant: v })}
                       />
                     ) : null}
+
+                    {matchResults[index]?.confidence === 'none' && (
+                      <View style={[styles.statusBadge, styles.statusBadgeNew]}>
+                        <Text style={[styles.statusBadgeText, styles.statusBadgeTextNew]}>
+                          {t('addSale.newProductBadge')}
+                        </Text>
+                      </View>
+                    )}
+
+                    {(matchResults[index]?.confidence === 'exact' || matchResults[index]?.confidence === 'fuzzy_confident') && (
+                      <View style={[styles.statusBadge, styles.statusBadgeMatched]}>
+                        <Text style={[styles.statusBadgeText, styles.statusBadgeTextMatched]}>
+                          ✓ {t('addSale.linkedTo', { name: matchResults[index]?.match?.name })}
+                        </Text>
+                      </View>
+                    )}
+
+                    {matchResults[index]?.confidence === 'ai_matched' && (
+                      <View style={styles.aiMatchedRow}>
+                        <View style={[styles.statusBadge, styles.statusBadgeMatched]}>
+                          <Text style={[styles.statusBadgeText, styles.statusBadgeTextMatched]}>
+                            🤖 {t('addSale.aiMatched', { name: matchResults[index]?.match?.name })}
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          onPress={() => setMatchResults(prev => ({ ...prev, [index]: { ...prev[index], confidence: 'ambiguous' } }))}
+                        >
+                          <Text style={styles.editLink}>{t('common.edit')}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+
+                    {matchResults[index]?.confidence === 'ambiguous' && (
+                      <View>
+                        <VariantPicker
+                          candidates={matchResults[index].candidates}
+                          isDark={isDark}
+                          onSelect={(product) => handleVariantSelected(index, product)}
+                          onMarkNew={() => handleMarkAsNew(index)}
+                        />
+                        {smartLimitReached && !isPremium && (
+                          <Text style={styles.limitReachedText}>{t('addSale.smartMatchLimitReached')}</Text>
+                        )}
+                      </View>
+                    )}
 
                     <View style={styles.itemFieldsRow}>
                       <View style={styles.itemFieldCol}>
@@ -321,21 +641,52 @@ export default function InvoiceScanModal({ visible, onClose }: Props) {
                       </Text>
                     )}
 
-                    {item.category_guess ? (
-                      <Text style={[styles.categoryGuessText, isDark ? styles.textGray : styles.textDarkGray]}>
-                        {item.category_guess}
-                      </Text>
-                    ) : null}
+                    <View style={styles.categoryRow}>
+                      <Text style={styles.itemFieldLabel}>{t('products.category')}</Text>
+                      <TextInput
+                        style={[styles.categoryInput, isDark ? styles.textWhite : styles.textBlack]}
+                        value={item.category_guess || ''}
+                        onChangeText={(v) => updateItem(index, { category_guess: v || null })}
+                        placeholder={t('products.category') ?? undefined}
+                        placeholderTextColor={isDark ? '#888' : '#aaa'}
+                      />
+                    </View>
+
+                    {item.matchedProductId === null && (
+                      <View style={[styles.categoryRow, !item.sell_price && styles.sellPriceRowMissing]}>
+                        <Text style={styles.itemFieldLabel}>
+                          {t('warehouse.invoiceScanSellPrice')} {!item.sell_price ? '*' : ''}
+                        </Text>
+                        <TextInput
+                          style={[styles.categoryInput, isDark ? styles.textWhite : styles.textBlack]}
+                          value={item.sell_price !== null ? String(item.sell_price) : ''}
+                          onChangeText={(v) => updateItem(index, { sell_price: v ? Number(v.replace(',', '.')) || null : null })}
+                          keyboardType="numeric"
+                          placeholder={t('warehouse.invoiceScanSellPricePlaceholder') ?? undefined}
+                          placeholderTextColor={isDark ? '#888' : '#aaa'}
+                        />
+                      </View>
+                    )}
                   </View>
                 ))}
 
                 <View style={{ height: 20 }} />
               </ScrollView>
 
-              <View style={styles.previewNoteBox}>
-                <Ionicons name="information-circle-outline" size={16} color={Colors.info} />
-                <Text style={styles.previewNoteText}>{t('warehouse.invoiceScanPreviewNote')}</Text>
-              </View>
+              <TouchableOpacity
+                style={[styles.primaryBtn, saving && { opacity: 0.6 }]}
+                onPress={handleSave}
+                disabled={saving || items.length === 0}
+              >
+                {saving ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
+                )}
+                <Text style={styles.primaryBtnText}>
+                  {saving ? t('warehouse.invoiceScanSaving') : t('warehouse.invoiceScanSave')}
+                </Text>
+              </TouchableOpacity>
             </>
           )}
         </View>
@@ -488,16 +839,63 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
   },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   itemNameInput: {
     fontSize: 16,
     fontWeight: '600',
     padding: 0,
     marginBottom: 2,
+    flex: 1,
   },
   itemVariantInput: {
     fontSize: 13,
     padding: 0,
     marginBottom: 8,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radius.sm,
+    marginBottom: 8,
+  },
+  statusBadgeNew: {
+    backgroundColor: '#E3F2FD',
+  },
+  statusBadgeMatched: {
+    backgroundColor: Colors.primaryLight,
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  statusBadgeTextNew: {
+    color: '#2196F3',
+  },
+  statusBadgeTextMatched: {
+    color: Colors.primaryDark,
+  },
+  aiMatchedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  editLink: {
+    fontSize: 10,
+    color: '#888',
+    textDecorationLine: 'underline',
+  },
+  limitReachedText: {
+    fontSize: 10,
+    color: '#999',
+    marginTop: 4,
   },
   itemFieldsRow: {
     flexDirection: 'row',
@@ -521,23 +919,20 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
-  categoryGuessText: {
-    fontSize: 12,
-    marginTop: 6,
-    fontStyle: 'italic',
-  },
-  previewNoteBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: Colors.infoLight,
-    borderRadius: Radius.md,
-    padding: 10,
+  categoryRow: {
     marginTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#e5e5e5',
+    paddingTop: 8,
   },
-  previewNoteText: {
-    flex: 1,
-    fontSize: 12,
-    color: Colors.info,
+  categoryInput: {
+    fontSize: 14,
+    padding: 0,
+  },
+  sellPriceRowMissing: {
+    backgroundColor: Colors.warningLight,
+    marginHorizontal: -12,
+    paddingHorizontal: 12,
+    paddingBottom: 8,
   },
 });

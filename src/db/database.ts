@@ -1,6 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 import { notifyLowStock } from '../utils/notifications';
 import { tokenAwareSimilarity } from '../utils/matching/textSimilarity';
+import { InvoiceScanApplyItem, InvoiceScanApplyResult } from '../types/invoiceScan';
 import { nowLocalISO, todayLocalDate, startOfDaysAgoLocalStr, endOfTodayLocalStr } from '../utils/dateRange';
 
 const db = SQLite.openDatabaseSync('savdo.db'); // Note: Database name remains 'savdo.db' to maintain data continuity.
@@ -734,6 +735,33 @@ export function calcWeightedPrice(oldStock: number, oldPrice: number, incomingQt
   return (safeOldStock * oldPrice + incomingQty * incomingPrice) / newStock;
 }
 
+// Только сами записи приёмки, БЕЗ обёртки транзакции - для переиспользования
+// внутри уже открытой внешней транзакции (см. applyInvoiceScan ниже).
+// db.withTransactionSync не поддерживает вложенность (голый BEGIN/COMMIT,
+// без счётчика вложенности) - вызов addStockIn() изнутри другой транзакции
+// упал бы на второй попытке BEGIN. Обычный addStockIn() продолжает
+// оборачивать это сам, ничего не меняется для существующих вызовов.
+function _addStockInWrites(
+  productId: number,
+  qtyBase: number,
+  pricePerUnitBase: number,
+  newBuyPrice: number,
+  note: string,
+  sellerId: string | null,
+  sellerName: string | null
+): void {
+  const movementId = typeof crypto !== 'undefined' && (crypto as any).randomUUID ? (crypto as any).randomUUID() : Math.random().toString(36).substring(2, 15);
+  const now = nowLocalISO();
+  db.runSync(
+    'UPDATE products SET stock = stock + ?, buy_price = ?, updated_at = ?, synced = 0 WHERE id = ?',
+    [qtyBase, newBuyPrice, now, productId]
+  );
+  db.runSync(
+    'INSERT INTO stock_movements (id, product_id, type, quantity_change, price_per_unit, note, created_at, synced, seller_id, seller_name) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)',
+    [movementId, productId, 'stock_in', qtyBase, pricePerUnitBase, note, now, sellerId, sellerName]
+  );
+}
+
 // Приёмка товара
 export function addStockIn(
   productId: number,
@@ -756,18 +784,9 @@ export function addStockIn(
   }
 
   const newBuyPrice = calcWeightedPrice(product.stock, product.buy_price, qtyBase, pricePerUnitBase);
-  const movementId = typeof crypto !== 'undefined' && (crypto as any).randomUUID ? (crypto as any).randomUUID() : Math.random().toString(36).substring(2, 15);
-  const now = nowLocalISO();
 
   db.withTransactionSync(() => {
-    db.runSync(
-      'UPDATE products SET stock = stock + ?, buy_price = ?, updated_at = ?, synced = 0 WHERE id = ?',
-      [qtyBase, newBuyPrice, now, productId]
-    );
-    db.runSync(
-      'INSERT INTO stock_movements (id, product_id, type, quantity_change, price_per_unit, note, created_at, synced, seller_id, seller_name) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)',
-      [movementId, productId, 'stock_in', qtyBase, pricePerUnitBase, note, now, sellerId, sellerName]
-    );
+    _addStockInWrites(productId, qtyBase, pricePerUnitBase, newBuyPrice, note, sellerId, sellerName);
   });
 }
 
@@ -832,6 +851,109 @@ export function addStockCorrection(
       [movementId, productId, 'correction', delta, null, note, now]
     );
   });
+}
+
+/**
+ * Применяет распознанные позиции накладной одной транзакцией: существующие
+ * товары идут через ту же логику, что и обычная приёмка (весовая
+ * себестоимость + запись в stock_movements), новые - через addProduct().
+ * Либо применяется вся накладная, либо (при ошибке/исключении) не
+ * применяется ничего - откат за счёт db.withTransactionSync.
+ *
+ * Валидация - до открытия транзакции, чтобы не открывать то, что всё равно
+ * придётся откатывать, и чтобы дать понятную ошибку сразу.
+ */
+export function applyInvoiceScan(
+  items: InvoiceScanApplyItem[],
+  note: string,
+  sellerId: string | null = null,
+  sellerName: string | null = null
+): InvoiceScanApplyResult {
+  for (const item of items) {
+    if (item.quantity <= 0) {
+      throw new Error(`Некорректное количество для «${item.product_name}»`);
+    }
+    if (item.matchedProductId === null && (item.sell_price === null || item.sell_price === undefined || item.sell_price <= 0)) {
+      throw new Error(`Укажите цену продажи для нового товара «${item.product_name}»`);
+    }
+  }
+
+  const newProductIds: number[] = [];
+  const updatedProductIds: number[] = [];
+
+  db.withTransactionSync(() => {
+    for (const item of items) {
+      if (item.matchedProductId !== null) {
+        const product = db.getFirstSync(
+          'SELECT stock, buy_price FROM products WHERE id = ? AND is_deleted = 0',
+          [item.matchedProductId]
+        ) as any;
+        // Защитный случай: товар мог быть удалён между сканом и подтверждением
+        // (например, с другого устройства). Не падаем всей накладной из-за
+        // одной пропавшей позиции - просто пропускаем её.
+        if (!product) continue;
+
+        const newBuyPrice = calcWeightedPrice(product.stock, product.buy_price, item.quantity, item.unit_price);
+        _addStockInWrites(item.matchedProductId, item.quantity, item.unit_price, newBuyPrice, note, sellerId, sellerName);
+        updatedProductIds.push(item.matchedProductId);
+      } else {
+        const inserted = addProduct(
+          [item.product_name, item.variant].filter(Boolean).join(' '),
+          item.unit_price,
+          item.sell_price as number,
+          item.quantity,
+          0,
+          'шт',
+          0, null, 1,
+          item.category_guess,
+          0, null, null
+        );
+        newProductIds.push(inserted.lastInsertRowId);
+      }
+    }
+  });
+
+  return { newProductIds, updatedProductIds, movementCount: items.length };
+}
+
+// Эвристика "похоже, эту накладную уже сканировали": ищет недавние
+// stock_movements от предыдущих скан-сессий (общий префикс note) со
+// схожей суммой и схожим числом позиций. НЕ блокирует сохранение - только
+// повод спросить пользователя "точно ещё раз?", т.к. это эвристика, а не
+// точное сравнение содержимого.
+export function findPossibleDuplicateInvoiceScan(
+  totalValue: number,
+  itemCount: number,
+  withinHours: number = 6
+): { isDuplicate: boolean; scannedAt?: string } {
+  const cutoffMs = Date.now() - withinHours * 3600 * 1000;
+  const cutoff = new Date(cutoffMs).toISOString().slice(0, 19).replace('T', ' ');
+
+  const rows = db.getAllSync(
+    `SELECT quantity_change, price_per_unit, created_at FROM stock_movements
+     WHERE type = 'stock_in' AND note LIKE '📷 накладная%' AND created_at >= ?`,
+    [cutoff]
+  ) as any[];
+  if (rows.length === 0) return { isDuplicate: false };
+
+  // Группируем по минуте создания - одна накладная пишется одной
+  // транзакцией за доли секунды, так что все её движения попадают в один бакет.
+  const buckets = new Map<string, { total: number; count: number }>();
+  for (const row of rows) {
+    const bucket = String(row.created_at).slice(0, 16);
+    const g = buckets.get(bucket) || { total: 0, count: 0 };
+    g.total += row.quantity_change * (row.price_per_unit || 0);
+    g.count += 1;
+    buckets.set(bucket, g);
+  }
+
+  for (const [bucket, g] of buckets) {
+    const totalMatches = Math.abs(g.total - totalValue) <= Math.max(2, totalValue * 0.01);
+    if (totalMatches && g.count === itemCount) {
+      return { isDuplicate: true, scannedAt: bucket };
+    }
+  }
+  return { isDuplicate: false };
 }
 
 // История движений товара
