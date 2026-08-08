@@ -25,7 +25,7 @@ export interface InvoiceScanResult {
   truncated: boolean;
   computed_total: number;
   grand_total_mismatch: boolean;
-  source: 'gemini_vision' | 'scan_failed';
+  source: 'gemini_vision' | 'groq_vision' | 'scan_failed';
 }
 
 // Этап 4 - вход/выход database.ts:applyInvoiceScan()

@@ -4,6 +4,7 @@ import { authMiddleware, AuthRequest, requireShop } from '../middleware/authMidd
 import { fetchGeminiWithRotation, GEMINI_MODELS, parseGeminiJSON } from '../utils/gemini';
 import { alertOnce } from '../services/telegramBot';
 import { buildInvoiceCatalogHint } from '../utils/catalogHint';
+import { fetchGroqVision, GROQ_VISION_MODEL } from '../utils/groqVision';
 
 const router = express.Router();
 
@@ -43,6 +44,23 @@ const INVOICE_RESPONSE_SCHEMA = {
   },
   required: ["items", "language_detected", "truncated"]
 };
+
+// Groq's response_format {type: "json_object"} guarantees valid JSON but not
+// a specific field layout, unlike Gemini's response_schema above - so for
+// the Groq fallback we spell the expected shape out in the prompt itself.
+const INVOICE_JSON_SHAPE_HINT = `
+
+Respond with ONLY a pure JSON object matching this exact shape (omit a field entirely if not applicable, rather than using null):
+{
+  "items": [
+    { "product_name": string, "variant": string, "quantity": number, "unit_price": number, "line_total": number, "category_guess": string, "needs_confirmation": boolean }
+  ],
+  "grand_total": number,
+  "supplier_hint": string,
+  "language_detected": "ru" | "tg" | "uz" | "mixed" | "unknown",
+  "truncated": boolean
+}
+No markdown, no code fences, no commentary - the raw JSON object only.`;
 
 const INVOICE_SCAN_SYSTEM_PROMPT = `Act as a professional inventory clerk for small shop owners in Central Asia (Tajikistan/Uzbekistan) reading a photographed supplier invoice (накладная) to record incoming stock.
 
@@ -186,13 +204,15 @@ router.post('/', authMiddleware, requireShop, (req, res, next) => {
     return res.status(400).json({ error: 'missing_file' });
   }
 
-  // Единственный уровень - vision-запрос к Gemini. У аудио-пайплайна (voiceSale.ts)
-  // есть текстовые уровни ниже (Whisper -> Cerebras/Groq) как резерв, но это
-  // текстовые модели - для фото они не применимы. Настоящего второго
-  // vision-провайдера пока нет (см. план: Groq qwen3.6-27b - кандидат на будущее,
-  // требует отдельной проверки актуальности перед подключением).
+  // Уровень 1 - Gemini vision (2 попытки: 2.5-flash + 3-flash-preview).
+  // Уровень 2 - Groq vision (qwen3.6-27b), независимая от Google
+  // инфраструктура, только если оба вызова Gemini не дали результата.
+  // У аудио-пайплайна (voiceSale.ts) есть дополнительные ТЕКСТОВЫЕ уровни
+  // (Whisper -> Cerebras/Groq-текст) - для фото они не применимы, тут
+  // обе ступени именно vision.
+  // Таймаут увеличен под третий последовательный сетевой вызов.
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 25000);
+  const timeoutId = setTimeout(() => controller.abort(), 35000);
 
   const pipelineStart = Date.now();
   const logStep = (step: string, extra: Record<string, any> = {}) => {
@@ -239,9 +259,8 @@ router.post('/', authMiddleware, requireShop, (req, res, next) => {
       result = geminiResponse.ok ? parseGeminiJSON(geminiResponse.data, false) : null;
     }
 
-    clearTimeout(timeoutId);
-
     if (result) {
+      clearTimeout(timeoutId);
       const normalized = normalizeInvoiceScanResult(result);
       logStep('level1_success', {
         itemsCount: normalized.items.length,
@@ -251,14 +270,54 @@ router.post('/', authMiddleware, requireShop, (req, res, next) => {
       return res.json({ ...normalized, source: 'gemini_vision' });
     }
 
-    // Оба вызова Gemini либо упали, либо вернули непарсящийся JSON. Отдаём
-    // пустой результат с честным source вместо HTTP-ошибки, чтобы клиент
-    // показал сохранённое фото и предложил добавить позиции вручную -
-    // тот же принцип graceful degradation, что и transcript_only в voiceSale.ts.
-    logStep('level1_failed_no_fallback');
+    // LEVEL 2: Groq vision (qwen3.6-27b) - оба вызова Gemini не дали
+    // парсящегося JSON. Независимая от Google инфраструктура, тот же
+    // GROQ_API_KEY, что уже используется в voiceSale.ts. Groq не
+    // гарантирует конкретную схему полей через response_format
+    // {type: "json_object"} (в отличие от Gemini response_schema), поэтому
+    // явно расписываем ожидаемую форму прямо в промпте.
+    logStep('level2_groq_start', { model: GROQ_VISION_MODEL });
+    let groqParsed: any = null;
+    try {
+      const groqResp = await fetchGroqVision(
+        INVOICE_SCAN_SYSTEM_PROMPT + catalogHint + INVOICE_JSON_SHAPE_HINT,
+        base64Image,
+        mimeType,
+        controller.signal
+      );
+      logStep('level2_groq_response', { ok: groqResp.ok, status: groqResp.status });
+
+      if (groqResp.ok && groqResp.content) {
+        try {
+          groqParsed = JSON.parse(groqResp.content);
+        } catch {
+          logStep('level2_groq_unparseable_json');
+        }
+      }
+    } catch (e: any) {
+      if (e.name === 'CanceledError' || e.name === 'AbortError') throw e;
+      logStep('level2_groq_error', { message: e.message });
+    }
+
+    clearTimeout(timeoutId);
+
+    if (groqParsed) {
+      const normalized = normalizeInvoiceScanResult(groqParsed);
+      logStep('level2_groq_success', {
+        itemsCount: normalized.items.length,
+        needsConfirmationCount: normalized.items.filter((i: any) => i.needs_confirmation).length,
+      });
+      return res.json({ ...normalized, source: 'groq_vision' });
+    }
+
+    // Ни Gemini (обе попытки), ни Groq не дали результата. Отдаём пустой
+    // результат с честным source вместо HTTP-ошибки, чтобы клиент показал
+    // сохранённое фото и предложил добавить позиции вручную - тот же
+    // принцип graceful degradation, что и transcript_only в voiceSale.ts.
+    logStep('all_levels_failed');
     alertOnce(
       'invoice-scan-unparseable',
-      `⚠️ <b>Скан накладной: Gemini не вернул валидный JSON</b>\nМагазин: ${shopId}`
+      `⚠️ <b>Скан накладной: ни Gemini, ни Groq не вернули валидный JSON</b>\nМагазин: ${shopId}`
     );
     return res.json({
       items: [],

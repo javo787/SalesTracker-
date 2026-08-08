@@ -1,6 +1,8 @@
 /**
  * Диагностика всех AI-провайдеров, задействованных в голосовом пайплайне
- * (backend/routes/voiceSale.ts).
+ * (backend/routes/voiceSale.ts) и в скане накладных (backend/routes/invoiceScan.ts) -
+ * оба используют одни и те же ключи Gemini, а с этапа 5 invoiceScan.ts
+ * также использует Groq в качестве vision-фолбэка.
  *
  * Запуск локально:
  *   cd backend && npm run check:ai
@@ -127,6 +129,53 @@ async function checkGroqModels() {
   console.log('      для полной проверки распознавания отправьте голосовую заметку в приложении.');
 }
 
+// Крошечный валидный 1x1 PNG - реальный vision-вызов, эмулирует Level 2
+// пайплайна /invoice-scan (backend/utils/groqVision.ts). Модель не обязана
+// узнать что-то осмысленное на 1 пикселе - цель только убедиться, что
+// vision-запрос в принципе проходит (ключ, модель, формат запроса).
+const TEST_PNG_BASE64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+
+async function checkGroqVision() {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) return; // уже отмечено как NO_KEY в checkGroqModels выше
+
+  const started = Date.now();
+  try {
+    const res = await axios.post(
+      'https://api.groq.com/openai/v1/chat/completions',
+      {
+        model: 'qwen/qwen3.6-27b',
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'text', text: 'Reply with pure JSON: {"status":"ok"}' },
+            { type: 'image_url', image_url: { url: `data:image/png;base64,${TEST_PNG_BASE64}` } },
+          ],
+        }],
+        response_format: { type: 'json_object' },
+      },
+      { headers: { Authorization: `Bearer ${apiKey}` }, validateStatus: () => true, timeout: 15000 }
+    );
+    const ok = res.status === 200;
+    results.push({
+      provider: 'Groq qwen/qwen3.6-27b (vision, Level 2 invoice-scan)',
+      ok,
+      status: res.status,
+      latencyMs: Date.now() - started,
+      detail: ok ? undefined : (res.data?.error?.message || JSON.stringify(res.data).slice(0, 120)),
+    });
+  } catch (e: any) {
+    results.push({
+      provider: 'Groq qwen/qwen3.6-27b (vision, Level 2 invoice-scan)',
+      ok: false,
+      status: 'ERR',
+      latencyMs: Date.now() - started,
+      detail: e.message,
+    });
+  }
+}
+
 async function checkCerebras() {
   const apiKey = process.env.CEREBRAS_API_KEY;
   if (!apiKey) {
@@ -177,6 +226,7 @@ async function main() {
   }
 
   await checkGroqModels();
+  await checkGroqVision();
   await checkCerebras();
 
   console.log('─'.repeat(90));
