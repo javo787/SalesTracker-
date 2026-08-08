@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import {
   addProduct, updateProduct, deleteProduct, getProducts, getDistinctCategories, getProductIdsWithDebts,
-  getProductSalesStats, getProductSalesHistory, getUnregisteredProductsFromHistory, db
+  getProductSalesStats, getProductSalesHistory, getUnregisteredProductsFromHistory, getPendingReviewSales
 } from '../db/database';
 import { useShop } from '../context/ShopContext';
 import { ProductAutocomplete } from '../components/sales/ProductAutocomplete';
@@ -124,7 +124,15 @@ export default function ProductsScreen() {
 
   const { getSubmitHandler, getReturnKeyType } = useFieldChain(fields, () => Keyboard.dismiss());
 
-  const loadProducts = () => {
+  const lastLoadRef = useRef(0);
+
+  const loadProducts = useCallback((force: boolean = false) => {
+    const now = Date.now();
+    if (!force && now - lastLoadRef.current < 15_000) {
+      return;
+    }
+    lastLoadRef.current = now;
+
     const allProds = getProducts() as any[];
     setProducts(allProds);
 
@@ -134,8 +142,7 @@ export default function ProductsScreen() {
 
     // Load pending review sales
     if (canReviewTeamSales) {
-      const pending = db.getAllSync("SELECT * FROM sales WHERE is_pending_review = 1 ORDER BY created_at DESC") as any[];
-      setPendingSales(pending);
+      setPendingSales(getPendingReviewSales());
     }
 
     // Derive distinct categories from products to avoid extra SQL query
@@ -166,12 +173,17 @@ export default function ProductsScreen() {
     if (sellerMode === 'wholesale') {
       setDebtProductIdsList(getProductIdsWithDebts());
     }
-  };
+  }, [canReviewTeamSales, sellerMode]);
 
-  useFocusEffect(useCallback(() => { loadProducts(); }, []));
+  // Фокус экрана — часто срабатывает без реальных изменений данных (просто
+  // переключились между вкладками), поэтому троттлится (force=false по
+  // умолчанию). Реальные изменения (правки товара, разбор pending-продажи,
+  // событие синхронизации) вызывают loadProducts(true) — всегда свежие
+  // данные, троттлинг не действует.
+  useFocusEffect(useCallback(() => { loadProducts(); }, [loadProducts]));
 
   useEffect(() => {
-    const unsubscribe = SyncService.onDataChanged(() => loadProducts());
+    const unsubscribe = SyncService.onDataChanged(() => loadProducts(true));
     return unsubscribe;
   }, []);
 
@@ -313,7 +325,7 @@ export default function ProductsScreen() {
   const onRefresh = async () => {
     setRefreshing(true);
     const start = Date.now();
-    loadProducts();
+    loadProducts(true);
     const elapsed = Date.now() - start;
     if (elapsed < 300) await new Promise(r => setTimeout(r, 300 - elapsed));
     setRefreshing(false);
@@ -376,7 +388,7 @@ export default function ProductsScreen() {
 
     resetForm();
     setShowForm(false);
-    loadProducts();
+    loadProducts(true);
   };
 
   const resetForm = () => {
@@ -440,7 +452,7 @@ export default function ProductsScreen() {
                   style: 'destructive',
                   onPress: () => {
                     deleteProduct(p.id);
-                    loadProducts();
+                    loadProducts(true);
                   }
                 }
               ]
@@ -1432,7 +1444,7 @@ export default function ProductsScreen() {
             initialType={opType}
             onClose={() => setOpModalVisible(false)}
             onSuccess={() => {
-              loadProducts();
+              loadProducts(true);
               setOpModalVisible(false);
             }}
           />
@@ -1499,13 +1511,13 @@ export default function ProductsScreen() {
         visible={!!resolveSaleTarget}
         sale={resolveSaleTarget}
         onClose={() => setResolveSaleTarget(null)}
-        onResolved={loadProducts}
+        onResolved={() => loadProducts(true)}
       />
 
       <InvoiceScanModal
         visible={invoiceScanVisible}
         onClose={() => setInvoiceScanVisible(false)}
-        onSaved={loadProducts}
+        onSaved={() => loadProducts(true)}
       />
 
       {/* Unregistered Products Quick Add Modal */}
@@ -1566,7 +1578,7 @@ export default function ProductsScreen() {
                             Alert.alert(t('common.saved'), t('products.quickAdded'));
                             const newList = unregistered.filter((_, i) => i !== idx);
                             setUnregistered(newList);
-                            loadProducts();
+                            loadProducts(true);
                             if (newList.length === 0) setShowUnregisteredModal(false);
                           } catch (e) {
                             Alert.alert(t('common.error'), String(e));

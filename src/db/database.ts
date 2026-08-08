@@ -2222,6 +2222,16 @@ export function getPendingReviewCount(): number {
   return result?.count || 0;
 }
 
+// LIMIT — защитная мера: это очередь "на разбор" для владельца, в норме
+// небольшая, но не должна расти без предсказуемой границы, если её долго
+// не разбирать.
+export function getPendingReviewSales(limit: number = 200) {
+  return db.getAllSync(
+    "SELECT * FROM sales WHERE is_pending_review = 1 ORDER BY created_at DESC LIMIT ?",
+    [limit]
+  ) as any[];
+}
+
 // ── Presence Check-in Helpers ────────────────────────────────────
 
 export interface LocalCheckIn {
