@@ -75,6 +75,7 @@ export default function ProductsScreen() {
 
   // Filters & Sorting
   const [activeFilter, setActiveFilter] = useState<'all' | 'low_stock' | 'debts' | 'pending' | { category: string }>('all');
+  const [visibleProductsCount, setVisibleProductsCount] = useState(30);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [debtProductIdsList, setDebtProductIdsList] = useState<number[]>([]);
 
@@ -286,6 +287,10 @@ export default function ProductsScreen() {
 
     return items;
   }, [filteredProducts, sortDirection]);
+
+  useEffect(() => {
+    setVisibleProductsCount(30);
+  }, [displayItems]);
 
   const openAddVariantForm = (group: ProductGroup) => {
     const template = group.variants[0];
@@ -1046,7 +1051,8 @@ export default function ProductsScreen() {
           <Text style={styles.emptyHint}>{searchQuery ? t('products.tryAnotherQuery') || 'Try another query' : t('products.addFirstProduct') || 'Add your first product'}</Text>
         </View>
       ) : (
-        displayItems.map((item, index) => {
+        <>
+        {displayItems.slice(0, visibleProductsCount).map((item, index) => {
           if (item.type === 'single') {
             const p = item.data;
             const isExpanded = expandedProductId === p.id;
@@ -1403,7 +1409,18 @@ export default function ProductsScreen() {
               </View>
             );
           }
-        })
+        })}
+        {displayItems.length > visibleProductsCount && (
+          <TouchableOpacity
+            style={styles.showMoreBtn}
+            onPress={() => setVisibleProductsCount(c => c + 30)}
+          >
+            <Text style={styles.showMoreBtnText}>
+              {t('reports.showMore', { count: displayItems.length - visibleProductsCount })}
+            </Text>
+          </TouchableOpacity>
+        )}
+        </>
       )}
     </ScrollView>
 
@@ -1725,6 +1742,19 @@ const styles = StyleSheet.create({
   },
   empty: { alignItems: 'center', padding: 40 },
   emptyText: { fontSize: 15, color: '#999', marginBottom: 6 },
+  showMoreBtn: {
+    marginTop: 12,
+    marginBottom: 20,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#E0E0E0',
+  },
+  showMoreBtnText: {
+    color: Colors.primary,
+    fontWeight: '600',
+    fontSize: 14,
+  },
   emptyHint: { fontSize: 13, color: '#bbb' },
   productItem: {
     marginHorizontal: 16, marginBottom: 12,

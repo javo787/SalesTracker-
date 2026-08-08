@@ -444,6 +444,7 @@
     "searchPlaceholder": "Mahsulotni qidirish...",
     "noSalesPeriod": "Ushbu davrda sotuvlar yo‘q",
     "nothingFound": "Hech narsa topilmadi",
+    "showMore": "Yana ko'rsatish ({{count}})",
     "exportCsv": "CSV eksport",
     "pcs": "dona",
     "deleteSaleTitle": "Sotuvni o‘chirish?",

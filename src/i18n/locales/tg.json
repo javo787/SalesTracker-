@@ -449,6 +449,7 @@
     "searchPlaceholder": "Ҷустуҷӯи мол...",
     "noSalesPeriod": "Дар ин давра фурӯш нест",
     "nothingFound": "Ҳеҷ чиз ёфт нашуд",
+    "showMore": "Боз нишон додан ({{count}})",
     "exportCsv": "Экспорти CSV",
     "pcs": "шт",
     "deleteSaleTitle": "Фурӯш нест карда шавад?",

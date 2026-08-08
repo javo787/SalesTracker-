@@ -449,6 +449,7 @@
     "searchPlaceholder": "Маҳсулотни қидириш...",
     "noSalesPeriod": "Ушбу даврда сотувлар йўқ",
     "nothingFound": "Ҳеч нарса топилмади",
+    "showMore": "Яна кўрсатиш ({{count}})",
     "exportCsv": "КСВ экспорт",
     "pcs": "дона",
     "deleteSaleTitle": "Сотувни ўчириш?",

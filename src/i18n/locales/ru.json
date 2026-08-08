@@ -449,6 +449,7 @@
     "searchPlaceholder": "Поиск товара...",
     "noSalesPeriod": "Продаж нет за этот период",
     "nothingFound": "Ничего не найдено",
+    "showMore": "Показать ещё ({{count}})",
     "exportCsv": "Экспорт CSV",
     "pcs": "шт",
     "deleteSaleTitle": "Удалить продажу?",

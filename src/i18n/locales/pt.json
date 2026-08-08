@@ -449,6 +449,7 @@
     "searchPlaceholder": "Buscar produto...",
     "noSalesPeriod": "Sem vendas neste período",
     "nothingFound": "Nada encontrado",
+    "showMore": "Mostrar mais ({{count}})",
     "exportCsv": "Exportar CSV",
     "pcs": "un",
     "deleteSaleTitle": "Excluir venda?",
