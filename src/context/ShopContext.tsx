@@ -72,7 +72,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loadFromLocal = async () => {
     // First read from SQLite (offline-friendly)
-    const session = getShopSession();
+    const session = await getShopSession();
     if (session.shopId) {
       setShopId(session.shopId);
       setShopName(session.shopName);

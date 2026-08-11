@@ -121,24 +121,30 @@ export default function ReportScreen() {
   const [filterText, setFilterText] = useState('');
 
 
-  const loadData = useCallback((p: number | 'custom', range?: {from: string, to: string}) => {
+  const loadData = useCallback(async (p: number | 'custom', range?: {from: string, to: string}) => {
     const userId = (user as any)?._id || 'guest';
 
     if (p === 'custom' && range) {
-      setStats(canSeeAllSales ? (selectedSellerId ? getMyStats(selectedSellerId, 0, range.from, range.to) : getStats(0, range.from, range.to)) : getMyStats(userId, 3650)); // Fallback to a year for custom range for sellers as getMyStats doesn't support custom range yet
-      setSales(getSalesByPeriod(0, range.from, range.to, canSeeAllSales ? selectedSellerId : userId));
-      const expStats = getExpenseStats(0, range.from, range.to, canSeeAllSales ? selectedSellerId : null);
+      const statsResult = canSeeAllSales
+        ? (selectedSellerId ? await getMyStats(selectedSellerId, 0, range.from, range.to) : await getStats(0, range.from, range.to))
+        : await getMyStats(userId, 3650); // Fallback to a year for custom range for sellers as getMyStats doesn't support custom range yet
+      setStats(statsResult);
+      setSales(await getSalesByPeriod(0, range.from, range.to, canSeeAllSales ? selectedSellerId : userId));
+      const expStats = await getExpenseStats(0, range.from, range.to, canSeeAllSales ? selectedSellerId : null);
       setExpenseTotal(canSeeAllSales ? expStats.total : 0);
       setOperationalExpenseTotal(canSeeAllSales ? expStats.operational : 0);
-      setExpenses(canSeeAllSales ? getExpenses(0, range.from, range.to, selectedSellerId) as any[] : []);
+      setExpenses(canSeeAllSales ? await getExpenses(0, range.from, range.to, selectedSellerId) as any[] : []);
     } else {
       const days = typeof p === 'number' ? p : 1;
-      setStats(canSeeAllSales ? (selectedSellerId ? getMyStats(selectedSellerId, days) : getStats(days)) : getMyStats(userId, days));
-      setSales(getSalesByPeriod(days, undefined, undefined, canSeeAllSales ? selectedSellerId : userId));
-      const expStats = getExpenseStats(days, undefined, undefined, canSeeAllSales ? selectedSellerId : null);
+      const statsResult = canSeeAllSales
+        ? (selectedSellerId ? await getMyStats(selectedSellerId, days) : await getStats(days))
+        : await getMyStats(userId, days);
+      setStats(statsResult);
+      setSales(await getSalesByPeriod(days, undefined, undefined, canSeeAllSales ? selectedSellerId : userId));
+      const expStats = await getExpenseStats(days, undefined, undefined, canSeeAllSales ? selectedSellerId : null);
       setExpenseTotal(canSeeAllSales ? expStats.total : 0);
       setOperationalExpenseTotal(canSeeAllSales ? expStats.operational : 0);
-      setExpenses(canSeeAllSales ? getExpenses(days, undefined, undefined, selectedSellerId) as any[] : []);
+      setExpenses(canSeeAllSales ? await getExpenses(days, undefined, undefined, selectedSellerId) as any[] : []);
     }
   }, [canSeeAllSales, user, isGuest, selectedSellerId]);
 
@@ -265,9 +271,9 @@ export default function ReportScreen() {
     }
   }, [period, dateRange, loadData, checkRegPrompt, checkExtendedUnlock, checkForecast, checkExportCache, canSeeAllSales]));
 
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    loadData(period, dateRange || undefined);
+    await loadData(period, dateRange || undefined);
     setRefreshing(false);
   };
 
@@ -280,9 +286,9 @@ export default function ReportScreen() {
         {
           text: t('common.delete'),
           style: 'destructive',
-          onPress: () => {
-            deleteSale(sale.id);
-            loadData(period);
+          onPress: async () => {
+            await deleteSale(sale.id);
+            await loadData(period);
           }
         }
       ]
@@ -443,7 +449,7 @@ export default function ReportScreen() {
     }
   };
 
-  const calculateGrowth = useCallback(() => {
+  const calculateGrowth = useCallback(async () => {
     if (typeof period !== 'number') return null;
     const d = new Date();
     d.setDate(d.getDate() - period);
@@ -451,7 +457,7 @@ export default function ReportScreen() {
     const d2 = new Date();
     d2.setDate(d2.getDate() - (2 * period));
     const fromDate = toLocalDateStr(d2);
-    const prevStats = getStats(0, fromDate, toDate);
+    const prevStats = await getStats(0, fromDate, toDate);
     if (!prevStats || prevStats.revenue === 0) return null;
     const growth = Math.round(((stats.revenue - prevStats.revenue) / prevStats.revenue) * 100);
     return Math.max(-999, Math.min(999, growth));
@@ -513,7 +519,7 @@ export default function ReportScreen() {
         salesByDayOfWeek: Object.entries(daySales).map(([label, totalRevenue]) => ({ label, totalRevenue: totalRevenue as number })),
         bestDay,
         worstDay,
-        revenueGrowthPercent: calculateGrowth()
+        revenueGrowthPercent: await calculateGrowth()
       };
 
       const summary = await ExportSummaryService.fetchSummary(payload);

@@ -72,16 +72,16 @@ export default function DebtorsScreen() {
   const [editClientNote, setEditClientNote] = useState('');
   const [showClientDetailModal, setShowClientDetailModal] = useState(false);
 
-  const loadDebts = useCallback(() => {
-    const data = getDebtsWithClients() as any[];
+  const loadDebts = useCallback(async () => {
+    const data = await getDebtsWithClients() as any[];
     setDebts(data);
-    const summary = getDebtSummary();
+    const summary = await getDebtSummary();
     setDebtorCount(summary.debtor_count);
     setTotalAmount(data.reduce((sum: number, d: any) => sum + d.amount_total, 0));
   }, []);
 
-  const loadClients = useCallback(() => {
-    const data = getAllClientsWithStats() as any[];
+  const loadClients = useCallback(async () => {
+    const data = await getAllClientsWithStats() as any[];
     setClients(data);
   }, []);
 
@@ -90,10 +90,10 @@ export default function DebtorsScreen() {
     loadClients();
   }, [loadDebts, loadClients]));
 
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    loadDebts();
-    loadClients();
+    await loadDebts();
+    await loadClients();
     setRefreshing(false);
   };
 
@@ -133,8 +133,8 @@ export default function DebtorsScreen() {
         {
           text: 'Удалить',
           style: 'destructive',
-          onPress: () => {
-            const success = deleteClientIfSafe(client.id);
+          onPress: async () => {
+            const success = await deleteClientIfSafe(client.id);
             if (success) {
               loadClients();
             } else {
@@ -149,9 +149,9 @@ export default function DebtorsScreen() {
     );
   };
 
-  const openClientDetail = (client: any) => {
+  const openClientDetail = async (client: any) => {
     setSelectedClient(client);
-    setClientHistory(getClientDebtHistory(client.id) as any[]);
+    setClientHistory(await getClientDebtHistory(client.id) as any[]);
     setShowClientDetailModal(true);
   };
 
@@ -168,10 +168,10 @@ export default function DebtorsScreen() {
     (c.phone && c.phone.includes(clientSearch))
   );
 
-  const openClient = (debt: any) => {
+  const openClient = async (debt: any) => {
     setSelectedDebt(debt);
-    setPayments(getDebtPayments(debt.id) as any[]);
-    setClientHistory(getClientDebtHistory(debt.client_id) as any[]);
+    setPayments(await getDebtPayments(debt.id) as any[]);
+    setClientHistory(await getClientDebtHistory(debt.client_id) as any[]);
     setActiveTab('info');
     setPaymentAmount('');
     setPaymentNote('');
@@ -189,17 +189,17 @@ export default function DebtorsScreen() {
       Alert.alert(t('common.error'), `${t('calculator.labels.sellPrice')}: ${remaining.toFixed(0)} ${currency.symbol}`);
       return;
     }
-    recordDebtPayment(selectedDebt.id, amount, paymentNote);
+    await recordDebtPayment(selectedDebt.id, amount, paymentNote);
 
     // Если полностью погашен — отменить уведомление
-    const updated = getDebtById(selectedDebt.id) as any;
+    const updated = await getDebtById(selectedDebt.id) as any;
     if (updated && updated.status === 'paid' && selectedDebt.notification_id) {
       await cancelDebtReminder(selectedDebt.notification_id);
-      updateDebtNotificationId(selectedDebt.id, null);
+      await updateDebtNotificationId(selectedDebt.id, null);
     }
 
     setShowModal(false);
-    loadDebts();
+    await loadDebts();
     Alert.alert('✅ ' + t('debtors.paymentSuccess'), `${amount} ${currency.symbol}`);
   };
 
@@ -217,20 +217,20 @@ export default function DebtorsScreen() {
     setDueDate(masked);
   };
 
-  const handleAddDebt = () => {
+  const handleAddDebt = async () => {
     if (!clientName.trim() || !debtAmount || parseFloat(debtAmount) <= 0) {
       Alert.alert(t('common.error'), t('debtors.errorRequired'));
       return;
     }
     let currentClientId = selectedClientId;
     if (!currentClientId) {
-      currentClientId = upsertClient(clientName.trim(), clientPhone.trim());
+      currentClientId = await upsertClient(clientName.trim(), clientPhone.trim());
     }
     const isoDueDate = toISODate(dueDate);
-    addDebt(currentClientId, null, parseFloat(debtAmount), 0, debtNote.trim(), isoDueDate || '');
+    await addDebt(currentClientId, null, parseFloat(debtAmount), 0, debtNote.trim(), isoDueDate || '');
     resetAddModal();
     setShowAddModal(false);
-    loadDebts();
+    await loadDebts();
     Alert.alert('✅', t('debtors.saveSuccess'));
   };
 
@@ -431,7 +431,7 @@ export default function DebtorsScreen() {
             data={filteredClients}
             keyExtractor={(item) => String(item.id)}
             contentContainerStyle={{ padding: 16, paddingTop: 8 }}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadClients(); setRefreshing(false); }} />}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await loadClients(); setRefreshing(false); }} />}
             ListEmptyComponent={
               <View style={styles.empty}>
                 <Ionicons name="people-outline" size={64} color="#ccc" />
@@ -709,11 +709,11 @@ export default function DebtorsScreen() {
               <TextInput
                 style={[styles.input, isDark ? styles.inputDark : styles.inputLight]}
                 value={clientName}
-                onChangeText={(text) => {
+                onChangeText={async (text) => {
                   setClientName(text);
                   setSelectedClientId(null);
                   if (text.trim().length > 0) {
-                    setSearchResults(searchClients(text) as ClientSearchResult[]);
+                    setSearchResults(await searchClients(text) as ClientSearchResult[]);
                   } else {
                     setSearchResults([]);
                   }

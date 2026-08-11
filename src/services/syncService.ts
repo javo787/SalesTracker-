@@ -1,10 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState } from 'react-native';
 import { api } from './api';
-import { getProducts, getProductsForSync, getSalesByPeriod, getShopSession, getUnsyncedSales, getUnsyncedExpenses, getUnsyncedCheckIn, updateCheckInSyncResult, getUnsyncedStockMovements, markStockMovementsSynced, insertStockMovementsFromSync } from '../db/database';
-import * as SQLite from 'expo-sqlite';
-
-const db = SQLite.openDatabaseSync('savdo.db'); // Note: Keeping database name 'savdo.db' to avoid data loss as per instructions.
+import { getProducts, getProductsForSync, getSalesByPeriod, getShopSession, getUnsyncedSales, getUnsyncedExpenses, getUnsyncedCheckIn, updateCheckInSyncResult, getUnsyncedStockMovements, markStockMovementsSynced, insertStockMovementsFromSync, getDb } from '../db/database';
 
 // Повторяет запрос при 5xx/503 (в т.ч. от load-shedding на бэкенде) или сетевой ошибке,
 // с растущей паузой между попытками. 4xx (401/403 и т.п.) не ретраятся — это не транспортная проблема.
@@ -67,7 +64,8 @@ export const SyncService = {
 
   async push(): Promise<void> {
     if (isSyncing) return;
-    const session = getShopSession();
+    const db = await getDb();
+    const session = await getShopSession();
     if (!session.shopId) return;
 
     const syncEnabled = await AsyncStorage.getItem('sync_enabled');
@@ -79,7 +77,7 @@ export const SyncService = {
       // We choose to send the unsynced check-in directly via a POST to /shop/checkin inside the push function.
       // This is less invasive to the existing sync structure, prevents modifying the complex bulk sync endpoint on the server,
       // and handles individual check-in validation and status responses cleanly.
-      const unsyncedCheckIn = getUnsyncedCheckIn();
+      const unsyncedCheckIn = await getUnsyncedCheckIn();
       if (unsyncedCheckIn) {
         try {
           const bodyPayload: any = {};
@@ -97,11 +95,11 @@ export const SyncService = {
             ...bodyPayload,
           });
 
-          updateCheckInSyncResult(res.status, null, 1);
+          await updateCheckInSyncResult(res.status, null, 1);
         } catch (err: any) {
           if (err.status >= 400 && err.status < 500) {
             // Definitively rejected by server
-            updateCheckInSyncResult('rejected', err.code || err.message, 1);
+            await updateCheckInSyncResult('rejected', err.code || err.message, 1);
           } else {
             // Temporary network/server error, keep synced=0 to retry later
           }
@@ -119,10 +117,10 @@ export const SyncService = {
       const permissions: string[] = cachedPerms ? JSON.parse(cachedPerms) : [];
       const canManageProducts = isOwner || permissions.includes('manage_products');
 
-      const salesToSend = getUnsyncedSales();
-      const productsToSend = canManageProducts ? getProductsForSync() : [];
-      const expensesToSend = getUnsyncedExpenses();
-      const stockMovementsToSend = getUnsyncedStockMovements();
+      const salesToSend = await getUnsyncedSales();
+      const productsToSend = canManageProducts ? await getProductsForSync() : [];
+      const expensesToSend = await getUnsyncedExpenses();
+      const stockMovementsToSend = await getUnsyncedStockMovements();
 
       const payload: any = {
         sales: salesToSend,
@@ -138,18 +136,18 @@ export const SyncService = {
       await AsyncStorage.setItem('last_sync_at', result.syncedAt);
 
       // Locally mark the successfully pushed items as synced
-      db.withTransactionSync(() => {
+      await db.withTransactionAsync(async () => {
         for (const s of salesToSend as any[]) {
-          db.runSync('UPDATE sales SET synced = 1 WHERE id = ?', [s.id]);
+          await db.runAsync('UPDATE sales SET synced = 1 WHERE id = ?', [s.id]);
         }
         for (const p of productsToSend as any[]) {
-          db.runSync('UPDATE products SET synced = 1 WHERE id = ?', [p.id]);
+          await db.runAsync('UPDATE products SET synced = 1 WHERE id = ?', [p.id]);
         }
         for (const e of expensesToSend as any[]) {
-          db.runSync('UPDATE expenses SET synced = 1 WHERE id = ?', [e.id]);
+          await db.runAsync('UPDATE expenses SET synced = 1 WHERE id = ?', [e.id]);
         }
       });
-      markStockMovementsSynced((stockMovementsToSend as any[]).map(m => m.id));
+      await markStockMovementsSynced((stockMovementsToSend as any[]).map(m => m.id));
     } catch (error) {
       console.warn('Sync push failed:', error);
     } finally {
@@ -159,7 +157,8 @@ export const SyncService = {
 
   async pull(): Promise<void> {
     if (isSyncing) return;
-    const session = getShopSession();
+    const db = await getDb();
+    const session = await getShopSession();
     if (!session.shopId) return;
 
     const syncEnabled = await AsyncStorage.getItem('sync_enabled');
@@ -266,19 +265,19 @@ export const SyncService = {
       // case) — but if that slot is already taken by an unrelated product,
       // never overwrite it; insert as a new row and let SQLite pick a free id.
       for (const batch of chunk(data.products, CHUNK_SIZE)) {
-        db.withTransactionSync(() => {
+        await db.withTransactionAsync(async () => {
           for (const p of batch) {
             const remoteId = p._id ? String(p._id) : null;
 
             const byRemoteId = remoteId
-              ? (db.getFirstSync('SELECT id FROM products WHERE remote_id = ?', [remoteId]) as { id: number } | null)
+              ? (await db.getFirstAsync('SELECT id FROM products WHERE remote_id = ?', [remoteId]) as { id: number } | null)
               : null;
 
             if (byRemoteId) {
               if (p.is_deleted) {
-                db.runSync('DELETE FROM products WHERE id = ?', [byRemoteId.id]);
+                await db.runAsync('DELETE FROM products WHERE id = ?', [byRemoteId.id]);
               } else {
-                db.runSync(
+                await db.runAsync(
                   `UPDATE products SET
                     name = ?,
                     ${isOwner ? 'buy_price = ?,' : 'buy_price = NULL,'}
@@ -295,14 +294,14 @@ export const SyncService = {
             }
 
             const ownUnlinkedRow = p.localId
-              ? db.getFirstSync('SELECT id FROM products WHERE id = ? AND remote_id IS NULL', [p.localId])
+              ? await db.getFirstAsync('SELECT id FROM products WHERE id = ? AND remote_id IS NULL', [p.localId])
               : null;
 
             if (ownUnlinkedRow) {
               if (p.is_deleted) {
-                db.runSync('DELETE FROM products WHERE id = ?', [p.localId]);
+                await db.runAsync('DELETE FROM products WHERE id = ?', [p.localId]);
               } else {
-                db.runSync(
+                await db.runAsync(
                   `UPDATE products SET
                     name = ?,
                     ${isOwner ? 'buy_price = ?,' : 'buy_price = NULL,'}
@@ -321,14 +320,14 @@ export const SyncService = {
             if (p.is_deleted) continue; // never had it locally — nothing to delete
 
             const collidesWithUnrelatedRow = p.localId
-              ? db.getFirstSync('SELECT id FROM products WHERE id = ?', [p.localId])
+              ? await db.getFirstAsync('SELECT id FROM products WHERE id = ?', [p.localId])
               : null;
 
             if (collidesWithUnrelatedRow) {
               // Same numeric id already used by a different, unrelated
               // product on this device — do NOT touch it. Insert as a new
               // row instead, letting SQLite assign the next free id.
-              db.runSync(
+              await db.runAsync(
                 `INSERT INTO products (
                   name, buy_price, sell_price, stock, min_stock_alert,
                   base_unit, has_packages, package_name, units_per_package,
@@ -341,7 +340,7 @@ export const SyncService = {
                 ]
               );
             } else {
-              db.runSync(
+              await db.runAsync(
                 `INSERT INTO products (
                   id, name, buy_price, sell_price, stock, min_stock_alert,
                   base_unit, has_packages, package_name, units_per_package,
@@ -363,7 +362,7 @@ export const SyncService = {
       // (см. insertStockMovementsFromSync): на устройстве-авторе строка с
       // таким id уже есть и просто пропускается, на остальных — вставляется.
       for (const batch of chunk(data.stockMovements || [], CHUNK_SIZE)) {
-        insertStockMovementsFromSync(batch);
+        await insertStockMovementsFromSync(batch);
         await new Promise(resolve => setTimeout(resolve, 0));
       }
 
@@ -390,32 +389,32 @@ export const SyncService = {
       // remote_id. Otherwise always insert as a brand-new local row with its
       // own fresh autoincrement id — never force `id = s.localId`.
       for (const batch of chunk(data.sales, CHUNK_SIZE)) {
-        db.withTransactionSync(() => {
+        await db.withTransactionAsync(async () => {
           for (const s of batch) {
             const remoteId = s._id ? String(s._id) : null;
 
             const byRemoteId = remoteId
-              ? db.getFirstSync('SELECT id FROM sales WHERE remote_id = ?', [remoteId])
+              ? await db.getFirstAsync('SELECT id FROM sales WHERE remote_id = ?', [remoteId])
               : null;
 
             if (byRemoteId) {
-              db.runSync('UPDATE sales SET synced = 1 WHERE remote_id = ?', [remoteId]);
+              await db.runAsync('UPDATE sales SET synced = 1 WHERE remote_id = ?', [remoteId]);
               continue;
             }
 
             const ownUnlinkedRow = s.localId
-              ? db.getFirstSync(
+              ? await db.getFirstAsync(
                   'SELECT id FROM sales WHERE id = ? AND seller_id = ? AND remote_id IS NULL',
                   [s.localId, s.sellerId]
                 )
               : null;
 
             if (ownUnlinkedRow) {
-              db.runSync('UPDATE sales SET remote_id = ?, synced = 1 WHERE id = ?', [remoteId, s.localId]);
+              await db.runAsync('UPDATE sales SET remote_id = ?, synced = 1 WHERE id = ?', [remoteId, s.localId]);
               continue;
             }
 
-            db.runSync(
+            await db.runAsync(
               `INSERT INTO sales (
                 product_id, product_name, quantity, sell_price, buy_price, profit,
                 note, stock_updated, created_at, seller_id, seller_name, stock_warning,
@@ -441,32 +440,32 @@ export const SyncService = {
       // expenses were exposed to the exact same local-id collision risk
       // (just less likely to trigger in practice due to lower volume).
       for (const batch of chunk(data.expenses || [], CHUNK_SIZE)) {
-        db.withTransactionSync(() => {
+        await db.withTransactionAsync(async () => {
           for (const e of batch) {
             const remoteId = e._id ? String(e._id) : null;
 
             const byRemoteId = remoteId
-              ? db.getFirstSync('SELECT id FROM expenses WHERE remote_id = ?', [remoteId])
+              ? await db.getFirstAsync('SELECT id FROM expenses WHERE remote_id = ?', [remoteId])
               : null;
 
             if (byRemoteId) {
-              db.runSync('UPDATE expenses SET synced = 1 WHERE remote_id = ?', [remoteId]);
+              await db.runAsync('UPDATE expenses SET synced = 1 WHERE remote_id = ?', [remoteId]);
               continue;
             }
 
             const ownUnlinkedRow = e.localId
-              ? db.getFirstSync(
+              ? await db.getFirstAsync(
                   'SELECT id FROM expenses WHERE id = ? AND seller_id = ? AND remote_id IS NULL',
                   [e.localId, e.sellerId]
                 )
               : null;
 
             if (ownUnlinkedRow) {
-              db.runSync('UPDATE expenses SET remote_id = ?, synced = 1 WHERE id = ?', [remoteId, e.localId]);
+              await db.runAsync('UPDATE expenses SET remote_id = ?, synced = 1 WHERE id = ?', [remoteId, e.localId]);
               continue;
             }
 
-            db.runSync(
+            await db.runAsync(
               `INSERT INTO expenses (
                 type, category, amount, description, linked_product_id, created_at,
                 user_id, seller_id, seller_name, remote_id, synced

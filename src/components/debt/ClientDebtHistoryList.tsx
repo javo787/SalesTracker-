@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -13,6 +13,20 @@ interface ClientDebtHistoryListProps {
 export const ClientDebtHistoryList: React.FC<ClientDebtHistoryListProps> = ({ history }) => {
   const { t } = useTranslation();
   const { currency } = useAppContext();
+  const [paymentsByDebt, setPaymentsByDebt] = useState<Record<number, any[]>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const entries = await Promise.all(
+        history.map(async (debt: any) => [debt.id, await getDebtPayments(debt.id) as any[]] as const)
+      );
+      if (!cancelled) {
+        setPaymentsByDebt(Object.fromEntries(entries));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [history]);
 
   if (history.length === 0) {
     return (
@@ -25,7 +39,7 @@ export const ClientDebtHistoryList: React.FC<ClientDebtHistoryListProps> = ({ hi
   return (
     <View style={styles.container}>
       {history.map((debt: any) => {
-        const debtPayments = getDebtPayments(debt.id) as any[];
+        const debtPayments = paymentsByDebt[debt.id] || [];
         const isPaid = debt.status === 'paid';
         const paidAmount = debt.amount_total - (debt.remaining || 0);
 

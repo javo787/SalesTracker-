@@ -11,8 +11,8 @@ export function useCheckInStatus() {
   const [todayRecord, setTodayRecord] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
-  const loadLocalStatus = useCallback(() => {
-    const local = getTodayCheckInLocal();
+  const loadLocalStatus = useCallback(async () => {
+    const local = await getTodayCheckInLocal();
     if (local) {
       setTodayStatus(local.server_status);
       setTodayRecord({
@@ -70,10 +70,10 @@ export function useCheckInStatus() {
     setLoading(true);
     try {
       const res = await submitCheckInService(method, payload);
-      loadLocalStatus();
+      await loadLocalStatus();
       return res;
     } catch (err) {
-      loadLocalStatus();
+      await loadLocalStatus();
       throw err;
     } finally {
       setLoading(false);
@@ -86,8 +86,8 @@ export function useCheckInStatus() {
     todayRecord,
     loading,
     submitCheckIn,
-    refreshStatus: () => {
-      loadLocalStatus();
+    refreshStatus: async () => {
+      await loadLocalStatus();
       reconcileWithServer();
     },
   };

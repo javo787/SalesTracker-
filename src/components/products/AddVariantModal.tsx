@@ -88,7 +88,7 @@ export default function AddVariantModal({ visible, baseProduct, onClose, onSaved
     () => handleSave()
   );
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim() || !buyPrice || !sellPrice) {
       Alert.alert(t('common.error'), t('products.errorRequired'));
       return;
@@ -105,7 +105,7 @@ export default function AddVariantModal({ visible, baseProduct, onClose, onSaved
 
     setSaving(true);
     try {
-      const result = addProduct(
+      const result = await addProduct(
         name.trim(), bPrice, sPrice, st, alert, baseUnit,
         hasPackages ? 1 : 0, packageName, uPerPkg, cat,
         isContinuous ? 1 : 0, finalArticle, finalColor

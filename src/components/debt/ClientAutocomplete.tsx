@@ -29,8 +29,8 @@ export default function ClientAutocomplete({
   const { resolvedTheme } = useAppContext();
   const isDark = resolvedTheme === 'dark';
 
-  const fetchFn = useCallback((q: string) => searchClients(q) as Client[], []);
-  const fetchTop = useCallback(() => searchClients('') as Client[], []);
+  const fetchFn = useCallback(async (q: string) => await searchClients(q) as Client[], []);
+  const fetchTop = useCallback(async () => await searchClients('') as Client[], []);
   const { results, isOpen, search, onFocus, onBlur, select } =
     useAutocomplete<Client>(fetchFn, fetchTop, 250);
 

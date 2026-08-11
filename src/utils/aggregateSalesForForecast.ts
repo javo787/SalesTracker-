@@ -1,10 +1,11 @@
-import db from '../db/database';
+import { getDb } from '../db/database';
 import { ForecastPayload } from '../services/ForecastService';
 
 export async function aggregateSalesForForecast(
   language: 'ru' | 'tj' | 'uz',
   currencySymbol: string
 ): Promise<ForecastPayload> {
+  const db = await getDb();
   const pad = (n: number) => String(n).padStart(2, '0');
   const toLocalDateStr = (d: Date) =>
     `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -22,7 +23,7 @@ export async function aggregateSalesForForecast(
   const twentyEightDaysAgoStr = toLocalDateStr(twentyEightDaysAgo);
 
   // 1. salesByDayOfWeek (last 60 days)
-  const salesByDayRaw = db.getAllSync(`
+  const salesByDayRaw = await db.getAllAsync(`
     SELECT
       strftime('%w', created_at) as dayOfWeek,
       SUM(sell_price * quantity) as totalRevenue,
@@ -55,7 +56,7 @@ export async function aggregateSalesForForecast(
   });
 
   // 2. topProducts (last 60 days, top 5 by revenue)
-  const topProducts = db.getAllSync(`
+  const topProducts = await db.getAllAsync(`
     SELECT
       product_name as name,
       SUM(sell_price * quantity) as revenue,
@@ -70,7 +71,7 @@ export async function aggregateSalesForForecast(
   `, [sixtyDaysAgoStr]) as any[];
 
   // 3. weeklyTotals (last 4 weeks)
-  const weeklyTotals = db.getAllSync(`
+  const weeklyTotals = await db.getAllAsync(`
     SELECT
       strftime('%Y-W%W', created_at) as weekLabel,
       SUM(sell_price * quantity) as revenue,
@@ -82,7 +83,7 @@ export async function aggregateSalesForForecast(
   `, [twentyEightDaysAgoStr]) as any[];
 
   // 4. averageDailyRevenue (last 30 days)
-  const avgResult = db.getFirstSync(`
+  const avgResult = await db.getFirstAsync(`
     SELECT ROUND(SUM(sell_price * quantity) / 30.0, 0) as avg
     FROM sales
     WHERE date(created_at) >= ?

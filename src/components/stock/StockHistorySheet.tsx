@@ -27,12 +27,12 @@ export default function StockHistorySheet({ visible, onClose, product }: StockHi
     }
   }, [visible, product]);
 
-  const loadHistory = () => {
+  const loadHistory = async () => {
     setLoading(true);
     try {
-      const data = getStockMovements(product.id);
+      const data = await getStockMovements(product.id);
       setMovements(data);
-      const lastPurchase = getLastPurchaseInfo(product.id);
+      const lastPurchase = await getLastPurchaseInfo(product.id);
       setLastPurchaseInfo(lastPurchase);
     } catch (e) {
       console.error('Failed to load stock history', e);
