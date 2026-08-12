@@ -5,7 +5,7 @@ import {
   StyleSheet,
   Modal,
   TouchableOpacity,
-  Dimensions,
+  useWindowDimensions,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,9 +18,8 @@ interface Props {
   onBackup?: () => void;
 }
 
-const { width } = Dimensions.get('window');
-
 export default function RegistrationPromptModal({ visible, onClose, onRegister, onBackup }: Props) {
+  const { width } = useWindowDimensions();
   const { t } = useTranslation();
   const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
 
@@ -32,7 +31,7 @@ export default function RegistrationPromptModal({ visible, onClose, onRegister, 
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        <View style={[styles.content, isDark ? styles.contentDark : styles.contentLight]}>
+        <View style={[styles.content, { width: width - 40 }, isDark ? styles.contentDark : styles.contentLight]}>
           <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
             <Ionicons name="close" size={24} color={isDark ? '#aaa' : '#888'} />
           </TouchableOpacity>
@@ -77,7 +76,6 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   content: {
-    width: width - 40,
     borderRadius: 24,
     padding: 24,
     alignItems: 'center',

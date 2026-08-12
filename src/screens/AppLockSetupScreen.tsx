@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  Animated, Dimensions, Alert, ScrollView, Switch, Modal, Platform
+  Animated, useWindowDimensions, Alert, ScrollView, Switch, Modal, Platform
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
@@ -12,12 +12,14 @@ import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-g
 import { useNavigation } from '@react-navigation/native';
 import Svg, { Polyline, Line } from 'react-native-svg';
 
-const { width } = Dimensions.get('window');
 const GRID_SIZE = 3;
 const DOT_SIZE = 20;
-const GRID_SPACING = (width * 0.8) / GRID_SIZE;
 
 export default function AppLockSetupScreen() {
+  const { width } = useWindowDimensions();
+  // Фиксируется на весь сеанс экрана (используется внутри Gesture.Pan()
+  // с пустым deps) — то же поведение, что было до этой правки.
+  const GRID_SPACING = (width * 0.8) / GRID_SIZE;
   const { t } = useTranslation();
   const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
   const navigation = useNavigation();
@@ -257,7 +259,7 @@ export default function AppLockSetupScreen() {
   const renderKeypad = () => {
     const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'BACK'];
     return (
-      <View style={styles.keypad}>
+      <View style={[styles.keypad, { width: width * 0.8 }]}>
         {keys.map((key, index) => (
           <TouchableOpacity
             key={index}
@@ -434,7 +436,7 @@ export default function AppLockSetupScreen() {
               </>
             ) : (
               <>
-                <GestureHandlerRootView style={[styles.patternContainer, { marginBottom: 20 }]}>
+                <GestureHandlerRootView style={[styles.patternContainer, { width: width * 0.8, height: width * 0.8, marginBottom: 20 }]}>
                   <GestureDetector gesture={onGesture}>
                     <View style={styles.grid}>
                       <Svg style={StyleSheet.absoluteFill}>
@@ -543,7 +545,7 @@ const styles = StyleSheet.create({
   inputArea: { alignItems: 'center', padding: 24, borderRadius: 20, marginVertical: 10 },
   pinDots: { flexDirection: 'row', gap: 20, marginBottom: 30 },
   pinDot: { width: 16, height: 16, borderRadius: 8 },
-  keypad: { flexDirection: 'row', flexWrap: 'wrap', width: width * 0.8 },
+  keypad: { flexDirection: 'row', flexWrap: 'wrap' },
   key: { width: '33.33%', height: 70, alignItems: 'center', justifyContent: 'center' },
   keyText: { fontSize: 24 },
   nextBtn: {
@@ -553,7 +555,7 @@ const styles = StyleSheet.create({
   nextBtnDisabled: { backgroundColor: '#CCC' },
   nextBtnText: { color: '#FFF', fontSize: 16, fontWeight: '600' },
   errorText: { color: '#E53935', marginTop: 15, fontSize: 14 },
-  patternContainer: { width: width * 0.8, height: width * 0.8 },
+  patternContainer: {},
   grid: { flex: 1, flexDirection: 'row', flexWrap: 'wrap' },
   dotWrapper: { width: '33.33%', height: '33.33%', alignItems: 'center', justifyContent: 'center' },
   dot: { width: DOT_SIZE, height: DOT_SIZE, borderRadius: DOT_SIZE / 2 },

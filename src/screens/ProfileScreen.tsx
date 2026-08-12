@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  Image, TextInput, Alert, Clipboard, ActivityIndicator, Dimensions,
+  Image, TextInput, Alert, Clipboard, ActivityIndicator, useWindowDimensions,
   Modal
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -21,9 +21,8 @@ import { SyncService } from '../services/syncService';
 import { ProfileStats } from '../types/auth';
 import { getStats } from '../db/database';
 
-const { width } = Dimensions.get('window');
-
 export default function ProfileScreen() {
+  const { width } = useWindowDimensions();
   const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const { resolvedTheme, currency, sellerMode } = useAppContext(); const isDark = resolvedTheme === "dark";
@@ -332,22 +331,22 @@ export default function ProfileScreen() {
 
       {/* Stats Grid */}
       <View style={styles.statsGrid}>
-        <View style={[styles.statItem, themeStyles.card]}>
+        <View style={[styles.statItem, { width: (width - 44) / 2 }, themeStyles.card]}>
           <Text style={styles.statLabel}>{t('common.revenue')}</Text>
           <Text style={[styles.statValue, themeStyles.text]}>{stats?.totalRevenue.toLocaleString()}</Text>
           <Text style={styles.statSub}>{currency.symbol}</Text>
         </View>
-        <View style={[styles.statItem, themeStyles.card]}>
+        <View style={[styles.statItem, { width: (width - 44) / 2 }, themeStyles.card]}>
           <Text style={styles.statLabel}>{t('common.profit')}</Text>
           <Text style={[styles.statValue, { color: '#1D9E75' }]}>{stats?.totalProfit.toLocaleString()}</Text>
           <Text style={styles.statSub}>{currency.symbol}</Text>
         </View>
-        <View style={[styles.statItem, themeStyles.card]}>
+        <View style={[styles.statItem, { width: (width - 44) / 2 }, themeStyles.card]}>
           <Text style={styles.statLabel}>{t('home.salesCount')}</Text>
           <Text style={[styles.statValue, themeStyles.text]}>{stats?.totalSales}</Text>
           <Text style={styles.statSub}>{t('reports.pcs')}</Text>
         </View>
-        <View style={[styles.statItem, themeStyles.card]}>
+        <View style={[styles.statItem, { width: (width - 44) / 2 }, themeStyles.card]}>
           <Text style={styles.statLabel}>{t('profile.bestProduct')}</Text>
           <Text style={[styles.statValue, themeStyles.text, { fontSize: 14 }]} numberOfLines={1}>
             {stats?.bestProduct?.name || '—'}
@@ -538,7 +537,7 @@ const styles = StyleSheet.create({
   providerBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
   providerText: { color: '#fff', fontSize: 12, fontWeight: '600' },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, padding: 16 },
-  statItem: { width: (width - 44) / 2, borderRadius: 16, padding: 16, gap: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 2 },
+  statItem: { borderRadius: 16, padding: 16, gap: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 2 },
   statLabel: { fontSize: 12, color: '#888' },
   statValue: { fontSize: 20, fontWeight: 'bold' },
   statSub: { fontSize: 11, color: '#999' },

@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
   Share,
   Alert,
-  Dimensions,
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -20,9 +20,8 @@ import { useAppContext } from '../context/AppContext';
 import { marketService } from '../services/marketService';
 import { Classified } from '../types/ads';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
 export default function ClassifiedDetailScreen() {
+  const { width: SCREEN_WIDTH } = useWindowDimensions();
   const { t } = useTranslation();
   const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
   const insets = useSafeAreaInsets();
@@ -83,11 +82,11 @@ export default function ClassifiedDetailScreen() {
         {item.images && item.images.length > 0 ? (
           <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} style={styles.imageGallery}>
             {item.images.map((img, index) => (
-              <Image key={index} source={{ uri: img }} style={styles.mainImage} />
+              <Image key={index} source={{ uri: img }} style={[styles.mainImage, { width: SCREEN_WIDTH }]} />
             ))}
           </ScrollView>
         ) : (
-          <View style={[styles.mainImage, styles.placeholder]}>
+          <View style={[styles.mainImage, { width: SCREEN_WIDTH }, styles.placeholder]}>
             <Ionicons name="image-outline" size={64} color="#ccc" />
           </View>
         )}
@@ -147,7 +146,7 @@ const styles = StyleSheet.create({
   bgDark: { backgroundColor: '#121212' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   imageGallery: { height: 300 },
-  mainImage: { width: SCREEN_WIDTH, height: 300, resizeMode: 'cover' },
+  mainImage: { height: 300, resizeMode: 'cover' },
   placeholder: {
     backgroundColor: '#f5f5f5',
     justifyContent: 'center',

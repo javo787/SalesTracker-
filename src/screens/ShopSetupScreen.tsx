@@ -1,16 +1,15 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  SafeAreaView, TextInput, ActivityIndicator, Dimensions
+  SafeAreaView, TextInput, ActivityIndicator, useWindowDimensions
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { useShop } from '../context/ShopContext';
 import { Colors, Radius, Shadow } from '../constants/theme';
 
-const { width } = Dimensions.get('window');
-
 export default function ShopSetupScreen() {
+  const { width } = useWindowDimensions();
   const { t } = useTranslation();
   const { createShop, joinShop } = useShop();
 
@@ -98,6 +97,7 @@ export default function ShopSetupScreen() {
       <TouchableOpacity
         style={[
           styles.button,
+          { width: width - 60 },
           (!selectedRole || loading) && { opacity: 0.5 }
         ]}
         onPress={handleAction}
@@ -119,7 +119,7 @@ const styles = StyleSheet.create({
   header: { marginBottom: 40, alignItems: 'center' },
   title: { fontSize: 24, fontWeight: 'bold', color: '#333', marginBottom: 12 },
   subtitle: { fontSize: 15, color: '#666', textAlign: 'center', lineHeight: 22 },
-  button: { width: width - 60, height: 56, borderRadius: 28, backgroundColor: '#534AB7', alignItems: 'center', justifyContent: 'center', ...Shadow.md },
+  button: { height: 56, borderRadius: 28, backgroundColor: '#534AB7', alignItems: 'center', justifyContent: 'center', ...Shadow.md },
   buttonText: { color: '#FFF', fontSize: 18, fontWeight: 'bold' }
 });
 
