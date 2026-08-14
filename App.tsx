@@ -22,6 +22,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { adService } from './src/services/adService';
 import { analyticsService } from './src/services/analyticsService';
+import { initCrashReporting } from './src/services/crashReporting';
 import { AppContextProvider, useAppContext } from './src/context/AppContext';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { ShopProvider, useShop } from './src/context/ShopContext';
@@ -61,6 +62,8 @@ import ErrorBoundary from './src/components/ErrorBoundary';
 import CheckInSettingsScreen from './src/screens/CheckInSettingsScreen';
 import CheckInScreen from './src/screens/CheckInScreen';
 import CheckInHistoryScreen from './src/screens/CheckInHistoryScreen';
+
+initCrashReporting();
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();

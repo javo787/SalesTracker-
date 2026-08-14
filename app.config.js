@@ -88,6 +88,7 @@ module.exports = ({ config }) => ({
       "@react-native-firebase/app",
       "@react-native-firebase/analytics",
       "@react-native-firebase/messaging",
+      "@react-native-firebase/crashlytics",
       [
         "expo-build-properties",
         {

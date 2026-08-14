@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Updates from 'expo-updates';
+import crashlytics from '@react-native-firebase/crashlytics';
 
 interface Props {
   children: React.ReactNode;
@@ -40,9 +41,9 @@ export default class ErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    // TODO: как только в проект будет добавлен Sentry/аналог — отправлять
-    // сюда же. Пока хотя бы логируем, чтобы было видно в adb logcat.
     console.error('[ErrorBoundary] Необработанная ошибка рендера:', error, info.componentStack);
+    crashlytics().log(`ErrorBoundary: ${info.componentStack?.trim().split('\n')[0] ?? 'unknown component'}`);
+    crashlytics().recordError(error);
     this.props.onError?.();
   }
 
