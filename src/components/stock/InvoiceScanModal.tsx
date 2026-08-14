@@ -184,7 +184,7 @@ export default function InvoiceScanModal({ visible, onClose, onSaved }: Props) {
         setStage('failed');
       } else {
         setStage('review');
-        runMatching(itemsWithSellPrice);
+        await runMatching(itemsWithSellPrice);
       }
     } catch (e: any) {
       if (e.name === 'AbortError') return;
@@ -201,10 +201,10 @@ export default function InvoiceScanModal({ visible, onClose, onSaved }: Props) {
    * накладной - разумный дефолт для реально новых товаров: одна накладная
    * обычно = один поставщик = одна товарная группа.
    */
-  const runMatching = (scannedItems: InvoiceScanItem[]) => {
+  const runMatching = async (scannedItems: InvoiceScanItem[]) => {
     SmartMatchQuotaService.getRemainingToday(isPremium).then(setRemainingQuota);
 
-    const products = getProducts() as Product[];
+    const products = await getProducts() as Product[];
     productsByIdRef.current = new Map(products.map((p: Product) => [p.id, p]));
     catalogRef.current = products.map((p: Product): AutocompleteResult => ({
       id: String(p.id),
@@ -390,7 +390,7 @@ export default function InvoiceScanModal({ visible, onClose, onSaved }: Props) {
         sell_price: it.sell_price,
       }));
 
-      applyInvoiceScan(applyItems, buildInvoiceNote(), currentSellerId, currentSellerName);
+      await applyInvoiceScan(applyItems, buildInvoiceNote(), currentSellerId, currentSellerName);
       // Один push на всю накладную, не по одному на позицию - fire-and-forget,
       // как и в остальных местах приложения после мутаций склада.
       SyncService.push().catch(err => console.warn('[InvoiceScanModal] sync push failed', err));
@@ -404,7 +404,7 @@ export default function InvoiceScanModal({ visible, onClose, onSaved }: Props) {
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const missing = items.filter(it => it.matchedProductId === null && (it.sell_price === null || it.sell_price <= 0));
     if (missing.length > 0) {
       Alert.alert(
@@ -415,7 +415,7 @@ export default function InvoiceScanModal({ visible, onClose, onSaved }: Props) {
     }
 
     const totalValue = items.reduce((sum, it) => sum + it.quantity * it.unit_price, 0);
-    const dup = findPossibleDuplicateInvoiceScan(totalValue, items.length);
+    const dup = await findPossibleDuplicateInvoiceScan(totalValue, items.length);
     if (dup.isDuplicate) {
       Alert.alert(
         t('warehouse.invoiceScanDuplicateTitle'),

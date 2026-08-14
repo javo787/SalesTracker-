@@ -126,23 +126,23 @@ export default function ProductsScreen() {
 
   const lastLoadRef = useRef(0);
 
-  const loadProducts = useCallback((force: boolean = false) => {
+  const loadProducts = useCallback(async (force: boolean = false) => {
     const now = Date.now();
     if (!force && now - lastLoadRef.current < 15_000) {
       return;
     }
     lastLoadRef.current = now;
 
-    const allProds = getProducts() as any[];
+    const allProds = await getProducts() as any[];
     setProducts(allProds);
 
     // Load unregistered products
-    const unreg = getUnregisteredProductsFromHistory() as any[];
+    const unreg = await getUnregisteredProductsFromHistory() as any[];
     setUnregistered(unreg);
 
     // Load pending review sales
     if (canReviewTeamSales) {
-      setPendingSales(getPendingReviewSales());
+      setPendingSales(await getPendingReviewSales());
     }
 
     // Derive distinct categories from products to avoid extra SQL query
@@ -171,7 +171,7 @@ export default function ProductsScreen() {
     setTopCategories(sortedCatsByFrequency.slice(0, 4));
 
     if (sellerMode === 'wholesale') {
-      setDebtProductIdsList(getProductIdsWithDebts());
+      setDebtProductIdsList(await getProductIdsWithDebts());
     }
   }, [canReviewTeamSales, sellerMode]);
 
@@ -325,13 +325,13 @@ export default function ProductsScreen() {
   const onRefresh = async () => {
     setRefreshing(true);
     const start = Date.now();
-    loadProducts(true);
+    await loadProducts(true);
     const elapsed = Date.now() - start;
     if (elapsed < 300) await new Promise(r => setTimeout(r, 300 - elapsed));
     setRefreshing(false);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim() || (canSeeCosts && !buyPrice) || !sellPrice) {
       Alert.alert(t('common.error'), t('products.errorRequired'));
       return;
@@ -346,14 +346,14 @@ export default function ProductsScreen() {
     const cat = category.trim() || null;
 
     if (editingId) {
-      updateProduct(editingId, name.trim(), bPrice, sPrice, st, alert, baseUnit, hasPackages ? 1 : 0, packageName, uPerPkg, cat, isContinuous ? 1 : 0, article.trim() || null, color.trim() || null);
+      await updateProduct(editingId, name.trim(), bPrice, sPrice, st, alert, baseUnit, hasPackages ? 1 : 0, packageName, uPerPkg, cat, isContinuous ? 1 : 0, article.trim() || null, color.trim() || null);
       analyticsService.logEvent('product_updated', { product_id: editingId });
       // Эагерный пуш: товары раньше уходили на сервер только при сворачивании
       // приложения или попутно со следующей продажей — теперь так же, как
       // и продажи в AddSaleScreen, шлём сразу же (с debounce).
       SyncService.pushDebounced();
     } else {
-      const result = addProduct(name.trim(), bPrice, sPrice, st, alert, baseUnit, hasPackages ? 1 : 0, packageName, uPerPkg, cat, isContinuous ? 1 : 0, article.trim() || null, color.trim() || null);
+      const result = await addProduct(name.trim(), bPrice, sPrice, st, alert, baseUnit, hasPackages ? 1 : 0, packageName, uPerPkg, cat, isContinuous ? 1 : 0, article.trim() || null, color.trim() || null);
       analyticsService.logEvent('product_added', { product_id: result.lastInsertRowId });
       SyncService.pushDebounced();
 
@@ -388,7 +388,7 @@ export default function ProductsScreen() {
 
     resetForm();
     setShowForm(false);
-    loadProducts(true);
+    await loadProducts(true);
   };
 
   const resetForm = () => {
@@ -1078,11 +1078,11 @@ export default function ProductsScreen() {
               ]}>
                 <TouchableOpacity
                   style={styles.productMain}
-                  onPress={() => {
+                  onPress={async () => {
                     const newId = isExpanded ? null : p.id;
                     setExpandedProductId(newId);
                     if (newId && !productStats[newId]) {
-                      const stats = getProductSalesStats(p.id);
+                      const stats = await getProductSalesStats(p.id);
                       setProductStats(prev => ({ ...prev, [p.id]: stats }));
                     }
                   }}
@@ -1160,9 +1160,9 @@ export default function ProductsScreen() {
 
                       {(stats?.total_sold || 0) > 0 && (
                         <TouchableOpacity
-                          onPress={() => {
+                          onPress={async () => {
                             setHistoryProductName(p.name);
-                            setProductSalesHistory(getProductSalesHistory(p.id));
+                            setProductSalesHistory(await getProductSalesHistory(p.id));
                             setShowSalesHistory(true);
                           }}
                         >
@@ -1267,11 +1267,11 @@ export default function ProductsScreen() {
                     <View key={v.id} style={v.stock <= 0 ? { backgroundColor: isDark ? '#181818' : '#FAFAFA' } : undefined}>
                       <TouchableOpacity
                         style={[styles.productMain, { paddingVertical: 10 }]}
-                        onPress={() => {
+                        onPress={async () => {
                           const newId = isExpanded ? null : v.id;
                           setExpandedProductId(newId);
                           if (newId && !productStats[newId]) {
-                            const stats = getProductSalesStats(v.id);
+                            const stats = await getProductSalesStats(v.id);
                             setProductStats(prev => ({ ...prev, [v.id]: stats }));
                           }
                         }}
@@ -1341,9 +1341,9 @@ export default function ProductsScreen() {
 
                             {(stats?.total_sold || 0) > 0 && (
                               <TouchableOpacity
-                                onPress={() => {
+                                onPress={async () => {
                                   setHistoryProductName(v.name + (v.color ? ` · ${v.color}` : ''));
-                                  setProductSalesHistory(getProductSalesHistory(v.id));
+                                  setProductSalesHistory(await getProductSalesHistory(v.id));
                                   setShowSalesHistory(true);
                                 }}
                               >

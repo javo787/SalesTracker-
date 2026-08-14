@@ -2,8 +2,8 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { Keyboard } from 'react-native';
 
 export function useAutocomplete<T>(
-  fetchFn: (query: string) => T[],
-  fetchTop: () => T[],
+  fetchFn: (query: string) => Promise<T[]>,
+  fetchTop: () => Promise<T[]>,
   delay: number = 200,
 ) {
   const [results, setResults] = useState<T[]>([]);
@@ -26,27 +26,27 @@ export function useAutocomplete<T>(
     evict();
   };
 
-  const search = useCallback((query: string) => {
+  const search = useCallback(async (query: string) => {
     if (timer.current) clearTimeout(timer.current);
     const trimmed = query.trim();
 
     if (!trimmed) {
       const key = '__top__';
       if (cache.current[key]) { setResults(cache.current[key]); setIsOpen(true); return; }
-      const data = fetchTop();
+      const data = await fetchTop();
       setCached(key, data);
       setResults(data);
       setIsOpen(true);
       return;
     }
 
-    timer.current = setTimeout(() => {
+    timer.current = setTimeout(async () => {
       if (cache.current[trimmed]) {
         setResults(cache.current[trimmed]);
         setIsOpen(cache.current[trimmed].length > 0);
         return;
       }
-      const data = fetchFn(trimmed);
+      const data = await fetchFn(trimmed);
       setCached(trimmed, data);
       setResults(data);
       setIsOpen(data.length > 0);

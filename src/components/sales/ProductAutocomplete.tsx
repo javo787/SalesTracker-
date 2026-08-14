@@ -48,8 +48,8 @@ export const ProductAutocomplete = React.forwardRef<any, Props>(({
   const { t } = useTranslation();
   const { isOwner } = useShop();
 
-  const fetchFn = (q: string) => searchProductsForAutocomplete(q) as AutocompleteResult[];
-  const fetchTop = () => searchProductsForAutocomplete('') as AutocompleteResult[];
+  const fetchFn = async (q: string) => await searchProductsForAutocomplete(q) as AutocompleteResult[];
+  const fetchTop = async () => await searchProductsForAutocomplete('') as AutocompleteResult[];
   const { results, isOpen, search, onFocus, onBlur, select } =
     useAutocomplete<AutocompleteResult>(fetchFn, fetchTop, 200);
 

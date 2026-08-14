@@ -23,7 +23,7 @@ export async function getSmartTip(t: TFunction, currency: string): Promise<strin
 
 async function generateTip(t: TFunction, currency: string): Promise<string> {
   // a) STOCK ALERT
-  const products = getProducts() as any[];
+  const products = await getProducts() as any[];
   const lowStockProducts = products.filter(p => p.min_stock_alert > 0 && p.stock <= p.min_stock_alert);
   if (lowStockProducts.length > 0) {
     if (lowStockProducts.length === 1) {
@@ -34,8 +34,8 @@ async function generateTip(t: TFunction, currency: string): Promise<string> {
   }
 
   // b) TREND COMPARISON
-  const stats7 = getStats(7);
-  const stats1 = getStats(1); // Today
+  const stats7 = await getStats(7);
+  const stats1 = await getStats(1); // Today
 
   // Need to compute average of previous 6 days (excluding today)
   // Since getStats(7) includes today, we subtract today
@@ -62,7 +62,7 @@ async function generateTip(t: TFunction, currency: string): Promise<string> {
     // (см. nowLocalISO() в db/database.ts) — сравниваем срез строки напрямую,
     // без new Date(...).toISOString(), который переводит в UTC и на раннем
     // утре (00:00–04:59 локального времени) сдвигал дату на день назад.
-    const salesYesterday = getSalesByPeriod(2).filter(
+    const salesYesterday = (await getSalesByPeriod(2)).filter(
       (s: any) => s.created_at.slice(0, 10) === yesterdayStr
     );
 
@@ -80,7 +80,7 @@ async function generateTip(t: TFunction, currency: string): Promise<string> {
   }
 
   // c) MARGIN INSIGHT
-  const last7DaysSales = getSalesByPeriod(7) as any[];
+  const last7DaysSales = await getSalesByPeriod(7) as any[];
   if (last7DaysSales.length >= 2) {
     const productStats: Record<string, { qty: number, revenue: number, profit: number, name: string }> = {};
     last7DaysSales.forEach(s => {
@@ -112,7 +112,7 @@ async function generateTip(t: TFunction, currency: string): Promise<string> {
   }
 
   // d) CONSISTENCY STREAK
-  const last30DaysSales = getSalesByPeriod(30) as any[];
+  const last30DaysSales = await getSalesByPeriod(30) as any[];
   const saleDays = new Set(last30DaysSales.map(s => s.created_at.split(' ')[0]));
   let streak = 0;
   const tempDate = new Date();
@@ -126,7 +126,7 @@ async function generateTip(t: TFunction, currency: string): Promise<string> {
   }
 
   // e) EXPENSE RATIO
-  const exp7 = getExpenseStats(7);
+  const exp7 = await getExpenseStats(7);
   if (exp7.total > 0 && stats7.profit > 0) {
     const ratio = exp7.total / stats7.profit;
     if (ratio > 0.5) {

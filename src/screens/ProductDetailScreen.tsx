@@ -61,17 +61,17 @@ const ProductDetailScreen = () => {
 
   const themeStyles = isDark ? DarkTheme : LightTheme;
 
-  const loadData = useCallback(() => {
-    const s = getProductSalesStats(product.id);
+  const loadData = useCallback(async () => {
+    const s = await getProductSalesStats(product.id);
     setStats(s);
     // Increase limit to ensure accurate stats for at least 30 days
-    setSalesHistory(getProductSalesHistory(product.id, 500));
-    setStockMovements(getStockMovements(product.id, 100));
-    setChartData(getProductSalesByDay(product.id, 14));
+    setSalesHistory(await getProductSalesHistory(product.id, 500));
+    setStockMovements(await getStockMovements(product.id, 100));
+    setChartData(await getProductSalesByDay(product.id, 14));
 
     if (canSeeCosts) {
-      setDebts(getDebtsByProductId(product.id));
-      setExpenses(getProductExpenses(product.id));
+      setDebts(await getDebtsByProductId(product.id));
+      setExpenses(await getProductExpenses(product.id));
     }
   }, [product.id, canSeeCosts]);
 
@@ -105,9 +105,9 @@ const ProductDetailScreen = () => {
         {
           text: 'Удалить',
           style: 'destructive',
-          onPress: () => {
-            deleteSale(saleId);
-            loadData();
+          onPress: async () => {
+            await deleteSale(saleId);
+            await loadData();
           }
         }
       ]
@@ -735,11 +735,11 @@ const ProductDetailScreen = () => {
         product={product}
         initialType={opType}
         onClose={() => setOpModalVisible(false)}
-        onSuccess={() => {
+        onSuccess={async () => {
           setOpModalVisible(false);
-          loadData();
+          await loadData();
           // Update local product state for stock
-          const p = getProducts().find((item: any) => item.id === product.id);
+          const p = (await getProducts()).find((item: any) => item.id === product.id);
           if (p) setProduct(p);
         }}
       />

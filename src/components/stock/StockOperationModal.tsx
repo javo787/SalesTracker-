@@ -71,7 +71,7 @@ export default function StockOperationModal({
     }
   }, [visible, initialType, canManageStock]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!canManageStock && type !== 'stock_in') {
       Alert.alert(t('common.error'), t('sellers.ownerOnly') || 'Доступно только владельцу магазина');
       return;
@@ -89,7 +89,7 @@ export default function StockOperationModal({
         Alert.alert(t('common.error'), t('addSale.buyPrice'));
         return;
       }
-      addStockIn(product.id, qty, p, unitType, note, currentSellerId, currentSellerName);
+      await addStockIn(product.id, qty, p, unitType, note, currentSellerId, currentSellerName);
       SyncService.pushDebounced();
 
       if (role === 'seller') {
@@ -108,14 +108,14 @@ export default function StockOperationModal({
           t('warehouse.confirmWasteMsg', { qty, stock: product.stock }),
           [
             { text: t('common.cancel'), style: 'cancel' },
-            { text: t('common.continue'), onPress: () => saveWaste(qty) }
+            { text: t('common.continue'), onPress: async () => await saveWaste(qty) }
           ]
         );
         return;
       }
-      saveWaste(qty);
+      await saveWaste(qty);
     } else if (type === 'correction') {
-      addStockCorrection(product.id, qty, note);
+      await addStockCorrection(product.id, qty, note);
       SyncService.pushDebounced();
     }
 
@@ -123,8 +123,8 @@ export default function StockOperationModal({
     onClose();
   };
 
-  const saveWaste = (qty: number) => {
-    const result = addStockWaste(product.id, qty, note);
+  const saveWaste = async (qty: number) => {
+    const result = await addStockWaste(product.id, qty, note);
     if (!result.success) {
       Alert.alert('Ошибка', result.message || 'Недостаточно на складе');
       return;

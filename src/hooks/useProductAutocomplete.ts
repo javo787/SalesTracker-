@@ -16,12 +16,12 @@ export function useProductAutocomplete() {
     }
   };
 
-  const getTopProducts = useCallback(() => {
+  const getTopProducts = useCallback(async () => {
     if (cache.current['__top5__']) {
       setResults(cache.current['__top5__']);
       return;
     }
-    const data = searchProductsForAutocomplete('') as AutocompleteResult[];
+    const data = await searchProductsForAutocomplete('') as AutocompleteResult[];
     cache.current['__top5__'] = data;
     cacheKeys.current.push('__top5__');
     setResults(data);
@@ -37,13 +37,13 @@ export function useProductAutocomplete() {
       return;
     }
 
-    debounceTimer.current = setTimeout(() => {
+    debounceTimer.current = setTimeout(async () => {
       if (cache.current[query]) {
         setResults(cache.current[query]);
         return;
       }
 
-      const data = searchProductsForAutocomplete(query) as AutocompleteResult[];
+      const data = await searchProductsForAutocomplete(query) as AutocompleteResult[];
       cache.current[query] = data;
       cacheKeys.current.push(query);
       evictCache();

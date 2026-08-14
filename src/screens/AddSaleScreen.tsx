@@ -393,23 +393,25 @@ export default function AddSaleScreen(/* props */) {
       if (route.params?.prefillPrice) setSellPrice(String(route.params.prefillPrice));
       if (route.params?.prefillProductName) setProductName(String(route.params.prefillProductName));
       if (route.params?.prefillProductId) {
-        const products = getProducts() as any[];
-        const found = products.find(p => p.id === route.params.prefillProductId);
-        if (found) {
-          setSelectedProduct({
-            id: String(found.id),
-            name: found.name,
-            source: 'catalog',
-            purchasePrice: found.buy_price,
-            lastSalePrice: found.sell_price,
-            salesCount: 0,
-            lastSoldAt: null,
-            base_unit: found.base_unit,
-            has_packages: found.has_packages,
-            package_name: found.package_name,
-            units_per_package: found.units_per_package,
-          });
-        }
+        (async () => {
+          const products = await getProducts() as any[];
+          const found = products.find(p => p.id === route.params.prefillProductId);
+          if (found) {
+            setSelectedProduct({
+              id: String(found.id),
+              name: found.name,
+              source: 'catalog',
+              purchasePrice: found.buy_price,
+              lastSalePrice: found.sell_price,
+              salesCount: 0,
+              lastSoldAt: null,
+              base_unit: found.base_unit,
+              has_packages: found.has_packages,
+              package_name: found.package_name,
+              units_per_package: found.units_per_package,
+            });
+          }
+        })();
       }
 
       // Clear params to prevent them from reappearing on tab switch
@@ -498,8 +500,8 @@ export default function AddSaleScreen(/* props */) {
     }
   };
 
-  const handleBatchConfirm = (items: VoiceSaleItem[]) => {
-    const catalog = getProducts();
+  const handleBatchConfirm = async (items: VoiceSaleItem[]) => {
+    const catalog = await getProducts();
     const newCartItems: CartItem[] = items.map(it => {
       const match = matchProductByName(it.product_name, catalog as any);
       let linkedProduct = (match.confidence === 'exact' || match.confidence === 'fuzzy_confident')
@@ -614,9 +616,10 @@ export default function AddSaleScreen(/* props */) {
           isPendingReview: it.productId === null ? 1 : 0
         }));
 
-        const orderResult = addOrderWithItems(
+        const orderClientId = clientName.trim() ? await upsertClient(clientName.trim(), clientPhone.trim()) : null;
+        const orderResult = await addOrderWithItems(
           itemsWithPending,
-          clientName.trim() ? upsertClient(clientName.trim(), clientPhone.trim()) : null,
+          orderClientId,
           paymentType,
           parseFloat(paidAmount) || 0,
           toISODate(dueDate) || '',
@@ -631,7 +634,7 @@ export default function AddSaleScreen(/* props */) {
         const item = finalItems[0];
         const isPending = item.productId === null ? 1 : 0;
 
-        const saleResult = addSaleWithSeller(
+        const saleResult = await addSaleWithSeller(
           item.productId,
           item.productName,
           item.quantity,
@@ -648,11 +651,11 @@ export default function AddSaleScreen(/* props */) {
 
         // Single item debt logic
         if (paymentType !== 'full' && clientName.trim()) {
-          const resolvedClientId = upsertClient(clientName.trim(), clientPhone.trim());
+          const resolvedClientId = await upsertClient(clientName.trim(), clientPhone.trim());
           const paid = paymentType === 'partial' ? (parseFloat(paidAmount) || 0) : 0;
           const totalDebt = totalRevenue;
           const isoDueDate = toISODate(dueDate) || '';
-          const debtResult = addDebt(resolvedClientId, singleSaleId, totalDebt, paid, '', isoDueDate) as any;
+          const debtResult = await addDebt(resolvedClientId, singleSaleId, totalDebt, paid, '', isoDueDate) as any;
 
           if (isoDueDate && debtResult?.lastInsertRowId) {
             const notifId = await scheduleDebtReminder(

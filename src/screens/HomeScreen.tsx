@@ -169,19 +169,19 @@ export default function HomeScreen() {
   const lastLoadRef = useRef<number>(0);
   const lastTipRef = useRef<number>(0);
 
-  const loadData = useCallback(() => {
+  const loadData = useCallback(async () => {
     const userId = user?._id || 'guest';
-    const s = canSeeAllSales ? getStats(1) : getMyStats(userId, 1);
+    const s = canSeeAllSales ? await getStats(1) : await getMyStats(userId, 1);
     setStats(s);
-    const s7 = canSeeAllSales ? getStats(7) : getMyStats(userId, 7);
+    const s7 = canSeeAllSales ? await getStats(7) : await getMyStats(userId, 7);
     setStats7(s7);
-    const sales = canSeeAllSales ? getSalesToday() : getMySalesToday(userId);
+    const sales = canSeeAllSales ? await getSalesToday() : await getMySalesToday(userId);
     setTodaySales(sales);
     if (contextSellerMode === 'wholesale') {
-      setDebtSummary(getDebtSummary());
+      setDebtSummary(await getDebtSummary());
     }
     if (canSeeAllSales) {
-      setPendingReviewCount(getPendingReviewCount());
+      setPendingReviewCount(await getPendingReviewCount());
     }
   }, [user?._id, canSeeAllSales, contextSellerMode]);
 
@@ -220,9 +220,9 @@ export default function HomeScreen() {
         {
           text: t('common.delete'),
           style: 'destructive',
-          onPress: () => {
-            deleteSale(sale.id);
-            loadData();
+          onPress: async () => {
+            await deleteSale(sale.id);
+            await loadData();
           }
         }
       ]

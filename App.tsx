@@ -376,7 +376,7 @@ function AppContent({ onReady }: { onReady: () => void }) {
   useEffect(() => {
     const checkOverdue = async () => {
       try {
-        const overdue = getOverdueDebts() as any[];
+        const overdue = await getOverdueDebts() as any[];
         if (overdue.length > 0) {
           await notifyOverdueDebts(overdue, currency.symbol);
         }

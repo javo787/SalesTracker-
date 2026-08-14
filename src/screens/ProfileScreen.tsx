@@ -79,7 +79,7 @@ export default function ProfileScreen() {
         setStats(remoteStats);
       } else {
         // Local fallback
-        const local = getStats(3650);
+        const local = await getStats(3650);
         setStats({
           totalRevenue: local.revenue,
           totalProfit: local.profit,

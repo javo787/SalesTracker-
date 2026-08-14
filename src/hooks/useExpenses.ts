@@ -29,7 +29,7 @@ export function useExpenses() {
   }, [userId, sellerName]);
 
   const getExpenses = useCallback(async (days: number): Promise<Expense[]> => {
-    return dbGetExpenses(days) as Expense[];
+    return await dbGetExpenses(days) as Expense[];
   }, []);
 
   const deleteExpense = useCallback(async (id: number) => {
@@ -37,7 +37,7 @@ export function useExpenses() {
   }, []);
 
   const getTotals = useCallback(async (days: number): Promise<{ operational: number; inventory: number; total: number }> => {
-    return dbGetExpenseStats(days) as { operational: number; inventory: number; total: number };
+    return await dbGetExpenseStats(days) as { operational: number; inventory: number; total: number };
   }, []);
 
   return {

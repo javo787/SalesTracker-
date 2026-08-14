@@ -4,16 +4,17 @@ import { tokenAwareSimilarity } from '../utils/matching/textSimilarity';
 import { InvoiceScanApplyItem, InvoiceScanApplyResult } from '../types/invoiceScan';
 import { nowLocalISO, todayLocalDate, startOfDaysAgoLocalStr, endOfTodayLocalStr } from '../utils/dateRange';
 
-const db = SQLite.openDatabaseSync('savdo.db'); // Note: Database name remains 'savdo.db' to maintain data continuity.
+// Note: Database name remains 'savdo.db' to maintain data continuity.
+let db: SQLite.SQLiteDatabase;
 
 // ВАЖНО: при добавлении новой миграции schema_vN не забудьте увеличить это
 // значение — иначе для существующих пользователей она будет молча
 // пропущена fast path'ом ниже.
 const CURRENT_SCHEMA_VERSION = '10';
 
-function runMigrations() {
+async function runMigrations() {
   // app_meta должна существовать до любой проверки версии схемы.
-  db.execSync('CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT)');
+  await db.execAsync('CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT)');
 
   // Fast path: раньше на КАЖДОМ холодном старте выполнялось ~12
   // последовательных синхронных SELECT'ов (schema_v2..schema_v10 +
@@ -22,14 +23,14 @@ function runMigrations() {
   // Теперь в конце этой функции пишется общий флаг schema_version; если он
   // уже на актуальной версии — выходим одним SELECT'ом, не трогая
   // остальные ~460 строк (они остаются как есть, без изменений).
-  const versionRow = db.getFirstSync(
+  const versionRow = await db.getFirstAsync(
     "SELECT value FROM app_meta WHERE key = 'schema_version'"
   ) as { value: string } | null;
   if (versionRow?.value === CURRENT_SCHEMA_VERSION) {
     return;
   }
 
-  db.execSync(`
+  await db.execAsync(`
     CREATE TABLE IF NOT EXISTS products (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -135,17 +136,17 @@ function runMigrations() {
   `);
 
   // One-time schema migrations (skipped on subsequent launches)
-  db.execSync('CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT)');
+  await db.execAsync('CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT)');
 
-  const schemaMigrationDone = db.getFirstSync(
+  const schemaMigrationDone = await db.getFirstAsync(
     "SELECT value FROM app_meta WHERE key = 'schema_v2'"
   ) as { value: string } | null;
 
   if (!schemaMigrationDone) {
-    db.withTransactionSync(() => {
-      const tableInfo = db.getAllSync("PRAGMA table_info(products)") as any[];
-      const salesTableInfo = db.getAllSync("PRAGMA table_info(sales)") as any[];
-      const debtCols = db.getAllSync("PRAGMA table_info(debts)") as any[];
+    await db.withTransactionAsync(async () => {
+      const tableInfo = await db.getAllAsync("PRAGMA table_info(products)") as any[];
+      const salesTableInfo = await db.getAllAsync("PRAGMA table_info(sales)") as any[];
+      const debtCols = await db.getAllAsync("PRAGMA table_info(debts)") as any[];
 
       // products columns
       const productsCols = [
@@ -160,11 +161,11 @@ function runMigrations() {
         { name: 'category', type: 'TEXT' },
         { name: 'remote_id', type: 'TEXT' },
       ];
-      productsCols.forEach(col => {
+      for (const col of productsCols) {
         if (!tableInfo.some(c => c.name === col.name)) {
-          db.execSync(`ALTER TABLE products ADD COLUMN ${col.name} ${col.type}`);
+          await db.execAsync(`ALTER TABLE products ADD COLUMN ${col.name} ${col.type}`);
         }
-      });
+      }
 
       // sales columns
       const salesCols = [
@@ -174,28 +175,28 @@ function runMigrations() {
         { name: 'stock_warning', type: 'INTEGER DEFAULT 0' },
         { name: 'remote_id', type: 'TEXT' },
       ];
-      salesCols.forEach(col => {
+      for (const col of salesCols) {
         if (!salesTableInfo.some(c => c.name === col.name)) {
-          db.execSync(`ALTER TABLE sales ADD COLUMN ${col.name} ${col.type}`);
+          await db.execAsync(`ALTER TABLE sales ADD COLUMN ${col.name} ${col.type}`);
         }
-      });
+      }
 
       // debts columns
       if (!debtCols.some(c => c.name === 'notification_id')) {
-        db.runSync("ALTER TABLE debts ADD COLUMN notification_id TEXT");
+        await db.runAsync("ALTER TABLE debts ADD COLUMN notification_id TEXT");
       }
 
-      db.runSync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_v2', 'done')");
+      await db.runAsync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_v2', 'done')");
     });
   }
 
-  const schemaV3MigrationDone = db.getFirstSync(
+  const schemaV3MigrationDone = await db.getFirstAsync(
     "SELECT value FROM app_meta WHERE key = 'schema_v3'"
   ) as { value: string } | null;
 
   if (!schemaV3MigrationDone) {
-    db.withTransactionSync(() => {
-      db.execSync(`
+    await db.withTransactionAsync(async () => {
+      await db.execAsync(`
         CREATE TABLE IF NOT EXISTS orders (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           client_id INTEGER,
@@ -210,35 +211,35 @@ function runMigrations() {
         );
       `);
 
-      const productsTableInfo = db.getAllSync("PRAGMA table_info(products)") as any[];
-      const salesTableInfo = db.getAllSync("PRAGMA table_info(sales)") as any[];
-      const debtsTableInfo = db.getAllSync("PRAGMA table_info(debts)") as any[];
+      const productsTableInfo = await db.getAllAsync("PRAGMA table_info(products)") as any[];
+      const salesTableInfo = await db.getAllAsync("PRAGMA table_info(sales)") as any[];
+      const debtsTableInfo = await db.getAllAsync("PRAGMA table_info(debts)") as any[];
 
       if (!productsTableInfo.some(c => c.name === 'article')) {
-        db.execSync("ALTER TABLE products ADD COLUMN article TEXT");
+        await db.execAsync("ALTER TABLE products ADD COLUMN article TEXT");
       }
       if (!productsTableInfo.some(c => c.name === 'is_continuous')) {
-        db.execSync("ALTER TABLE products ADD COLUMN is_continuous INTEGER DEFAULT 0");
+        await db.execAsync("ALTER TABLE products ADD COLUMN is_continuous INTEGER DEFAULT 0");
       }
       if (!salesTableInfo.some(c => c.name === 'order_id')) {
-        db.execSync("ALTER TABLE sales ADD COLUMN order_id INTEGER");
+        await db.execAsync("ALTER TABLE sales ADD COLUMN order_id INTEGER");
       }
       if (!debtsTableInfo.some(c => c.name === 'order_id')) {
-        db.execSync("ALTER TABLE debts ADD COLUMN order_id INTEGER");
+        await db.execAsync("ALTER TABLE debts ADD COLUMN order_id INTEGER");
       }
 
-      db.runSync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_v3', 'done')");
+      await db.runAsync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_v3', 'done')");
     });
   }
 
-  const schemaV4MigrationDone = db.getFirstSync(
+  const schemaV4MigrationDone = await db.getFirstAsync(
     "SELECT value FROM app_meta WHERE key = 'schema_v4'"
   ) as { value: string } | null;
 
   if (!schemaV4MigrationDone) {
-    db.withTransactionSync(() => {
+    await db.withTransactionAsync(async () => {
       // Recreate sales table to make buy_price and profit nullable and add is_pending_review
-      db.execSync(`
+      await db.execAsync(`
         CREATE TABLE sales_new (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           product_id INTEGER,
@@ -269,74 +270,74 @@ function runMigrations() {
       ];
 
       // Check which columns actually exist in the current sales table
-      const tableInfo = db.getAllSync("PRAGMA table_info(sales)") as any[];
+      const tableInfo = await db.getAllAsync("PRAGMA table_info(sales)") as any[];
       const existingCols = columns.filter(c => tableInfo.some(ti => ti.name === c));
       const colsStr = existingCols.join(', ');
 
-      db.execSync(`INSERT INTO sales_new (${colsStr}) SELECT ${colsStr} FROM sales`);
-      db.execSync('DROP TABLE sales');
-      db.execSync('ALTER TABLE sales_new RENAME TO sales');
+      await db.execAsync(`INSERT INTO sales_new (${colsStr}) SELECT ${colsStr} FROM sales`);
+      await db.execAsync('DROP TABLE sales');
+      await db.execAsync('ALTER TABLE sales_new RENAME TO sales');
 
       // Recreate indexes
-      db.execSync('CREATE INDEX IF NOT EXISTS idx_sales_product_id ON sales(product_id)');
-      db.execSync('CREATE INDEX IF NOT EXISTS idx_sales_product_name ON sales(product_name)');
-      db.execSync('CREATE INDEX IF NOT EXISTS idx_sales_created_at ON sales(created_at)');
+      await db.execAsync('CREATE INDEX IF NOT EXISTS idx_sales_product_id ON sales(product_id)');
+      await db.execAsync('CREATE INDEX IF NOT EXISTS idx_sales_product_name ON sales(product_name)');
+      await db.execAsync('CREATE INDEX IF NOT EXISTS idx_sales_created_at ON sales(created_at)');
 
-      db.runSync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_v4', 'done')");
+      await db.runAsync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_v4', 'done')");
     });
   }
 
-  const schemaV5MigrationDone = db.getFirstSync(
+  const schemaV5MigrationDone = await db.getFirstAsync(
     "SELECT value FROM app_meta WHERE key = 'schema_v5'"
   ) as { value: string } | null;
 
   if (!schemaV5MigrationDone) {
-    db.withTransactionSync(() => {
-      const cols = db.getAllSync("PRAGMA table_info(products)") as any[];
+    await db.withTransactionAsync(async () => {
+      const cols = await db.getAllAsync("PRAGMA table_info(products)") as any[];
       if (!cols.some(c => c.name === 'color')) {
-        db.execSync("ALTER TABLE products ADD COLUMN color TEXT");
+        await db.execAsync("ALTER TABLE products ADD COLUMN color TEXT");
       }
       if (!cols.some(c => c.name === 'article')) {
-        db.execSync("ALTER TABLE products ADD COLUMN article TEXT");
+        await db.execAsync("ALTER TABLE products ADD COLUMN article TEXT");
       }
-      db.runSync(
+      await db.runAsync(
         "INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_v5', 'done')"
       );
     });
   }
 
-  const schemaV6MigrationDone = db.getFirstSync(
+  const schemaV6MigrationDone = await db.getFirstAsync(
     "SELECT value FROM app_meta WHERE key = 'schema_v6'"
   ) as { value: string } | null;
 
   if (!schemaV6MigrationDone) {
-    db.withTransactionSync(() => {
-      const cols = db.getAllSync("PRAGMA table_info(products)") as any[];
+    await db.withTransactionAsync(async () => {
+      const cols = await db.getAllAsync("PRAGMA table_info(products)") as any[];
       if (!cols.some(c => c.name === 'initial_stock')) {
-        db.execSync("ALTER TABLE products ADD COLUMN initial_stock REAL");
+        await db.execAsync("ALTER TABLE products ADD COLUMN initial_stock REAL");
       }
       if (!cols.some(c => c.name === 'initial_buy_price')) {
-        db.execSync("ALTER TABLE products ADD COLUMN initial_buy_price REAL");
+        await db.execAsync("ALTER TABLE products ADD COLUMN initial_buy_price REAL");
       }
       // Бэкфилл для уже существующих товаров: точной истории у нас нет,
       // поэтому фиксируем текущие значения как отправную точку — дальше они статичны.
-      db.execSync(`
+      await db.execAsync(`
         UPDATE products
         SET initial_stock = stock, initial_buy_price = buy_price
         WHERE initial_stock IS NULL
       `);
-      db.runSync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_v6', 'done')");
+      await db.runAsync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_v6', 'done')");
     });
   }
 
-  const schemaV7MigrationDone = db.getFirstSync(
+  const schemaV7MigrationDone = await db.getFirstAsync(
     "SELECT value FROM app_meta WHERE key = 'schema_v7'"
   ) as { value: string } | null;
 
   if (!schemaV7MigrationDone) {
-    db.withTransactionSync(() => {
+    await db.withTransactionAsync(async () => {
       // Recreate sales table to add synced column and make sure schema is clean
-      db.execSync(`
+      await db.execAsync(`
         CREATE TABLE sales_new (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           product_id INTEGER,
@@ -365,50 +366,50 @@ function runMigrations() {
         'stock_warning', 'remote_id', 'order_id', 'is_pending_review'
       ];
 
-      const tableInfo = db.getAllSync("PRAGMA table_info(sales)") as any[];
+      const tableInfo = await db.getAllAsync("PRAGMA table_info(sales)") as any[];
       const existingCols = columns.filter(c => tableInfo.some(ti => ti.name === c));
       const colsStr = existingCols.join(', ');
 
-      db.execSync(`INSERT INTO sales_new (${colsStr}) SELECT ${colsStr} FROM sales`);
-      db.execSync('DROP TABLE sales');
-      db.execSync('ALTER TABLE sales_new RENAME TO sales');
+      await db.execAsync(`INSERT INTO sales_new (${colsStr}) SELECT ${colsStr} FROM sales`);
+      await db.execAsync('DROP TABLE sales');
+      await db.execAsync('ALTER TABLE sales_new RENAME TO sales');
 
       // Recreate indexes
-      db.execSync('CREATE INDEX IF NOT EXISTS idx_sales_product_id ON sales(product_id)');
-      db.execSync('CREATE INDEX IF NOT EXISTS idx_sales_product_name ON sales(product_name)');
-      db.execSync('CREATE INDEX IF NOT EXISTS idx_sales_created_at ON sales(created_at)');
+      await db.execAsync('CREATE INDEX IF NOT EXISTS idx_sales_product_id ON sales(product_id)');
+      await db.execAsync('CREATE INDEX IF NOT EXISTS idx_sales_product_name ON sales(product_name)');
+      await db.execAsync('CREATE INDEX IF NOT EXISTS idx_sales_created_at ON sales(created_at)');
 
-      db.runSync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_v7', 'done')");
+      await db.runAsync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_v7', 'done')");
     });
   }
 
   {
-    const schemaV8MigrationDone = db.getFirstSync(
+    const schemaV8MigrationDone = await db.getFirstAsync(
       "SELECT value FROM app_meta WHERE key = 'schema_v8'"
     ) as { value: string } | null;
 
     if (!schemaV8MigrationDone) {
-      db.withTransactionSync(() => {
-        const movementCols = db.getAllSync("PRAGMA table_info(stock_movements)") as any[];
+      await db.withTransactionAsync(async () => {
+        const movementCols = await db.getAllAsync("PRAGMA table_info(stock_movements)") as any[];
         if (!movementCols.some(c => c.name === 'seller_id')) {
-          db.execSync("ALTER TABLE stock_movements ADD COLUMN seller_id TEXT");
+          await db.execAsync("ALTER TABLE stock_movements ADD COLUMN seller_id TEXT");
         }
         if (!movementCols.some(c => c.name === 'seller_name')) {
-          db.execSync("ALTER TABLE stock_movements ADD COLUMN seller_name TEXT");
+          await db.execAsync("ALTER TABLE stock_movements ADD COLUMN seller_name TEXT");
         }
-        db.runSync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_v8', 'done')");
+        await db.runAsync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_v8', 'done')");
       });
     }
   }
 
   {
-    const schemaV9MigrationDone = db.getFirstSync(
+    const schemaV9MigrationDone = await db.getFirstAsync(
       "SELECT value FROM app_meta WHERE key = 'schema_v9'"
     ) as { value: string } | null;
 
     if (!schemaV9MigrationDone) {
-      db.withTransactionSync(() => {
-        db.execSync(`
+      await db.withTransactionAsync(async () => {
+        await db.execAsync(`
           CREATE TABLE IF NOT EXISTS shift_checkins (
             local_date TEXT PRIMARY KEY,
             method TEXT NOT NULL,
@@ -422,42 +423,42 @@ function runMigrations() {
             server_error TEXT
           );
         `);
-        db.runSync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_v9', 'done')");
+        await db.runAsync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_v9', 'done')");
       });
     }
   }
 
-  const schemaV10MigrationDone = db.getFirstSync(
+  const schemaV10MigrationDone = await db.getFirstAsync(
     "SELECT value FROM app_meta WHERE key = 'schema_v10'"
   ) as { value: string } | null;
 
   if (!schemaV10MigrationDone) {
-    db.withTransactionSync(() => {
-      const expensesTableInfo = db.getAllSync("PRAGMA table_info(expenses)") as any[];
+    await db.withTransactionAsync(async () => {
+      const expensesTableInfo = await db.getAllAsync("PRAGMA table_info(expenses)") as any[];
       if (!expensesTableInfo.some(c => c.name === 'seller_id')) {
-        db.execSync("ALTER TABLE expenses ADD COLUMN seller_id TEXT");
+        await db.execAsync("ALTER TABLE expenses ADD COLUMN seller_id TEXT");
       }
       if (!expensesTableInfo.some(c => c.name === 'seller_name')) {
-        db.execSync("ALTER TABLE expenses ADD COLUMN seller_name TEXT");
+        await db.execAsync("ALTER TABLE expenses ADD COLUMN seller_name TEXT");
       }
       if (!expensesTableInfo.some(c => c.name === 'remote_id')) {
-        db.execSync("ALTER TABLE expenses ADD COLUMN remote_id TEXT");
+        await db.execAsync("ALTER TABLE expenses ADD COLUMN remote_id TEXT");
       }
       if (!expensesTableInfo.some(c => c.name === 'synced')) {
-        db.execSync("ALTER TABLE expenses ADD COLUMN synced INTEGER DEFAULT 0");
+        await db.execAsync("ALTER TABLE expenses ADD COLUMN synced INTEGER DEFAULT 0");
       }
       // Бэкфилл: существующие локальные расходы владельца считаем его собственными
-      db.execSync(`
+      await db.execAsync(`
   CREATE INDEX IF NOT EXISTS idx_sales_seller_id ON sales(seller_id);
   CREATE INDEX IF NOT EXISTS idx_sales_remote_id ON sales(remote_id);
   CREATE INDEX IF NOT EXISTS idx_expenses_remote_id ON expenses(remote_id);
 `);
-      db.runSync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_v10', 'done')");
+      await db.runAsync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_v10', 'done')");
     });
   }
 
   // Migration: shop_session table
-  db.execSync(`
+  await db.execAsync(`
     CREATE TABLE IF NOT EXISTS shop_session (
       key TEXT PRIMARY KEY,
       value TEXT
@@ -465,12 +466,12 @@ function runMigrations() {
   `);
 
   // Migration: timezone shift + one-time migration check
-  const migrationDone = db.getFirstSync("SELECT value FROM app_meta WHERE key = 'tz_migration_v1'") as { value: string } | null;
+  const migrationDone = await db.getFirstAsync("SELECT value FROM app_meta WHERE key = 'tz_migration_v1'") as { value: string } | null;
 
   if (!migrationDone) {
-    db.withTransactionSync(() => {
+    await db.withTransactionAsync(async () => {
       const tables = ['products', 'sales', 'expenses', 'stock_movements'];
-      tables.forEach(table => {
+      for (const table of tables) {
         // Shift existing UTC timestamps by +5 hours.
         // We assume any record created WITHOUT a space in its string (e.g. '2023-01-01T12:00:00Z'
         // or just a date '2023-01-01' without HH:MM:SS) might be from the old system
@@ -480,9 +481,9 @@ function runMigrations() {
         // Since we marked the migration with 'tz_migration_v1', and this runs in initDatabase
         // before any new records can be inserted by the updated UI code,
         // we can safely update all existing records.
-        db.execSync(`UPDATE ${table} SET created_at = datetime(created_at, '+5 hours') WHERE created_at IS NOT NULL`);
-      });
-      db.runSync("INSERT INTO app_meta (key, value) VALUES ('tz_migration_v1', 'done')");
+        await db.execAsync(`UPDATE ${table} SET created_at = datetime(created_at, '+5 hours') WHERE created_at IS NOT NULL`);
+      }
+      await db.runAsync("INSERT INTO app_meta (key, value) VALUES ('tz_migration_v1', 'done')");
     });
   }
 
@@ -490,48 +491,69 @@ function runMigrations() {
   // продаж/расходов по глобальному ID сервера — без индекса это full scan на
   // каждую строку. Колонка гарантированно существует к этому моменту (schema_v2
   // для sales, schema_v10 для expenses), поэтому индекс создаём безусловно.
-  db.execSync(`
+  await db.execAsync(`
     CREATE INDEX IF NOT EXISTS idx_sales_remote_id ON sales(remote_id);
     CREATE INDEX IF NOT EXISTS idx_expenses_remote_id ON expenses(remote_id);
   `);
 
-  db.runSync(
+  await db.runAsync(
     "INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_version', ?)",
     [CURRENT_SCHEMA_VERSION]
   );
 }
 
-// Схема и миграции выполняются синхронно прямо при загрузке этого модуля —
-// то есть до того, как React успеет смонтировать хотя бы один компонент.
-// Это критично: контексты (ShopContext, и т.п.) читают из БД в своих
-// собственных useEffect при монтировании, а эффекты дочерних компонентов
-// в React срабатывают раньше, чем эффект родителя (App), который вызывал
-// initDatabase() из useEffect. На первом холодном запуске после установки
-// таблицы могли ещё не существовать в момент такого раннего чтения —
-// "no such table: shop_session" и подобные ошибки. Выполняя миграции здесь,
-// на этапе импорта модуля, мы гарантируем, что таблицы уже существуют
-// до того, как какой-либо код (включая контексты) успеет их прочитать,
-// независимо от порядка срабатывания React-эффектов.
+// БД открывается асинхронно сразу при загрузке этого модуля (не дожидаясь
+// вызова initDatabase()) — то есть запуск стартует до того, как React
+// успеет смонтировать хотя бы один компонент. Это по-прежнему важно:
+// контексты (ShopContext и т.п.) читают из БД в своих собственных useEffect
+// при монтировании, а эффекты дочерних компонентов в React срабатывают
+// раньше, чем эффект родителя (App), который вызывает initDatabase() из
+// useEffect. Раньше это решалось тем, что миграции были синхронными и
+// гарантированно завершались к концу загрузки модуля. Теперь открытие
+// и миграции асинхронны, поэтому гарантия обеспечивается явно: КАЖДАЯ
+// экспортируемая функция ниже начинается с `await dbReadyPromise` —
+// независимо от порядка срабатывания React-эффектов, любой вызов подождёт
+// реального завершения открытия БД, WAL-pragma и миграций, прежде чем
+// прочитать хоть одну таблицу.
 let moduleInitError: Error | null = null;
-try {
-  runMigrations();
-} catch (e) {
-  moduleInitError = e instanceof Error ? e : new Error(String(e));
-  console.error('[database] Migration failed on module load:', e);
-}
+
+const dbReadyPromise: Promise<void> = (async () => {
+  try {
+    db = await SQLite.openDatabaseAsync('savdo.db');
+    // WAL: читатели (списки, отчёты) больше не блокируют писателя
+    // (продажа, синк) и наоборот — устраняет самый частый источник
+    // подвисания UI при конкурентном доступе к БД.
+    // synchronous=NORMAL — официально рекомендуемая пара к WAL
+    // (см. sqlite.org/pragma.html): в WAL-режиме это по-прежнему
+    // защищено от повреждения БД при обычном крэше приложения,
+    // единственный риск — потеря последних несброшенных транзакций
+    // при потере питания устройства, что для этого кейса приемлемо.
+    // busy_timeout — вместо мгновенной ошибки "database is locked"
+    // при редкой коллизии читатель/писатель ждём и повторяем попытку.
+    await db.execAsync('PRAGMA journal_mode = WAL;');
+    await db.execAsync('PRAGMA synchronous = NORMAL;');
+    await db.execAsync('PRAGMA busy_timeout = 5000;');
+    await runMigrations();
+  } catch (e) {
+    moduleInitError = e instanceof Error ? e : new Error(String(e));
+    console.error('[database] Migration failed on module load:', e);
+  }
+})();
 
 // Сохраняем публичную функцию initDatabase() для обратной совместимости:
 // App.tsx вызывает её в useEffect и по результату решает, показывать ли
-// экран ошибки БД (dbError). Миграции уже выполнены выше, здесь только
-// пробрасываем сохранённую ошибку, если она была.
-export function initDatabase() {
+// экран ошибки БД (dbError). Теперь она асинхронная и должна вызываться
+// с await — сама дожидается dbReadyPromise и пробрасывает сохранённую
+// ошибку, если она была.
+export async function initDatabase() {
+  await dbReadyPromise;
   if (moduleInitError) {
     throw moduleInitError;
   }
 }
 
 // Товары
-export function addProduct(
+export async function addProduct(
   name: string,
   buyPrice: number,
   sellPrice: number,
@@ -546,9 +568,10 @@ export function addProduct(
   article: string | null = null,
   color: string | null = null
 ) {
+  await dbReadyPromise;
   try {
     const now = nowLocalISO();
-    const result = db.runSync(
+    const result = await db.runAsync(
       `INSERT INTO products (
         name, buy_price, sell_price, stock, min_stock_alert,
         base_unit, has_packages, package_name, units_per_package,
@@ -584,7 +607,8 @@ export type ProductEditDiffEntry = { field: string; old: any; new: any };
 // Пишет запись в stock_movements (type='edit') с структурированным описанием
 // изменений — если поля товара реально изменились. Не должна ломать основное
 // обновление товара при любой внутренней ошибке.
-function logProductEditHistory(before: any, after: Record<string, any>) {
+async function logProductEditHistory(before: any, after: Record<string, any>) {
+  await dbReadyPromise;
   try {
     const diff: ProductEditDiffEntry[] = [];
     for (const field of EDIT_TRACKED_FIELDS) {
@@ -605,7 +629,7 @@ function logProductEditHistory(before: any, after: Record<string, any>) {
 
     const movementId = typeof crypto !== 'undefined' && (crypto as any).randomUUID ? (crypto as any).randomUUID() : Math.random().toString(36).substring(2, 15);
 
-    db.runSync(
+    await db.runAsync(
       'INSERT INTO stock_movements (id, product_id, type, quantity_change, price_per_unit, note, created_at, synced) VALUES (?, ?, ?, ?, ?, ?, ?, 0)',
       [movementId, before.id, 'edit', quantityChange, null, JSON.stringify(diff), nowLocalISO()]
     );
@@ -614,7 +638,7 @@ function logProductEditHistory(before: any, after: Record<string, any>) {
   }
 }
 
-export function updateProduct(
+export async function updateProduct(
   id: number,
   name: string,
   buyPrice: number,
@@ -630,10 +654,11 @@ export function updateProduct(
   article: string | null = null,
   color: string | null = null
 ) {
+  await dbReadyPromise;
   try {
-    const before = db.getFirstSync('SELECT * FROM products WHERE id = ?', [id]) as any;
+    const before = await db.getFirstAsync('SELECT * FROM products WHERE id = ?', [id]) as any;
 
-    const result = db.runSync(
+    const result = await db.runAsync(
       `UPDATE products SET
         name = ?, buy_price = ?, sell_price = ?, stock = ?, min_stock_alert = ?,
         base_unit = ?, has_packages = ?, package_name = ?, units_per_package = ?,
@@ -662,64 +687,74 @@ export function updateProduct(
   }
 }
 
-export function deleteProduct(id: number) {
+export async function deleteProduct(id: number) {
+  await dbReadyPromise;
   // Soft delete for sync compatibility
-  return db.runSync('UPDATE products SET is_deleted = 1, synced = 0, updated_at = ? WHERE id = ?', [nowLocalISO(), id]);
+  return await db.runAsync('UPDATE products SET is_deleted = 1, synced = 0, updated_at = ? WHERE id = ?', [nowLocalISO(), id]);
 }
 
-export function convertAllAmounts(rate: number) {
-  db.withTransactionSync(() => {
-    db.runSync('UPDATE products SET buy_price = ROUND(buy_price * ?, 2), sell_price = ROUND(sell_price * ?, 2)', [rate, rate]);
-    db.runSync('UPDATE sales SET sell_price = ROUND(sell_price * ?, 2), buy_price = ROUND(buy_price * ?, 2), profit = ROUND(profit * ?, 2)', [rate, rate, rate]);
-    db.runSync('UPDATE expenses SET amount = ROUND(amount * ?, 2)', [rate]);
+export async function convertAllAmounts(rate: number) {
+  await dbReadyPromise;
+  await db.withTransactionAsync(async () => {
+    await db.runAsync('UPDATE products SET buy_price = ROUND(buy_price * ?, 2), sell_price = ROUND(sell_price * ?, 2)', [rate, rate]);
+    await db.runAsync('UPDATE sales SET sell_price = ROUND(sell_price * ?, 2), buy_price = ROUND(buy_price * ?, 2), profit = ROUND(profit * ?, 2)', [rate, rate, rate]);
+    await db.runAsync('UPDATE expenses SET amount = ROUND(amount * ?, 2)', [rate]);
   });
 }
 
-export function clearAllData() {
-  db.withTransactionSync(() => {
-    db.runSync('DELETE FROM debt_payments');
-    db.runSync('DELETE FROM debts');
-    db.runSync('DELETE FROM clients');
-    db.runSync('DELETE FROM stock_movements');
-    db.runSync('DELETE FROM sales');
-    db.runSync('DELETE FROM expenses');
-    db.runSync('DELETE FROM products');
+export async function clearAllData() {
+  await dbReadyPromise;
+  await db.withTransactionAsync(async () => {
+    await db.runAsync('DELETE FROM debt_payments');
+    await db.runAsync('DELETE FROM debts');
+    await db.runAsync('DELETE FROM clients');
+    await db.runAsync('DELETE FROM stock_movements');
+    await db.runAsync('DELETE FROM sales');
+    await db.runAsync('DELETE FROM expenses');
+    await db.runAsync('DELETE FROM products');
     try {
-      db.runSync("DELETE FROM sqlite_sequence WHERE name IN ('products','sales','expenses','clients','debts','debt_payments','stock_movements')");
+      await db.runAsync("DELETE FROM sqlite_sequence WHERE name IN ('products','sales','expenses','clients','debts','debt_payments','stock_movements')");
     } catch (e) {
       // sqlite_sequence may not exist yet; ignore
     }
   });
 }
 
-export function getProducts() {
-  return db.getAllSync('SELECT * FROM products WHERE is_deleted = 0 ORDER BY name ASC');
+export async function getProducts() {
+  await dbReadyPromise;
+  return await db.getAllAsync('SELECT * FROM products WHERE is_deleted = 0 ORDER BY name ASC');
 }
 
-export function getUnsyncedSales() {
-  return db.getAllSync('SELECT * FROM sales WHERE synced = 0 ORDER BY created_at ASC');
+export async function getUnsyncedSales() {
+  await dbReadyPromise;
+  return await db.getAllAsync('SELECT * FROM sales WHERE synced = 0 ORDER BY created_at ASC');
 }
 
-export function getUnsyncedExpenses() {
-  return db.getAllSync('SELECT * FROM expenses WHERE synced = 0 ORDER BY created_at ASC');
+export async function getUnsyncedExpenses() {
+  await dbReadyPromise;
+  return await db.getAllAsync('SELECT * FROM expenses WHERE synced = 0 ORDER BY created_at ASC');
 }
 
-export function getAllProductsForSync() {
-  return db.getAllSync('SELECT * FROM products ORDER BY name ASC');
+export async function getAllProductsForSync() {
+  await dbReadyPromise;
+  return await db.getAllAsync('SELECT * FROM products ORDER BY name ASC');
 }
 
-export function getProductsForSync() {
+export async function getProductsForSync() {
+  await dbReadyPromise;
   // Returns unsynced products including soft-deleted ones, for sync purposes
-  return db.getAllSync('SELECT * FROM products WHERE synced = 0 ORDER BY name ASC');
+  return await db.getAllAsync('SELECT * FROM products WHERE synced = 0 ORDER BY name ASC');
 }
 
-export function getDistinctCategories(): string[] {
-  const rows = db.getAllSync('SELECT DISTINCT category FROM products WHERE category IS NOT NULL AND is_deleted = 0 ORDER BY category ASC') as { category: string }[];
+export async function getDistinctCategories():Promise< string[] >{
+  await dbReadyPromise;
+  const rows = await db.getAllAsync('SELECT DISTINCT category FROM products WHERE category IS NOT NULL AND is_deleted = 0 ORDER BY category ASC') as { category: string }[];
   return rows.map(r => r.category);
 }
 
-export function getProductIdsWithDebts(): number[] {
-  const rows = db.getAllSync(`
+export async function getProductIdsWithDebts():Promise< number[] >{
+  await dbReadyPromise;
+  const rows = await db.getAllAsync(`
     SELECT DISTINCT s.product_id
     FROM sales s
     JOIN debts d ON d.sale_id = s.id
@@ -741,7 +776,7 @@ export function calcWeightedPrice(oldStock: number, oldPrice: number, incomingQt
 // без счётчика вложенности) - вызов addStockIn() изнутри другой транзакции
 // упал бы на второй попытке BEGIN. Обычный addStockIn() продолжает
 // оборачивать это сам, ничего не меняется для существующих вызовов.
-function _addStockInWrites(
+async function _addStockInWrites(
   productId: number,
   qtyBase: number,
   pricePerUnitBase: number,
@@ -749,21 +784,22 @@ function _addStockInWrites(
   note: string,
   sellerId: string | null,
   sellerName: string | null
-): void {
+):Promise< void >{
+  await dbReadyPromise;
   const movementId = typeof crypto !== 'undefined' && (crypto as any).randomUUID ? (crypto as any).randomUUID() : Math.random().toString(36).substring(2, 15);
   const now = nowLocalISO();
-  db.runSync(
+  await db.runAsync(
     'UPDATE products SET stock = stock + ?, buy_price = ?, updated_at = ?, synced = 0 WHERE id = ?',
     [qtyBase, newBuyPrice, now, productId]
   );
-  db.runSync(
+  await db.runAsync(
     'INSERT INTO stock_movements (id, product_id, type, quantity_change, price_per_unit, note, created_at, synced, seller_id, seller_name) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)',
     [movementId, productId, 'stock_in', qtyBase, pricePerUnitBase, note, now, sellerId, sellerName]
   );
 }
 
 // Приёмка товара
-export function addStockIn(
+export async function addStockIn(
   productId: number,
   quantity: number,        // в единицах, указанных unitType
   pricePerUnit: number,    // цена за единицу, указанную unitType
@@ -771,8 +807,9 @@ export function addStockIn(
   note: string = '',
   sellerId: string | null = null,
   sellerName: string | null = null
-): void {
-  const product = db.getFirstSync('SELECT stock, buy_price, units_per_package FROM products WHERE id = ?', [productId]) as any;
+):Promise< void >{
+  await dbReadyPromise;
+  const product = await db.getFirstAsync('SELECT stock, buy_price, units_per_package FROM products WHERE id = ?', [productId]) as any;
   if (!product) return;
 
   let qtyBase = quantity;
@@ -785,18 +822,19 @@ export function addStockIn(
 
   const newBuyPrice = calcWeightedPrice(product.stock, product.buy_price, qtyBase, pricePerUnitBase);
 
-  db.withTransactionSync(() => {
-    _addStockInWrites(productId, qtyBase, pricePerUnitBase, newBuyPrice, note, sellerId, sellerName);
+  await db.withTransactionAsync(async () => {
+    await _addStockInWrites(productId, qtyBase, pricePerUnitBase, newBuyPrice, note, sellerId, sellerName);
   });
 }
 
 // Списание брака/порчи
-export function addStockWaste(
+export async function addStockWaste(
   productId: number,
   quantity: number,
   note: string = ''
-): { success: boolean; currentStock?: number; message?: string } {
-  const product = db.getFirstSync('SELECT name, stock, min_stock_alert FROM products WHERE id = ?', [productId]) as any;
+):Promise< { success: boolean; currentStock?: number; message?: string } >{
+  await dbReadyPromise;
+  const product = await db.getFirstAsync('SELECT name, stock, min_stock_alert FROM products WHERE id = ?', [productId]) as any;
   if (!product) return { success: false, message: 'Product not found' };
 
   if (quantity > product.stock) {
@@ -810,12 +848,12 @@ export function addStockWaste(
   const movementId = typeof crypto !== 'undefined' && (crypto as any).randomUUID ? (crypto as any).randomUUID() : Math.random().toString(36).substring(2, 15);
   const now = nowLocalISO();
 
-  db.withTransactionSync(() => {
-    db.runSync(
+  await db.withTransactionAsync(async () => {
+    await db.runAsync(
       'UPDATE products SET stock = stock - ?, updated_at = ?, synced = 0 WHERE id = ?',
       [quantity, now, productId]
     );
-    db.runSync(
+    await db.runAsync(
       'INSERT INTO stock_movements (id, product_id, type, quantity_change, price_per_unit, note, created_at, synced) VALUES (?, ?, ?, ?, ?, ?, ?, 0)',
       [movementId, productId, 'waste', -quantity, null, note, now]
     );
@@ -829,24 +867,25 @@ export function addStockWaste(
 }
 
 // Инвентаризация (сверка с фактом)
-export function addStockCorrection(
+export async function addStockCorrection(
   productId: number,
   actualStock: number,
   note: string = ''
-): void {
-  const product = db.getFirstSync('SELECT stock FROM products WHERE id = ?', [productId]) as any;
+):Promise< void >{
+  await dbReadyPromise;
+  const product = await db.getFirstAsync('SELECT stock FROM products WHERE id = ?', [productId]) as any;
   if (!product) return;
 
   const delta = actualStock - product.stock;
   const movementId = typeof crypto !== 'undefined' && (crypto as any).randomUUID ? (crypto as any).randomUUID() : Math.random().toString(36).substring(2, 15);
   const now = nowLocalISO();
 
-  db.withTransactionSync(() => {
-    db.runSync(
+  await db.withTransactionAsync(async () => {
+    await db.runAsync(
       'UPDATE products SET stock = ?, updated_at = ?, synced = 0 WHERE id = ?',
       [actualStock, now, productId]
     );
-    db.runSync(
+    await db.runAsync(
       'INSERT INTO stock_movements (id, product_id, type, quantity_change, price_per_unit, note, created_at, synced) VALUES (?, ?, ?, ?, ?, ?, ?, 0)',
       [movementId, productId, 'correction', delta, null, note, now]
     );
@@ -863,12 +902,13 @@ export function addStockCorrection(
  * Валидация - до открытия транзакции, чтобы не открывать то, что всё равно
  * придётся откатывать, и чтобы дать понятную ошибку сразу.
  */
-export function applyInvoiceScan(
+export async function applyInvoiceScan(
   items: InvoiceScanApplyItem[],
   note: string,
   sellerId: string | null = null,
   sellerName: string | null = null
-): InvoiceScanApplyResult {
+):Promise< InvoiceScanApplyResult >{
+  await dbReadyPromise;
   for (const item of items) {
     if (item.quantity <= 0) {
       throw new Error(`Некорректное количество для «${item.product_name}»`);
@@ -881,10 +921,10 @@ export function applyInvoiceScan(
   const newProductIds: number[] = [];
   const updatedProductIds: number[] = [];
 
-  db.withTransactionSync(() => {
+  await db.withTransactionAsync(async () => {
     for (const item of items) {
       if (item.matchedProductId !== null) {
-        const product = db.getFirstSync(
+        const product = await db.getFirstAsync(
           'SELECT stock, buy_price FROM products WHERE id = ? AND is_deleted = 0',
           [item.matchedProductId]
         ) as any;
@@ -894,10 +934,10 @@ export function applyInvoiceScan(
         if (!product) continue;
 
         const newBuyPrice = calcWeightedPrice(product.stock, product.buy_price, item.quantity, item.unit_price);
-        _addStockInWrites(item.matchedProductId, item.quantity, item.unit_price, newBuyPrice, note, sellerId, sellerName);
+        await _addStockInWrites(item.matchedProductId, item.quantity, item.unit_price, newBuyPrice, note, sellerId, sellerName);
         updatedProductIds.push(item.matchedProductId);
       } else {
-        const inserted = addProduct(
+        const inserted = await addProduct(
           [item.product_name, item.variant].filter(Boolean).join(' '),
           item.unit_price,
           item.sell_price as number,
@@ -921,15 +961,16 @@ export function applyInvoiceScan(
 // схожей суммой и схожим числом позиций. НЕ блокирует сохранение - только
 // повод спросить пользователя "точно ещё раз?", т.к. это эвристика, а не
 // точное сравнение содержимого.
-export function findPossibleDuplicateInvoiceScan(
+export async function findPossibleDuplicateInvoiceScan(
   totalValue: number,
   itemCount: number,
   withinHours: number = 6
-): { isDuplicate: boolean; scannedAt?: string } {
+):Promise< { isDuplicate: boolean; scannedAt?: string } >{
+  await dbReadyPromise;
   const cutoffMs = Date.now() - withinHours * 3600 * 1000;
   const cutoff = new Date(cutoffMs).toISOString().slice(0, 19).replace('T', ' ');
 
-  const rows = db.getAllSync(
+  const rows = await db.getAllAsync(
     `SELECT quantity_change, price_per_unit, created_at FROM stock_movements
      WHERE type = 'stock_in' AND note LIKE '📷 накладная%' AND created_at >= ?`,
     [cutoff]
@@ -957,22 +998,25 @@ export function findPossibleDuplicateInvoiceScan(
 }
 
 // История движений товара
-export function getStockMovements(productId: number, limit: number = 20) {
-  return db.getAllSync(
+export async function getStockMovements(productId: number, limit: number = 20) {
+  await dbReadyPromise;
+  return await db.getAllAsync(
     'SELECT * FROM stock_movements WHERE product_id = ? ORDER BY created_at DESC LIMIT ?',
     [productId, limit]
   );
 }
 
-export function getUnsyncedStockMovements() {
-  return db.getAllSync('SELECT * FROM stock_movements WHERE synced = 0');
+export async function getUnsyncedStockMovements() {
+  await dbReadyPromise;
+  return await db.getAllAsync('SELECT * FROM stock_movements WHERE synced = 0');
 }
 
-export function markStockMovementsSynced(ids: string[]) {
+export async function markStockMovementsSynced(ids: string[]) {
+  await dbReadyPromise;
   if (ids.length === 0) return;
-  db.withTransactionSync(() => {
+  await db.withTransactionAsync(async () => {
     for (const id of ids) {
-      db.runSync('UPDATE stock_movements SET synced = 1 WHERE id = ?', [id]);
+      await db.runAsync('UPDATE stock_movements SET synced = 1 WHERE id = ?', [id]);
     }
   });
 }
@@ -981,11 +1025,12 @@ export function markStockMovementsSynced(ids: string[]) {
 // id — тот же UUID, что был сгенерирован на устройстве-авторе, поэтому
 // INSERT OR IGNORE корректно пропускает строку на самом устройстве-авторе
 // (она там уже есть) и вставляет её как новую на всех остальных.
-export function insertStockMovementsFromSync(movements: any[]) {
+export async function insertStockMovementsFromSync(movements: any[]) {
+  await dbReadyPromise;
   if (movements.length === 0) return;
-  db.withTransactionSync(() => {
+  await db.withTransactionAsync(async () => {
     for (const m of movements) {
-      db.runSync(
+      await db.runAsync(
         `INSERT OR IGNORE INTO stock_movements
           (id, product_id, type, quantity_change, price_per_unit, note, created_at, synced, seller_id, seller_name)
          VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
@@ -998,31 +1043,34 @@ export function insertStockMovementsFromSync(movements: any[]) {
   });
 }
 
-export function getLastPurchaseInfo(productId: number): { price_per_unit: number; created_at: string } | null {
-  return db.getFirstSync(
+export async function getLastPurchaseInfo(productId: number):Promise< { price_per_unit: number; created_at: string } | null >{
+  await dbReadyPromise;
+  return await db.getFirstAsync(
     "SELECT price_per_unit, created_at FROM stock_movements WHERE product_id = ? AND type = 'stock_in' ORDER BY created_at DESC LIMIT 1",
     [productId]
   ) as { price_per_unit: number; created_at: string } | null;
 }
 
-export function updateStock(productId: number, quantity: number) {
-  db.runSync('UPDATE products SET stock = stock - ? WHERE id = ?', [quantity, productId]);
-  const p = db.getFirstSync('SELECT name, stock, min_stock_alert FROM products WHERE id = ?', [productId]) as any;
+export async function updateStock(productId: number, quantity: number) {
+  await dbReadyPromise;
+  await db.runAsync('UPDATE products SET stock = stock - ? WHERE id = ?', [quantity, productId]);
+  const p = await db.getFirstAsync('SELECT name, stock, min_stock_alert FROM products WHERE id = ?', [productId]) as any;
   if (p && p.stock <= p.min_stock_alert && p.min_stock_alert > 0) {
     notifyLowStock(p.name, p.stock);
   }
 }
 
-export function updateStockManual(productId: number, newStock: number) {
-  db.runSync('UPDATE products SET stock = ? WHERE id = ?', [newStock, productId]);
-  const p = db.getFirstSync('SELECT name, stock, min_stock_alert FROM products WHERE id = ?', [productId]) as any;
+export async function updateStockManual(productId: number, newStock: number) {
+  await dbReadyPromise;
+  await db.runAsync('UPDATE products SET stock = ? WHERE id = ?', [newStock, productId]);
+  const p = await db.getFirstAsync('SELECT name, stock, min_stock_alert FROM products WHERE id = ?', [productId]) as any;
   if (p && p.stock <= p.min_stock_alert && p.min_stock_alert > 0) {
     notifyLowStock(p.name, p.stock);
   }
 }
 
 // Продажи
-export function addSale(
+export async function addSale(
   productId: number | null,
   productName: string,
   quantity: number,
@@ -1031,21 +1079,22 @@ export function addSale(
   note: string = '',
   isPendingReview: number = 0
 ) {
+  await dbReadyPromise;
   const profit = (sellPrice - buyPrice) * quantity;
   const stockUpdated = productId ? 1 : 0;
   try {
     let result: any;
-    db.withTransactionSync(() => {
-      result = db.runSync(
+    await db.withTransactionAsync(async () => {
+      result = await db.runAsync(
         'INSERT INTO sales (product_id, product_name, quantity, sell_price, buy_price, profit, note, stock_updated, created_at, is_pending_review) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [productId, productName, quantity, sellPrice, buyPrice, profit, note, stockUpdated, nowLocalISO(), isPendingReview]
       );
       if (productId) {
-        db.runSync('UPDATE products SET stock = stock - ? WHERE id = ?', [quantity, productId]);
+        await db.runAsync('UPDATE products SET stock = stock - ? WHERE id = ?', [quantity, productId]);
       }
     });
     if (productId) {
-      const p = db.getFirstSync('SELECT name, stock, min_stock_alert FROM products WHERE id = ?', [productId]) as any;
+      const p = await db.getFirstAsync('SELECT name, stock, min_stock_alert FROM products WHERE id = ?', [productId]) as any;
       if (p && p.stock <= p.min_stock_alert && p.min_stock_alert > 0) {
         notifyLowStock(p.name, p.stock);
       }
@@ -1057,14 +1106,16 @@ export function addSale(
   }
 }
 
-export function getSalesToday() {
-  return db.getAllSync(
+export async function getSalesToday() {
+  await dbReadyPromise;
+  return await db.getAllAsync(
     `SELECT * FROM sales WHERE created_at >= ? AND created_at <= ? ORDER BY created_at DESC`,
     [todayLocalDate() + ' 00:00:00', todayLocalDate() + ' 23:59:59']
   );
 }
 
-export function getSalesByPeriod(days: number, fromDate?: string, toDate?: string, sellerId?: string | null) {
+export async function getSalesByPeriod(days: number, fromDate?: string, toDate?: string, sellerId?: string | null) {
+  await dbReadyPromise;
   if (fromDate && toDate) {
     const query = sellerId
       ? "SELECT * FROM sales WHERE seller_id = ? AND created_at >= ? AND created_at <= ? ORDER BY created_at DESC"
@@ -1072,7 +1123,7 @@ export function getSalesByPeriod(days: number, fromDate?: string, toDate?: strin
     const params = sellerId
       ? [sellerId, fromDate + ' 00:00:00', toDate + ' 23:59:59']
       : [fromDate + ' 00:00:00', toDate + ' 23:59:59'];
-    return db.getAllSync(query, params);
+    return await db.getAllAsync(query, params);
   }
   const query = sellerId
     ? "SELECT * FROM sales WHERE seller_id = ? AND created_at >= ? AND created_at <= ? ORDER BY created_at DESC"
@@ -1080,22 +1131,23 @@ export function getSalesByPeriod(days: number, fromDate?: string, toDate?: strin
   const params = sellerId
     ? [sellerId, startOfDaysAgoLocalStr(days), endOfTodayLocalStr()]
     : [startOfDaysAgoLocalStr(days), endOfTodayLocalStr()];
-  return db.getAllSync(query, params);
+  return await db.getAllAsync(query, params);
 }
 
-export function deleteSale(saleId: number) {
+export async function deleteSale(saleId: number) {
+  await dbReadyPromise;
   try {
-    const sale = db.getFirstSync('SELECT * FROM sales WHERE id = ?', [saleId]) as any;
+    const sale = await db.getFirstAsync('SELECT * FROM sales WHERE id = ?', [saleId]) as any;
     if (!sale) return;
     let result: any;
-    db.withTransactionSync(() => {
+    await db.withTransactionAsync(async () => {
       if (sale.product_id && sale.stock_updated === 1) {
-        db.runSync('UPDATE products SET stock = stock + ? WHERE id = ?', [sale.quantity, sale.product_id]);
+        await db.runAsync('UPDATE products SET stock = stock + ? WHERE id = ?', [sale.quantity, sale.product_id]);
       }
-      result = db.runSync('DELETE FROM sales WHERE id = ?', [saleId]);
+      result = await db.runAsync('DELETE FROM sales WHERE id = ?', [saleId]);
     });
     if (sale.product_id && sale.stock_updated === 1) {
-      const p = db.getFirstSync('SELECT name, stock, min_stock_alert FROM products WHERE id = ?', [sale.product_id]) as any;
+      const p = await db.getFirstAsync('SELECT name, stock, min_stock_alert FROM products WHERE id = ?', [sale.product_id]) as any;
       if (p && p.stock <= p.min_stock_alert && p.min_stock_alert > 0) {
         notifyLowStock(p.name, p.stock);
       }
@@ -1108,7 +1160,8 @@ export function deleteSale(saleId: number) {
 }
 
 // Статистика
-export function getStats(days: number = 1, fromDate?: string, toDate?: string, sellerId?: string | null) {
+export async function getStats(days: number = 1, fromDate?: string, toDate?: string, sellerId?: string | null) {
+  await dbReadyPromise;
   if (fromDate && toDate) {
     const query = `
       SELECT
@@ -1121,7 +1174,7 @@ export function getStats(days: number = 1, fromDate?: string, toDate?: string, s
     const params = sellerId
       ? [sellerId, fromDate + ' 00:00:00', toDate + ' 23:59:59']
       : [fromDate + ' 00:00:00', toDate + ' 23:59:59'];
-    const result = db.getFirstSync(query, params) as any;
+    const result = await db.getFirstAsync(query, params) as any;
     return result;
   }
   const query = `
@@ -1135,12 +1188,12 @@ export function getStats(days: number = 1, fromDate?: string, toDate?: string, s
   const params = sellerId
     ? [sellerId, startOfDaysAgoLocalStr(days), endOfTodayLocalStr()]
     : [startOfDaysAgoLocalStr(days), endOfTodayLocalStr()];
-  const result = db.getFirstSync(query, params) as any;
+  const result = await db.getFirstAsync(query, params) as any;
   return result;
 }
 
 // Расходы
-export function addExpense(
+export async function addExpense(
   type: string,
   category: string,
   amount: number,
@@ -1150,8 +1203,9 @@ export function addExpense(
   sellerId: string | null = null,
   sellerName: string | null = null
 ) {
+  await dbReadyPromise;
   try {
-    return db.runSync(
+    return await db.runAsync(
       'INSERT INTO expenses (type, category, amount, description, user_id, linked_product_id, created_at, seller_id, seller_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [type, category, amount, description, userId, linkedProductId, nowLocalISO(), sellerId || userId, sellerName]
     );
@@ -1161,26 +1215,29 @@ export function addExpense(
   }
 }
 
-export function getExpenses(days: number = 1, fromDate?: string, toDate?: string, sellerId?: string | null) {
+export async function getExpenses(days: number = 1, fromDate?: string, toDate?: string, sellerId?: string | null) {
+  await dbReadyPromise;
   if (fromDate && toDate) {
     const query = `SELECT * FROM expenses WHERE ${sellerId ? 'seller_id = ? AND ' : ''}created_at >= ? AND created_at <= ? ORDER BY created_at DESC`;
     const params = sellerId
       ? [sellerId, fromDate + ' 00:00:00', toDate + ' 23:59:59']
       : [fromDate + ' 00:00:00', toDate + ' 23:59:59'];
-    return db.getAllSync(query, params);
+    return await db.getAllAsync(query, params);
   }
   const query = `SELECT * FROM expenses WHERE ${sellerId ? 'seller_id = ? AND ' : ''}created_at >= ? AND created_at <= ? ORDER BY created_at DESC`;
   const params = sellerId
     ? [sellerId, startOfDaysAgoLocalStr(days), endOfTodayLocalStr()]
     : [startOfDaysAgoLocalStr(days), endOfTodayLocalStr()];
-  return db.getAllSync(query, params);
+  return await db.getAllAsync(query, params);
 }
 
-export function deleteExpense(id: number) {
-  return db.runSync('DELETE FROM expenses WHERE id = ?', [id]);
+export async function deleteExpense(id: number) {
+  await dbReadyPromise;
+  return await db.runAsync('DELETE FROM expenses WHERE id = ?', [id]);
 }
 
-export function getExpenseStats(days: number = 1, fromDate?: string, toDate?: string, sellerId?: string | null) {
+export async function getExpenseStats(days: number = 1, fromDate?: string, toDate?: string, sellerId?: string | null) {
+  await dbReadyPromise;
   if (fromDate && toDate) {
     const query = `
       SELECT
@@ -1193,7 +1250,7 @@ export function getExpenseStats(days: number = 1, fromDate?: string, toDate?: st
     const params = sellerId
       ? [sellerId, fromDate + ' 00:00:00', toDate + ' 23:59:59']
       : [fromDate + ' 00:00:00', toDate + ' 23:59:59'];
-    const result = db.getFirstSync(query, params) as any;
+    const result = await db.getFirstAsync(query, params) as any;
     return result;
   }
   const query = `
@@ -1207,7 +1264,7 @@ export function getExpenseStats(days: number = 1, fromDate?: string, toDate?: st
   const params = sellerId
     ? [sellerId, startOfDaysAgoLocalStr(days), endOfTodayLocalStr()]
     : [startOfDaysAgoLocalStr(days), endOfTodayLocalStr()];
-  const result = db.getFirstSync(query, params) as any;
+  const result = await db.getFirstAsync(query, params) as any;
   return result;
 }
 
@@ -1223,55 +1280,63 @@ const safeNumOrNull = (v: any) =>
 // ── Полные данные без фильтров/лимитов — используются только для бэкапа ──
 // (в отличие от getProducts/getSalesByPeriod/getExpenses, которые фильтруют
 // удалённые товары или ограничивают период, здесь нужны АБСОЛЮТНО все записи)
-export function getAllSalesForBackup() {
-  return db.getAllSync('SELECT * FROM sales ORDER BY id ASC');
+export async function getAllSalesForBackup() {
+  await dbReadyPromise;
+  return await db.getAllAsync('SELECT * FROM sales ORDER BY id ASC');
 }
 
-export function getAllExpensesForBackup() {
-  return db.getAllSync('SELECT * FROM expenses ORDER BY id ASC');
+export async function getAllExpensesForBackup() {
+  await dbReadyPromise;
+  return await db.getAllAsync('SELECT * FROM expenses ORDER BY id ASC');
 }
 
-export function getAllClientsForBackup() {
-  return db.getAllSync('SELECT * FROM clients ORDER BY id ASC');
+export async function getAllClientsForBackup() {
+  await dbReadyPromise;
+  return await db.getAllAsync('SELECT * FROM clients ORDER BY id ASC');
 }
 
-export function getAllDebtsForBackup() {
-  return db.getAllSync('SELECT * FROM debts ORDER BY id ASC');
+export async function getAllDebtsForBackup() {
+  await dbReadyPromise;
+  return await db.getAllAsync('SELECT * FROM debts ORDER BY id ASC');
 }
 
-export function getAllDebtPaymentsForBackup() {
-  return db.getAllSync('SELECT * FROM debt_payments ORDER BY id ASC');
+export async function getAllDebtPaymentsForBackup() {
+  await dbReadyPromise;
+  return await db.getAllAsync('SELECT * FROM debt_payments ORDER BY id ASC');
 }
 
-export function getAllStockMovementsForBackup() {
-  return db.getAllSync('SELECT * FROM stock_movements ORDER BY created_at ASC');
+export async function getAllStockMovementsForBackup() {
+  await dbReadyPromise;
+  return await db.getAllAsync('SELECT * FROM stock_movements ORDER BY created_at ASC');
 }
 
-export function getAllOrdersForBackup() {
-  return db.getAllSync('SELECT * FROM orders ORDER BY id ASC');
+export async function getAllOrdersForBackup() {
+  await dbReadyPromise;
+  return await db.getAllAsync('SELECT * FROM orders ORDER BY id ASC');
 }
 
-export function importBackupData(data: any) {
-  db.withTransactionSync(() => {
+export async function importBackupData(data: any) {
+  await dbReadyPromise;
+  await db.withTransactionAsync(async () => {
     // Очищаем все таблицы с пользовательскими данными.
     // Порядок: сначала дочерние записи, потом родительские — на случай,
     // если в будущем включат PRAGMA foreign_keys.
-    db.runSync('DELETE FROM debt_payments');
-    db.runSync('DELETE FROM debts');
-    db.runSync('DELETE FROM stock_movements');
-    db.runSync('DELETE FROM sales');
-    db.runSync('DELETE FROM orders');
-    db.runSync('DELETE FROM clients');
-    db.runSync('DELETE FROM products');
-    db.runSync('DELETE FROM expenses');
+    await db.runAsync('DELETE FROM debt_payments');
+    await db.runAsync('DELETE FROM debts');
+    await db.runAsync('DELETE FROM stock_movements');
+    await db.runAsync('DELETE FROM sales');
+    await db.runAsync('DELETE FROM orders');
+    await db.runAsync('DELETE FROM clients');
+    await db.runAsync('DELETE FROM products');
+    await db.runAsync('DELETE FROM expenses');
     try {
-      db.runSync("DELETE FROM sqlite_sequence WHERE name IN ('products','sales','expenses','clients','debts','debt_payments','stock_movements','orders')");
+      await db.runAsync("DELETE FROM sqlite_sequence WHERE name IN ('products','sales','expenses','clients','debts','debt_payments','stock_movements','orders')");
     } catch (e) {}
 
     // 1) Товары (склад) — без зависимостей
     if (Array.isArray(data.products)) {
-      data.products.forEach((p: any) => {
-        db.runSync(
+      for (const p of data.products) {
+        await db.runAsync(
           `INSERT INTO products (
             id, name, buy_price, sell_price, stock, min_stock_alert,
             base_unit, has_packages, package_name, units_per_package,
@@ -1286,36 +1351,36 @@ export function importBackupData(data: any) {
             safeNumOrNull(p.initial_stock), safeNumOrNull(p.initial_buy_price)
           ]
         );
-      });
+      }
     }
 
     // 2) Клиенты — без зависимостей
     if (Array.isArray(data.clients)) {
-      data.clients.forEach((c: any) => {
-        db.runSync(
+      for (const c of data.clients) {
+        await db.runAsync(
           `INSERT INTO clients (id, name, phone, note, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
           [c.id, safeStr(c.name), safeStr(c.phone, null), safeStr(c.note, null), safeStr(c.created_at, nowLocalISO()), safeStr(c.updated_at, nowLocalISO())]
         );
-      });
+      }
     }
 
     // 3) Заказы — ссылаются на клиентов
     if (Array.isArray(data.orders)) {
-      data.orders.forEach((o: any) => {
-        db.runSync(
+      for (const o of data.orders) {
+        await db.runAsync(
           `INSERT INTO orders (id, client_id, seller_id, seller_name, total_amount, payment_type, status, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             o.id, safeNumOrNull(o.client_id), safeStr(o.seller_id, null), safeStr(o.seller_name, null),
             safeNum(o.total_amount), safeStr(o.payment_type, null), safeStr(o.status, 'completed'), safeStr(o.note, null), safeStr(o.created_at, nowLocalISO())
           ]
         );
-      });
+      }
     }
 
     // 4) Продажи — ссылаются на товары и заказы
     if (Array.isArray(data.sales)) {
-      data.sales.forEach((s: any) => {
-        db.runSync(
+      for (const s of data.sales) {
+        await db.runAsync(
           `INSERT INTO sales (
             id, product_id, product_name, quantity, sell_price, buy_price, profit, note, stock_updated, created_at,
             seller_id, seller_name, stock_warning, remote_id, order_id, is_pending_review, synced
@@ -1327,13 +1392,13 @@ export function importBackupData(data: any) {
             safeNumOrNull(s.order_id), safeNum(s.is_pending_review, 0), safeNum(s.synced, 0)
           ]
         );
-      });
+      }
     }
 
     // 5) Долги — ссылаются на клиентов, продажи и заказы
     if (Array.isArray(data.debts)) {
-      data.debts.forEach((d: any) => {
-        db.runSync(
+      for (const d of data.debts) {
+        await db.runAsync(
           `INSERT INTO debts (
             id, client_id, sale_id, amount_total, amount_paid, status, due_date, note, created_at, updated_at, notification_id, order_id
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -1343,23 +1408,23 @@ export function importBackupData(data: any) {
             safeStr(d.notification_id, null), safeNumOrNull(d.order_id)
           ]
         );
-      });
+      }
     }
 
     // 6) Платежи по долгам — ссылаются на долги
     if (Array.isArray(data.debtPayments)) {
-      data.debtPayments.forEach((dp: any) => {
-        db.runSync(
+      for (const dp of data.debtPayments) {
+        await db.runAsync(
           `INSERT INTO debt_payments (id, debt_id, amount, note, created_at) VALUES (?, ?, ?, ?, ?)`,
           [dp.id, dp.debt_id, safeNum(dp.amount), safeStr(dp.note, null), safeStr(dp.created_at, nowLocalISO())]
         );
-      });
+      }
     }
 
     // 7) История движений склада (приход/списание/коррекции) — ссылается на товары
     if (Array.isArray(data.stockMovements)) {
-      data.stockMovements.forEach((m: any) => {
-        db.runSync(
+      for (const m of data.stockMovements) {
+        await db.runAsync(
           `INSERT INTO stock_movements (
             id, product_id, type, quantity_change, price_per_unit, note, created_at, synced, seller_id, seller_name
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -1368,13 +1433,13 @@ export function importBackupData(data: any) {
             safeStr(m.note, null), safeStr(m.created_at, nowLocalISO()), safeNum(m.synced, 0), safeStr(m.seller_id, null), safeStr(m.seller_name, null)
           ]
         );
-      });
+      }
     }
 
     // 8) Расходы — необязательная ссылка на товар
     if (Array.isArray(data.expenses)) {
-      data.expenses.forEach((e: any) => {
-        db.runSync(
+      for (const e of data.expenses) {
+        await db.runAsync(
           `INSERT INTO expenses (
             id, type, category, amount, description, linked_product_id, created_at, user_id, seller_id, seller_name, remote_id, synced
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -1384,15 +1449,16 @@ export function importBackupData(data: any) {
             safeStr(e.remote_id, null), safeNum(e.synced, 0)
           ]
         );
-      });
+      }
     }
   });
 }
 
-export function getAnnualStats() {
+export async function getAnnualStats() {
+  await dbReadyPromise;
   const year = new Date().getFullYear();
 
-  const monthlySales = db.getAllSync(`
+  const monthlySales = await db.getAllAsync(`
     SELECT
       CAST(strftime('%m', created_at) AS INTEGER) as month,
       SUM(sell_price * quantity) as revenue,
@@ -1403,7 +1469,7 @@ export function getAnnualStats() {
     GROUP BY month
   `, [year + '-01-01 00:00:00', year + '-12-31 23:59:59']) as any[];
 
-  const monthlyExpenses = db.getAllSync(`
+  const monthlyExpenses = await db.getAllAsync(`
     SELECT
       CAST(strftime('%m', created_at) AS INTEGER) as month,
       SUM(amount) as total
@@ -1427,7 +1493,7 @@ export function getAnnualStats() {
   }
 
   // Top products for the year
-  const topProducts = db.getAllSync(`
+  const topProducts = await db.getAllAsync(`
     SELECT
       product_name,
       SUM(profit) as totalProfit,
@@ -1441,7 +1507,7 @@ export function getAnnualStats() {
   `, [year + '-01-01 00:00:00']) as any[];
 
   // Year totals
-  const totals = db.getFirstSync(`
+  const totals = await db.getFirstAsync(`
     SELECT
       COALESCE(SUM(sell_price * quantity), 0) as revenue,
       COALESCE(SUM(profit), 0) as profit,
@@ -1450,7 +1516,7 @@ export function getAnnualStats() {
     WHERE created_at >= ? AND created_at <= ?
   `, [year + '-01-01 00:00:00', year + '-12-31 23:59:59']) as any;
 
-  const totalExpenses = db.getFirstSync(`
+  const totalExpenses = await db.getFirstAsync(`
     SELECT COALESCE(SUM(amount), 0) as total
     FROM expenses
     WHERE created_at >= ? AND created_at <= ?
@@ -1472,9 +1538,10 @@ export function getAnnualStats() {
 
 // ── Clients ──────────────────────────────────────────
 
-export function searchClients(query: string) {
+export async function searchClients(query: string) {
+  await dbReadyPromise;
   if (!query.trim()) {
-    return db.getAllSync(`
+    return await db.getAllAsync(`
       SELECT c.*, COUNT(d.id) as debt_count
       FROM clients c
       LEFT JOIN debts d ON d.client_id = c.id
@@ -1483,33 +1550,35 @@ export function searchClients(query: string) {
       LIMIT 8
     `);
   }
-  return db.getAllSync(
+  return await db.getAllAsync(
     "SELECT * FROM clients WHERE name LIKE ? || '%' ORDER BY name ASC LIMIT 8",
     [query]
   );
 }
 
-export function upsertClient(name: string, phone: string = '', note: string = ''): number {
-  const existing = db.getFirstSync(
+export async function upsertClient(name: string, phone: string = '', note: string = ''):Promise< number >{
+  await dbReadyPromise;
+  const existing = await db.getFirstAsync(
     'SELECT id FROM clients WHERE name = ?',
     [name]
   ) as any;
   if (existing) {
-    db.runSync(
+    await db.runAsync(
       'UPDATE clients SET phone = ?, updated_at = ? WHERE id = ?',
       [phone || existing.phone, nowLocalISO(), existing.id]
     );
     return existing.id;
   }
-  const result = db.runSync(
+  const result = await db.runAsync(
     'INSERT INTO clients (name, phone, note, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
     [name, phone, note, nowLocalISO(), nowLocalISO()]
   );
   return result.lastInsertRowId;
 }
 
-export function getAllClientsWithStats(): any[] {
-  return db.getAllSync(`
+export async function getAllClientsWithStats():Promise< any[] >{
+  await dbReadyPromise;
+  return await db.getAllAsync(`
     SELECT
       c.id, c.name, c.phone, c.note, c.created_at, c.updated_at,
       COALESCE(SUM(CASE WHEN d.status = 'active' THEN d.amount_total - d.amount_paid ELSE 0 END), 0) AS active_debt,
@@ -1522,28 +1591,30 @@ export function getAllClientsWithStats(): any[] {
   `);
 }
 
-export function updateClient(
+export async function updateClient(
   id: number, name: string, phone: string, note: string = ''
-): void {
-  db.runSync(
+):Promise< void >{
+  await dbReadyPromise;
+  await db.runAsync(
     'UPDATE clients SET name = ?, phone = ?, note = ?, updated_at = ? WHERE id = ?',
     [name.trim(), phone.trim(), note.trim(), nowLocalISO(), id]
   );
 }
 
-export function deleteClientIfSafe(id: number): boolean {
-  const hasDebts = db.getFirstSync(
+export async function deleteClientIfSafe(id: number):Promise< boolean >{
+  await dbReadyPromise;
+  const hasDebts = await db.getFirstAsync(
     'SELECT id FROM debts WHERE client_id = ? AND status = "active" LIMIT 1',
     [id]
   );
   if (hasDebts) return false;
-  db.runSync('DELETE FROM clients WHERE id = ?', [id]);
+  await db.runAsync('DELETE FROM clients WHERE id = ?', [id]);
   return true;
 }
 
 // ── Debts ─────────────────────────────────────────────
 
-export function addDebt(
+export async function addDebt(
   clientId: number,
   saleId: number | null,
   amountTotal: number,
@@ -1552,8 +1623,9 @@ export function addDebt(
   dueDate: string = '',
   orderId: number | null = null
 ) {
+  await dbReadyPromise;
   const now = nowLocalISO();
-  return db.runSync(
+  return await db.runAsync(
     `INSERT INTO debts
        (client_id, sale_id, amount_total, amount_paid, status, due_date, note, created_at, updated_at, order_id)
      VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)`,
@@ -1561,8 +1633,9 @@ export function addDebt(
   );
 }
 
-export function getDebtsWithClients() {
-  return db.getAllSync(`
+export async function getDebtsWithClients() {
+  await dbReadyPromise;
+  return await db.getAllAsync(`
     SELECT
       d.*,
       c.name AS client_name,
@@ -1580,8 +1653,9 @@ export function getDebtsWithClients() {
   `);
 }
 
-export function getDebtSummary(): { total_remaining: number; debtor_count: number } {
-  const result = db.getFirstSync(`
+export async function getDebtSummary():Promise< { total_remaining: number; debtor_count: number } >{
+  await dbReadyPromise;
+  const result = await db.getFirstAsync(`
     SELECT
       COALESCE(SUM(amount_total - amount_paid), 0) AS total_remaining,
       COUNT(DISTINCT client_id)                     AS debtor_count
@@ -1591,31 +1665,34 @@ export function getDebtSummary(): { total_remaining: number; debtor_count: numbe
   return result ?? { total_remaining: 0, debtor_count: 0 };
 }
 
-export function getDebtsByClient(clientId: number) {
-  return db.getAllSync(
+export async function getDebtsByClient(clientId: number) {
+  await dbReadyPromise;
+  return await db.getAllAsync(
     `SELECT * FROM debts WHERE client_id = ? ORDER BY created_at DESC`,
     [clientId]
   );
 }
 
-export function getDebtById(id: number) {
-  return db.getFirstSync('SELECT * FROM debts WHERE id = ?', [id]);
+export async function getDebtById(id: number) {
+  await dbReadyPromise;
+  return await db.getFirstAsync('SELECT * FROM debts WHERE id = ?', [id]);
 }
 
-export function recordDebtPayment(debtId: number, amount: number, note: string = '') {
-  const debt = db.getFirstSync('SELECT * FROM debts WHERE id = ?', [debtId]) as any;
+export async function recordDebtPayment(debtId: number, amount: number, note: string = '') {
+  await dbReadyPromise;
+  const debt = await db.getFirstAsync('SELECT * FROM debts WHERE id = ?', [debtId]) as any;
   if (!debt) return;
   const remaining = debt.amount_total - debt.amount_paid;
   const actualAmount = Math.min(amount, remaining);
   const newPaid = debt.amount_paid + actualAmount;
   const newStatus = newPaid >= debt.amount_total ? 'paid' : 'active';
   const now = nowLocalISO();
-  db.withTransactionSync(() => {
-    db.runSync(
+  await db.withTransactionAsync(async () => {
+    await db.runAsync(
       'UPDATE debts SET amount_paid = ?, status = ?, updated_at = ? WHERE id = ?',
       [newPaid, newStatus, now, debtId]
     );
-    db.runSync(
+    await db.runAsync(
       'INSERT INTO debt_payments (debt_id, amount, note, created_at) VALUES (?, ?, ?, ?)',
       [debtId, actualAmount, note, now]
     );
@@ -1623,21 +1700,24 @@ export function recordDebtPayment(debtId: number, amount: number, note: string =
   return { actualAmount, overpayment: amount - actualAmount };
 }
 
-export function deleteDebt(debtId: number) {
+export async function deleteDebt(debtId: number) {
+  await dbReadyPromise;
   // Используем существующий объект БД (db)
-  db.withTransactionSync(() => {
-    db.runSync('DELETE FROM debt_payments WHERE debt_id = ?', [debtId]);
-    db.runSync('DELETE FROM debts WHERE id = ?', [debtId]);
+  await db.withTransactionAsync(async () => {
+    await db.runAsync('DELETE FROM debt_payments WHERE debt_id = ?', [debtId]);
+    await db.runAsync('DELETE FROM debts WHERE id = ?', [debtId]);
   });
 }
 
-export function updateDebtNotificationId(debtId: number, notifId: string | null) {
-  db.runSync('UPDATE debts SET notification_id = ? WHERE id = ?', [notifId, debtId]);
+export async function updateDebtNotificationId(debtId: number, notifId: string | null) {
+  await dbReadyPromise;
+  await db.runAsync('UPDATE debts SET notification_id = ? WHERE id = ?', [notifId, debtId]);
 }
 
-export function getOverdueDebts() {
+export async function getOverdueDebts() {
+  await dbReadyPromise;
   const today = todayLocalDate();
-  return db.getAllSync(`
+  return await db.getAllAsync(`
     SELECT d.*, c.name AS client_name, c.phone AS client_phone, (d.amount_total - d.amount_paid) AS remaining
     FROM debts d
     JOIN clients c ON c.id = d.client_id
@@ -1648,15 +1728,17 @@ export function getOverdueDebts() {
   `, [today]);
 }
 
-export function getDebtPayments(debtId: number) {
-  return db.getAllSync(
+export async function getDebtPayments(debtId: number) {
+  await dbReadyPromise;
+  return await db.getAllAsync(
     'SELECT * FROM debt_payments WHERE debt_id = ? ORDER BY created_at DESC',
     [debtId]
   );
 }
 
-export function getProductSalesStats(productId: number) {
-  return db.getFirstSync(`
+export async function getProductSalesStats(productId: number) {
+  await dbReadyPromise;
+  return await db.getFirstAsync(`
     SELECT
       COALESCE(SUM(quantity), 0) as total_sold,
       COALESCE(SUM(sell_price * quantity), 0) as total_revenue,
@@ -1666,15 +1748,17 @@ export function getProductSalesStats(productId: number) {
   `, [productId]) as { total_sold: number; total_revenue: number; total_profit: number };
 }
 
-export function getProductSalesHistory(productId: number, limit: number = 20) {
-  return db.getAllSync(
+export async function getProductSalesHistory(productId: number, limit: number = 20) {
+  await dbReadyPromise;
+  return await db.getAllAsync(
     'SELECT * FROM sales WHERE product_id = ? ORDER BY created_at DESC LIMIT ?',
     [productId, limit]
   );
 }
 
-export function getUnregisteredProductsFromHistory() {
-  return db.getAllSync(`
+export async function getUnregisteredProductsFromHistory() {
+  await dbReadyPromise;
+  return await db.getAllAsync(`
     SELECT
       product_name as name,
       COUNT(*) as sales_count,
@@ -1690,9 +1774,10 @@ export function getUnregisteredProductsFromHistory() {
   `);
 }
 
-export function getClientDebtHistory(clientId: number) {
+export async function getClientDebtHistory(clientId: number) {
+  await dbReadyPromise;
   // Все долги клиента (включая погашенные) с инфо о продаже
-  return db.getAllSync(`
+  return await db.getAllAsync(`
     SELECT
       d.*,
       s.product_name,
@@ -1706,10 +1791,11 @@ export function getClientDebtHistory(clientId: number) {
   `, [clientId]);
 }
 
-export function searchProductsForAutocomplete(query: string) {
+export async function searchProductsForAutocomplete(query: string) {
+  await dbReadyPromise;
   if (!query.trim()) {
     // Top 5 most frequent items
-    return db.getAllSync(`
+    return await db.getAllAsync(`
       WITH SalesAgg AS (
         SELECT product_id,
                COUNT(*) as salesCount,
@@ -1784,7 +1870,7 @@ export function searchProductsForAutocomplete(query: string) {
   // каталога) фильтр расширен с "начинается с" до "содержит где угодно" —
   // полноценный fuzzy там не даёт большого выигрыша, так как это не стабильный
   // каталог, а одноразовые исторические записи.
-  const catalogRows = db.getAllSync<any>(`
+  const catalogRows = await db.getAllAsync<any>(`
     SELECT
       CAST(p.id AS TEXT) as id,
       p.name,
@@ -1813,7 +1899,7 @@ export function searchProductsForAutocomplete(query: string) {
     WHERE p.is_deleted = 0
   `);
 
-  const historyRows = db.getAllSync<any>(`
+  const historyRows = await db.getAllAsync<any>(`
     SELECT
       NULL as id,
       ha.product_name as name,
@@ -1866,33 +1952,35 @@ export function searchProductsForAutocomplete(query: string) {
 }
 
 // ── Shop Session ────────────────────────────────────
-export function saveShopSession(data: {
+export async function saveShopSession(data: {
   shopId: string;
   shopName: string;
   role: 'owner' | 'seller';
   sellerName: string;
   inviteCode?: string;
 }) {
-  db.withTransactionSync(() => {
-    Object.entries(data).forEach(([key, value]) => {
+  await dbReadyPromise;
+  await db.withTransactionAsync(async () => {
+    for (const [key, value] of Object.entries(data)) {
       if (value !== undefined) {
-        db.runSync(
+        await db.runAsync(
           "INSERT OR REPLACE INTO shop_session (key, value) VALUES (?, ?)",
           [key, String(value)]
         );
       }
-    });
+    }
   });
 }
 
-export function getShopSession(): {
+export async function getShopSession():Promise< {
   shopId: string | null;
   shopName: string | null;
   role: 'owner' | 'seller' | null;
   sellerName: string | null;
   inviteCode: string | null;
-} {
-  const rows = db.getAllSync("SELECT key, value FROM shop_session") as { key: string; value: string }[];
+} >{
+  await dbReadyPromise;
+  const rows = await db.getAllAsync("SELECT key, value FROM shop_session") as { key: string; value: string }[];
   const map: Record<string, string> = {};
   rows.forEach(r => { map[r.key] = r.value; });
   return {
@@ -1904,8 +1992,9 @@ export function getShopSession(): {
   };
 }
 
-export function clearShopSession() {
-  db.runSync("DELETE FROM shop_session");
+export async function clearShopSession() {
+  await dbReadyPromise;
+  await db.runAsync("DELETE FROM shop_session");
 }
 
 /**
@@ -1914,32 +2003,33 @@ export function clearShopSession() {
  * Если productId не передан — только обновляет buy_price/profit,
  * товар остаётся непривязанным (для случаев "этого товара нет на складе").
  */
-export function resolvePendingSale(
+export async function resolvePendingSale(
   saleId: number,
   productId: number | null,
   buyPrice: number | null
 ) {
-  const sale = db.getFirstSync('SELECT * FROM sales WHERE id = ?', [saleId]) as any;
+  await dbReadyPromise;
+  const sale = await db.getFirstAsync('SELECT * FROM sales WHERE id = ?', [saleId]) as any;
   if (!sale) return null;
 
   let lowStockInfo: any = null;
 
-  db.withTransactionSync(() => {
+  await db.withTransactionAsync(async () => {
     const bPrice = buyPrice ?? sale.buy_price ?? 0;
     const profit = (sale.sell_price - bPrice) * sale.quantity;
 
     if (productId) {
-      db.runSync(
+      await db.runAsync(
         `UPDATE sales SET product_id = ?, buy_price = ?, profit = ?,
          stock_updated = 1, is_pending_review = 0, synced = 0 WHERE id = ?`,
         [productId, bPrice, profit, saleId]
       );
-      db.runSync(
+      await db.runAsync(
         'UPDATE products SET stock = stock - ?, synced = 0, updated_at = ? WHERE id = ?',
         [sale.quantity, nowLocalISO(), productId]
       );
 
-      const p = db.getFirstSync(
+      const p = await db.getFirstAsync(
         'SELECT name, stock, min_stock_alert FROM products WHERE id = ?',
         [productId]
       ) as any;
@@ -1947,7 +2037,7 @@ export function resolvePendingSale(
         lowStockInfo = { name: p.name, stock: p.stock };
       }
     } else {
-      db.runSync(
+      await db.runAsync(
         'UPDATE sales SET buy_price = ?, profit = ?, is_pending_review = 0, synced = 0 WHERE id = ?',
         [bPrice, profit, saleId]
       );
@@ -1968,7 +2058,7 @@ export function resolvePendingSale(
  * здесь stock из sale.quantity повторно НЕ вычитается —
  * это привело бы к двойному списанию.
  */
-export function createProductAndResolvePendingSale(
+export async function createProductAndResolvePendingSale(
   saleId: number,
   newProduct: {
     name: string;
@@ -1986,18 +2076,19 @@ export function createProductAndResolvePendingSale(
     color?: string | null;
   }
 ) {
-  const sale = db.getFirstSync('SELECT * FROM sales WHERE id = ?', [saleId]) as any;
+  await dbReadyPromise;
+  const sale = await db.getFirstAsync('SELECT * FROM sales WHERE id = ?', [saleId]) as any;
   if (!sale) return null;
 
   let newProductId: number | null = null;
 
-  db.withTransactionSync(() => {
+  await db.withTransactionAsync(async () => {
     const bPrice = newProduct.buyPrice;
     const profit = (sale.sell_price - bPrice) * sale.quantity;
 
     // addProduct() уже сама уведомляет о низком остатке, если нужно —
     // дублировать здесь не нужно.
-    const created = addProduct(
+    const created = await addProduct(
       newProduct.name,
       bPrice,
       newProduct.sellPrice,
@@ -2014,7 +2105,7 @@ export function createProductAndResolvePendingSale(
     );
     newProductId = created.lastInsertRowId;
 
-    db.runSync(
+    await db.runAsync(
       `UPDATE sales SET product_id = ?, buy_price = ?, profit = ?,
        stock_updated = 1, is_pending_review = 0, synced = 0 WHERE id = ?`,
       [newProductId, bPrice, profit, saleId]
@@ -2025,7 +2116,7 @@ export function createProductAndResolvePendingSale(
 }
 
 // Обновлённая addSale — принимает seller_id и seller_name
-export function addSaleWithSeller(
+export async function addSaleWithSeller(
   productId: number | null,
   productName: string,
   quantity: number,
@@ -2037,14 +2128,15 @@ export function addSaleWithSeller(
   role: 'owner' | 'seller',
   isPendingReview: number = 0
 ) {
+  await dbReadyPromise;
   // Продавец не может знать прибыль — ставим null
   const profit = role === 'owner' ? (sellPrice - buyPrice) * quantity : null;
   const actualBuyPrice = role === 'owner' ? buyPrice : null;
   const stockUpdated = productId ? 1 : 0;
 
   let result: any;
-  db.withTransactionSync(() => {
-    result = db.runSync(
+  await db.withTransactionAsync(async () => {
+    result = await db.runAsync(
       `INSERT INTO sales (
         product_id, product_name, quantity, sell_price, buy_price,
         profit, note, stock_updated, created_at, seller_id, seller_name, is_pending_review
@@ -2055,14 +2147,14 @@ export function addSaleWithSeller(
       ]
     );
     if (productId) {
-      db.runSync(
+      await db.runAsync(
         'UPDATE products SET stock = stock - ?, synced = 0, updated_at = ? WHERE id = ?',
         [quantity, nowLocalISO(), productId]
       );
     }
   });
   if (productId) {
-    const p = db.getFirstSync('SELECT name, stock, min_stock_alert FROM products WHERE id = ?', [productId]) as any;
+    const p = await db.getFirstAsync('SELECT name, stock, min_stock_alert FROM products WHERE id = ?', [productId]) as any;
     if (p && p.stock <= p.min_stock_alert && p.min_stock_alert > 0) {
       notifyLowStock(p.name, p.stock);
     }
@@ -2070,7 +2162,7 @@ export function addSaleWithSeller(
   return result;
 }
 
-export function addOrderWithItems(
+export async function addOrderWithItems(
   items: Array<{
     productId: number | null;
     productName: string;
@@ -2087,16 +2179,17 @@ export function addOrderWithItems(
   sellerId: string,
   sellerName: string,
   role: 'owner' | 'seller'
-): { orderId: number; saleIds: number[]; totalAmount: number } {
+):Promise< { orderId: number; saleIds: number[]; totalAmount: number } >{
+  await dbReadyPromise;
   const totalAmount = items.reduce((sum, item) => sum + item.sellPrice * item.quantity, 0);
   const now = nowLocalISO();
   let orderId: number;
   const saleIds: number[] = [];
   const lowStockProducts: Array<{ name: string; stock: number }> = [];
 
-  db.withTransactionSync(() => {
+  await db.withTransactionAsync(async () => {
     // 1. Insert Order
-    const orderResult = db.runSync(
+    const orderResult = await db.runAsync(
       `INSERT INTO orders (client_id, seller_id, seller_name, total_amount, payment_type, status, created_at)
        VALUES (?, ?, ?, ?, ?, 'completed', ?)`,
       [clientId, sellerId, sellerName, totalAmount, paymentType, now]
@@ -2109,7 +2202,7 @@ export function addOrderWithItems(
       const actualBuyPrice = role === 'owner' ? item.buyPrice : null;
       const stockUpdated = item.productId ? 1 : 0;
 
-      const saleResult = db.runSync(
+      const saleResult = await db.runAsync(
         `INSERT INTO sales (
           product_id, product_name, quantity, sell_price, buy_price,
           profit, note, stock_updated, created_at, seller_id, seller_name, order_id, is_pending_review
@@ -2122,13 +2215,13 @@ export function addOrderWithItems(
       saleIds.push(saleResult.lastInsertRowId);
 
       if (item.productId) {
-        db.runSync(
+        await db.runAsync(
           'UPDATE products SET stock = stock - ?, synced = 0, updated_at = ? WHERE id = ?',
           [item.quantity, now, item.productId]
         );
 
         // Prepare for notification after transaction
-        const p = db.getFirstSync('SELECT name, stock, min_stock_alert FROM products WHERE id = ?', [item.productId]) as any;
+        const p = await db.getFirstAsync('SELECT name, stock, min_stock_alert FROM products WHERE id = ?', [item.productId]) as any;
         if (p && p.stock <= p.min_stock_alert && p.min_stock_alert > 0) {
           lowStockProducts.push({ name: p.name, stock: p.stock });
         }
@@ -2148,9 +2241,10 @@ export function addOrderWithItems(
 }
 
 // Статистика для продавца (только его продажи, без buy_price)
-export function getMyStats(sellerId: string, days: number = 1, fromDate?: string, toDate?: string) {
+export async function getMyStats(sellerId: string, days: number = 1, fromDate?: string, toDate?: string) {
+  await dbReadyPromise;
   if (fromDate && toDate) {
-    const result = db.getFirstSync(`
+    const result = await db.getFirstAsync(`
       SELECT
         COALESCE(SUM(sell_price * quantity), 0) as revenue,
         COALESCE(SUM(profit), 0) as profit,
@@ -2160,7 +2254,7 @@ export function getMyStats(sellerId: string, days: number = 1, fromDate?: string
     `, [sellerId, fromDate + ' 00:00:00', toDate + ' 23:59:59']) as any;
     return result;
   }
-  const result = db.getFirstSync(`
+  const result = await db.getFirstAsync(`
     SELECT
       COALESCE(SUM(sell_price * quantity), 0) as revenue,
       COALESCE(SUM(profit), 0) as profit,
@@ -2171,15 +2265,17 @@ export function getMyStats(sellerId: string, days: number = 1, fromDate?: string
   return result;
 }
 
-export function getMySalesToday(sellerId: string) {
-  return db.getAllSync(
+export async function getMySalesToday(sellerId: string) {
+  await dbReadyPromise;
+  return await db.getAllAsync(
     `SELECT * FROM sales WHERE seller_id = ? AND created_at >= ? AND created_at <= ? ORDER BY created_at DESC`,
     [sellerId, todayLocalDate() + ' 00:00:00', todayLocalDate() + ' 23:59:59']
   );
 }
 
-export function getProductSalesByDay(productId: number, days: number = 14): any[] {
-  return db.getAllSync(
+export async function getProductSalesByDay(productId: number, days: number = 14):Promise< any[] >{
+  await dbReadyPromise;
+  return await db.getAllAsync(
     `SELECT substr(created_at,1,10) as day,
             SUM(quantity) as qty,
             SUM(sell_price * quantity) as revenue
@@ -2192,8 +2288,9 @@ export function getProductSalesByDay(productId: number, days: number = 14): any[
   );
 }
 
-export function getDebtsByProductId(productId: number): any[] {
-  return db.getAllSync(
+export async function getDebtsByProductId(productId: number):Promise< any[] >{
+  await dbReadyPromise;
+  return await db.getAllAsync(
     `SELECT d.*, c.name as client_name, c.phone as client_phone,
             (d.amount_total - d.amount_paid) AS remaining
      FROM debts d
@@ -2205,8 +2302,9 @@ export function getDebtsByProductId(productId: number): any[] {
   );
 }
 
-export function getProductExpenses(productId: number): { total: number; count: number } {
-  const result = db.getFirstSync(
+export async function getProductExpenses(productId: number):Promise< { total: number; count: number } >{
+  await dbReadyPromise;
+  const result = await db.getFirstAsync(
     `SELECT COALESCE(SUM(amount), 0) as total, COUNT(*) as count
      FROM expenses
      WHERE linked_product_id = ?`,
@@ -2215,8 +2313,9 @@ export function getProductExpenses(productId: number): { total: number; count: n
   return result || { total: 0, count: 0 };
 }
 
-export function getPendingReviewCount(): number {
-  const result = db.getFirstSync(
+export async function getPendingReviewCount():Promise< number >{
+  await dbReadyPromise;
+  const result = await db.getFirstAsync(
     "SELECT COUNT(*) as count FROM sales WHERE is_pending_review = 1"
   ) as any;
   return result?.count || 0;
@@ -2225,8 +2324,9 @@ export function getPendingReviewCount(): number {
 // LIMIT — защитная мера: это очередь "на разбор" для владельца, в норме
 // небольшая, но не должна расти без предсказуемой границы, если её долго
 // не разбирать.
-export function getPendingReviewSales(limit: number = 200) {
-  return db.getAllSync(
+export async function getPendingReviewSales(limit: number = 200):Promise< any[] >{
+  await dbReadyPromise;
+  return await db.getAllAsync(
     "SELECT * FROM sales WHERE is_pending_review = 1 ORDER BY created_at DESC LIMIT ?",
     [limit]
   ) as any[];
@@ -2247,8 +2347,9 @@ export interface LocalCheckIn {
   server_error?: string | null;
 }
 
-export function insertPendingCheckIn(data: LocalCheckIn) {
-  return db.runSync(
+export async function insertPendingCheckIn(data: LocalCheckIn) {
+  await dbReadyPromise;
+  return await db.runAsync(
     `INSERT OR REPLACE INTO shift_checkins (
       local_date, method, gps_lat, gps_lng, nfc_tag_uid, qr_token, created_at, synced, server_status, server_error
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -2267,24 +2368,33 @@ export function insertPendingCheckIn(data: LocalCheckIn) {
   );
 }
 
-export function getTodayCheckInLocal(): LocalCheckIn | null {
+export async function getTodayCheckInLocal():Promise< LocalCheckIn | null >{
+  await dbReadyPromise;
   const today = todayLocalDate();
-  return db.getFirstSync('SELECT * FROM shift_checkins WHERE local_date = ?', [today]) as LocalCheckIn | null;
+  return await db.getFirstAsync('SELECT * FROM shift_checkins WHERE local_date = ?', [today]) as LocalCheckIn | null;
 }
 
-export function updateCheckInSyncResult(status: string, error: string | null, synced: number = 1) {
+export async function updateCheckInSyncResult(status: string, error: string | null, synced: number = 1) {
+  await dbReadyPromise;
   const today = todayLocalDate();
-  return db.runSync(
+  return await db.runAsync(
     'UPDATE shift_checkins SET server_status = ?, server_error = ?, synced = ? WHERE local_date = ?',
     [status, error, synced, today]
   );
 }
 
-export function getUnsyncedCheckIn(): LocalCheckIn | null {
-  return db.getFirstSync('SELECT * FROM shift_checkins WHERE synced = 0') as LocalCheckIn | null;
+export async function getUnsyncedCheckIn():Promise< LocalCheckIn | null >{
+  await dbReadyPromise;
+  return await db.getFirstAsync('SELECT * FROM shift_checkins WHERE synced = 0') as LocalCheckIn | null;
 }
 
 export { nowLocalISO, todayLocalDate };
 
-export { db };
-export default db;
+// Прямой экспорт `db` был бы небезопасен: `export default db` фиксирует
+// значение в момент выполнения этой строки, то есть ДО того как async IIFE
+// выше успеет открыть БД (получили бы undefined). getDb() — единственный
+// безопасный способ получить соединение из кода вне этого модуля.
+export async function getDb(): Promise<SQLite.SQLiteDatabase> {
+  await dbReadyPromise;
+  return db;
+}
