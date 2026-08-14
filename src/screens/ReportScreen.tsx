@@ -119,6 +119,7 @@ export default function ReportScreen() {
   const [sales, setSales] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [filterText, setFilterText] = useState('');
+  const [visibleSalesCount, setVisibleSalesCount] = useState(30);
 
 
   const loadData = useCallback(async (p: number | 'custom', range?: {from: string, to: string}) => {
@@ -319,6 +320,10 @@ export default function ReportScreen() {
   const filteredSales = sales.filter(s =>
     (s.product_name || '').toLowerCase().includes(filterText.toLowerCase())
   );
+
+  useEffect(() => {
+    setVisibleSalesCount(30);
+  }, [sales, filterText]);
 
   // Подготовка данных для графика — в зависимости от выбранной метрики (тап по карточке)
   const dayKey = (dateStr: string) => {
@@ -893,12 +898,13 @@ export default function ReportScreen() {
                 </Text>
               </View>
             ) : (
-              filteredSales.map((sale: any) => (
-                <TouchableOpacity
-                  key={String(sale.id)}
-                  style={styles.saleItem}
-                  onLongPress={() => handleDeleteSale(sale)}
-                  delayLongPress={500}
+              <>
+                {filteredSales.slice(0, visibleSalesCount).map((sale: any) => (
+                  <TouchableOpacity
+                    key={String(sale.id)}
+                    style={styles.saleItem}
+                    onLongPress={() => handleDeleteSale(sale)}
+                    delayLongPress={500}
                 >
                   <View style={styles.saleLeft}>
                     <Text style={[styles.saleName, themeStyles.text]}>{sale.product_name}</Text>
@@ -924,8 +930,19 @@ export default function ReportScreen() {
                     )}
                   </View>
                 </TouchableOpacity>
-              )))
-            }
+                ))}
+                {filteredSales.length > visibleSalesCount && (
+                  <TouchableOpacity
+                    style={styles.showMoreBtn}
+                    onPress={() => setVisibleSalesCount(c => c + 30)}
+                  >
+                    <Text style={styles.showMoreBtnText}>
+                      {t('reports.showMore', { count: filteredSales.length - visibleSalesCount })}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </>
+            )}
           </View>
           <View style={{ width: '100%' }}>
             <UniversalBanner />
@@ -1272,6 +1289,18 @@ const styles = StyleSheet.create({
   topProfit: { fontSize: 14, fontWeight: '600', color: '#1D9E75' },
   empty: { alignItems: 'center', padding: 30 },
   emptyText: { fontSize: 14, color: '#999' },
+  showMoreBtn: {
+    marginTop: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#E0E0E0',
+  },
+  showMoreBtnText: {
+    color: Colors.primary,
+    fontWeight: '600',
+    fontSize: 14,
+  },
   saleItem: {
     flexDirection: 'row', justifyContent: 'space-between',
     paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: '#F0F0F0',

@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import {
   addProduct, updateProduct, deleteProduct, getProducts, getDistinctCategories, getProductIdsWithDebts,
-  getProductSalesStats, getProductSalesHistory, getUnregisteredProductsFromHistory, getDb
+  getProductSalesStats, getProductSalesHistory, getUnregisteredProductsFromHistory, getPendingReviewSales
 } from '../db/database';
 import { useShop } from '../context/ShopContext';
 import { ProductAutocomplete } from '../components/sales/ProductAutocomplete';
@@ -75,6 +75,7 @@ export default function ProductsScreen() {
 
   // Filters & Sorting
   const [activeFilter, setActiveFilter] = useState<'all' | 'low_stock' | 'debts' | 'pending' | { category: string }>('all');
+  const [visibleProductsCount, setVisibleProductsCount] = useState(30);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [debtProductIdsList, setDebtProductIdsList] = useState<number[]>([]);
 
@@ -123,7 +124,15 @@ export default function ProductsScreen() {
 
   const { getSubmitHandler, getReturnKeyType } = useFieldChain(fields, () => Keyboard.dismiss());
 
-  const loadProducts = async () => {
+  const lastLoadRef = useRef(0);
+
+  const loadProducts = useCallback(async (force: boolean = false) => {
+    const now = Date.now();
+    if (!force && now - lastLoadRef.current < 15_000) {
+      return;
+    }
+    lastLoadRef.current = now;
+
     const allProds = await getProducts() as any[];
     setProducts(allProds);
 
@@ -133,9 +142,7 @@ export default function ProductsScreen() {
 
     // Load pending review sales
     if (canReviewTeamSales) {
-      const db = await getDb();
-      const pending = await db.getAllAsync("SELECT * FROM sales WHERE is_pending_review = 1 ORDER BY created_at DESC") as any[];
-      setPendingSales(pending);
+      setPendingSales(await getPendingReviewSales());
     }
 
     // Derive distinct categories from products to avoid extra SQL query
@@ -166,12 +173,17 @@ export default function ProductsScreen() {
     if (sellerMode === 'wholesale') {
       setDebtProductIdsList(await getProductIdsWithDebts());
     }
-  };
+  }, [canReviewTeamSales, sellerMode]);
 
-  useFocusEffect(useCallback(() => { loadProducts(); }, []));
+  // Фокус экрана — часто срабатывает без реальных изменений данных (просто
+  // переключились между вкладками), поэтому троттлится (force=false по
+  // умолчанию). Реальные изменения (правки товара, разбор pending-продажи,
+  // событие синхронизации) вызывают loadProducts(true) — всегда свежие
+  // данные, троттлинг не действует.
+  useFocusEffect(useCallback(() => { loadProducts(); }, [loadProducts]));
 
   useEffect(() => {
-    const unsubscribe = SyncService.onDataChanged(() => loadProducts());
+    const unsubscribe = SyncService.onDataChanged(() => loadProducts(true));
     return unsubscribe;
   }, []);
 
@@ -288,6 +300,10 @@ export default function ProductsScreen() {
     return items;
   }, [filteredProducts, sortDirection]);
 
+  useEffect(() => {
+    setVisibleProductsCount(30);
+  }, [displayItems]);
+
   const openAddVariantForm = (group: ProductGroup) => {
     const template = group.variants[0];
     setName(group.displayName);
@@ -309,7 +325,7 @@ export default function ProductsScreen() {
   const onRefresh = async () => {
     setRefreshing(true);
     const start = Date.now();
-    await loadProducts();
+    await loadProducts(true);
     const elapsed = Date.now() - start;
     if (elapsed < 300) await new Promise(r => setTimeout(r, 300 - elapsed));
     setRefreshing(false);
@@ -372,7 +388,7 @@ export default function ProductsScreen() {
 
     resetForm();
     setShowForm(false);
-    await loadProducts();
+    await loadProducts(true);
   };
 
   const resetForm = () => {
@@ -436,7 +452,7 @@ export default function ProductsScreen() {
                   style: 'destructive',
                   onPress: () => {
                     deleteProduct(p.id);
-                    loadProducts();
+                    loadProducts(true);
                   }
                 }
               ]
@@ -1047,7 +1063,8 @@ export default function ProductsScreen() {
           <Text style={styles.emptyHint}>{searchQuery ? t('products.tryAnotherQuery') || 'Try another query' : t('products.addFirstProduct') || 'Add your first product'}</Text>
         </View>
       ) : (
-        displayItems.map((item, index) => {
+        <>
+        {displayItems.slice(0, visibleProductsCount).map((item, index) => {
           if (item.type === 'single') {
             const p = item.data;
             const isExpanded = expandedProductId === p.id;
@@ -1061,11 +1078,11 @@ export default function ProductsScreen() {
               ]}>
                 <TouchableOpacity
                   style={styles.productMain}
-                  onPress={() => {
+                  onPress={async () => {
                     const newId = isExpanded ? null : p.id;
                     setExpandedProductId(newId);
                     if (newId && !productStats[newId]) {
-                      const stats = getProductSalesStats(p.id);
+                      const stats = await getProductSalesStats(p.id);
                       setProductStats(prev => ({ ...prev, [p.id]: stats }));
                     }
                   }}
@@ -1250,11 +1267,11 @@ export default function ProductsScreen() {
                     <View key={v.id} style={v.stock <= 0 ? { backgroundColor: isDark ? '#181818' : '#FAFAFA' } : undefined}>
                       <TouchableOpacity
                         style={[styles.productMain, { paddingVertical: 10 }]}
-                        onPress={() => {
+                        onPress={async () => {
                           const newId = isExpanded ? null : v.id;
                           setExpandedProductId(newId);
                           if (newId && !productStats[newId]) {
-                            const stats = getProductSalesStats(v.id);
+                            const stats = await getProductSalesStats(v.id);
                             setProductStats(prev => ({ ...prev, [v.id]: stats }));
                           }
                         }}
@@ -1404,7 +1421,18 @@ export default function ProductsScreen() {
               </View>
             );
           }
-        })
+        })}
+        {displayItems.length > visibleProductsCount && (
+          <TouchableOpacity
+            style={styles.showMoreBtn}
+            onPress={() => setVisibleProductsCount(c => c + 30)}
+          >
+            <Text style={styles.showMoreBtnText}>
+              {t('reports.showMore', { count: displayItems.length - visibleProductsCount })}
+            </Text>
+          </TouchableOpacity>
+        )}
+        </>
       )}
     </ScrollView>
 
@@ -1416,7 +1444,7 @@ export default function ProductsScreen() {
             initialType={opType}
             onClose={() => setOpModalVisible(false)}
             onSuccess={() => {
-              loadProducts();
+              loadProducts(true);
               setOpModalVisible(false);
             }}
           />
@@ -1483,12 +1511,13 @@ export default function ProductsScreen() {
         visible={!!resolveSaleTarget}
         sale={resolveSaleTarget}
         onClose={() => setResolveSaleTarget(null)}
-        onResolved={loadProducts}
+        onResolved={() => loadProducts(true)}
       />
 
       <InvoiceScanModal
         visible={invoiceScanVisible}
         onClose={() => setInvoiceScanVisible(false)}
+        onSaved={() => loadProducts(true)}
       />
 
       {/* Unregistered Products Quick Add Modal */}
@@ -1549,7 +1578,7 @@ export default function ProductsScreen() {
                             Alert.alert(t('common.saved'), t('products.quickAdded'));
                             const newList = unregistered.filter((_, i) => i !== idx);
                             setUnregistered(newList);
-                            loadProducts();
+                            loadProducts(true);
                             if (newList.length === 0) setShowUnregisteredModal(false);
                           } catch (e) {
                             Alert.alert(t('common.error'), String(e));
@@ -1725,6 +1754,19 @@ const styles = StyleSheet.create({
   },
   empty: { alignItems: 'center', padding: 40 },
   emptyText: { fontSize: 15, color: '#999', marginBottom: 6 },
+  showMoreBtn: {
+    marginTop: 12,
+    marginBottom: 20,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#E0E0E0',
+  },
+  showMoreBtnText: {
+    color: Colors.primary,
+    fontWeight: '600',
+    fontSize: 14,
+  },
   emptyHint: { fontSize: 13, color: '#bbb' },
   productItem: {
     marginHorizontal: 16, marginBottom: 12,

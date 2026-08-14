@@ -9,7 +9,7 @@ import {
   Linking,
   ActivityIndicator,
   Alert,
-  Dimensions,
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -19,9 +19,8 @@ import { useAppContext } from '../context/AppContext';
 import { marketService } from '../services/marketService';
 import { WholesaleAd } from '../types/ads';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
 export default function WholesaleDetailScreen() {
+  const { width: SCREEN_WIDTH } = useWindowDimensions();
   const { t } = useTranslation();
   const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
   const insets = useSafeAreaInsets();
@@ -79,11 +78,11 @@ export default function WholesaleDetailScreen() {
         {item.images && item.images.length > 0 ? (
           <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} style={styles.imageGallery}>
             {item.images.map((img, index) => (
-              <Image key={index} source={{ uri: img }} style={styles.mainImage} />
+              <Image key={index} source={{ uri: img }} style={[styles.mainImage, { width: SCREEN_WIDTH }]} />
             ))}
           </ScrollView>
         ) : (
-          <View style={[styles.mainImage, styles.placeholder]}>
+          <View style={[styles.mainImage, { width: SCREEN_WIDTH }, styles.placeholder]}>
             <Ionicons name="business-outline" size={64} color="#ccc" />
           </View>
         )}
@@ -165,7 +164,7 @@ const styles = StyleSheet.create({
   bgDark: { backgroundColor: '#121212' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   imageGallery: { height: 250 },
-  mainImage: { width: SCREEN_WIDTH, height: 250, resizeMode: 'cover' },
+  mainImage: { height: 250, resizeMode: 'cover' },
   placeholder: { backgroundColor: '#f5f5f5', justifyContent: 'center', alignItems: 'center', width: '100%' },
   content: { padding: 20 },
   company: { fontSize: 24, fontWeight: 'bold', marginBottom: 12 },

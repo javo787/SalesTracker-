@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  BackHandler, Animated, Dimensions, Platform, ActivityIndicator, Alert
+  BackHandler, Animated, useWindowDimensions, Platform, ActivityIndicator, Alert
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,13 +12,19 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import Svg, { Polyline, Line } from 'react-native-svg';
 
-const { width } = Dimensions.get('window');
 const RESET_GRACE_PERIOD_HOURS = 24;
 const GRID_SIZE = 3;
 const DOT_SIZE = 20;
-const GRID_SPACING = (width * 0.8) / GRID_SIZE;
 
 export default function LockScreen() {
+  const { width } = useWindowDimensions();
+  // Фиксируется на весь сеанс экрана — как и раньше, только теперь через
+  // рекомендуемый хук вместо замороженного на весь процесс приложения
+  // Dimensions.get(). Используется внутри Gesture.Pan() с пустым deps
+  // (строка ниже, ~180), так что не реагирует на поворот экрана в течение
+  // сеанса — то же поведение, что было до этой правки, экран разблокировки
+  // всё равно портретный.
+  const GRID_SPACING = (width * 0.8) / GRID_SIZE;
   const { t } = useTranslation();
   const { resolvedTheme, currency } = useAppContext(); const isDark = resolvedTheme === "dark";
   const navigation = useNavigation();
@@ -247,7 +253,7 @@ export default function LockScreen() {
   const renderKeypad = () => {
     const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'BACK'];
     return (
-      <View style={styles.keypad}>
+      <View style={[styles.keypad, { width: width * 0.8 }]}>
         {keys.map((key, index) => (
           <TouchableOpacity
             key={index}
@@ -268,7 +274,7 @@ export default function LockScreen() {
 
   const renderPatternGrid = () => {
     return (
-      <GestureHandlerRootView style={styles.patternContainer}>
+      <GestureHandlerRootView style={[styles.patternContainer, { width: width * 0.8, height: width * 0.8 }]}>
         <GestureDetector gesture={onGesture}>
           <View style={styles.grid}>
             <Svg style={StyleSheet.absoluteFill}>
@@ -442,7 +448,6 @@ const styles = StyleSheet.create({
   keypad: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    width: width * 0.8,
     alignSelf: 'center',
   },
   key: {
@@ -510,8 +515,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   patternContainer: {
-    width: width * 0.8,
-    height: width * 0.8,
   },
   grid: {
     flex: 1,

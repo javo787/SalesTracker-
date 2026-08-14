@@ -105,9 +105,9 @@ const ProductDetailScreen = () => {
         {
           text: 'Удалить',
           style: 'destructive',
-          onPress: () => {
-            deleteSale(saleId);
-            loadData();
+          onPress: async () => {
+            await deleteSale(saleId);
+            await loadData();
           }
         }
       ]

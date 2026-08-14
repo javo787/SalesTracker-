@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
-  TouchableOpacity, TextInput, Dimensions,
+  TouchableOpacity, TextInput, useWindowDimensions,
   Modal, Animated, Platform
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -10,12 +10,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '../context/AppContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const { width } = Dimensions.get('window');
-
 type Mode = 'normal' | 'trade';
 type TradeTab = 'markup' | 'margin' | 'batch' | 'reverse';
 
 export default function CalculatorScreen({ navigation }: any) {
+  const { width } = useWindowDimensions();
+  const dynKeyStyle = useMemo(() => ({ width: (width - 40 - 30) / 4 }), [width]);
+  const dynKeyZeroStyle = useMemo(() => ({ width: ((width - 40 - 30) / 4) * 2 + 10 }), [width]);
   const { t } = useTranslation();
   const { resolvedTheme } = useAppContext();
   const isDark = resolvedTheme === 'dark';
@@ -233,57 +234,57 @@ export default function CalculatorScreen({ navigation }: any) {
             {/* Кнопки */}
             <View style={styles.keys}>
               {/* Ряд 1 */}
-              <TouchableOpacity style={[styles.key, styles.keyFn, themeStyles.keyFn]} onPress={() => pressKey('AC')}>
+              <TouchableOpacity style={[styles.key, dynKeyStyle, styles.keyFn, themeStyles.keyFn]} onPress={() => pressKey('AC')}>
                 <Text style={[styles.keyFnText, themeStyles.keyFnText]}>AC</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.key, styles.keyFn, themeStyles.keyFn]} onPress={() => pressKey('+/-')}>
+              <TouchableOpacity style={[styles.key, dynKeyStyle, styles.keyFn, themeStyles.keyFn]} onPress={() => pressKey('+/-')}>
                 <Text style={[styles.keyFnText, themeStyles.keyFnText]}>+/−</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.key, styles.keyFn, themeStyles.keyFn]} onPress={() => pressKey('%')}>
+              <TouchableOpacity style={[styles.key, dynKeyStyle, styles.keyFn, themeStyles.keyFn]} onPress={() => pressKey('%')}>
                 <Text style={[styles.keyFnText, themeStyles.keyFnText]}>%</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.key, styles.keyOp]} onPress={() => pressKey('/')}>
+              <TouchableOpacity style={[styles.key, dynKeyStyle, styles.keyOp]} onPress={() => pressKey('/')}>
                 <Text style={styles.keyOpText}>÷</Text>
               </TouchableOpacity>
 
               {/* Ряд 2 */}
               {['1','2','3'].map(k => (
-                <TouchableOpacity key={k} style={[styles.key, themeStyles.key]} onPress={() => pressKey(k)}>
+                <TouchableOpacity key={k} style={[styles.key, dynKeyStyle, themeStyles.key]} onPress={() => pressKey(k)}>
                   <Text style={[styles.keyText, themeStyles.keyText]}>{k}</Text>
                 </TouchableOpacity>
               ))}
-              <TouchableOpacity style={[styles.key, styles.keyOp]} onPress={() => pressKey('*')}>
+              <TouchableOpacity style={[styles.key, dynKeyStyle, styles.keyOp]} onPress={() => pressKey('*')}>
                 <Text style={styles.keyOpText}>×</Text>
               </TouchableOpacity>
 
               {/* Ряд 3 */}
               {['4','5','6'].map(k => (
-                <TouchableOpacity key={k} style={[styles.key, themeStyles.key]} onPress={() => pressKey(k)}>
+                <TouchableOpacity key={k} style={[styles.key, dynKeyStyle, themeStyles.key]} onPress={() => pressKey(k)}>
                   <Text style={[styles.keyText, themeStyles.keyText]}>{k}</Text>
                 </TouchableOpacity>
               ))}
-              <TouchableOpacity style={[styles.key, styles.keyOp]} onPress={() => pressKey('-')}>
+              <TouchableOpacity style={[styles.key, dynKeyStyle, styles.keyOp]} onPress={() => pressKey('-')}>
                 <Text style={styles.keyOpText}>−</Text>
               </TouchableOpacity>
 
               {/* Ряд 4 */}
               {['7','8','9'].map(k => (
-                <TouchableOpacity key={k} style={[styles.key, themeStyles.key]} onPress={() => pressKey(k)}>
+                <TouchableOpacity key={k} style={[styles.key, dynKeyStyle, themeStyles.key]} onPress={() => pressKey(k)}>
                   <Text style={[styles.keyText, themeStyles.keyText]}>{k}</Text>
                 </TouchableOpacity>
               ))}
-              <TouchableOpacity style={[styles.key, styles.keyOp]} onPress={() => pressKey('+')}>
+              <TouchableOpacity style={[styles.key, dynKeyStyle, styles.keyOp]} onPress={() => pressKey('+')}>
                 <Text style={styles.keyOpText}>+</Text>
               </TouchableOpacity>
 
               {/* Ряд 5 */}
-              <TouchableOpacity style={[styles.key, styles.keyZero, themeStyles.key]} onPress={() => pressKey('0')}>
+              <TouchableOpacity style={[styles.key, dynKeyStyle, styles.keyZero, dynKeyZeroStyle, themeStyles.key]} onPress={() => pressKey('0')}>
                 <Text style={[styles.keyText, themeStyles.keyText]}>0</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.key, themeStyles.key]} onPress={() => pressKey('.')}>
+              <TouchableOpacity style={[styles.key, dynKeyStyle, themeStyles.key]} onPress={() => pressKey('.')}>
                 <Text style={[styles.keyText, themeStyles.keyText]}>.</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.key, styles.keyEq]} onPress={() => pressKey('=')}>
+              <TouchableOpacity style={[styles.key, dynKeyStyle, styles.keyEq]} onPress={() => pressKey('=')}>
                 <Text style={styles.keyEqText}>=</Text>
               </TouchableOpacity>
             </View>
@@ -576,7 +577,6 @@ const styles = StyleSheet.create({
 
   keys: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   key: {
-    width: (width - 40 - 30) / 4,
     aspectRatio: 1,
     borderRadius: 20,
     alignItems: 'center',
@@ -595,7 +595,7 @@ const styles = StyleSheet.create({
   keyOpText: { fontSize: 28, fontWeight: '500', color: GREEN },
   keyEq: { backgroundColor: GREEN },
   keyEqText: { fontSize: 32, fontWeight: '500', color: '#FFF' },
-  keyZero: { width: ((width - 40 - 30) / 4) * 2 + 10, aspectRatio: undefined, paddingVertical: 18 },
+  keyZero: { aspectRatio: undefined, paddingVertical: 18 },
 
   transferBtn: {
     marginTop: 10,
