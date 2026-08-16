@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, Modal, TouchableOpacity,
-  FlatList, ActivityIndicator
+  ActivityIndicator
 } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useAppContext } from '../../context/AppContext';
@@ -41,7 +42,7 @@ export default function StockHistorySheet({ visible, onClose, product }: StockHi
     }
   };
 
-  const renderItem = ({ item }: { item: any }) => {
+  const renderItem = useCallback(({ item }: { item: any }) => {
     const isPositive = item.quantity_change > 0;
     const date = new Date(item.created_at).toLocaleString();
 
@@ -82,7 +83,7 @@ export default function StockHistorySheet({ visible, onClose, product }: StockHi
         </View>
       </View>
     );
-  };
+  }, [t, isDark, product, currency]);
 
   return (
     <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
@@ -109,7 +110,7 @@ export default function StockHistorySheet({ visible, onClose, product }: StockHi
           {loading ? (
             <ActivityIndicator size="large" color="#1D9E75" style={{ marginTop: 20 }} />
           ) : (
-            <FlatList
+            <FlashList
               data={movements}
               keyExtractor={(item) => item.id}
               renderItem={renderItem}

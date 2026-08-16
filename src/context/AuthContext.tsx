@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User, AuthResult } from '../types/auth';
 import { AuthService } from '../services/authService';
@@ -85,86 +85,102 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Помечает профиль как только что подтверждённый сервером — вызывается
-  // везде, где мы и так только что получили свежие данные пользователя
-  // (логин, регистрация, обновление профиля), чтобы не дёргать /profile
-  // ещё раз при следующем открытии приложения впустую.
-  const markProfileFresh = async () => {
+  // useCallback: markProfileFresh вызывается из шести публичных методов ниже
+  // (login*, updateProfile, convertGuestAccount) — те, в свою очередь, тоже
+  // обёрнуты в useCallback и должны видеть стабильную ссылку сюда.
+  const markProfileFresh = useCallback(async () => {
     await AsyncStorage.setItem(LAST_PROFILE_CHECK_KEY, String(Date.now()));
-  };
+  }, []);
 
-  const loginAsGuest = async () => {
+  const loginAsGuest = useCallback(async () => {
     const result = await AuthService.loginAsGuest();
     setUser(result.user);
-  };
+  }, []);
 
-  const loginWithEmail = async (email: string, password: string) => {
+  const loginWithEmail = useCallback(async (email: string, password: string) => {
     const result = await AuthService.loginWithEmail(email, password);
     setUser(result.user);
     await markProfileFresh();
-  };
+  }, [markProfileFresh]);
 
-  const registerWithEmail = async (email: string, password: string, name: string, referralCode?: string) => {
+  const registerWithEmail = useCallback(async (email: string, password: string, name: string, referralCode?: string) => {
     const result = await AuthService.registerWithEmail(email, password, name, referralCode);
     setUser(result.user);
     await markProfileFresh();
-  };
+  }, [markProfileFresh]);
 
-  const loginWithGoogle = async (idToken: string) => {
+  const loginWithGoogle = useCallback(async (idToken: string) => {
     const result = await api.post<AuthResult>('/auth/google', { idToken });
     await AuthService.saveAuthData(result);
     setUser(result.user);
     await markProfileFresh();
-  };
+  }, [markProfileFresh]);
 
-  const loginWithTelegram = async () => {
+  const loginWithTelegram = useCallback(async () => {
     const result = await AuthService.loginWithTelegram();
     setUser(result.user);
     await markProfileFresh();
-  };
+  }, [markProfileFresh]);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     await AuthService.logout();
     setUser(null);
-  };
+  }, []);
 
-  const deleteAccount = async () => {
+  const deleteAccount = useCallback(async () => {
     await AuthService.deleteAccount();
     setUser(null);
-  };
+  }, []);
 
-  const updateProfile = async (data: Partial<User>) => {
+  const updateProfile = useCallback(async (data: Partial<User>) => {
     const updatedUser = await api.patch<User>('/profile', data);
     setUser(updatedUser);
     const token = await AuthService.getStoredToken();
     if (token) AuthService.saveAuthData({ token, user: updatedUser });
     await markProfileFresh();
-  };
+  }, [markProfileFresh]);
 
-  const convertGuestAccount = async (provider: string, data: any) => {
+  const convertGuestAccount = useCallback(async (provider: string, data: any) => {
     const { user: updatedUser } = await api.post<{ user: User }>('/auth/convert', { provider, ...data });
     setUser(updatedUser);
     const token = await AuthService.getStoredToken();
     if (token) AuthService.saveAuthData({ token, user: updatedUser });
     await markProfileFresh();
-  };
+  }, [markProfileFresh]);
+
+  // Group A / item 1: тот же паттерн, что в ShopContext.tsx — value-объект
+  // держали инлайн, что ре-рендерило все компоненты на useAuth() (весь
+  // авторизованный экран целиком) при каждом обновлении провайдера.
+  const contextValue = useMemo(() => ({
+    user,
+    isAuthenticated: !!user,
+    isGuest: user?.authProvider === 'anonymous',
+    isLoading,
+    loginAsGuest,
+    loginWithEmail,
+    registerWithEmail,
+    loginWithGoogle,
+    loginWithTelegram,
+    logout,
+    deleteAccount,
+    updateProfile,
+    convertGuestAccount,
+  }), [
+    user,
+    isLoading,
+    loginAsGuest,
+    loginWithEmail,
+    registerWithEmail,
+    loginWithGoogle,
+    loginWithTelegram,
+    logout,
+    deleteAccount,
+    updateProfile,
+    convertGuestAccount,
+  ]);
 
   return (
-    <AuthContext.Provider value={{
-      user,
-      isAuthenticated: !!user,
-      isGuest: user?.authProvider === 'anonymous',
-      isLoading,
-      loginAsGuest,
-      loginWithEmail,
-      registerWithEmail,
-      loginWithGoogle,
-      loginWithTelegram,
-      logout,
-      deleteAccount,
-      updateProfile,
-      convertGuestAccount,
-    }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
