@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getShopSession, saveShopSession, clearShopSession } from '../db/database';
@@ -99,7 +99,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(false);
   };
 
-  const persistSession = (data: {
+  // useCallback: persistSession — вызывается из createShop/joinShop/refreshShopInfo,
+  // которые сами обёрнуты в useCallback и должны получать стабильную ссылку сюда,
+  // иначе их собственная мемоизация ломается на каждый ре-рендер.
+  const persistSession = useCallback((data: {
     shopId: string; shopName: string; role: ShopRole;
     sellerName: string; inviteCode?: string;
   }) => {
@@ -109,9 +112,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSellerName(data.sellerName);
     setInviteCode(data.inviteCode || null);
     saveShopSession(data);
-  };
+  }, []);
 
-  const createShop = async (name: string) => {
+  const createShop = useCallback(async (name: string) => {
     try {
       const result = await api.post<{
         shopId: string; shopName: string; role: ShopRole; inviteCode: string;
@@ -135,9 +138,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (e: any) {
       throw e;
     }
-  };
+  }, [persistSession]);
 
-  const joinShop = async (code: string) => {
+  const joinShop = useCallback(async (code: string) => {
     try {
       const result = await api.post<{
         shopId: string; shopName: string; role: ShopRole;
@@ -159,9 +162,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (e: any) {
       throw e;
     }
-  };
+  }, [persistSession]);
 
-  const refreshShopInfo = async () => {
+  const refreshShopInfo = useCallback(async () => {
     try {
       const result = await api.get<{
         shopId: string;
@@ -191,7 +194,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {
       // Offline — use cache
     }
-  };
+  }, [sellerName, persistSession]);
 
   // Bug fix: refreshShopInfo() was defined but never invoked anywhere in the
   // app, so checkInStatus/permissions never updated after the initial cache
@@ -212,31 +215,30 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const sub = AppState.addEventListener('change', handleAppStateChange);
     return () => sub.remove();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shopId]);
+  }, [shopId, refreshShopInfo]);
 
-  const regenerateInviteCode = async () => {
+  const regenerateInviteCode = useCallback(async () => {
     const { inviteCode: newCode } = await api.post<{ inviteCode: string }>('/shop/regenerate-code', {});
     setInviteCode(newCode);
     if (shopId && shopName && role && sellerName) {
       saveShopSession({ shopId, shopName, role, sellerName, inviteCode: newCode });
     }
     return newCode;
-  };
+  }, [shopId, shopName, role, sellerName]);
 
-  const transferOwnership = async (userId: string) => {
+  const transferOwnership = useCallback(async (userId: string) => {
     await api.patch(`/shop/members/${userId}/role`, { action: 'transfer_ownership' });
     setRole('seller');
     if (shopId && shopName && sellerName) {
       saveShopSession({ shopId, shopName, role: 'seller', sellerName, inviteCode: inviteCode || undefined });
     }
-  };
+  }, [shopId, shopName, sellerName, inviteCode]);
 
-  const can = (perm: string): boolean => {
+  const can = useCallback((perm: string): boolean => {
     return role === 'owner' || permissions.includes(perm);
-  };
+  }, [role, permissions]);
 
-  const leaveShop = async (): Promise<{ ok: true } | { ok: false; code: 'TRANSFER_REQUIRED' }> => {
+  const leaveShop = useCallback(async (): Promise<{ ok: true } | { ok: false; code: 'TRANSFER_REQUIRED' }> => {
     try {
       await api.post('/shop/leave', {});
       clearShopSession();
@@ -258,22 +260,40 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       throw e;
     }
-  };
+  }, []);
+
+  // Group A / item 1: value-объект пересоздавался инлайн на каждый рендер —
+  // все 50+ потребителей useShop() ре-рендерились при любом изменении в
+  // ShopProvider (включая изменения, которые их вообще не касаются), даже
+  // будучи обёрнутыми в React.memo. useMemo здесь работает только потому,
+  // что все функции выше уже стабилизированы через useCallback — иначе
+  // сам useMemo был бы бесполезен (новая ссылка на функцию = новый deps
+  // каждый рендер = value всё равно пересоздаётся).
+  const contextValue = useMemo(() => ({
+    shopId, shopName, role, sellerName, inviteCode,
+    isOwner: role === 'owner',
+    isSeller: role === 'seller',
+    hasShop: !!shopId,
+    isLoading,
+    shopRevoked,
+    setShopRevoked,
+    checkInStatus,
+    permissions,
+    can,
+    createShop, joinShop, leaveShop, transferOwnership, refreshShopInfo, regenerateInviteCode,
+  }), [
+    shopId, shopName, role, sellerName, inviteCode,
+    isLoading,
+    shopRevoked,
+    setShopRevoked,
+    checkInStatus,
+    permissions,
+    can,
+    createShop, joinShop, leaveShop, transferOwnership, refreshShopInfo, regenerateInviteCode,
+  ]);
 
   return (
-    <ShopContext.Provider value={{
-      shopId, shopName, role, sellerName, inviteCode,
-      isOwner: role === 'owner',
-      isSeller: role === 'seller',
-      hasShop: !!shopId,
-      isLoading,
-      shopRevoked,
-      setShopRevoked,
-      checkInStatus,
-      permissions,
-      can,
-      createShop, joinShop, leaveShop, transferOwnership, refreshShopInfo, regenerateInviteCode,
-    }}>
+    <ShopContext.Provider value={contextValue}>
       {children}
     </ShopContext.Provider>
   );
