@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
   ScrollView, View, Text, TouchableOpacity, StyleSheet,
-  Alert, FlatList, Modal, TextInput, ActivityIndicator, Animated
+  Alert, Modal, TextInput, ActivityIndicator, Animated
 } from 'react-native';
 import Svg, { Rect, Line, Text as SvgText } from 'react-native-svg';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';

@@ -3,13 +3,13 @@ import {
   View,
   Text,
   StyleSheet,
-  FlatList,
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
   RefreshControl,
   SafeAreaView,
 } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
@@ -102,7 +102,7 @@ export default function WholesaleScreen() {
 
   return (
     <SafeAreaView style={[styles.container, isDark ? styles.bgDark : styles.bgLight]}>
-      <FlatList
+      <FlashList
         data={ads}
         keyExtractor={(item) => item._id}
         renderItem={renderItem}

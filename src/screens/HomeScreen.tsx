@@ -1,9 +1,10 @@
-import React, { useState, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet,
   TouchableOpacity, RefreshControl, Alert, PanResponder, Animated as RNAnimated,
-  useWindowDimensions, FlatList
+  useWindowDimensions
 } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -22,6 +23,18 @@ import { Colors, LightTheme, DarkTheme, Radius, Shadow, FontSize, Spacing } from
 
 const SaleListItem = React.memo(({ sale, onDelete, isDark, currency, t, i18n, themeStyles }: any) => {
   const translateX = useRef(new RNAnimated.Value(0)).current;
+
+  // FlashList переиспользует смонтированный инстанс карточки под НОВЫЙ
+  // элемент данных при recycling (это ниже уровня React key-реконсиляции).
+  // Без сброса свайп-жест «доедет» с прошлой продажи на новую, которая
+  // только что попала в тот же переиспользуемый слот.
+  const prevSaleId = useRef(sale.id);
+  useEffect(() => {
+    if (prevSaleId.current !== sale.id) {
+      prevSaleId.current = sale.id;
+      translateX.setValue(0);
+    }
+  }, [sale.id, translateX]);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -253,22 +266,24 @@ export default function HomeScreen() {
     return t('home.greetingEvening', { name });
   };
 
+  const renderItem = useCallback(({ item }: { item: any }) => (
+    <SaleListItem
+      sale={item}
+      onDelete={handleDeleteSale}
+      isDark={isDark}
+      currency={currency}
+      t={t}
+      i18n={i18n}
+      themeStyles={themeStyles}
+    />
+  ), [handleDeleteSale, isDark, currency, t, i18n, themeStyles]);
+
   return (
-    <FlatList
+    <FlashList
       style={[styles.container, themeStyles.container]}
       data={todaySales}
       keyExtractor={(sale: any) => String(sale.id)}
-      renderItem={({ item }: { item: any }) => (
-        <SaleListItem
-          sale={item}
-          onDelete={handleDeleteSale}
-          isDark={isDark}
-          currency={currency}
-          t={t}
-          i18n={i18n}
-          themeStyles={themeStyles}
-        />
-      )}
+      renderItem={renderItem}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       ListHeaderComponent={
         <>

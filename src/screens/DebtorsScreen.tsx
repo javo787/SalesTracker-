@@ -4,6 +4,7 @@ import {
   Alert, TextInput, Modal, KeyboardAvoidingView, Platform,
   RefreshControl, ScrollView, Linking,
 } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -149,11 +150,11 @@ export default function DebtorsScreen() {
     );
   };
 
-  const openClientDetail = async (client: any) => {
+  const openClientDetail = useCallback(async (client: any) => {
     setSelectedClient(client);
     setClientHistory(await getClientDebtHistory(client.id) as any[]);
     setShowClientDetailModal(true);
-  };
+  }, []);
 
   const openEditClient = (client: any) => {
     setSelectedClient(client);
@@ -168,7 +169,7 @@ export default function DebtorsScreen() {
     (c.phone && c.phone.includes(clientSearch))
   );
 
-  const openClient = async (debt: any) => {
+  const openClient = useCallback(async (debt: any) => {
     setSelectedDebt(debt);
     setPayments(await getDebtPayments(debt.id) as any[]);
     setClientHistory(await getClientDebtHistory(debt.client_id) as any[]);
@@ -176,7 +177,7 @@ export default function DebtorsScreen() {
     setPaymentAmount('');
     setPaymentNote('');
     setShowModal(true);
-  };
+  }, []);
 
   const handlePayment = async () => {
     const amount = parseFloat(paymentAmount);
@@ -256,7 +257,7 @@ export default function DebtorsScreen() {
     return true;
   });
 
-  const renderItem = ({ item }: { item: any }) => {
+  const renderItem = useCallback(({ item }: { item: any }) => {
     const remaining = item.amount_total - item.amount_paid;
     const pct = Math.round((item.amount_paid / item.amount_total) * 100);
     const isOverdue = item.due_date && item.due_date < today;
@@ -303,7 +304,59 @@ export default function DebtorsScreen() {
         </View>
       </TouchableOpacity>
     );
-  };
+  }, [openClient, themeStyles, t, currency]);
+
+  const renderClientItem = useCallback(({ item }: { item: any }) => (
+    <TouchableOpacity
+      style={[clientStyles.clientCard, isDark ? clientStyles.clientCardDark : clientStyles.clientCardLight]}
+      onPress={() => openClientDetail(item)}
+      activeOpacity={0.75}
+    >
+      {/* Left: avatar circle */}
+      <View style={[clientStyles.avatar, { backgroundColor: item.active_debt > 0 ? '#FDECEA' : '#E8F5E9' }]}>
+        <Text style={[clientStyles.avatarText, { color: item.active_debt > 0 ? '#E53935' : '#1D9E75' }]}>
+          {item.name.charAt(0).toUpperCase()}
+        </Text>
+      </View>
+
+      {/* Center: name + meta */}
+      <View style={{ flex: 1, marginLeft: 12 }}>
+        <Text style={[clientStyles.clientName, { color: isDark ? '#EEE' : '#222' }]} numberOfLines={1}>
+          {item.name}
+        </Text>
+        {item.phone ? (
+          <Text style={clientStyles.clientPhone} numberOfLines={1}>{item.phone}</Text>
+        ) : (
+          <Text style={clientStyles.clientPhoneEmpty}>Нет номера</Text>
+        )}
+        {item.last_activity ? (
+          <Text style={clientStyles.clientMeta}>
+            Последняя операция: {new Date(item.last_activity).toLocaleDateString('ru-RU')}
+          </Text>
+        ) : null}
+      </View>
+
+      {/* Right: debt badge + call button */}
+      <View style={clientStyles.clientRight}>
+        {item.active_debt > 0 && (
+          <View style={clientStyles.debtBadge}>
+            <Text style={clientStyles.debtBadgeText}>
+              {item.active_debt.toLocaleString()} {currency.symbol}
+            </Text>
+          </View>
+        )}
+        {item.phone ? (
+          <TouchableOpacity
+            style={clientStyles.callBtn}
+            onPress={() => Linking.openURL(`tel:${item.phone}`)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="call" size={18} color="#1D9E75" />
+          </TouchableOpacity>
+        ) : null}
+      </View>
+    </TouchableOpacity>
+  ), [isDark, openClientDetail, currency]);
 
   return (
     <View style={[styles.container, themeStyles.container]}>
@@ -387,7 +440,7 @@ export default function DebtorsScreen() {
         </TouchableOpacity>
       </View>
 
-          <FlatList
+          <FlashList
             data={filteredDebts}
             keyExtractor={(item) => String(item.id)}
             renderItem={renderItem}
@@ -427,7 +480,7 @@ export default function DebtorsScreen() {
           </View>
 
           {/* Clients list */}
-          <FlatList
+          <FlashList
             data={filteredClients}
             keyExtractor={(item) => String(item.id)}
             contentContainerStyle={{ padding: 16, paddingTop: 8 }}
@@ -440,57 +493,7 @@ export default function DebtorsScreen() {
                 </Text>
               </View>
             }
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={[clientStyles.clientCard, isDark ? clientStyles.clientCardDark : clientStyles.clientCardLight]}
-                onPress={() => openClientDetail(item)}
-                activeOpacity={0.75}
-              >
-                {/* Left: avatar circle */}
-                <View style={[clientStyles.avatar, { backgroundColor: item.active_debt > 0 ? '#FDECEA' : '#E8F5E9' }]}>
-                  <Text style={[clientStyles.avatarText, { color: item.active_debt > 0 ? '#E53935' : '#1D9E75' }]}>
-                    {item.name.charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-
-                {/* Center: name + meta */}
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={[clientStyles.clientName, { color: isDark ? '#EEE' : '#222' }]} numberOfLines={1}>
-                    {item.name}
-                  </Text>
-                  {item.phone ? (
-                    <Text style={clientStyles.clientPhone} numberOfLines={1}>{item.phone}</Text>
-                  ) : (
-                    <Text style={clientStyles.clientPhoneEmpty}>Нет номера</Text>
-                  )}
-                  {item.last_activity ? (
-                    <Text style={clientStyles.clientMeta}>
-                      Последняя операция: {new Date(item.last_activity).toLocaleDateString('ru-RU')}
-                    </Text>
-                  ) : null}
-                </View>
-
-                {/* Right: debt badge + call button */}
-                <View style={clientStyles.clientRight}>
-                  {item.active_debt > 0 && (
-                    <View style={clientStyles.debtBadge}>
-                      <Text style={clientStyles.debtBadgeText}>
-                        {item.active_debt.toLocaleString()} {currency.symbol}
-                      </Text>
-                    </View>
-                  )}
-                  {item.phone ? (
-                    <TouchableOpacity
-                      style={clientStyles.callBtn}
-                      onPress={() => Linking.openURL(`tel:${item.phone}`)}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Ionicons name="call" size={18} color="#1D9E75" />
-                    </TouchableOpacity>
-                  ) : null}
-                </View>
-              </TouchableOpacity>
-            )}
+            renderItem={renderClientItem}
           />
 
           {/* FAB: add client manually */}
