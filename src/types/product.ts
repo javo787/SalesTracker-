@@ -15,6 +15,7 @@ export interface Product {
   is_deleted: number;
   created_at: string;
   color?: string | null;
+  size?: string | null;
   article?: string | null;
 }
 
@@ -45,5 +46,6 @@ export interface AutocompleteResult {
   stock?: number;
   article?: string | null;
   color?: string | null;
+  size?: string | null;
   baseName?: string;
 }

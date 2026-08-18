@@ -10,7 +10,7 @@ let db: SQLite.SQLiteDatabase;
 // ВАЖНО: при добавлении новой миграции schema_vN не забудьте увеличить это
 // значение — иначе для существующих пользователей она будет молча
 // пропущена fast path'ом ниже.
-const CURRENT_SCHEMA_VERSION = '10';
+const CURRENT_SCHEMA_VERSION = '11';
 
 async function runMigrations() {
   // app_meta должна существовать до любой проверки версии схемы.
@@ -457,6 +457,28 @@ async function runMigrations() {
     });
   }
 
+  const schemaV11MigrationDone = await db.getFirstAsync(
+    "SELECT value FROM app_meta WHERE key = 'schema_v11'"
+  ) as { value: string } | null;
+
+  if (!schemaV11MigrationDone) {
+    await db.withTransactionAsync(async () => {
+      // Второе измерение варианта товара (в дополнение к color): article+color+size
+      // вместе определяют точный SKU. Ничего в sales/stock_movements менять не
+      // нужно — они уже привязаны к products.id, то есть уже на уровне точной строки.
+      const productsTableInfo = await db.getAllAsync("PRAGMA table_info(products)") as any[];
+      if (!productsTableInfo.some(c => c.name === 'size')) {
+        await db.execAsync("ALTER TABLE products ADD COLUMN size TEXT");
+      }
+      // Группировка по article станет чаще происходить (один артикул может
+      // теперь разворачиваться в много строк — цвета × размеры).
+      await db.execAsync(`
+  CREATE INDEX IF NOT EXISTS idx_products_article ON products(article);
+`);
+      await db.runAsync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_v11', 'done')");
+    });
+  }
+
   // Migration: shop_session table
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS shop_session (
@@ -566,7 +588,8 @@ export async function addProduct(
   category: string | null = null,
   isContinuous: number = 0,
   article: string | null = null,
-  color: string | null = null
+  color: string | null = null,
+  size: string | null = null
 ) {
   await dbReadyPromise;
   try {
@@ -576,9 +599,9 @@ export async function addProduct(
         name, buy_price, sell_price, stock, min_stock_alert,
         base_unit, has_packages, package_name, units_per_package,
         category, updated_at, synced, is_deleted, created_at, is_continuous,
-        article, color, initial_stock, initial_buy_price
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?)`,
-      [name, buyPrice, sellPrice, stock, minStockAlert, baseUnit, hasPackages, packageName, unitsPerPackage, category, now, now, isContinuous, article, color, stock, buyPrice]
+        article, color, size, initial_stock, initial_buy_price
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?)`,
+      [name, buyPrice, sellPrice, stock, minStockAlert, baseUnit, hasPackages, packageName, unitsPerPackage, category, now, now, isContinuous, article, color, size, stock, buyPrice]
     );
     if (stock <= minStockAlert && minStockAlert > 0) {
       notifyLowStock(name, stock);
@@ -593,7 +616,7 @@ export async function addProduct(
 // Поля товара, изменения которых фиксируются в истории редактирования
 const EDIT_TRACKED_FIELDS = [
   'name', 'category', 'buy_price', 'sell_price', 'stock', 'min_stock_alert',
-  'base_unit', 'article', 'color', 'package_name', 'units_per_package', 'is_continuous',
+  'base_unit', 'article', 'color', 'size', 'package_name', 'units_per_package', 'is_continuous',
 ] as const;
 
 function normalizeEditVal(v: any): string | number {
@@ -652,7 +675,8 @@ export async function updateProduct(
   category: string | null = null,
   isContinuous: number = 0,
   article: string | null = null,
-  color: string | null = null
+  color: string | null = null,
+  size: string | null = null
 ) {
   await dbReadyPromise;
   try {
@@ -663,9 +687,9 @@ export async function updateProduct(
         name = ?, buy_price = ?, sell_price = ?, stock = ?, min_stock_alert = ?,
         base_unit = ?, has_packages = ?, package_name = ?, units_per_package = ?,
         category = ?, updated_at = ?, synced = 0, is_continuous = ?,
-        article = ?, color = ?
+        article = ?, color = ?, size = ?
       WHERE id = ?`,
-      [name, buyPrice, sellPrice, stock, minStockAlert, baseUnit, hasPackages, packageName, unitsPerPackage, category, nowLocalISO(), isContinuous, article, color, id]
+      [name, buyPrice, sellPrice, stock, minStockAlert, baseUnit, hasPackages, packageName, unitsPerPackage, category, nowLocalISO(), isContinuous, article, color, size, id]
     );
 
     if (before) {
@@ -673,7 +697,7 @@ export async function updateProduct(
         id, name, category, buy_price: buyPrice, sell_price: sellPrice, stock,
         min_stock_alert: minStockAlert, base_unit: baseUnit, has_packages: hasPackages,
         package_name: packageName, units_per_package: unitsPerPackage,
-        is_continuous: isContinuous, article, color,
+        is_continuous: isContinuous, article, color, size,
       });
     }
 
@@ -1827,10 +1851,15 @@ export async function searchProductsForAutocomplete(query: string) {
           COALESCE(sa.salesCount, 0) as salesCount,
           sa.lastSoldAt as lastSoldAt,
           p.base_unit, p.has_packages, p.package_name, p.units_per_package, p.is_continuous, p.stock,
-          p.article, p.color,
-          CASE WHEN p.color IS NOT NULL AND p.color != ''
-               THEN p.name || ' · ' || p.color
-               ELSE p.name
+          p.article, p.color, p.size,
+          CASE
+            WHEN p.color IS NOT NULL AND p.color != '' AND p.size IS NOT NULL AND p.size != ''
+                 THEN p.name || ' · ' || p.color || ' · ' || p.size
+            WHEN p.color IS NOT NULL AND p.color != ''
+                 THEN p.name || ' · ' || p.color
+            WHEN p.size IS NOT NULL AND p.size != ''
+                 THEN p.name || ' · ' || p.size
+            ELSE p.name
           END AS displayName
         FROM products p
         LEFT JOIN SalesAgg sa ON p.id = sa.product_id
@@ -1845,11 +1874,11 @@ export async function searchProductsForAutocomplete(query: string) {
           ha.salesCount,
           ha.lastSoldAt,
           'шт' as base_unit, 0 as has_packages, NULL as package_name, 1 as units_per_package, 0 as is_continuous, 0 as stock,
-          NULL as article, NULL as color,
+          NULL as article, NULL as color, NULL as size,
           ha.product_name as displayName
         FROM HistoryAgg ha
       )
-      SELECT id, displayName as name, source, purchasePrice, lastSalePrice, salesCount, lastSoldAt, base_unit, has_packages, package_name, units_per_package, is_continuous, stock, article, color, name as baseName FROM AllItems
+      SELECT id, displayName as name, source, purchasePrice, lastSalePrice, salesCount, lastSoldAt, base_unit, has_packages, package_name, units_per_package, is_continuous, stock, article, color, size, name as baseName FROM AllItems
       ORDER BY salesCount DESC, lastSoldAt DESC
       LIMIT 5
     `);
@@ -1881,10 +1910,15 @@ export async function searchProductsForAutocomplete(query: string) {
       COALESCE(sa.salesCount, 0) as salesCount,
       sa.lastSoldAt,
       p.base_unit, p.has_packages, p.package_name, p.units_per_package, p.is_continuous, p.stock,
-      p.article, p.color,
-      CASE WHEN p.color IS NOT NULL AND p.color != ''
-           THEN p.name || ' · ' || p.color
-           ELSE p.name
+      p.article, p.color, p.size,
+      CASE
+        WHEN p.color IS NOT NULL AND p.color != '' AND p.size IS NOT NULL AND p.size != ''
+             THEN p.name || ' · ' || p.color || ' · ' || p.size
+        WHEN p.color IS NOT NULL AND p.color != ''
+             THEN p.name || ' · ' || p.color
+        WHEN p.size IS NOT NULL AND p.size != ''
+             THEN p.name || ' · ' || p.size
+        ELSE p.name
       END AS displayName
     FROM products p
     LEFT JOIN (
@@ -1910,7 +1944,7 @@ export async function searchProductsForAutocomplete(query: string) {
       ha.salesCount,
       ha.lastSoldAt,
       'шт' as base_unit, 0 as has_packages, NULL as package_name, 1 as units_per_package, 0 as is_continuous, 0 as stock,
-      NULL as article, NULL as color,
+      NULL as article, NULL as color, NULL as size,
       ha.product_name as displayName
     FROM (
       SELECT
