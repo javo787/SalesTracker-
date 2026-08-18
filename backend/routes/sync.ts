@@ -71,6 +71,47 @@ function invalidateShopProductsCache(shopId: string) {
   shopProductsCache.delete(shopId);
 }
 
+// Чистая функция без обращений к БД — вынесена отдельно, чтобы логику
+// расчёта остатков можно было проверить изолированно. Сохраняет семантику
+// исходной последовательной реализации: остаток "списывается" в памяти по
+// ходу перебора продаж, поэтому вторая и последующая продажа одного товара
+// в одном push видят уже уменьшенный остаток, а не статичный снимок на
+// момент запроса.
+export function computeStockUpdates(
+  qualifyingSales: Array<{ id: number; product_id: number; quantity: number }>,
+  productsForStock: Array<{ localId: number; stock: number }>
+): {
+  warningLocalIds: number[];
+  stockDeltaByLocalId: Map<number, number>;
+} {
+  const stockByLocalId = new Map<number, number>(
+    productsForStock.map((p) => [p.localId, p.stock])
+  );
+  const stockDeltaByLocalId = new Map<number, number>();
+  const warningLocalIds: number[] = [];
+
+  for (const s of qualifyingSales) {
+    const currentStock = stockByLocalId.get(s.product_id);
+    const hasSufficientStock = currentStock !== undefined && currentStock >= s.quantity;
+
+    if (!hasSufficientStock) {
+      warningLocalIds.push(s.id);
+    }
+
+    if (currentStock !== undefined) {
+      stockByLocalId.set(s.product_id, currentStock - s.quantity);
+    }
+    // Списываем безусловно для каждой квалифицирующейся продажи, независимо
+    // от hasSufficientStock — остаток может уйти в минус, это ожидаемо.
+    stockDeltaByLocalId.set(
+      s.product_id,
+      (stockDeltaByLocalId.get(s.product_id) || 0) - s.quantity
+    );
+  }
+
+  return { warningLocalIds, stockDeltaByLocalId };
+}
+
 // POST /sync/push
 router.post('/push', authMiddleware, requireShop, async (req: AuthRequest, res) => {
   const { sales, products, expenses, stockMovements } = req.body;
@@ -219,31 +260,50 @@ router.post('/push', authMiddleware, requireShop, async (req: AuthRequest, res) 
 
       // Update stock on server based on new sales
       if (req.role === 'seller') {
-        let stockDecremented = false;
-        for (const s of sales) {
-          if (s.product_id && s.quantity && s.stock_updated === 1) {
-            // Check if stock is sufficient
-            const product = await Product.findOne({ shopId: shopObjectId, localId: s.product_id });
-            const hasSufficientStock = product && product.stock >= s.quantity;
+        const qualifyingSales = sales.filter(
+          (s: any) => s.product_id && s.quantity && s.stock_updated === 1
+        );
 
-            if (!hasSufficientStock) {
-              // Set warning if not enough stock, but still record sale (last-write-wins on stock decrement)
-              await Sale.findOneAndUpdate(
-                { shopId: shopObjectId, sellerId: sellerObjectId, localId: s.id },
-                { $set: { stock_warning: true } }
-              );
-            }
+        if (qualifyingSales.length > 0) {
+          // Было до 3 последовательных обращений к Mongo на каждую продажу
+          // (findOne, иногда Sale.findOneAndUpdate, Product.findOneAndUpdate) —
+          // на офлайн-батче из полусотни накопленных продаж это 100+ запросов
+          // подряд. Читаем товары одним батчем, пишем один bulkWrite на коллекцию.
+          const productLocalIds = [...new Set(qualifyingSales.map((s: any) => s.product_id))];
+          const productsForStock = await Product.find({
+            shopId: shopObjectId,
+            localId: { $in: productLocalIds },
+          }).select('localId stock').lean();
 
-            // Still decrement stock (it might go negative)
-            await Product.findOneAndUpdate(
-              { shopId: shopObjectId, localId: s.product_id },
-              { $inc: { stock: -s.quantity }, $set: { updated_at: new Date().toISOString(), serverUpdatedAt: new Date() } }
+          const { warningLocalIds, stockDeltaByLocalId } = computeStockUpdates(
+            qualifyingSales,
+            productsForStock as any
+          );
+
+          if (warningLocalIds.length > 0) {
+            await Sale.bulkWrite(
+              warningLocalIds.map((localId) => ({
+                updateOne: {
+                  filter: { shopId: shopObjectId, sellerId: sellerObjectId, localId },
+                  update: { $set: { stock_warning: true } },
+                },
+              }))
             );
-            stockDecremented = true;
           }
-        }
-        if (stockDecremented) {
-          invalidateShopProductsCache(req.shopId!);
+
+          const stockUpdateOps = Array.from(stockDeltaByLocalId.entries()).map(([localId, delta]) => ({
+            updateOne: {
+              filter: { shopId: shopObjectId, localId },
+              update: {
+                $inc: { stock: delta },
+                $set: { updated_at: new Date().toISOString(), serverUpdatedAt: new Date() },
+              },
+            },
+          }));
+          if (stockUpdateOps.length > 0) {
+            await Product.bulkWrite(stockUpdateOps);
+            invalidateShopProductsCache(req.shopId!);
+          }
         }
       }
     }
