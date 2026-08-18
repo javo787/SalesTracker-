@@ -17,6 +17,7 @@ import { AutocompleteResult } from '../../types/product';
 import { searchProductsForAutocomplete } from '../../db/database';
 import { HighlightedText } from './HighlightedText';
 import { ColorCircle, getColorHex } from '../../constants/colors';
+import { compareSizes } from '../../utils/productUtils';
 
 interface Props {
   value: string;
@@ -151,53 +152,16 @@ export const ProductAutocomplete = React.forwardRef<any, Props>(({
                 <View style={styles.divider}>
                   <Text style={styles.dividerText}>────── {t('common.fromCatalog')} ──────</Text>
                 </View>
-                {groupedCatalog.map((g, idx) => {
+                {groupedCatalog.map((g) => {
                   if (g.type === 'single') return renderItem(g.item);
                   return (
-                    <View key={`group-${g.article}`} style={{ borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#EEE', paddingVertical: 8 }}>
-                      <View style={[styles.item, { borderBottomWidth: 0, paddingBottom: 4 }]}>
-                         <View style={styles.itemLeft}>
-                           <Text style={[styles.itemName, isDark ? styles.textDark : styles.textLight, { fontWeight: 'bold' }]}>
-                             {g.variants[0].baseName ?? g.variants[0].name}
-                           </Text>
-                         </View>
-                      </View>
-                      <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        keyboardShouldPersistTaps="handled"
-                        contentContainerStyle={{ paddingHorizontal: 12, gap: 8 }}
-                      >
-                        {g.variants.map((v) => (
-                          <TouchableOpacity
-                            key={v.id}
-                            onPress={() => handleSelect(v)}
-                            style={{
-                              flexDirection: 'row',
-                              alignItems: 'center',
-                              gap: 4,
-                              paddingVertical: 6,
-                              paddingHorizontal: 12,
-                              borderRadius: 20,
-                              backgroundColor: isDark ? '#2C2C2C' : '#F0F0F0',
-                              borderWidth: 1,
-                              borderColor: isDark ? '#444' : '#E0E0E0',
-                            }}
-                          >
-                            <ColorCircle
-                              size={12}
-                              hex={getColorHex(v.color ?? '') ?? '#BDBDBD'}
-                            />
-                            <Text style={[isDark ? styles.textDark : styles.textLight, { fontSize: 12 }]}>
-                              {(v.color ?? v.name).length > 8
-                                ? (v.color ?? v.name).slice(0, 8) + '…'
-                                : (v.color ?? v.name)}
-                              {v.stock && v.stock > 0 ? ` (${v.stock})` : ''}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
-                    </View>
+                    <AutocompleteGroupItem
+                      key={`group-${g.article}`}
+                      article={g.article}
+                      variants={g.variants}
+                      isDark={isDark}
+                      onSelect={handleSelect}
+                    />
                   );
                 })}
               </>
@@ -217,6 +181,201 @@ export const ProductAutocomplete = React.forwardRef<any, Props>(({
     </View>
   );
 });
+
+interface AutocompleteGroupItemProps {
+  article: string;
+  variants: AutocompleteResult[];
+  isDark: boolean;
+  onSelect: (variant: AutocompleteResult) => void;
+}
+
+const AutocompleteGroupItem: React.FC<AutocompleteGroupItemProps> = ({
+  article,
+  variants,
+  isDark,
+  onSelect,
+}) => {
+  const distinctSizes = React.useMemo(() => {
+    return Array.from(new Set(variants.map(v => (v.size || '').trim()).filter(Boolean)));
+  }, [variants]);
+
+  const distinctColors = React.useMemo(() => {
+    const list = Array.from(new Set(variants.map(v => (v.color || '').trim()).filter(Boolean)));
+    if (list.length === 0) list.push('');
+    return list;
+  }, [variants]);
+
+  const defaultColor = React.useMemo(() => {
+    const stockByColor: Record<string, number> = {};
+    variants.forEach(v => {
+      const c = (v.color || '').trim();
+      stockByColor[c] = (stockByColor[c] || 0) + (v.stock || 0);
+    });
+    if (distinctColors.length === 0) return '';
+    return distinctColors.reduce((best, c) => (stockByColor[c] > (stockByColor[best] || 0) ? c : best), distinctColors[0]);
+  }, [variants, distinctColors]);
+
+  const [selectedColor, setSelectedColor] = React.useState<string>(defaultColor);
+
+  if (distinctSizes.length <= 1) {
+    return (
+      <View style={{ borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#EEE', paddingVertical: 8 }}>
+        <View style={[styles.item, { borderBottomWidth: 0, paddingBottom: 4 }]}>
+          <View style={styles.itemLeft}>
+            <Text style={[styles.itemName, isDark ? styles.textDark : styles.textLight, { fontWeight: 'bold' }]}>
+              {variants[0].baseName ?? variants[0].name}
+            </Text>
+          </View>
+        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ paddingHorizontal: 12, gap: 8 }}
+        >
+          {variants.map((v) => (
+            <TouchableOpacity
+              key={v.id || `${v.name}-${v.color}-${v.size}`}
+              onPress={() => onSelect(v)}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 4,
+                paddingVertical: 6,
+                paddingHorizontal: 12,
+                borderRadius: 20,
+                backgroundColor: isDark ? '#2C2C2C' : '#F0F0F0',
+                borderWidth: 1,
+                borderColor: isDark ? '#444' : '#E0E0E0',
+              }}
+            >
+              {v.color ? (
+                <ColorCircle
+                  size={12}
+                  hex={getColorHex(v.color ?? '') ?? '#BDBDBD'}
+                />
+              ) : null}
+              <Text style={[isDark ? styles.textDark : styles.textLight, { fontSize: 12 }]}>
+                {(v.color || v.size || v.name).length > 12
+                  ? (v.color || v.size || v.name).slice(0, 12) + '…'
+                  : (v.color || v.size || v.name)}
+                {v.stock && v.stock > 0 ? ` (${v.stock})` : ''}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+    );
+  }
+
+  const colorVariants = variants
+    .filter(v => (v.color || '').trim() === selectedColor)
+    .sort((a, b) => compareSizes(a.size, b.size));
+
+  return (
+    <View style={{ borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#EEE', paddingVertical: 8 }}>
+      <View style={[styles.item, { borderBottomWidth: 0, paddingBottom: 4 }]}>
+        <View style={styles.itemLeft}>
+          <Text style={[styles.itemName, isDark ? styles.textDark : styles.textLight, { fontWeight: 'bold' }]}>
+            {variants[0].baseName ?? variants[0].name}
+          </Text>
+        </View>
+      </View>
+
+      {/* Row 1: Colors */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingHorizontal: 12, gap: 8, marginBottom: 6 }}
+      >
+        {distinctColors.map((c) => {
+          const isSelected = c === selectedColor;
+          const hex = c ? getColorHex(c) : null;
+          return (
+            <TouchableOpacity
+              key={`color-${c || 'none'}`}
+              onPress={() => setSelectedColor(c)}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 4,
+                paddingVertical: 5,
+                paddingHorizontal: 10,
+                borderRadius: 16,
+                backgroundColor: isSelected
+                  ? (isDark ? '#1D9E75' : '#E6F4EA')
+                  : (isDark ? '#2C2C2C' : '#F0F0F0'),
+                borderWidth: isSelected ? 1.5 : 1,
+                borderColor: isSelected
+                  ? '#1D9E75'
+                  : (isDark ? '#444' : '#E0E0E0'),
+              }}
+            >
+              {hex ? <ColorCircle size={12} hex={hex} /> : null}
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontWeight: isSelected ? '600' : 'normal',
+                  color: isSelected
+                    ? (isDark ? '#FFF' : '#1D9E75')
+                    : (isDark ? '#EEE' : '#333'),
+                }}
+              >
+                {c || 'Базовый'}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
+      {/* Row 2: Sizes for selected color */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingHorizontal: 12, gap: 8 }}
+      >
+        {colorVariants.map((v) => {
+          const hasStock = (v.stock || 0) > 0;
+          return (
+            <TouchableOpacity
+              key={v.id || `${v.name}-${v.size}`}
+              disabled={!hasStock}
+              onPress={() => onSelect(v)}
+              style={{
+                paddingVertical: 5,
+                paddingHorizontal: 10,
+                borderRadius: 16,
+                backgroundColor: !hasStock
+                  ? (isDark ? '#1F1F1F' : '#F5F5F5')
+                  : (isDark ? '#3A3A3C' : '#FFFFFF'),
+                borderWidth: 1,
+                borderColor: !hasStock
+                  ? (isDark ? '#333' : '#E0E0E0')
+                  : (isDark ? '#555' : '#BDBDBD'),
+                opacity: hasStock ? 1 : 0.45,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: !hasStock
+                    ? (isDark ? '#777' : '#999')
+                    : (isDark ? '#EEE' : '#333'),
+                  fontWeight: hasStock ? '500' : 'normal',
+                }}
+              >
+                {v.size || 'Стандарт'}
+                {hasStock ? ` (${v.stock})` : ' (0)'}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+};
 
 const styles = StyleSheet.create({
   container: {

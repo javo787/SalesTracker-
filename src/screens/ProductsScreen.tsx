@@ -20,9 +20,11 @@ import { useFieldChain } from '../hooks/useFieldChain';
 import StockOperationModal from '../components/stock/StockOperationModal';
 import StockHistorySheet from '../components/stock/StockHistorySheet';
 import InvoiceScanModal from '../components/stock/InvoiceScanModal';
+import ReceiveBatchModal from '../components/products/ReceiveBatchModal';
 import ResolvePendingSaleModal from '../components/products/ResolvePendingSaleModal';
 import { Colors, LightTheme, DarkTheme, Radius, Shadow } from '../constants/theme';
 import { PRESET_COLORS, getColorHex, ColorCircle } from '../constants/colors';
+import { buildVariantDisplayName, compareSizes } from '../utils/productUtils';
 
 export default function ProductsScreen() {
   const { t } = useTranslation();
@@ -81,6 +83,7 @@ export default function ProductsScreen() {
 
   // Accordion & Stats
   const [expandedProductId, setExpandedProductId] = useState<number | null>(null);
+  const [expandedColorKeys, setExpandedColorKeys] = useState<Record<string, boolean>>({});
   const [productStats, setProductStats] = useState<Record<number, any>>({});
 
   // Sales History Modal
@@ -99,6 +102,7 @@ export default function ProductsScreen() {
   const [moreCategoriesVisible, setMoreCategoriesVisible] = useState(false);
   const [historyVisible, setHistoryVisible] = useState(false);
   const [invoiceScanVisible, setInvoiceScanVisible] = useState(false);
+  const [receiveBatchModalVisible, setReceiveBatchModalVisible] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
 
   const [resolveSaleTarget, setResolveSaleTarget] = useState<any | null>(null);
@@ -639,12 +643,20 @@ export default function ProductsScreen() {
           </TouchableOpacity>
 
           {!showForm && !editingId && (
-            <TouchableOpacity
-              style={[styles.addBtn, styles.scanInvoiceBtn]}
-              onPress={() => setInvoiceScanVisible(true)}
-            >
-              <Text style={styles.addBtnText}>📷 {t('products.scanInvoice')}</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity
+                style={[styles.addBtn, styles.scanInvoiceBtn]}
+                onPress={() => setReceiveBatchModalVisible(true)}
+              >
+                <Text style={styles.addBtnText}>📦 {t('products.receiveBatch', { defaultValue: 'Партия' })}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.addBtn, styles.scanInvoiceBtn]}
+                onPress={() => setInvoiceScanVisible(true)}
+              >
+                <Text style={styles.addBtnText}>📷 {t('products.scanInvoice')}</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
       )}
@@ -1260,163 +1272,225 @@ export default function ProductsScreen() {
                   </View>
                 </View>
 
-                {data.variants.map((v: any) => {
-                  const isExpanded = expandedProductId === v.id;
-                  const stats = productStats[v.id];
-                  return (
-                    <View key={v.id} style={v.stock <= 0 ? { backgroundColor: isDark ? '#181818' : '#FAFAFA' } : undefined}>
-                      <TouchableOpacity
-                        style={[styles.productMain, { paddingVertical: 10 }]}
-                        onPress={async () => {
-                          const newId = isExpanded ? null : v.id;
-                          setExpandedProductId(newId);
-                          if (newId && !productStats[newId]) {
-                            const stats = await getProductSalesStats(v.id);
-                            setProductStats(prev => ({ ...prev, [v.id]: stats }));
-                          }
-                        }}
-                        onLongPress={() => handleLongPress(v)}
-                      >
-                        <View style={[styles.productLeft, { flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
-                          <ColorCircle size={18} hex={(v.color ? getColorHex(v.color) : null) ?? '#BDBDBD'} />
-                          <Text style={[themeStyles.text, { fontSize: 14 }]}>{v.color || v.name}</Text>
-                        </View>
-                        <View style={[styles.productRight, { flexDirection: 'row', alignItems: 'center', gap: 12 }]}>
-                          <Text style={[
-                            styles.productStock,
-                            { fontSize: 14, color: v.stock <= 0 ? Colors.danger : v.stock <= (v.min_stock_alert || 0) ? Colors.warning : Colors.primary }
-                          ]}>
-                            {v.stock}
-                          </Text>
-                          <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={14} color="#aaa" />
-                          <TouchableOpacity
-                            onPress={(e) => {
-                              e.stopPropagation();
-                              navigation.navigate('ProductDetail', { product: v });
-                            }}
-                            style={{ padding: 4 }}
-                          >
-                            <Ionicons name="information-circle-outline" size={18} color={Colors.primary} />
-                          </TouchableOpacity>
-                        </View>
-                      </TouchableOpacity>
-
-                      {isExpanded && (
-                        <View style={[styles.expandedContent, { borderTopWidth: 1, borderTopColor: isDark ? '#333' : '#eee' }]}>
-                          {/* Copied expandedContent block from single item */}
-                          <View style={styles.statsRow}>
-                            <View style={styles.statBox}>
-                              <Text style={styles.statLabel}>{t('products.totalSold')}</Text>
-                              <Text style={[styles.statValue, themeStyles.text]}>{stats?.total_sold || 0}</Text>
-                            </View>
-                            <View style={styles.statBox}>
-                              <Text style={styles.statLabel}>{t('products.totalRevenue')}</Text>
-                              <Text style={[styles.statValue, themeStyles.text]}>{stats?.total_revenue?.toFixed(0) || 0} {currency.symbol}</Text>
-                            </View>
+                {(() => {
+                  const renderVariant = (v: any) => {
+                    const isExpanded = expandedProductId === v.id;
+                    const stats = productStats[v.id];
+                    return (
+                      <View key={v.id} style={v.stock <= 0 ? { backgroundColor: isDark ? '#181818' : '#FAFAFA' } : undefined}>
+                        <TouchableOpacity
+                          style={[styles.productMain, { paddingVertical: 10 }]}
+                          onPress={async () => {
+                            const newId = isExpanded ? null : v.id;
+                            setExpandedProductId(newId);
+                            if (newId && !productStats[newId]) {
+                              const stats = await getProductSalesStats(v.id);
+                              setProductStats(prev => ({ ...prev, [v.id]: stats }));
+                            }
+                          }}
+                          onLongPress={() => handleLongPress(v)}
+                        >
+                          <View style={[styles.productLeft, { flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
+                            {v.color ? (
+                              <ColorCircle size={18} hex={getColorHex(v.color) ?? '#BDBDBD'} />
+                            ) : null}
+                            <Text style={[themeStyles.text, { fontSize: 14 }]}>
+                              {v.size ? `${v.color ? v.color + ' · ' : ''}${v.size}` : (v.color || v.name)}
+                            </Text>
                           </View>
+                          <View style={[styles.productRight, { flexDirection: 'row', alignItems: 'center', gap: 12 }]}>
+                            <Text style={[
+                              styles.productStock,
+                              { fontSize: 14, color: v.stock <= 0 ? Colors.danger : v.stock <= (v.min_stock_alert || 0) ? Colors.warning : Colors.primary }
+                            ]}>
+                              {v.stock}
+                            </Text>
+                            <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={14} color="#aaa" />
+                            <TouchableOpacity
+                              onPress={(e) => {
+                                e.stopPropagation();
+                                navigation.navigate('ProductDetail', { product: v });
+                              }}
+                              style={{ padding: 4 }}
+                            >
+                              <Ionicons name="information-circle-outline" size={18} color={Colors.primary} />
+                            </TouchableOpacity>
+                          </View>
+                        </TouchableOpacity>
 
-                          <Text style={[styles.infoText, { paddingHorizontal: 12, paddingTop: 8 }]}>
-                            {t('products.addedDate')}: {v.created_at ? new Date(v.created_at.replace(' ', 'T')).toLocaleDateString('ru-RU') : '—'}
-                            {canSeeCosts && ` · ${t('addSale.sellPrice')}: ${v.sell_price} ${currency.symbol}`}
-                          </Text>
+                        {isExpanded && (
+                          <View style={[styles.expandedContent, { borderTopWidth: 1, borderTopColor: isDark ? '#333' : '#eee' }]}>
+                            <View style={styles.statsRow}>
+                              <View style={styles.statBox}>
+                                <Text style={styles.statLabel}>{t('products.totalSold')}</Text>
+                                <Text style={[styles.statValue, themeStyles.text]}>{stats?.total_sold || 0}</Text>
+                              </View>
+                              <View style={styles.statBox}>
+                                <Text style={styles.statLabel}>{t('products.totalRevenue')}</Text>
+                                <Text style={[styles.statValue, themeStyles.text]}>{stats?.total_revenue?.toFixed(0) || 0} {currency.symbol}</Text>
+                              </View>
+                            </View>
 
-                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, paddingTop: 8, paddingBottom: 12 }}>
-                            {(isOwner || can('manage_products')) && (
+                            <Text style={[styles.infoText, { paddingHorizontal: 12, paddingTop: 8 }]}>
+                              {t('products.addedDate')}: {v.created_at ? new Date(v.created_at.replace(' ', 'T')).toLocaleDateString('ru-RU') : '—'}
+                              {canSeeCosts && ` · ${t('addSale.sellPrice')}: ${v.sell_price} ${currency.symbol}`}
+                            </Text>
+
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, paddingTop: 8, paddingBottom: 12 }}>
+                              {(isOwner || can('manage_products')) && (
+                                <TouchableOpacity
+                                  onPress={() => {
+                                    openAddVariantForm({
+                                      article: v.article?.trim() || v.name?.trim() || '',
+                                      displayName: v.name,
+                                      variants: [v],
+                                    });
+                                  }}
+                                  style={{ flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderColor: Colors.primary, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}
+                                >
+                                  <Ionicons name="add-circle-outline" size={14} color={Colors.primary} />
+                                  <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: '600' }}>
+                                    {t('products.addVariant')}
+                                  </Text>
+                                </TouchableOpacity>
+                              )}
+
+                              {(stats?.total_sold || 0) > 0 && (
+                                <TouchableOpacity
+                                  onPress={async () => {
+                                    setHistoryProductName(buildVariantDisplayName(v.name, v.color, v.size));
+                                    setProductSalesHistory(await getProductSalesHistory(v.id));
+                                    setShowSalesHistory(true);
+                                  }}
+                                >
+                                  <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: '600' }}>
+                                    {t('products.salesHistory')} →
+                                  </Text>
+                                </TouchableOpacity>
+                              )}
+                            </View>
+                            <View style={styles.productActions}>
                               <TouchableOpacity
+                                style={[styles.actionBtn, isOwner && styles.actionBtnSell]}
                                 onPress={() => {
-                                  openAddVariantForm({
-                                    article: v.article?.trim() || v.name?.trim() || '',
-                                    displayName: v.name,
-                                    variants: [v],
+                                  navigation.navigate('Main', {
+                                    screen: 'Tabs',
+                                    params: {
+                                      screen: 'Sale',
+                                      params: {
+                                        prefillSell: v.sell_price,
+                                        prefillBuy: v.buy_price,
+                                        prefillProductName: buildVariantDisplayName(v.name, v.color, v.size),
+                                        prefillProductId: v.id,
+                                      }
+                                    }
                                   });
                                 }}
-                                style={{ flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderColor: Colors.primary, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}
                               >
-                                <Ionicons name="add-circle-outline" size={14} color={Colors.primary} />
-                                <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: '600' }}>
-                                  {t('products.addVariant')}
-                                </Text>
+                                <Ionicons name="cash-outline" size={18} color="#1D9E75" />
+                                <Text style={styles.actionBtnText}>{t('products.sellBtn')}</Text>
                               </TouchableOpacity>
-                            )}
+                              {canSeeCosts && (
+                                <>
+                                  <TouchableOpacity
+                                    style={styles.actionBtn}
+                                    onPress={() => {
+                                      setSelectedProduct(v);
+                                      setOpType('stock_in');
+                                      setOpModalVisible(true);
+                                    }}
+                                  >
+                                    <Ionicons name="add-circle-outline" size={18} color="#1D9E75" />
+                                    <Text style={styles.actionBtnText}>{t('warehouse.stockIn')}</Text>
+                                  </TouchableOpacity>
+                                  <TouchableOpacity
+                                    style={styles.actionBtn}
+                                    onPress={() => {
+                                      setSelectedProduct(v);
+                                      setOpType('waste');
+                                      setOpModalVisible(true);
+                                    }}
+                                  >
+                                    <Ionicons name="trash-outline" size={18} color="#FF5252" />
+                                    <Text style={[styles.actionBtnText, { color: '#FF5252' }]}>{t('warehouse.waste')}</Text>
+                                  </TouchableOpacity>
+                                  <TouchableOpacity
+                                    style={styles.actionBtn}
+                                    onPress={() => {
+                                      setSelectedProduct(v);
+                                      setOpType('correction');
+                                      setOpModalVisible(true);
+                                    }}
+                                  >
+                                    <Ionicons name="sync-outline" size={18} color="#FF9800" />
+                                    <Text style={[styles.actionBtnText, { color: '#FF9800' }]}>{t('warehouse.correction')}</Text>
+                                  </TouchableOpacity>
+                                </>
+                              )}
+                            </View>
+                          </View>
+                        )}
+                      </View>
+                    );
+                  };
 
-                            {(stats?.total_sold || 0) > 0 && (
-                              <TouchableOpacity
-                                onPress={async () => {
-                                  setHistoryProductName(v.name + (v.color ? ` · ${v.color}` : ''));
-                                  setProductSalesHistory(await getProductSalesHistory(v.id));
-                                  setShowSalesHistory(true);
-                                }}
-                              >
-                                <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: '600' }}>
-                                  {t('products.salesHistory')} →
+                  const distinctSizes = Array.from(new Set(data.variants.map((v: any) => (v.size || '').trim()).filter(Boolean)));
+                  if (distinctSizes.length <= 1) {
+                    return data.variants.map((v: any) => renderVariant(v));
+                  }
+
+                  // Multi-size group: accordion by color
+                  const colorMap = new Map<string, any[]>();
+                  data.variants.forEach((v: any) => {
+                    const cKey = (v.color || '').trim();
+                    if (!colorMap.has(cKey)) colorMap.set(cKey, []);
+                    colorMap.get(cKey)!.push(v);
+                  });
+
+                  return Array.from(colorMap.entries()).map(([colorName, colorVars]) => {
+                    const colorKey = `${data.article}-${colorName || 'none'}`;
+                    const isColorExpanded = !!expandedColorKeys[colorKey];
+                    const aggregatedStock = colorVars.reduce((sum, v) => sum + (v.stock || 0), 0);
+                    const lowStockCount = colorVars.filter(v => (v.min_stock_alert || 0) > 0 && v.stock <= (v.min_stock_alert || 0)).length;
+                    const sortedSizes = [...colorVars].sort((a, b) => compareSizes(a.size, b.size));
+
+                    return (
+                      <View key={colorKey} style={{ borderBottomWidth: 1, borderBottomColor: isDark ? '#222' : '#F0F0F0' }}>
+                        <TouchableOpacity
+                          style={[styles.productMain, { paddingVertical: 10 }]}
+                          onPress={() => setExpandedColorKeys(prev => ({ ...prev, [colorKey]: !prev[colorKey] }))}
+                        >
+                          <View style={[styles.productLeft, { flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
+                            <ColorCircle size={18} hex={(colorName ? getColorHex(colorName) : null) ?? '#BDBDBD'} />
+                            <Text style={[themeStyles.text, { fontSize: 14, fontWeight: '600' }]}>
+                              {colorName || 'Базовый цвет'}
+                            </Text>
+                          </View>
+
+                          <View style={[styles.productRight, { flexDirection: 'row', alignItems: 'center', gap: 10 }]}>
+                            {lowStockCount > 0 && (
+                              <View style={{ backgroundColor: '#FFF3E0', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                                <Text style={{ color: Colors.warning, fontSize: 11, fontWeight: '600' }}>
+                                  {lowStockCount} мал.
                                 </Text>
-                              </TouchableOpacity>
+                              </View>
                             )}
+                            <Text style={[styles.productStock, { fontSize: 14, color: aggregatedStock <= 0 ? Colors.danger : Colors.primary }]}>
+                              {aggregatedStock}
+                            </Text>
+                            <Ionicons name={isColorExpanded ? 'chevron-up' : 'chevron-down'} size={16} color="#aaa" />
                           </View>
-                          <View style={styles.productActions}>
-                            <TouchableOpacity
-                              style={[styles.actionBtn, isOwner && styles.actionBtnSell]}
-                              onPress={() => {
-                                navigation.navigate('Main', {
-                                  screen: 'Tabs',
-                                  params: {
-                                    screen: 'Sale',
-                                    params: {
-                                      prefillSell: v.sell_price,
-                                      prefillBuy: v.buy_price,
-                                      prefillProductName: v.name + (v.color ? ` · ${v.color}` : ''),
-                                      prefillProductId: v.id,
-                                    }
-                                  }
-                                });
-                              }}
-                            >
-                              <Ionicons name="cash-outline" size={18} color="#1D9E75" />
-                              <Text style={styles.actionBtnText}>{t('products.sellBtn')}</Text>
-                            </TouchableOpacity>
-                            {canSeeCosts && (
-                              <>
-                                <TouchableOpacity
-                                  style={styles.actionBtn}
-                                  onPress={() => {
-                                    setSelectedProduct(v);
-                                    setOpType('stock_in');
-                                    setOpModalVisible(true);
-                                  }}
-                                >
-                                  <Ionicons name="add-circle-outline" size={18} color="#1D9E75" />
-                                  <Text style={styles.actionBtnText}>{t('warehouse.stockIn')}</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                  style={styles.actionBtn}
-                                  onPress={() => {
-                                    setSelectedProduct(v);
-                                    setOpType('waste');
-                                    setOpModalVisible(true);
-                                  }}
-                                >
-                                  <Ionicons name="trash-outline" size={18} color="#FF5252" />
-                                  <Text style={[styles.actionBtnText, { color: '#FF5252' }]}>{t('warehouse.waste')}</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                  style={styles.actionBtn}
-                                  onPress={() => {
-                                    setSelectedProduct(v);
-                                    setOpType('correction');
-                                    setOpModalVisible(true);
-                                  }}
-                                >
-                                  <Ionicons name="git-compare-outline" size={18} color="#FF9800" />
-                                  <Text style={[styles.actionBtnText, { color: '#FF9800' }]}>{t('warehouse.correction')}</Text>
-                                </TouchableOpacity>
-                              </>
-                            )}
+                        </TouchableOpacity>
+
+                        {isColorExpanded && (
+                          <View style={{ paddingLeft: 12, backgroundColor: isDark ? '#1C1C1E' : '#FAFAFA' }}>
+                            {sortedSizes.map((v: any) => renderVariant(v))}
                           </View>
-                        </View>
-                      )}
-                    </View>
-                  );
-                })}
+                        )}
+                      </View>
+                    );
+                  });
+                })()}
 
               </View>
             );
@@ -1518,6 +1592,12 @@ export default function ProductsScreen() {
         visible={invoiceScanVisible}
         onClose={() => setInvoiceScanVisible(false)}
         onSaved={() => loadProducts(true)}
+      />
+
+      <ReceiveBatchModal
+        visible={receiveBatchModalVisible}
+        onClose={() => setReceiveBatchModalVisible(false)}
+        onSaved={loadProducts}
       />
 
       {/* Unregistered Products Quick Add Modal */}

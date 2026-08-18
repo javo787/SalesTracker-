@@ -461,7 +461,7 @@ export default function AddSaleScreen(/* props */) {
         const data: any = await api.post('/voice-disambiguate', {
           transcript,
           candidates: match.candidates.map(c => ({
-            id: c.id, name: c.name, color: c.color, size: c.article, price: c.lastSalePrice
+            id: c.id, name: c.name, color: c.color, size: c.size || c.article, price: c.lastSalePrice
           })),
         });
         await SmartMatchQuotaService.consumeUsage();
@@ -924,7 +924,7 @@ export default function AddSaleScreen(/* props */) {
           />
         )}
 
-        {selectedProduct !== null && selectedProduct.color && selectedProduct.color !== '' && (
+        {selectedProduct !== null && (selectedProduct.color || selectedProduct.size) && (
           <View style={{
             flexDirection: 'row',
             alignItems: 'center',
@@ -932,12 +932,14 @@ export default function AddSaleScreen(/* props */) {
             marginTop: 4,
             marginLeft: 2,
           }}>
-            <ColorCircle
-              size={14}
-              hex={getColorHex(selectedProduct.color) ?? '#BDBDBD'}
-            />
+            {selectedProduct.color ? (
+              <ColorCircle
+                size={14}
+                hex={getColorHex(selectedProduct.color) ?? '#BDBDBD'}
+              />
+            ) : null}
             <Text style={{ fontSize: 12, color: '#888' }}>
-              {selectedProduct.color}
+              {[selectedProduct.color, selectedProduct.size].filter(Boolean).join(' · ')}
             </Text>
           </View>
         )}

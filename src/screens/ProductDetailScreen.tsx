@@ -24,6 +24,7 @@ import {
 import StockOperationModal from '../components/stock/StockOperationModal';
 import EditProductModal from '../components/products/EditProductModal';
 import AddVariantModal from '../components/products/AddVariantModal';
+import { buildVariantDisplayName } from '../utils/productUtils';
 
 const ProductDetailScreen = () => {
   const route = useRoute<any>();
@@ -146,7 +147,7 @@ const ProductDetailScreen = () => {
     setAddVariantModalVisible(false);
     Alert.alert(
       '✅ Вариант добавлен',
-      created?.color ? `${created.name} · ${created.color}` : created?.name || ''
+      created ? buildVariantDisplayName(created.name, created.color, created.size) : ''
     );
   };
 
