@@ -148,9 +148,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await markProfileFresh();
   }, [markProfileFresh]);
 
-  // Group A / item 1: тот же паттерн, что в ShopContext.tsx — value-объект
-  // держали инлайн, что ре-рендерило все компоненты на useAuth() (весь
-  // авторизованный экран целиком) при каждом обновлении провайдера.
+  // Тот же паттерн, что в ShopContext.tsx: value-объект пересоздавался
+  // инлайн на каждый рендер, из-за чего все потребители useAuth()
+  // ре-рендерились при любом обновлении провайдера. useMemo здесь работает
+  // только потому, что все функции выше уже стабилизированы через
+  // useCallback — иначе новая ссылка на функцию каждый рендер всё равно
+  // инвалидировала бы этот memo.
   const contextValue = useMemo(() => ({
     user,
     isAuthenticated: !!user,
