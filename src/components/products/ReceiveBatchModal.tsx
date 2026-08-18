@@ -103,10 +103,12 @@ export default function ReceiveBatchModal({ visible, onClose, onSaved }: Receive
       Alert.alert(t('common.error'), 'Укажите хотя бы один цвет');
       return;
     }
-    const parsedSizes = sizesInput
-      .split(/[,;\s]+/)
-      .map(s => s.trim())
-      .filter(Boolean);
+    const parsedSizes = Array.from(new Set(
+      sizesInput
+        .split(/[,;\s]+/)
+        .map(s => s.trim())
+        .filter(Boolean)
+    ));
 
     if (parsedSizes.length === 0) {
       Alert.alert(t('common.error'), 'Укажите хотя бы один размер');
