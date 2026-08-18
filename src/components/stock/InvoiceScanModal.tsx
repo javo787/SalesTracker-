@@ -277,7 +277,7 @@ export default function InvoiceScanModal({ visible, onClose, onSaved }: Props) {
         const data: any = await api.post('/voice-disambiguate', {
           transcript,
           candidates: m.candidates.map(c => ({
-            id: c.id, name: c.name, color: c.color, size: c.article, price: c.purchasePrice,
+            id: c.id, name: c.name, color: c.color, size: c.size || c.article, price: c.purchasePrice,
           })),
         });
 

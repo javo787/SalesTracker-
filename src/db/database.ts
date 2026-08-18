@@ -1,6 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 import { notifyLowStock } from '../utils/notifications';
 import { tokenAwareSimilarity } from '../utils/matching/textSimilarity';
+import { buildVariantDisplayName } from '../utils/productUtils';
 import { InvoiceScanApplyItem, InvoiceScanApplyResult } from '../types/invoiceScan';
 import { nowLocalISO, todayLocalDate, startOfDaysAgoLocalStr, endOfTodayLocalStr } from '../utils/dateRange';
 
@@ -926,6 +927,56 @@ export async function addStockCorrection(
  * Валидация - до открытия транзакции, чтобы не открывать то, что всё равно
  * придётся откатывать, и чтобы дать понятную ошибку сразу.
  */
+export type BatchReceiveItem = {
+  article: string | null;
+  name: string;
+  category: string | null;
+  buyPrice: number;
+  sellPrice: number;
+  color: string;
+  size: string;
+  quantity: number;
+};
+
+export async function receiveProductBatch(
+  items: BatchReceiveItem[],
+  note: string = 'Партия поставок'
+) {
+  await dbReadyPromise;
+  await db.withTransactionAsync(async () => {
+    const allProducts = await db.getAllAsync<any>('SELECT * FROM products WHERE is_deleted = 0');
+    const now = nowLocalISO();
+
+    for (const item of items) {
+      if (item.quantity <= 0) continue;
+      const existing = allProducts.find((p: any) =>
+        (p.article || '').trim().toLowerCase() === (item.article || '').toLowerCase() &&
+        (p.color || '').trim().toLowerCase() === item.color.trim().toLowerCase() &&
+        (p.size || '').trim().toLowerCase() === item.size.trim().toLowerCase()
+      );
+
+      if (existing) {
+        const newBuyPrice = calcWeightedPrice(existing.stock, existing.buy_price, item.quantity, item.buyPrice);
+        await _addStockInWrites(existing.id, item.quantity, item.buyPrice, newBuyPrice, note, null, null);
+      } else {
+        await db.runAsync(
+          `INSERT INTO products (
+            name, buy_price, sell_price, stock, min_stock_alert,
+            base_unit, has_packages, package_name, units_per_package,
+            category, updated_at, synced, is_deleted, created_at, is_continuous,
+            article, color, size, initial_stock, initial_buy_price
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            item.name, item.buyPrice, item.sellPrice, item.quantity, 0,
+            'шт', 0, null, 1, item.category, now, now, 0,
+            item.article, item.color, item.size, item.quantity, item.buyPrice
+          ]
+        );
+      }
+    }
+  });
+}
+
 export async function applyInvoiceScan(
   items: InvoiceScanApplyItem[],
   note: string,
@@ -1966,9 +2017,11 @@ export async function searchProductsForAutocomplete(query: string) {
   return [...catalogRows, ...historyRows]
     .map(row => {
       const nameScore = tokenAwareSimilarity(query, row.baseName as string);
-      // Артикул/SKU ищем тоже — старый запрос матчил и по name, и по article.
       const articleScore = row.article ? tokenAwareSimilarity(query, row.article as string) : 0;
-      return { row, score: Math.max(nameScore, articleScore) };
+      const colorScore = row.color ? tokenAwareSimilarity(query, row.color as string) : 0;
+      const sizeScore = row.size ? tokenAwareSimilarity(query, row.size as string) : 0;
+      const displayScore = row.displayName ? tokenAwareSimilarity(query, row.displayName as string) : 0;
+      return { row, score: Math.max(nameScore, articleScore, colorScore, sizeScore, displayScore) };
     })
     .filter(s => s.score >= AUTOCOMPLETE_MIN_SCORE)
     .sort((a, b) => {

@@ -1,5 +1,6 @@
 import { AutocompleteResult } from '../types/product';
 import { tokenAwareSimilarity } from './matching/textSimilarity';
+import { buildVariantDisplayName } from './productUtils';
 
 /**
  * Схожесть строк, 0..1 (1 = идентичны).
@@ -42,15 +43,28 @@ export function matchProductByName(
 
   const normalizedQuery = recognizedName.toLowerCase().trim();
 
+  const normQClean = normalizedQuery.replace(/[\s·]+/g, ' ');
+
   // 1. Точное совпадение по нормализованному имени
-  const exact = products.find(p => p.name.toLowerCase().trim() === normalizedQuery);
+  const exact = products.find(p => {
+    const rawName = p.name.toLowerCase().trim().replace(/[\s·]+/g, ' ');
+    const fullName = buildVariantDisplayName(p.baseName || p.name, p.color, p.size).toLowerCase().trim().replace(/[\s·]+/g, ' ');
+    return normQClean === rawName || normQClean === fullName;
+  });
   if (exact) {
     return { confidence: 'exact', match: exact, candidates: [] };
   }
 
   // 2. Fuzzy по всему каталогу
   const scored = products
-    .map(p => ({ product: p, score: similarity(normalizedQuery, p.name) }))
+    .map(p => {
+      const displayName = buildVariantDisplayName(p.baseName || p.name, p.color, p.size);
+      const score1 = similarity(normalizedQuery, p.name);
+      const score2 = similarity(normalizedQuery, displayName);
+      const score3 = p.baseName ? similarity(normalizedQuery, p.baseName) : 0;
+      const score4 = p.article ? similarity(normalizedQuery, p.article) : 0;
+      return { product: p, score: Math.max(score1, score2, score3, score4) };
+    })
     .filter(s => s.score >= POSSIBLE_THRESHOLD)
     .sort((a, b) => b.score - a.score);
 

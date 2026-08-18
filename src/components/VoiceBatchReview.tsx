@@ -74,7 +74,7 @@ export default function VoiceBatchReview({ result, onConfirm, onCancel }: VoiceB
             const data: any = await api.post('/voice-disambiguate', {
               transcript: result.transcript,
               candidates: m.candidates.map(c => ({
-                id: c.id, name: c.name, color: c.color, size: c.article, price: c.lastSalePrice
+                id: c.id, name: c.name, color: c.color, size: c.size || c.article, price: c.lastSalePrice
               })),
             });
 
