@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { StyleSheet, Image, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Image } from 'expo-image';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -61,7 +62,7 @@ export default function AppSplashScreen({ ready, onHidden }: Props) {
       <Animated.View style={[styles.logoBox, style]}>
         <Image
           source={require('../../assets/splash.png')}
-          resizeMode="contain"
+          contentFit="contain"
           style={styles.logoImage}
         />
       </Animated.View>

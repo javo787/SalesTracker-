@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import { Image } from 'expo-image';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  Image,
   TouchableOpacity,
   Linking,
   ActivityIndicator,

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  Image, TextInput, Alert, Clipboard, ActivityIndicator, useWindowDimensions,
+  TextInput, Alert, Clipboard, ActivityIndicator, useWindowDimensions,
   Modal
 } from 'react-native';
+import { Image } from 'expo-image';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
@@ -239,7 +240,7 @@ export default function ProfileScreen() {
         <TouchableOpacity onPress={handlePickImage} activeOpacity={0.8}>
           <View style={{ position: 'relative' }}>
             {user?.avatarUrl ? (
-              <Image source={{ uri: user.avatarUrl }} style={styles.avatar} />
+              <Image source={{ uri: user.avatarUrl }} style={styles.avatar} transition={200} />
             ) : (
               <View style={[styles.avatar, styles.avatarPlaceholder]}>
                 <Ionicons name="person" size={50} color="#fff" />

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { TouchableOpacity, Image, StyleSheet, Linking, Text, View } from 'react-native';
+import { TouchableOpacity, StyleSheet, Linking, Text, View } from 'react-native';
+import { Image } from 'expo-image';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Animated, {
   useSharedValue,
@@ -110,7 +111,8 @@ export default function DirectBanner({ config }: DirectBannerProps) {
           <Image
             source={{ uri: config.imageUrl }}
             style={styles.image}
-            resizeMode="cover"
+            contentFit="cover"
+            transition={200}
           />
           <View style={styles.badge}>
             <Text style={styles.badgeText}>Партнер</Text>
