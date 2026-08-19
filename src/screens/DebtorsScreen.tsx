@@ -22,6 +22,7 @@ import {
 import { cancelDebtReminder } from '../utils/notifications';
 import { toISODate } from '../utils/dateUtils';
 import { ClientDebtHistoryList } from '../components/debt/ClientDebtHistoryList';
+import DebtorCard from '../components/debt/DebtorCard';
 
 interface ClientSearchResult { id: number; name: string; phone?: string; }
 
@@ -257,54 +258,16 @@ export default function DebtorsScreen() {
     return true;
   });
 
-  const renderItem = useCallback(({ item }: { item: any }) => {
-    const remaining = item.amount_total - item.amount_paid;
-    const pct = Math.round((item.amount_paid / item.amount_total) * 100);
-    const isOverdue = item.due_date && item.due_date < today;
-    return (
-      <TouchableOpacity
-        style={[styles.card, themeStyles.card]}
-        onPress={() => openClient(item)}
-        activeOpacity={0.7}
-      >
-        <View style={styles.cardRow}>
-          <View style={styles.cardLeft}>
-            <View style={styles.cardNameRow}>
-              <Text style={[styles.clientName, themeStyles.text]}>{item.client_name}</Text>
-              <View style={[styles.statusPill, isOverdue ? styles.statusOverdue : styles.statusActive]}>
-                <Text style={styles.statusText}>{isOverdue ? t('debtors.statusOverdue') : t('debtors.statusActive')}</Text>
-              </View>
-            </View>
-            {item.client_phone ? (
-              <Text style={styles.clientPhone}>{item.client_phone}</Text>
-            ) : null}
-            {item.due_date ? (
-              <Text style={[styles.debtDate, isOverdue && { color: '#E53935' }]}>
-                {t('debtors.term')}: {new Date(item.due_date + 'T00:00:00').toLocaleDateString(t('tabs.home') === 'Главная' ? 'ru-RU' : t('tabs.home') === 'Асосӣ' ? 'tg-TJ' : 'uz-UZ', {
-                  day: 'numeric', month: 'short', year: 'numeric'
-                })}
-              </Text>
-            ) : (
-              <Text style={styles.debtDate}>
-                {new Date(item.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
-              </Text>
-            )}
-          </View>
-          <View style={styles.cardRight}>
-            <Text style={styles.remaining}>
-              {remaining.toLocaleString()} {currency.symbol}
-            </Text>
-            <Text style={styles.totalSmall}>
-              {t('debtors.fromTotal', { total: item.amount_total.toLocaleString() })}
-            </Text>
-          </View>
-        </View>
-        <View style={styles.progressBg}>
-          <View style={[styles.progressFill, { width: `${pct}%` as any }]} />
-        </View>
-      </TouchableOpacity>
-    );
-  }, [openClient, themeStyles, t, currency]);
+  const renderItem = useCallback(({ item }: { item: any }) => (
+    <DebtorCard
+      item={item}
+      today={today}
+      currency={currency}
+      t={t}
+      themeStyles={themeStyles}
+      onPress={openClient}
+    />
+  ), [today, currency, t, themeStyles, openClient]);
 
   const renderClientItem = useCallback(({ item }: { item: any }) => (
     <TouchableOpacity
