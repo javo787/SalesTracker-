@@ -4,10 +4,10 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Image,
   SafeAreaView,
   Platform,
 } from 'react-native';
+import { Image } from 'expo-image';
 import {
   DrawerContentComponentProps,
   DrawerContentScrollView,
@@ -54,7 +54,7 @@ export default function CustomDrawerContent(props: DrawerContentComponentProps) 
           >
             <View style={styles.avatarWrapper}>
               {user?.avatarUrl ? (
-                <Image source={{ uri: user.avatarUrl }} style={styles.avatar} />
+                <Image source={{ uri: user.avatarUrl }} style={styles.avatar} transition={200} />
               ) : (
                 <View style={[styles.avatar, styles.avatarPlaceholder]}>
                   <Ionicons name="person" size={30} color="#fff" />

@@ -2,9 +2,10 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   TextInput, ActivityIndicator,
-  Image, Animated,
+  Animated,
   useWindowDimensions, KeyboardAvoidingView, Platform
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
@@ -280,7 +281,7 @@ export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
               width: illustrationSize,
               height: illustrationSize
             }]}>
-              <Image source={step.image} style={styles.illustrationImage} resizeMode="contain" />
+              <Image source={step.image} style={styles.illustrationImage} contentFit="contain" />
             </View>
           )}
 

@@ -1,5 +1,6 @@
 import React, { memo, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { WholesaleAd } from '../../types/ads';
@@ -33,7 +34,13 @@ function WholesaleCard({ item, onPress }: Props) {
     >
       <View style={styles.imageContainer}>
         {item.images && item.images.length > 0 ? (
-          <Image source={{ uri: item.images[0] }} style={styles.image} />
+          <Image
+            source={{ uri: item.images[0] }}
+            style={styles.image}
+            recyclingKey={item._id}
+            cachePolicy="memory-disk"
+            transition={200}
+          />
         ) : (
           <View style={[styles.image, styles.placeholder]}>
             <Ionicons name="business-outline" size={40} color="#ccc" />

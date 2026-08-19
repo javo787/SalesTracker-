@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { Classified } from '../../types/ads';
@@ -21,7 +22,13 @@ function ClassifiedCard({ item, onPress }: Props) {
       activeOpacity={0.7}
     >
       {item.images && item.images.length > 0 ? (
-        <Image source={{ uri: item.images[0] }} style={styles.image} />
+        <Image
+          source={{ uri: item.images[0] }}
+          style={styles.image}
+          recyclingKey={item._id}
+          cachePolicy="memory-disk"
+          transition={200}
+        />
       ) : (
         <View style={[styles.image, styles.placeholder]}>
           <Ionicons name="image-outline" size={40} color={isDark ? '#444' : '#ccc'} />
