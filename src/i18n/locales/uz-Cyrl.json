@@ -378,10 +378,14 @@
     "createAndLink": "Яратиш ва боғлаш",
     "article": "Артикул / Модел",
     "color": "Ранг / Хилма-хил",
+    "size": "Ўлчам",
+    "sizePlaceholder": "мас. M, 42, 40x60",
     "addVariant": "+ Вариант қўшиш",
     "sameArticleGroupsVariants": "Бир хил артикул вариантларни битта карточкага бирлаштиради",
     "variantsCount": "{{count}} ранг",
-    "scanInvoice": "Накладнойни сканерлаш"
+    "scanInvoice": "Накладнойни сканерлаш",
+    "receiveBatch": "Қўлда партия",
+    "receiveMenu": "Товар қабули"
   },
   "warehouse": {
     "stockIn": "Қабул қилиш",

@@ -378,10 +378,14 @@
     "createAndLink": "Сохтан ва пайваст кардан",
     "article": "Артикул / Модел",
     "color": "Ранг / Навъ",
+    "size": "Андоза",
+    "sizePlaceholder": "мас. M, 42, 40x60",
     "addVariant": "+ Навъи нав",
     "sameArticleGroupsVariants": "Артикули якхела вариантҳоро дар як карточка муттаҳид мекунад",
     "variantsCount": "{{count}} навъ",
-    "scanInvoice": "Хониши накладная"
+    "scanInvoice": "Хониши накладная",
+    "receiveBatch": "Партия дастӣ",
+    "receiveMenu": "Воридшавии мол"
   },
   "warehouse": {
     "stockIn": "Қабул",
