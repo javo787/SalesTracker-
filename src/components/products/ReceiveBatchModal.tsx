@@ -45,6 +45,7 @@ export default function ReceiveBatchModal({ visible, onClose, onSaved }: Receive
 
   const [saving, setSaving] = useState(false);
   const [existingProducts, setExistingProducts] = useState<any[]>([]);
+  const [articleFocused, setArticleFocused] = useState(false);
 
   useEffect(() => {
     if (visible) {
@@ -76,6 +77,23 @@ export default function ReceiveBatchModal({ visible, onClose, onSaved }: Receive
       if (!buyPrice) setBuyPrice(String(match.buy_price ?? ''));
       if (!sellPrice) setSellPrice(String(match.sell_price ?? ''));
     }
+  };
+
+  const distinctArticles = React.useMemo(() => {
+    return Array.from(new Set(existingProducts.map(p => (p.article || '').trim()).filter(Boolean)));
+  }, [existingProducts]);
+
+  const articleSuggestions = React.useMemo(() => {
+    const q = article.trim().toLowerCase();
+    if (!q) return [];
+    return distinctArticles
+      .filter(a => a.toLowerCase().includes(q) && a.toLowerCase() !== q)
+      .slice(0, 5);
+  }, [article, distinctArticles]);
+
+  const handleSelectArticleSuggestion = (a: string) => {
+    handleArticleChange(a);
+    setArticleFocused(false);
   };
 
   const handleAddColor = (c: string) => {
@@ -231,7 +249,23 @@ export default function ReceiveBatchModal({ visible, onClose, onSaved }: Receive
                     placeholderTextColor={isDark ? '#888' : '#aaa'}
                     value={article}
                     onChangeText={handleArticleChange}
+                    onFocus={() => setArticleFocused(true)}
+                    onBlur={() => setTimeout(() => setArticleFocused(false), 150)}
                   />
+                  {articleFocused && articleSuggestions.length > 0 && (
+                    <View style={[styles.suggestionsBox, { backgroundColor: themeStyles.card, borderColor: themeStyles.inputBorder }]}>
+                      {articleSuggestions.map((a) => (
+                        <TouchableOpacity
+                          key={a}
+                          style={styles.suggestionRow}
+                          onPress={() => handleSelectArticleSuggestion(a)}
+                        >
+                          <Ionicons name="pricetag-outline" size={14} color={themeStyles.textSecondary} />
+                          <Text style={{ color: themeStyles.text, fontSize: 13, marginLeft: 6 }}>{a}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
 
                   <Text style={[styles.label, { color: themeStyles.text }]}>{t('addSale.productName')} *</Text>
                   <TextInput
@@ -483,6 +517,15 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     borderRadius: 8, paddingHorizontal: 16,
     justifyContent: 'center', alignItems: 'center',
+  },
+  suggestionsBox: {
+    borderWidth: 1, borderRadius: 8,
+    marginTop: 4, overflow: 'hidden',
+  },
+  suggestionRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 8, paddingHorizontal: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#EEE',
   },
   btnRow: { flexDirection: 'row', gap: 10, marginTop: 16, alignItems: 'center' },
   backBtn: { padding: 12 },
