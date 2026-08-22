@@ -7,6 +7,7 @@ import StockMovement from '../models/StockMovement';
 import ShopMember from '../models/ShopMember';
 import { authMiddleware, requireShop, AuthRequest } from '../middleware/authMiddleware';
 import { sendSilentDataMessage } from '../services/firebase';
+import { computeStockUpdates, computeStockInApplications } from '../utils/stockUpdates';
 import mongoose from 'mongoose';
 
 const router = express.Router();
@@ -69,47 +70,6 @@ async function getShopProductsCached(shopObjectId: mongoose.Types.ObjectId): Pro
 
 function invalidateShopProductsCache(shopId: string) {
   shopProductsCache.delete(shopId);
-}
-
-// Чистая функция без обращений к БД — вынесена отдельно, чтобы логику
-// расчёта остатков можно было проверить изолированно. Сохраняет семантику
-// исходной последовательной реализации: остаток "списывается" в памяти по
-// ходу перебора продаж, поэтому вторая и последующая продажа одного товара
-// в одном push видят уже уменьшенный остаток, а не статичный снимок на
-// момент запроса.
-export function computeStockUpdates(
-  qualifyingSales: Array<{ id: number; product_id: number; quantity: number }>,
-  productsForStock: Array<{ localId: number; stock: number }>
-): {
-  warningLocalIds: number[];
-  stockDeltaByLocalId: Map<number, number>;
-} {
-  const stockByLocalId = new Map<number, number>(
-    productsForStock.map((p) => [p.localId, p.stock])
-  );
-  const stockDeltaByLocalId = new Map<number, number>();
-  const warningLocalIds: number[] = [];
-
-  for (const s of qualifyingSales) {
-    const currentStock = stockByLocalId.get(s.product_id);
-    const hasSufficientStock = currentStock !== undefined && currentStock >= s.quantity;
-
-    if (!hasSufficientStock) {
-      warningLocalIds.push(s.id);
-    }
-
-    if (currentStock !== undefined) {
-      stockByLocalId.set(s.product_id, currentStock - s.quantity);
-    }
-    // Списываем безусловно для каждой квалифицирующейся продажи, независимо
-    // от hasSufficientStock — остаток может уйти в минус, это ожидаемо.
-    stockDeltaByLocalId.set(
-      s.product_id,
-      (stockDeltaByLocalId.get(s.product_id) || 0) - s.quantity
-    );
-  }
-
-  return { warningLocalIds, stockDeltaByLocalId };
 }
 
 // POST /sync/push
@@ -216,6 +176,55 @@ router.post('/push', authMiddleware, requireShop, async (req: AuthRequest, res) 
       }
       if (validMovements.length > 0) {
         notifyOtherShopMembers(shopObjectId, sellerObjectId);
+      }
+
+      // Пробел: продавец без 'manage_products' может делать stock_in (UI это
+      // разрешает), но весь products-канал синка для него на клиенте пустой
+      // (см. syncService.ts, canManageProducts) — движение выше уже ушло в
+      // журнал, а сам остаток/себестоимость раньше никуда не попадали и
+      // терялись на этом же устройстве при первом же pull. Владельцу и
+      // продавцу с manage_products ничего этого не нужно — их stock_in и так
+      // долетает через products, здесь применяем только как fallback именно
+      // для того, кто продукты пушить не может вовсе, чтобы не задвоить
+      // остаток с уже работающим путём.
+      if (!canManageProducts) {
+        const stockInMovements = validMovements
+          .filter((m: any) => m.type === 'stock_in')
+          .map((m: any) => ({
+            product_id: m.product_id,
+            quantity_change: m.quantity_change,
+            price_per_unit: m.price_per_unit ?? null,
+          }));
+
+        if (stockInMovements.length > 0) {
+          const touchedLocalIds = [...new Set(stockInMovements.map((m) => m.product_id))];
+          const productsForStockIn = await Product.find({
+            shopId: shopObjectId,
+            localId: { $in: touchedLocalIds },
+          }).select('localId stock buy_price').lean();
+
+          const applications = computeStockInApplications(
+            stockInMovements,
+            productsForStockIn as any
+          );
+
+          if (applications.size > 0) {
+            const stockInOps = Array.from(applications.entries()).map(([localId, { newStock, newBuyPrice }]) => {
+              const before = (productsForStockIn as any[]).find((p) => p.localId === localId)!;
+              return {
+                updateOne: {
+                  filter: { shopId: shopObjectId, localId },
+                  update: {
+                    $inc: { stock: newStock - before.stock },
+                    $set: { buy_price: newBuyPrice, updated_at: new Date().toISOString(), serverUpdatedAt: new Date() },
+                  },
+                },
+              };
+            });
+            await Product.bulkWrite(stockInOps);
+            invalidateShopProductsCache(req.shopId!);
+          }
+        }
       }
     }
 
