@@ -41,6 +41,7 @@ export default function AddVariantModal({ visible, baseProduct, onClose, onSaved
   const [unitsPerPackage, setUnitsPerPackage] = useState('1');
   const [article, setArticle] = useState('');
   const [color, setColor] = useState('');
+  const [size, setSize] = useState('');
   const [showColorPicker, setShowColorPicker] = useState(true);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -70,6 +71,7 @@ export default function AddVariantModal({ visible, baseProduct, onClose, onSaved
       setUnitsPerPackage(String(baseProduct.units_per_package || 1));
       setArticle(baseProduct.article?.trim() || baseProduct.name?.trim() || '');
       setColor('');
+      setSize('');
       setShowColorPicker(true);
       setShowAdvanced(false);
     }
@@ -102,13 +104,14 @@ export default function AddVariantModal({ visible, baseProduct, onClose, onSaved
     const cat = category.trim() || null;
     const finalArticle = article.trim() || null;
     const finalColor = color.trim() || null;
+    const finalSize = size.trim() || null;
 
     setSaving(true);
     try {
       const result = await addProduct(
         name.trim(), bPrice, sPrice, st, alert, baseUnit,
         hasPackages ? 1 : 0, packageName, uPerPkg, cat,
-        isContinuous ? 1 : 0, finalArticle, finalColor
+        isContinuous ? 1 : 0, finalArticle, finalColor, finalSize
       );
       analyticsService.logEvent('product_added', { product_id: result?.lastInsertRowId, via: 'add_variant' });
       SyncService.pushDebounced();
@@ -119,7 +122,7 @@ export default function AddVariantModal({ visible, baseProduct, onClose, onSaved
         stock: st, min_stock_alert: alert, base_unit: baseUnit,
         has_packages: hasPackages ? 1 : 0, package_name: packageName,
         units_per_package: uPerPkg, is_continuous: isContinuous ? 1 : 0,
-        article: finalArticle, color: finalColor,
+        article: finalArticle, color: finalColor, size: finalSize,
       });
     } finally {
       setSaving(false);
@@ -199,6 +202,15 @@ export default function AddVariantModal({ visible, baseProduct, onClose, onSaved
                 placeholderTextColor={isDark ? '#888' : '#aaa'}
                 value={PRESET_COLORS.some(c => c.label === color) ? '' : color}
                 onChangeText={setColor}
+              />
+
+              <Text style={[styles.label, { color: themeStyles.text }]}>{t('products.size', { defaultValue: 'Размер' })}</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: themeStyles.inputBg, borderColor: themeStyles.inputBorder, color: themeStyles.text }]}
+                placeholder={t('products.sizePlaceholder', { defaultValue: 'напр. M, 42, 40x60' })}
+                placeholderTextColor={isDark ? '#888' : '#aaa'}
+                value={size}
+                onChangeText={setSize}
               />
 
               <View style={styles.row}>

@@ -378,10 +378,13 @@
     "createAndLink": "Criar e vincular",
     "article": "Código / Modelo",
     "color": "Cor / Variação",
+    "size": "Tamanho",
+    "sizePlaceholder": "ex. M, 42, 40x60",
     "addVariant": "+ Adicionar variação",
     "sameArticleGroupsVariants": "O mesmo código agrupa as variações em um único cartão",
     "variantsCount": "{{count}} var.",
-    "scanInvoice": "Escanear fatura"
+    "scanInvoice": "Escanear fatura",
+    "scanInvoiceHint": "Da foto da fatura"
   },
   "warehouse": {
     "stockIn": "Entrada",

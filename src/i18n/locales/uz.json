@@ -373,10 +373,13 @@
     "createAndLink": "Yaratish va bog'lash",
     "article": "Artikul / Model",
     "color": "Rang / Xilma-xil",
+    "size": "O'lcham",
+    "sizePlaceholder": "mas. M, 42, 40x60",
     "addVariant": "+ Variant qo'shish",
     "sameArticleGroupsVariants": "Bir xil artikul variantlarni bitta kartochkaga birlashtiradi",
     "variantsCount": "{{count}} rang",
-    "scanInvoice": "Nakladnoyni skanerlash"
+    "scanInvoice": "Nakladnoyni skanerlash",
+    "scanInvoiceHint": "Tovar-transport xati rasmidan"
   },
   "warehouse": {
     "stockIn": "Qabul qilish",

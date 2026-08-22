@@ -20,7 +20,6 @@ import { useFieldChain } from '../hooks/useFieldChain';
 import StockOperationModal from '../components/stock/StockOperationModal';
 import StockHistorySheet from '../components/stock/StockHistorySheet';
 import InvoiceScanModal from '../components/stock/InvoiceScanModal';
-import ReceiveBatchModal from '../components/products/ReceiveBatchModal';
 import ResolvePendingSaleModal from '../components/products/ResolvePendingSaleModal';
 import { Colors, LightTheme, DarkTheme, Radius, Shadow } from '../constants/theme';
 import { PRESET_COLORS, getColorHex, ColorCircle } from '../constants/colors';
@@ -52,6 +51,7 @@ export default function ProductsScreen() {
   const minStockAlertRef = useRef<TextInput>(null);
   const articleRef = useRef<TextInput>(null);
   const colorRef = useRef<TextInput>(null);
+  const sizeRef = useRef<TextInput>(null);
   const baseUnitRef = useRef<TextInput>(null);
   const packageNameRef = useRef<TextInput>(null);
   const unitsPerPackageRef = useRef<TextInput>(null);
@@ -70,6 +70,7 @@ export default function ProductsScreen() {
   const [category, setCategory] = useState('');
   const [article, setArticle] = useState('');
   const [color, setColor] = useState('');
+  const [size, setSize] = useState('');
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [allCategories, setAllCategories] = useState<string[]>([]);
   const [topCategories, setTopCategories] = useState<string[]>([]);
@@ -102,7 +103,6 @@ export default function ProductsScreen() {
   const [moreCategoriesVisible, setMoreCategoriesVisible] = useState(false);
   const [historyVisible, setHistoryVisible] = useState(false);
   const [invoiceScanVisible, setInvoiceScanVisible] = useState(false);
-  const [receiveBatchModalVisible, setReceiveBatchModalVisible] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
 
   const [resolveSaleTarget, setResolveSaleTarget] = useState<any | null>(null);
@@ -121,6 +121,7 @@ export default function ProductsScreen() {
     { ref: minStockAlertRef, visible: true },
     { ref: articleRef, visible: showAdvanced },
     { ref: colorRef, visible: showAdvanced && showColorPicker },
+    { ref: sizeRef, visible: showAdvanced },
     { ref: baseUnitRef, visible: showAdvanced },
     { ref: packageNameRef, visible: showAdvanced && hasPackages },
     { ref: unitsPerPackageRef, visible: showAdvanced && hasPackages },
@@ -313,6 +314,7 @@ export default function ProductsScreen() {
     setName(group.displayName);
     setArticle(group.article);
     setColor('');
+    setSize('');
     setStock('');
     setBuyPrice(String(template.buy_price));
     setSellPrice(String(template.sell_price));
@@ -350,14 +352,14 @@ export default function ProductsScreen() {
     const cat = category.trim() || null;
 
     if (editingId) {
-      await updateProduct(editingId, name.trim(), bPrice, sPrice, st, alert, baseUnit, hasPackages ? 1 : 0, packageName, uPerPkg, cat, isContinuous ? 1 : 0, article.trim() || null, color.trim() || null);
+      await updateProduct(editingId, name.trim(), bPrice, sPrice, st, alert, baseUnit, hasPackages ? 1 : 0, packageName, uPerPkg, cat, isContinuous ? 1 : 0, article.trim() || null, color.trim() || null, size.trim() || null);
       analyticsService.logEvent('product_updated', { product_id: editingId });
       // Эагерный пуш: товары раньше уходили на сервер только при сворачивании
       // приложения или попутно со следующей продажей — теперь так же, как
       // и продажи в AddSaleScreen, шлём сразу же (с debounce).
       SyncService.pushDebounced();
     } else {
-      const result = await addProduct(name.trim(), bPrice, sPrice, st, alert, baseUnit, hasPackages ? 1 : 0, packageName, uPerPkg, cat, isContinuous ? 1 : 0, article.trim() || null, color.trim() || null);
+      const result = await addProduct(name.trim(), bPrice, sPrice, st, alert, baseUnit, hasPackages ? 1 : 0, packageName, uPerPkg, cat, isContinuous ? 1 : 0, article.trim() || null, color.trim() || null, size.trim() || null);
       analyticsService.logEvent('product_added', { product_id: result.lastInsertRowId });
       SyncService.pushDebounced();
 
@@ -402,6 +404,7 @@ export default function ProductsScreen() {
     setCategory('');
     setArticle('');
     setColor('');
+    setSize('');
     setShowColorPicker(false);
     setEditingId(null);
     setShowAdvanced(false);
@@ -430,6 +433,7 @@ export default function ProductsScreen() {
             setCategory(p.category || '');
             setArticle(p.article || '');
             setColor(p.color || '');
+            setSize(p.size || '');
             setShowColorPicker(!!(p.color));
             setShowForm(true);
             setShowAdvanced(
@@ -437,7 +441,8 @@ export default function ProductsScreen() {
               p.base_unit !== 'шт' ||
               p.is_continuous === 1 ||
               !!p.article ||
-              !!p.color
+              !!p.color ||
+              !!p.size
             );
             scrollViewRef.current?.scrollTo({ y: 0, animated: true });
           }
@@ -637,33 +642,36 @@ export default function ProductsScreen() {
               }
             }}
           >
-            <Text style={styles.addBtnText}>
-              {showForm ? '✕ ' + t('common.cancel') : (editingId ? '✎ ' + t('common.edit') : '+ ' + t('products.addProduct'))}
-            </Text>
-          </TouchableOpacity>
-
-          {!showForm && !editingId && (
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <TouchableOpacity
-                style={[styles.addBtn, styles.scanInvoiceBtn]}
-                onPress={() => setReceiveBatchModalVisible(true)}
-              >
-                <Text style={styles.addBtnText}>📦 {t('products.receiveBatch', { defaultValue: 'Партия' })}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.addBtn, styles.scanInvoiceBtn]}
-                onPress={() => setInvoiceScanVisible(true)}
-              >
-                <Text style={styles.addBtnText}>📷 {t('products.scanInvoice')}</Text>
-              </TouchableOpacity>
+            <View style={styles.addBtnContent}>
+              <Ionicons
+                name={showForm ? 'close' : (editingId ? 'pencil' : 'add')}
+                size={18}
+                color="#fff"
+              />
+              <Text style={styles.addBtnText}>
+                {showForm ? t('common.cancel') : (editingId ? t('common.edit') : t('products.addProduct'))}
+              </Text>
             </View>
-          )}
+          </TouchableOpacity>
         </View>
       )}
 
       {showForm && (
         <View style={[styles.form, themeStyles.card]}>
-          <Text style={[styles.formTitle, themeStyles.text]}>{editingId ? t('products.editProduct') : t('products.newProduct')}</Text>
+          <View style={styles.formTitleRow}>
+            <Text style={[styles.formTitle, themeStyles.text]}>{editingId ? t('products.editProduct') : t('products.newProduct')}</Text>
+            {!editingId && (
+              <TouchableOpacity
+                style={styles.scanInvoiceLink}
+                onPress={() => { setShowForm(false); setInvoiceScanVisible(true); }}
+              >
+                <Ionicons name="camera-outline" size={15} color={Colors.primary} />
+                <Text style={styles.scanInvoiceLinkText}>
+                  {t('products.scanInvoiceHint', { defaultValue: 'По фото накладной' })}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
 
           <Text style={[styles.label, themeStyles.text]}>{t('addSale.productName')} *</Text>
           <View style={{ zIndex: 3000, overflow: 'visible' }}>
@@ -944,6 +952,19 @@ export default function ProductsScreen() {
                 </View>
               )}
 
+              <Text style={[styles.label, themeStyles.text]}>{t('products.size', { defaultValue: 'Размер' })}</Text>
+              <TextInput
+                ref={sizeRef}
+                style={[styles.input, themeStyles.input]}
+                placeholder={t('products.sizePlaceholder', { defaultValue: 'напр. M, 42, 40x60' })}
+                placeholderTextColor={isDark ? '#888' : '#aaa'}
+                value={size}
+                onChangeText={setSize}
+                returnKeyType={getReturnKeyType(8)}
+                onSubmitEditing={getSubmitHandler(8)}
+                blurOnSubmit={false}
+              />
+
               <Text style={[styles.label, themeStyles.text]}>{t('products.baseUnit')}</Text>
               <TextInput
                 ref={baseUnitRef}
@@ -952,8 +973,8 @@ export default function ProductsScreen() {
                 placeholderTextColor={isDark ? '#888' : '#aaa'}
                 value={baseUnit}
                 onChangeText={setBaseUnit}
-                returnKeyType={getReturnKeyType(8)}
-                onSubmitEditing={getSubmitHandler(8)}
+                returnKeyType={getReturnKeyType(9)}
+                onSubmitEditing={getSubmitHandler(9)}
                 blurOnSubmit={false}
               />
 
@@ -984,8 +1005,8 @@ export default function ProductsScreen() {
                       placeholderTextColor={isDark ? '#888' : '#aaa'}
                       value={packageName}
                       onChangeText={setPackageName}
-                      returnKeyType={getReturnKeyType(9)}
-                      onSubmitEditing={getSubmitHandler(9)}
+                      returnKeyType={getReturnKeyType(10)}
+                      onSubmitEditing={getSubmitHandler(10)}
                       blurOnSubmit={false}
                     />
                   </View>
@@ -999,8 +1020,8 @@ export default function ProductsScreen() {
                       keyboardType="numeric"
                       value={unitsPerPackage}
                       onChangeText={setUnitsPerPackage}
-                      returnKeyType={getReturnKeyType(10)}
-                      onSubmitEditing={getSubmitHandler(10)}
+                      returnKeyType={getReturnKeyType(11)}
+                      onSubmitEditing={getSubmitHandler(11)}
                       blurOnSubmit={false}
                     />
                   </View>
@@ -1594,12 +1615,6 @@ export default function ProductsScreen() {
         onSaved={() => loadProducts(true)}
       />
 
-      <ReceiveBatchModal
-        visible={receiveBatchModalVisible}
-        onClose={() => setReceiveBatchModalVisible(false)}
-        onSaved={loadProducts}
-      />
-
       {/* Unregistered Products Quick Add Modal */}
       <Modal
         visible={showUnregisteredModal}
@@ -1801,16 +1816,25 @@ const styles = StyleSheet.create({
     flex: 1, backgroundColor: '#1D9E75',
     borderRadius: Radius.lg, padding: 14, alignItems: 'center',
   },
+  addBtnContent: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   addBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  // Отличается цветом от addBtn, чтобы визуально не путать "добавить товар
-  // вручную" со "сканировать накладную" — обе кнопки делят строку 50/50.
-  scanInvoiceBtn: { backgroundColor: '#5B6EE8' },
   form: {
     marginHorizontal: 16, marginBottom: 8,
     borderRadius: Radius.lg, padding: 16,
     ...Shadow.md,
   },
-  formTitle: { fontSize: 16, fontWeight: '600', marginBottom: 4 },
+  formTitleRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  formTitle: { fontSize: 16, fontWeight: '600' },
+  scanInvoiceLink: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingVertical: 4, paddingHorizontal: 8,
+  },
+  scanInvoiceLinkText: {
+    color: Colors.primary, fontSize: 12.5, fontWeight: '600',
+  },
   label: { fontSize: 13, marginBottom: 6, marginTop: 10 },
   input: {
     borderRadius: 8, padding: 12,

@@ -378,10 +378,13 @@
     "createAndLink": "Создать и привязать",
     "article": "Артикул / Модель",
     "color": "Цвет / Разновидность",
+    "size": "Размер",
+    "sizePlaceholder": "напр. M, 42, 40x60",
     "addVariant": "+ Добавить вариант",
     "sameArticleGroupsVariants": "Одинаковый артикул объединяет варианты в одну карточку",
     "variantsCount": "{{count}} вар.",
-    "scanInvoice": "Скан накладной"
+    "scanInvoice": "Скан накладной",
+    "scanInvoiceHint": "По фото накладной"
   },
   "warehouse": {
     "stockIn": "Приёмка",

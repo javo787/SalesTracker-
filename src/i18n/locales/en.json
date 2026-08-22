@@ -378,10 +378,13 @@
     "isContinuous": "Continuous product (meter, liter)",
     "article": "Article / Model",
     "color": "Color / Variant",
+    "size": "Size",
+    "sizePlaceholder": "e.g. M, 42, 40x60",
     "addVariant": "+ Add variant",
     "sameArticleGroupsVariants": "The same article groups variants into one card",
     "variantsCount": "{{count}} var.",
-    "scanInvoice": "Scan invoice"
+    "scanInvoice": "Scan invoice",
+    "scanInvoiceHint": "From invoice photo"
   },
   "warehouse": {
     "stockIn": "Receive",
