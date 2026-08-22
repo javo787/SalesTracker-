@@ -384,8 +384,7 @@
     "sameArticleGroupsVariants": "Бир хил артикул вариантларни битта карточкага бирлаштиради",
     "variantsCount": "{{count}} ранг",
     "scanInvoice": "Накладнойни сканерлаш",
-    "receiveBatch": "Қўлда партия",
-    "receiveMenu": "Товар қабули"
+    "scanInvoiceHint": "Товар-транспорт хати расмидан"
   },
   "warehouse": {
     "stockIn": "Қабул қилиш",

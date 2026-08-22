@@ -384,8 +384,7 @@
     "sameArticleGroupsVariants": "The same article groups variants into one card",
     "variantsCount": "{{count}} var.",
     "scanInvoice": "Scan invoice",
-    "receiveBatch": "Manual batch",
-    "receiveMenu": "Receive stock"
+    "scanInvoiceHint": "From invoice photo"
   },
   "warehouse": {
     "stockIn": "Receive",

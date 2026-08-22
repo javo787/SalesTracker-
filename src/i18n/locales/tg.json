@@ -384,8 +384,7 @@
     "sameArticleGroupsVariants": "Артикули якхела вариантҳоро дар як карточка муттаҳид мекунад",
     "variantsCount": "{{count}} навъ",
     "scanInvoice": "Хониши накладная",
-    "receiveBatch": "Партия дастӣ",
-    "receiveMenu": "Воридшавии мол"
+    "scanInvoiceHint": "Аз акси накладная"
   },
   "warehouse": {
     "stockIn": "Қабул",

@@ -381,8 +381,7 @@
     "sameArticleGroupsVariants": "El mismo código agrupa las variantes en una sola tarjeta",
     "variantsCount": "{{count}} var.",
     "scanInvoice": "Escanear factura",
-    "receiveBatch": "Lote manual",
-    "receiveMenu": "Recibir mercancía"
+    "scanInvoiceHint": "Desde foto de factura"
   },
   "warehouse": {
     "stockIn": "Entrada",

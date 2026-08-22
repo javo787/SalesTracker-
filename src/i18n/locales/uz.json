@@ -379,8 +379,7 @@
     "sameArticleGroupsVariants": "Bir xil artikul variantlarni bitta kartochkaga birlashtiradi",
     "variantsCount": "{{count}} rang",
     "scanInvoice": "Nakladnoyni skanerlash",
-    "receiveBatch": "Qo'lda partiya",
-    "receiveMenu": "Tovar qabuli"
+    "scanInvoiceHint": "Tovar-transport xati rasmidan"
   },
   "warehouse": {
     "stockIn": "Qabul qilish",

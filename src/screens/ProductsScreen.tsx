@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
-  TouchableOpacity, TextInput, Alert, RefreshControl, Modal, ActivityIndicator, Keyboard, Dimensions
+  TouchableOpacity, TextInput, Alert, RefreshControl, Modal, ActivityIndicator, Keyboard
 } from 'react-native';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -20,7 +20,6 @@ import { useFieldChain } from '../hooks/useFieldChain';
 import StockOperationModal from '../components/stock/StockOperationModal';
 import StockHistorySheet from '../components/stock/StockHistorySheet';
 import InvoiceScanModal from '../components/stock/InvoiceScanModal';
-import ReceiveBatchModal from '../components/products/ReceiveBatchModal';
 import ResolvePendingSaleModal from '../components/products/ResolvePendingSaleModal';
 import { Colors, LightTheme, DarkTheme, Radius, Shadow } from '../constants/theme';
 import { PRESET_COLORS, getColorHex, ColorCircle } from '../constants/colors';
@@ -104,13 +103,6 @@ export default function ProductsScreen() {
   const [moreCategoriesVisible, setMoreCategoriesVisible] = useState(false);
   const [historyVisible, setHistoryVisible] = useState(false);
   const [invoiceScanVisible, setInvoiceScanVisible] = useState(false);
-  const [receiveBatchModalVisible, setReceiveBatchModalVisible] = useState(false);
-  // "Скан накладной" и "Партия" были двумя отдельными кнопками в одном ряду с
-  // "Добавить товар" — при узкой ширине это ломало flex-раскладку (см. addBtn).
-  // Теперь обе спрятаны за одной иконкой-кнопкой с выпадающим меню.
-  const [showReceiveMenu, setShowReceiveMenu] = useState(false);
-  const [receiveMenuPos, setReceiveMenuPos] = useState({ top: 0, right: 0 });
-  const receiveBtnRef = useRef<any>(null);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
 
   const [resolveSaleTarget, setResolveSaleTarget] = useState<any | null>(null);
@@ -334,16 +326,6 @@ export default function ProductsScreen() {
     setEditingId(null);
     setShowAdvanced(true);
     setShowForm(true);
-  };
-
-  const openReceiveMenu = () => {
-    receiveBtnRef.current?.measureInWindow((x: number, y: number, width: number, height: number) => {
-      setReceiveMenuPos({
-        top: y + height + 6,
-        right: Dimensions.get('window').width - (x + width),
-      });
-      setShowReceiveMenu(true);
-    });
   };
 
   const onRefresh = async () => {
@@ -671,60 +653,25 @@ export default function ProductsScreen() {
               </Text>
             </View>
           </TouchableOpacity>
-
-          {!showForm && !editingId && (
-            <TouchableOpacity
-              ref={receiveBtnRef}
-              style={styles.addBtnIcon}
-              onPress={openReceiveMenu}
-              accessibilityLabel={t('products.receiveMenu', { defaultValue: 'Поступление товара' })}
-            >
-              <Ionicons name="cube-outline" size={20} color="#fff" />
-            </TouchableOpacity>
-          )}
         </View>
       )}
 
-      <Modal
-        visible={showReceiveMenu}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowReceiveMenu(false)}
-      >
-        <TouchableOpacity
-          style={StyleSheet.absoluteFill}
-          activeOpacity={1}
-          onPress={() => setShowReceiveMenu(false)}
-        >
-          <View
-            style={[
-              styles.receiveMenu,
-              themeStyles.card,
-              { top: receiveMenuPos.top, right: receiveMenuPos.right },
-            ]}
-          >
-            <TouchableOpacity
-              style={styles.receiveMenuItem}
-              onPress={() => { setShowReceiveMenu(false); setInvoiceScanVisible(true); }}
-            >
-              <Ionicons name="camera-outline" size={19} color={isDark ? '#fff' : '#333'} />
-              <Text style={[styles.receiveMenuText, themeStyles.text]}>{t('products.scanInvoice')}</Text>
-            </TouchableOpacity>
-            <View style={styles.receiveMenuDivider} />
-            <TouchableOpacity
-              style={styles.receiveMenuItem}
-              onPress={() => { setShowReceiveMenu(false); setReceiveBatchModalVisible(true); }}
-            >
-              <Ionicons name="albums-outline" size={19} color={isDark ? '#fff' : '#333'} />
-              <Text style={[styles.receiveMenuText, themeStyles.text]}>{t('products.receiveBatch', { defaultValue: 'Партия вручную' })}</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
       {showForm && (
         <View style={[styles.form, themeStyles.card]}>
-          <Text style={[styles.formTitle, themeStyles.text]}>{editingId ? t('products.editProduct') : t('products.newProduct')}</Text>
+          <View style={styles.formTitleRow}>
+            <Text style={[styles.formTitle, themeStyles.text]}>{editingId ? t('products.editProduct') : t('products.newProduct')}</Text>
+            {!editingId && (
+              <TouchableOpacity
+                style={styles.scanInvoiceLink}
+                onPress={() => { setShowForm(false); setInvoiceScanVisible(true); }}
+              >
+                <Ionicons name="camera-outline" size={15} color={Colors.primary} />
+                <Text style={styles.scanInvoiceLinkText}>
+                  {t('products.scanInvoiceHint', { defaultValue: 'По фото накладной' })}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
 
           <Text style={[styles.label, themeStyles.text]}>{t('addSale.productName')} *</Text>
           <View style={{ zIndex: 3000, overflow: 'visible' }}>
@@ -1668,12 +1615,6 @@ export default function ProductsScreen() {
         onSaved={() => loadProducts(true)}
       />
 
-      <ReceiveBatchModal
-        visible={receiveBatchModalVisible}
-        onClose={() => setReceiveBatchModalVisible(false)}
-        onSaved={loadProducts}
-      />
-
       {/* Unregistered Products Quick Add Modal */}
       <Modal
         visible={showUnregisteredModal}
@@ -1877,47 +1818,23 @@ const styles = StyleSheet.create({
   },
   addBtnContent: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   addBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  // Раньше тут было 2 доп. кнопки (Партия/Скан) с тем же flex:1, что и addBtn,
-  // вложенные в невыровненную обёртку — на узких экранах Yoga не могла
-  // корректно посчитать их ширину (flexBasis:0% от flex:1 игнорирует контент),
-  // текст переносился на много строк и раздувал высоту всего ряда через
-  // дефолтный alignItems:'stretch'. Теперь это одна кнопка ФИКСИРОВАННОГО
-  // размера — никакого вложенного flex, раскладка однозначна.
-  addBtnIcon: {
-    width: 48, height: 48,
-    backgroundColor: '#5B6EE8',
-    borderRadius: Radius.lg,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  receiveMenu: {
-    position: 'absolute',
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    minWidth: 220,
-    paddingVertical: 4,
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-  },
-  receiveMenuItem: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingVertical: 12, paddingHorizontal: 14,
-  },
-  receiveMenuText: { fontSize: 14, fontWeight: '500' },
-  receiveMenuDivider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: '#EEE',
-    marginHorizontal: 8,
-  },
   form: {
     marginHorizontal: 16, marginBottom: 8,
     borderRadius: Radius.lg, padding: 16,
     ...Shadow.md,
   },
-  formTitle: { fontSize: 16, fontWeight: '600', marginBottom: 4 },
+  formTitleRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  formTitle: { fontSize: 16, fontWeight: '600' },
+  scanInvoiceLink: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingVertical: 4, paddingHorizontal: 8,
+  },
+  scanInvoiceLinkText: {
+    color: Colors.primary, fontSize: 12.5, fontWeight: '600',
+  },
   label: { fontSize: 13, marginBottom: 6, marginTop: 10 },
   input: {
     borderRadius: 8, padding: 12,

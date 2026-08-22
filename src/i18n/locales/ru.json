@@ -384,8 +384,7 @@
     "sameArticleGroupsVariants": "Одинаковый артикул объединяет варианты в одну карточку",
     "variantsCount": "{{count}} вар.",
     "scanInvoice": "Скан накладной",
-    "receiveBatch": "Партия вручную",
-    "receiveMenu": "Поступление товара"
+    "scanInvoiceHint": "По фото накладной"
   },
   "warehouse": {
     "stockIn": "Приёмка",
